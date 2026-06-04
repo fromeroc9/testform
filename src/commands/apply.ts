@@ -230,8 +230,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         if (result.node_id) {
                             const itemId = await github.addToProject(result.node_id);
-                            if (itemId && change.scenario?.custom?.fields) {
-                                await github.updateProjectItemFields(itemId, change.scenario.custom.fields);
+                            if (itemId && (payload as any).custom_fields) {
+                                await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
                             }
                         }
 
@@ -289,8 +289,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         if (result.node_id) {
                             const itemId = await github.addToProject(result.node_id);
-                            if (itemId && change.scenario?.custom?.fields) {
-                                await github.updateProjectItemFields(itemId, change.scenario.custom.fields);
+                            if (itemId && (payload as any).custom_fields) {
+                                await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
                             }
                         }
 
@@ -340,8 +340,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         if (result.node_id) {
                             const itemId = await github.addToProject(result.node_id);
-                            if (itemId && change.scenario?.custom?.fields) {
-                                await github.updateProjectItemFields(itemId, change.scenario.custom.fields);
+                            if (itemId && (payload as any).custom_fields) {
+                                await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
                             }
                         }
 
