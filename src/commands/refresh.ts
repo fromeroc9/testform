@@ -106,10 +106,6 @@ export const refreshState = async (options: RefreshStateOptions) => {
                     if (!silent) console.log(red(`  ${res.identity}: Issue #${res.attributes.issueNumber} not found — removing from state`));
                     state.removeResource(res.identity);
                     removed++;
-                } else if (issue.state === 'closed') {
-                    if (!silent) console.log(yellow(`  ${res.identity}: Issue #${res.attributes.issueNumber} is closed — removing from state`));
-                    state.removeResource(res.identity);
-                    removed++;
                 } else {
                     let driftDetected = false;
 
