@@ -24,3 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `report`: Generate execution, coverage, and traceability matrices.
 - **Custom Mapping Engine:** Flexible configuration via `testform.json` to map tags (`@high`) and keywords (`* field assignees = @octocat`) to native GitHub fields.
 - **Documentation:** Complete documentation portal in the `docs/` folder covering architecture, DSL, and quickstarts.
+
+### Version 1.0.3
+- **Bug Fix**: Fixed an issue where `testform apply` would fail to send default `custom_fields` from `testform.json` to GitHub Projects V2 items during creation (`add`) and modification (`change`). It now correctly applies all computed fields to the GitHub project board instead of leaving them empty.
