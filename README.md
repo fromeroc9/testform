@@ -20,6 +20,11 @@ We have completely overhauled our documentation to be as intuitive and comprehen
 
 ---
 
+## Prerequisites
+
+To use Testform, it is a requirement to have an existing GitHub Project. You can create one yourself, or you can clone the following example project:
+- [Testform Template Project](https://github.com/users/fromeroc9/projects/4)
+
 ## Installation
 
 You can install Testform directly onto your system using npm. It is distributed as a global Node.js package:
