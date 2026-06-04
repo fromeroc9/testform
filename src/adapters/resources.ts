@@ -163,11 +163,16 @@ class Resource {
                     fieldChanged = true;
                 }
             } else {
-                valueStr = `"${raw}"`;
-                if (action === 'change') {
-                    fieldChanged = raw !== oldRaw;
-                } else {
+                if (action === 'change' && raw !== oldRaw && oldRaw !== undefined) {
+                    valueStr = `"${oldRaw}" -> "${raw}"`;
                     fieldChanged = true;
+                } else {
+                    valueStr = `"${raw}"`;
+                    if (action === 'change') {
+                        fieldChanged = raw !== oldRaw;
+                    } else {
+                        fieldChanged = true;
+                    }
                 }
             }
 
@@ -222,12 +227,12 @@ class Resource {
             const shortIdentity = formatIdentityDisplay(change.identity);
             const actionText =
                 change.action === 'add'
-                    ? bold(`# [${change.scenario.feature?.name || 'Unknown'}].${change.resourceType}.${shortIdentity} will be created`)
+                    ? bold(green(`# [${change.scenario.feature?.name || 'Unknown'}].${change.resourceType}.${shortIdentity} will be created`))
                     : change.action === 'change'
-                        ? bold(`# ${change.resourceType}.${shortIdentity} will be updated in-place`)
+                        ? bold(yellow(`# ${change.resourceType}.${shortIdentity} will be updated in-place`))
                         : change.action === 'replace'
-                            ? bold(`# ${change.resourceType}.${shortIdentity} must be replaced`)
-                            : bold(`# ${change.resourceType}.${shortIdentity} will be destroyed`);
+                            ? bold(red(`# ${change.resourceType}.${shortIdentity} must be replaced`))
+                            : bold(red(`# ${change.resourceType}.${shortIdentity} will be destroyed`));
 
             output.push(`  ${actionText}`);
 

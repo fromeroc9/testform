@@ -90,3 +90,25 @@ export async function askMigrationApproval(newBackendType: string): Promise<bool
         });
     });
 }
+
+/**
+ * Interactive prompt for selecting a status.
+ *
+ * @returns The selected status string.
+ */
+export async function askStatus(): Promise<string> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+    return new Promise((resolve) => {
+        console.log('');
+        console.log(bold('Select the new status for this testcase:'));
+        console.log('  Available options: passed, failed, pending, skipped, blocked, etc.');
+        console.log('');
+
+        rl.question('  Enter the new status: ', (answer) => {
+            rl.close();
+            console.log('');
+            resolve(answer.trim().toLowerCase());
+        });
+    });
+}

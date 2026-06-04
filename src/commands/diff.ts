@@ -71,7 +71,14 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         const rawIdentity = scenario.custom?.identity;
         if (!rawIdentity) continue;
 
-        const identity = `${scenario.uri}::${rawIdentity}`;
+        let identity: string;
+        if (rawIdentity.includes('::')) {
+            identity = rawIdentity;
+        } else if (rawIdentity === scenario.uri) {
+            identity = rawIdentity;
+        } else {
+            identity = `${scenario.uri}::${rawIdentity}`;
+        }
 
         localIds.add(identity);
         const localHash = hashScenario(scenario);

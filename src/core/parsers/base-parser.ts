@@ -91,6 +91,7 @@ export abstract class BaseParser {
                         keyword: feature?.keyword ?? "",
                         name: feature?.name ?? "",
                         description: feature?.description ?? "",
+                        location: feature?.location.line ?? 0
                     };
 
                     if (isUnique && hasTemplate && (s.examples ?? []).length > 0) {
@@ -148,6 +149,7 @@ export abstract class BaseParser {
                                 name: feature?.name ?? "",
                                 description: feature?.description ?? "",
                                 tags: (feature?.tags ?? []).map((t) => t.name),
+                                location: feature?.location?.line ?? 0
                             },
                             location: r.location.line,
                             keyword: r.keyword,

@@ -148,12 +148,14 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     for (const scenario of filtered) {
         let identity: string;
 
-        if (scope === 'testrun' || scope === 'testplan') {
-            identity = scenario.custom?.identity || ''; // Files have explicit identity in custom now
-            if (!identity) continue;
+        const rawIdentity = scenario.custom?.identity;
+        if (!rawIdentity) continue;
+        
+        if (rawIdentity.includes('::')) {
+            identity = rawIdentity;
+        } else if (rawIdentity === scenario.uri) {
+            identity = rawIdentity;
         } else {
-            const rawIdentity = scenario.custom?.identity;
-            if (!rawIdentity) continue;
             identity = `${scenario.uri}::${rawIdentity}`;
         }
 
@@ -162,7 +164,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         const existing = stateMap.get(identity);
 
         const shouldForceReplace = replaceTargets
-            ? (Array.isArray(replaceTargets) 
+            ? (Array.isArray(replaceTargets)
                 ? replaceTargets.some(t => identity === t || identity.startsWith(`${t}::`) || identity.endsWith(`/${t}`) || identity.endsWith(t))
                 : (identity === replaceTargets || identity.startsWith(`${replaceTargets}::`) || identity.endsWith(`/${replaceTargets}`) || identity.endsWith(replaceTargets)))
             : false;
@@ -215,7 +217,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 resourceType: RESOURCE_TYPE,
                 scenario: (scope === 'testrun' || scope === 'testplan') ? {
                     uri: '(state)',
-                    feature: { tags: [], keyword: '', name: res.attributes.title, description: '' },
+                    feature: { tags: [], keyword: '', name: res.attributes.title, description: '', location: 0 },
                     location: 0,
                     keyword: '',
                     name: res.attributes.title,
@@ -225,7 +227,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                     custom: { identity: res.identity },
                 } : {
                     uri: '(state)',
-                    feature: { tags: [], keyword: '', name: '', description: '' },
+                    feature: { tags: [], keyword: '', name: '', description: '', location: 0 },
                     location: 0,
                     keyword: '',
                     name: res.attributes.title,

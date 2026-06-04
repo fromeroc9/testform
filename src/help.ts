@@ -237,6 +237,12 @@ Options:
   -replace=resource      ${TITLE_APP} will plan to replace this resource instance
                          instead of doing an update or no-op action. 
 
+  -set-status=assigns    Injects or updates the status field in your local
+                         testrun features before applying.
+                         (e.g., "tc1=passed,tc2=failed").
+                         Supported statuses: passed, failed, pending,
+                         blocked, skipped, unexecuted.
+
   -state=path            Path to read and save state. Defaults to "testform.tfstate".
                          Legacy option for the local backend only. See the local
                          backend's documentation for more information.

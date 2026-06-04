@@ -59,11 +59,24 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
             scenarioName = parts.pop() || '*';
             ruleName = parts.join('::');
         }
-        return testcases.filter(r => {
+        const matches = testcases.filter(r => {
             const matchesFile = r.uri.endsWith(ruleName) || r.uri.includes(ruleName);
             const matchesScenario = scenarioName === '*' || r.name === scenarioName || r.name.includes(scenarioName);
             return matchesFile && matchesScenario;
         });
+
+        // Detect duplicates
+        const uris = Array.from(new Set(matches.map(tc => tc.uri)));
+        if (uris.length > 1) {
+            if (scenarioName !== '*') {
+                const { logger } = require('../logger');
+                logger.error(`Ambiguous reference for Scenario '${scenarioName}' under Rule '${ruleName}'. It matches multiple files:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nPlease specify the full file path in your Rule to disambiguate.`);
+            } else {
+                const { logger } = require('../logger');
+                logger.warn(`Rule '${ruleName}' matches multiple feature files. Processing all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
+            }
+        }
+        return matches;
     }
 
     if (scope === 'testplan' || scope === 'testcase') {

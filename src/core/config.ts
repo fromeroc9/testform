@@ -65,6 +65,19 @@ export class Config {
         if (scope == "testplan") return id ?? "tp-*"
     }
 
+    getConvention(scope: IScope) {
+        const globalConf = this.config.scope && Object.prototype.hasOwnProperty.call(this.config.scope, 'global') ? (this.config.scope as any)['global'] : undefined;
+        const scopeConf = this.config.scope && Object.prototype.hasOwnProperty.call(this.config.scope, scope) ? (this.config.scope as any)[scope] : undefined;
+        
+        // Merge convention: scope overrides global
+        if (!globalConf?.convention && !scopeConf?.convention) return undefined;
+        
+        return {
+            ...(globalConf?.convention || {}),
+            ...(scopeConf?.convention || {})
+        };
+    }
+
     getReportMapping(key: string): string | undefined {
         return this.config.report_mapping ? this.config.report_mapping[key] : undefined;
     }
