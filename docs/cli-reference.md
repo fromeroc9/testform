@@ -133,6 +133,7 @@ If you run `apply` without passing a saved plan file, it will implicitly run a `
 - `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `10`). Lower this if you hit GitHub secondary rate limits.
 - `-destroy`: Instructs the apply to destroy all tracked infrastructure instead of creating/updating.
 - `-replace=resource`: Force the replacement of a specific resource instance.
+- `-set-status="assigns"`: Injects or updates the status field in your local testrun features before applying (e.g., `"tc1=passed,tc2=failed"`). Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`.
 - `-state=path`: Custom path to read and save state (resolved relative to `-chdir`).
 - `-backup=path`: Path to backup the existing state file before modifying. Set to `-` to disable backup.
 - `-var="key=value"` / `-var-file=filename`: Inject variables just like in `plan`.
@@ -306,3 +307,21 @@ A diferencia de `state show` (que muestra cómo se ve un recurso individual crud
 
 **Technical Behavior:**
 - **Planes guardados:** Cuando le pasas la ruta a un archivo `.out` o `.json` generado por `plan -out=path`, `show` te desglosará todos los cambios (add, change, destroy, replace) utilizando el mismo motor de renderizado avanzado HCL (HashiCorp Configuration Language), alineando atributos a la perfección.
+
+---
+
+## 🥚 Easter Eggs
+
+### `generate`
+A secret command created for those who hate writing boilerplate and thinking of file names! This command automatically generates the skeleton for your `.feature` files based on a configurable convention.
+
+*Usage:* `testform generate <scope> [title] [-rule="file.feature"]`
+*Example:* `testform generate testrun "My Super Test" -rule="agencias.feature"`
+
+**Technical Behavior:**
+- **Auto-naming:** Testform will read the `convention` property inside the scope block in your `testform.json`. If no convention or title is defined, it will auto-generate safe names (e.g., `20260604_153025.run.feature`).
+- **Dynamic variables:** You can configure your `testform.json` to generate file names using `{YYYYMMDD}`, `{HHmmss}`, `{timestamp}`, and `{slug}` (which is a URL-safe, hyphen-separated version of your Feature title, e.g., "My Super Test" becomes `my-super-test`).
+- **Unique Hash:** To prevent filename collisions, a short 6-character random hex hash (e.g., `a1b2c3`) is always injected automatically before the file extension.
+- **Rules Mapping (`-rule`):** You can pass one or more `-rule` flags to pre-populate the `.feature` file with your dependencies. The command recursively validates that the target file actually exists in your workspace before generating the file.
+- **Auto-Identity Numbering:** For `testrun` and `testplan` scopes, if your `testform.json` defines a wildcard identity (e.g., `@tr-*`), the generator will scan your workspace, find the highest existing number, and automatically inject the next sequential tag (e.g., `@tr-15`) at the top of the file!
+- **Automatic directories:** If the target directory does not exist, it creates it automatically based on your conventions.

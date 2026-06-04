@@ -27,9 +27,15 @@ export interface IGitHubConfig {
     tokenEnv: string;
 }
 
+export interface IConvention {
+    directory?: string;
+    filename?: string;
+}
+
 export interface ITest {
     identity?: string;
     fields?: IField[];
+    convention?: IConvention;
 }
 
 export interface IField {
@@ -46,6 +52,7 @@ export interface ParserFeature {
     keyword: string;
     name: string;
     description: string;
+    location: number;
 }
 
 export interface ParserPolicy {

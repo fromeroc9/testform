@@ -156,6 +156,24 @@ The identity pattern tells Testform which files belong to which scope.
 - **Tag-based:** `"@testcase"` (Any scenario with this tag will be parsed as a testcase).
 - **File-extension based:** `"*.case.feature::*"` (Any scenario inside a file ending with `.case.feature` will be parsed as a testcase).
 
+### 🥚 `convention` (Easter Egg)
+If you hate creating test files manually with the correct boilerplate, Testform has a hidden command `testform generate` to auto-write them for you.
+To make it work to your liking, you can add a `convention` block inside the `global` scope (to apply to everything) or inside specific scopes (`testcase`, `testrun`, `testplan`) to override them:
+```json
+"global": {
+  "convention": {
+    "filename": "{YYYYMMDD}_{HHmmss}.{scope}.feature"
+  }
+},
+"testrun": {
+  "convention": {
+    "directory": "testrun",
+    "filename": "{slug}_{YYYYMMDD}_{HHmmss}.run.feature"
+  }
+}
+```
+*Supported dynamic variables in `filename`: `{YYYYMMDD}`, `{HHmmss}`, `{timestamp}`, `{slug}` (a sanitized, hyphenated version of your Feature title).*
+
 ### `fields`
 This array is your **Strict Schema Definition**. As explained in the [DSL Guide](writing-tests-dsl.md), any field you use in your `.feature` files MUST be declared here. If a user writes `* field browser = chrome` in their test, but `browser` is not declared in `fields`, Testform will throw an error.
 

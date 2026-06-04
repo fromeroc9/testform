@@ -198,7 +198,6 @@ policy.registry({
     id: "no-feature-tags",
     scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
-        const allowedTags = ["@testcase", "@testrun", "@testplan"];
         const expectedTag = `@${scope}`;
         const seen = new Set<string>();
 
@@ -207,25 +206,31 @@ policy.registry({
             if (seen.has(uri)) continue;
             seen.add(uri);
 
+            const allowedScopeTags = ["@testcase", "@testrun", "@testplan"];
+            const allowedFeatureTags = [...allowedScopeTags];
+            if (scenario.custom?.identity) {
+                allowedFeatureTags.push(scenario.custom.identity.toLowerCase());
+            }
+
             const featureTags = scenario.feature?.tags ?? [];
-            const invalidTags = featureTags.filter(tag => !allowedTags.includes(tag.toLowerCase()));
+            const invalidTags = featureTags.filter(tag => !allowedFeatureTags.includes(tag.toLowerCase()));
 
             if (invalidTags.length > 0) {
                 rules.push({
                     id: "no-feature-tags",
                     title: `Feature-level tags are not allowed in ${uri} scope (found: ${invalidTags.join(", ")}).`,
-                    detail: "Move any tags from Feature: to the individual Scenario level, except for @testcase, @testrun, @testplan.",
+                    detail: "Move any tags from Feature: to the individual Scenario level, except for scope tags and identity tags.",
                     uri,
                 });
             }
 
-            const declaredScopeTags = featureTags.filter(tag => allowedTags.includes(tag.toLowerCase()));
+            const declaredScopeTags = featureTags.filter(tag => allowedScopeTags.includes(tag.toLowerCase()));
             for (const tag of declaredScopeTags) {
                 if (tag.toLowerCase() !== expectedTag) {
                     rules.push({
                         id: "invalid-scope-tag",
                         title: `Mismatched scope: file is tagged as ${tag} but is being processed as ${expectedTag}.`,
-                        detail: `A feature file designed for ${tag} cannot be executed in --scope ${scope}.`,
+                        detail: `A feature file designed for ${tag} cannot be executed in -scope ${scope}.`,
                         uri,
                     });
                 }
@@ -236,19 +241,40 @@ policy.registry({
 
 policy.registry({
     id: "identity-required",
-    scope: ["testcase"],
+    scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         for (const scenario of scenarios ?? []) {
             const identity = scenario.custom?.identity;
-            if (!identity || identity.trim() === "") {
+
+            if (!identity || identity.trim() === "" || identity === scenario.uri) {
                 rules.push({
                     id: "identity-required",
-                    title: "Every scenario must have an identity tag matching the configured identity pattern.",
-                    detail: "Add the identity tag (e.g. @tc-1) to each scenario.",
+                    title: scope === 'testcase'
+                        ? "Every scenario must have an identity tag matching the configured identity pattern."
+                        : "Every feature must have an identity tag matching the configured identity pattern.",
+                    detail: scope === 'testcase'
+                        ? "Add the identity tag (e.g. @tc-1) to each scenario."
+                        : "Add the identity tag (e.g. @tr-1) to the Feature level.",
                     uri: scenario.uri ?? "(unknown)",
-                    scenario: scenario.name,
-                    line: scenario.location,
+                    scenario: scope === 'testcase' ? scenario.name : undefined,
+                    line: scope === 'testcase' ? scenario.location : (scenario.feature?.location ?? scenario.location),
                 });
+                continue;
+            }
+
+            if (scope === 'testrun' || scope === 'testplan') {
+                const featureTags = scenario.feature?.tags ?? [];
+                const hasFeatureTag = featureTags.some(t => t.toLowerCase() === identity.toLowerCase());
+
+                if (!hasFeatureTag) {
+                    rules.push({
+                        id: "identity-feature-level-required",
+                        title: `The identity tag ${identity} must be declared at the Feature level.`,
+                        detail: `Move the identity tag ${identity} so it is placed next to the @${scope} tag before the 'Feature:' keyword.`,
+                        uri: scenario.uri ?? "(unknown)",
+                        line: scenario.feature?.location ?? scenario.location,
+                    });
+                }
             }
         }
     }
@@ -256,65 +282,91 @@ policy.registry({
 
 policy.registry({
     id: "identity-unique",
-    scope: ["testcase"],
+    scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
-        const byFeature = new Map<string, ParserScenario[]>();
+        const seen = new Map<string, { scenario: string; line?: number; keyword: string; uri: string }[]>();
 
         for (const scenario of scenarios) {
-            const uri = scenario.uri;
-            const group = byFeature.get(uri);
-            if (group) {
-                group.push(scenario);
+            const identity = scenario.custom?.identity?.trim();
+            if (!identity) continue;
+
+            // Ignore if the identity is just the uri fallback
+            if (identity === scenario.uri) continue;
+
+            const entry = { scenario: scenario.name, line: scenario.location, keyword: scenario.keyword || '', uri: scenario.uri || '' };
+
+            // For testcase, identities only need to be unique within the same file.
+            // For testrun/testplan, identities must be globally unique across all files.
+            const uniquenessKey = scope === 'testcase' ? `${scenario.uri}::${identity}` : identity;
+
+            const existing = seen.get(uniquenessKey);
+            if (existing) {
+                existing.push(entry);
             } else {
-                byFeature.set(uri, [scenario]);
+                seen.set(uniquenessKey, [entry]);
             }
         }
 
-        for (const [uri, featureScenarios] of byFeature) {
-            const seen = new Map<string, { scenario: string; line?: number; keyword: string }[]>();
+        for (const [key, entries] of seen) {
+            if (entries.length <= 1) continue;
 
-            for (const scenario of featureScenarios) {
-                const identity = scenario.custom?.identity?.trim();
-                if (!identity) continue;
+            const identity = key.includes('::') ? key.split('::')[1] : key;
 
-                const entry = { scenario: scenario.name, line: scenario.location, keyword: scenario.keyword || '' };
-                const existing = seen.get(identity);
-                if (existing) {
-                    existing.push(entry);
-                } else {
-                    seen.set(identity, [entry]);
-                }
+            const allSameOutline =
+                entries.every((e) => (e.keyword || '').trim() === "Scenario Outline") &&
+                entries.every((e) => e.line === entries[0].line && e.uri === entries[0].uri);
+
+            if (allSameOutline) {
+                rules.push({
+                    id: "unique-key-required",
+                    title: `Scenario Outline expanded ${entries.length} rows but all share the same identity "${identity}".`,
+                    detail: "Add a <key> inside the identity tag (e.g. @tc-<key>) so each expanded row has a unique identity.",
+                    uri: entries[0].uri,
+                    scenario: entries[0].scenario,
+                    line: entries[0].line,
+                });
+                continue;
             }
 
-            for (const [identity, entries] of seen) {
-                if (entries.length <= 1) continue;
+            for (const entry of entries) {
+                let suggestion = "";
+                const match = identity.match(/^(@[a-zA-Z0-9-]+?)-?(\d+)(.*)$/);
+                if (match) {
+                    const prefix = match[1] + (identity.includes('-') ? '-' : '');
+                    const suffix = match[3];
+                    let max = 0;
 
-                const allSameOutline =
-                    entries.every((e) => (e.keyword || '').trim() === "Scenario Outline") &&
-                    entries.every((e) => e.line === entries[0].line);
+                    for (const s of scenarios) {
+                        // For testcase, only check within the same file. For others, check globally.
+                        if (scope === 'testcase' && s.uri !== entry.uri) continue;
 
-                if (allSameOutline) {
-                    rules.push({
-                        id: "unique-key-required",
-                        title: `Scenario Outline expanded ${entries.length} rows but all share the same identity "${identity}".`,
-                        detail: "Add a <key> inside the identity tag (e.g. @tc-<key>) so each expanded row has a unique identity.",
-                        uri,
-                        scenario: entries[0].scenario,
-                        line: entries[0].line,
-                    });
-                    continue;
+                        const id = s.custom?.identity?.trim();
+                        if (id && id !== s.uri) {
+                            // Extract numbers from matching prefixes
+                            const m = id.match(new RegExp(`^${prefix}(\\d+)${suffix}$`));
+                            if (m) {
+                                const num = parseInt(m[1], 10);
+                                if (num > max) max = num;
+                            }
+                        }
+                    }
+                    if (max > 0) {
+                        suggestion = ` The next available identity ${scope === 'testcase' ? 'in this file ' : ''}is ${prefix}${max + 1}${suffix}.`;
+                    }
                 }
 
-                for (const entry of entries) {
-                    rules.push({
-                        id: "identity-unique",
-                        title: `Duplicate identity "${identity}" found in ${entries.length} scenarios.`,
-                        detail: "Each scenario must have a unique identity tag.",
-                        uri,
-                        scenario: entry.scenario,
-                        line: entry.line,
-                    });
-                }
+                rules.push({
+                    id: "identity-unique",
+                    title: scope === 'testcase'
+                        ? `Duplicate identity "${identity}" found in the same file.`
+                        : `Duplicate identity "${identity}" found.`,
+                    detail: (scope === 'testcase'
+                        ? "Each scenario within a file must have a unique identity tag."
+                        : "Each element must have a globally unique identity tag in the workspace.") + suggestion,
+                    uri: entry.uri,
+                    scenario: entry.scenario,
+                    line: entry.line,
+                });
             }
         }
     }

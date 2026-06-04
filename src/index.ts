@@ -23,6 +23,7 @@ import { loginCmd } from './commands/login';
 import { logoutCmd } from './commands/logout';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
+import { generateCmd } from './commands/generate';
 import { IScope } from './types';
 import { VariableParser } from './core/variables';
 import { notify } from './notify';
@@ -148,7 +149,8 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         'id',
         'dry-run',
         'apply',
-        'field'
+        'field',
+        'rule'
     ]);
 
     return rawArgs.map((arg) => {
@@ -239,6 +241,7 @@ const main = async () => {
             '--filter': [String],
             '--id': String,
             '--field': [String],
+            '--rule': [String],
             '--help': Boolean,
             '--verbose': Boolean,
             '--version': Boolean,
@@ -599,6 +602,48 @@ const main = async () => {
             statePath: argv['--state']
         });
         process.exit(0);
+    }
+
+    if (command === 'generate') {
+        let genScope: string | undefined = undefined;
+        let titleArg: string | undefined = undefined;
+        
+        const hasScopeFlag = Object.prototype.hasOwnProperty.call(argv, '--scope');
+        
+        if (commandArgs.length > 0) {
+            // First argument could be scope or title
+            const first = commandArgs[0].toLowerCase();
+            if (['testcase', 'testrun', 'testplan'].includes(first)) {
+                genScope = first;
+                titleArg = commandArgs.slice(1).join(' ');
+            } else {
+                titleArg = commandArgs.join(' ');
+            }
+        }
+        
+        if (!genScope && hasScopeFlag) {
+            genScope = String(argv['--scope']);
+        }
+        
+        if (!genScope) {
+            logger.error(`Usage: testform generate <scope> [title]\n\nYou must specify the scope either as the first argument or using the -scope flag (e.g., -scope=testrun).`);
+            process.exit(1);
+        }
+
+        if (!['testcase', 'testrun', 'testplan'].includes(genScope)) {
+            logger.error(`Invalid scope '${genScope}'. Must be one of: testcase, testrun, testplan.`);
+            process.exit(1);
+        }
+
+        if (!titleArg) titleArg = undefined; // empty string to undefined
+
+        await generateCmd({
+            dir: workDir,
+            scope: genScope as IScope,
+            title: titleArg,
+            rules: argv['--rule'] || []
+        });
+        process.exit(process.exitCode || 0);
     }
 
     if (command === 'fmt') {

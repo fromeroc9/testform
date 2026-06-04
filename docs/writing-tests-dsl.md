@@ -105,8 +105,11 @@ Feature: Q3 Regression Cycle
 ```
 
 ### How it works
-- **`Rule`**: Specifies the target `.feature` file where the test cases are located.
+- **`Rule`**: Specifies the target `.feature` file where the test cases are located. You can specify just the file name (e.g., `login.case.feature`) or the relative path (e.g., `auth/login.case.feature`).
 - **`Scenario`**: Contains the specific identity (e.g., `@tc-01`) of the test case you want to include in this run.
+
+> [!WARNING]
+> **Resolving Collisions:** If your project contains multiple feature files with the exact same name (e.g., `v1/login.feature` and `v2/login.feature`), and you only use `Rule: login.feature` while specifying a particular scenario, Testform will abort execution with a fatal error due to ambiguity. To fix this, you must specify the full or relative path in your Rule, for example: `Rule: v2/login.feature`. If you do not specify a scenario (meaning you want all of them), Testform will process all matching files and emit a *warning*.
 
 When you `apply` this Test Run, Testform will automatically check the statuses of the linked test cases and update the checklist in the GitHub Issue body.
 

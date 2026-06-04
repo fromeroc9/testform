@@ -24,7 +24,7 @@ export class TestrunParser extends TestcaseParser {
             const aggregated = JSON.parse(JSON.stringify(groupScenarios[0])) as ParserScenario;
             aggregated.custom ??= {};
             // If the base parser extracted an identity from tags, preserve it, otherwise fallback to uri
-            const firstScenarioWithIdentity = groupScenarios.find(s => s.custom?.identity && s.custom.identity.includes('::@'));
+            const firstScenarioWithIdentity = groupScenarios.find(s => s.custom && s.custom.identity);
             if (firstScenarioWithIdentity && firstScenarioWithIdentity.custom?.identity) {
                 aggregated.custom.identity = firstScenarioWithIdentity.custom.identity;
             } else {

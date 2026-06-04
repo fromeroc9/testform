@@ -9,11 +9,10 @@ import { calculatePlan } from './plan';
 import { IScope, GitHubIssuePayload } from '../types';
 import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
-import { askApproval } from '../core/prompt';
+import { askApproval, askStatus } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
 import { createCommandContext, CommandContext } from '../core/command-context';
 import { GitHubAdapter } from '../adapters/github';
-import { writeStatusToFeatureFiles } from '../core/feature-writer';
 
 export interface ApplyCmdOptions {
     dir?: string;
@@ -87,9 +86,54 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 return;
             }
         } else {
-            // Only allow status modifications when applying the current configuration (no plan file)
             if (setStatus && scope === 'testrun') {
-                writeStatusToFeatureFiles(dir, scope, setStatus);
+                const ctx = await createCommandContext({ dir, verbose, lock: false });
+                if (!ctx) return;
+                
+                let targetId = setStatus;
+                let newStatus = '';
+                if (setStatus.includes('=')) {
+                    [targetId, newStatus] = setStatus.split('=').map(s => s.trim());
+                } else {
+                    newStatus = await askStatus();
+                }
+                targetId = targetId.replace(/^github_testcase\./, '').replace(/^github_testrun\./, '');
+
+                const rawResources = stateObj.getResources('github_testrun');
+                let foundRun: any = null;
+                
+                for (const r of rawResources) {
+                    const commentIds = r.attributes?.testcaseCommentIds || {};
+                    const matchingKey = Object.keys(commentIds).find(k => k === targetId || k.endsWith(`::${targetId}`));
+                    if (matchingKey) {
+                        foundRun = r;
+                        targetId = matchingKey;
+                        break;
+                    }
+                }
+
+                if (!foundRun) {
+                    notify.push({ type: 'error', title: `Could not find testcase '${targetId}' in any testrun state.`, detail: [] });
+                    return;
+                }
+
+                const commentId = foundRun.attributes.testcaseCommentIds[targetId];
+                if (commentId) {
+                    const tcResource = stateObj.getResources('github_testcase').find(r => r.identity === targetId);
+                    const tcTitle = tcResource?.attributes?.title || targetId;
+                    const keys = Object.keys(foundRun.attributes.testcaseCommentIds);
+                    const i = keys.indexOf(targetId) + 1;
+
+                    const commentBody = `| # | Test Case | Status |\n|---|-----------|--------|\n| ${i} | ${tcTitle} | ${newStatus} |`;
+                    await ctx.github.updateIssueComment(commentId, commentBody);
+                    console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
+
+                    if (!foundRun.attributes.testcaseStatuses) foundRun.attributes.testcaseStatuses = {};
+                    foundRun.attributes.testcaseStatuses[targetId] = newStatus;
+                    await stateObj.save();
+                    console.log(green(bold(`Status successfully updated!`)));
+                }
+                return;
             }
 
             if (refresh && !refreshOnly) {
@@ -157,8 +201,14 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             if (change.resourceType === 'github_testplan' && change.scenario.custom?.testruns) {
                 for (const tr of change.scenario.custom.testruns) {
                     const runResources = stateObj.getResources('github_testrun').filter(r =>
-                        r.identity.endsWith(tr)
+                        r.identity.endsWith(tr) || r.identity.includes(tr)
                     );
+                    
+                    if (runResources.length > 1) {
+                        const uris = Array.from(new Set(runResources.map(r => r.identity)));
+                        logger.warn(`Rule '${tr}' in Testplan matches multiple Testruns. Linking all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
+                    }
+
                     for (const runResource of runResources) {
                         if (runResource?.attributes?.issueNumber) {
                             try {
@@ -178,34 +228,50 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
         // Helper to sync status comments for testruns
         const syncTestrunComments = async (change: any, issueNumber: number, existingAttributes?: any) => {
-            if (change.resourceType !== 'github_testrun' || !change.scenario.custom?.groupScenarios) return {};
+            if (change.resourceType !== 'github_testrun' || !change.scenario.custom?.testcases) return {};
 
             const testcaseCommentIds: Record<string, number> = existingAttributes?.testcaseCommentIds || {};
             const testcaseStatuses: Record<string, string> = existingAttributes?.testcaseStatuses || {};
 
             let i = 1;
-            for (const tcScenario of change.scenario.custom.groupScenarios) {
-                if (!tcScenario.rule || !tcScenario.name) continue;
+            for (const tc of change.scenario.custom.testcases) {
+                const parts = tc.split('::');
+                const scenarioName = parts.pop();
+                const ruleName = parts.pop() || '';
+                const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
+                
+                const tcResources = stateObj.getResources('github_testcase').filter((r: any) =>
+                    r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
+                );
+                
+                for (const tcResource of tcResources) {
+                    const tcIdentity = tcResource.identity;
+                    
+                    const groupScenario = change.scenario.custom.groupScenarios.find((s: any) => {
+                        if (!s.rule || !s.name) return false;
+                        const sBaseRule = s.rule.name.replace('.case.feature', '').replace('.feature', '');
+                        return tcIdentity.includes(sBaseRule) && (s.name === '*' || tcIdentity.endsWith(`::${s.name}`));
+                    });
+                    
+                    const localStatus = groupScenario?.custom?.fields?.status || groupScenario?.custom?.fields?.Status || existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
+                    const tcTitle = tcResource.attributes?.title || tcIdentity;
 
-                const tcIdentity = `${tcScenario.rule.name}::${tcScenario.name}`;
-                const localStatus = tcScenario.custom?.fields?.status || 'pending';
-                const tcTitle = tcScenario.name;
+                    if (!testcaseCommentIds[tcIdentity] || testcaseStatuses[tcIdentity] !== localStatus) {
+                        const commentBody = `| # | Test Case | Status |\n|---|-----------|--------|\n| ${i} | ${tcTitle} | ${localStatus} |`;
 
-                if (!testcaseCommentIds[tcIdentity] || testcaseStatuses[tcIdentity] !== localStatus) {
-                    const commentBody = `| # | Test Case | Status |\n|---|-----------|--------|\n| ${i} | ${tcTitle} | ${localStatus} |`;
+                        if (testcaseCommentIds[tcIdentity]) {
+                            await github.updateIssueComment(testcaseCommentIds[tcIdentity], commentBody);
+                            console.log(`  -> Updated status comment for ${tcIdentity} to '${localStatus}'`);
+                        } else {
+                            const result = await github.createIssueComment(issueNumber, commentBody);
+                            testcaseCommentIds[tcIdentity] = result.id;
+                            console.log(`  -> Created status comment for ${tcIdentity} as '${localStatus}'`);
+                        }
 
-                    if (testcaseCommentIds[tcIdentity]) {
-                        await github.updateIssueComment(testcaseCommentIds[tcIdentity], commentBody);
-                        console.log(`  -> Updated status comment for ${tcIdentity} to '${localStatus}'`);
-                    } else {
-                        const result = await github.createIssueComment(issueNumber, commentBody);
-                        testcaseCommentIds[tcIdentity] = result.id;
-                        console.log(`  -> Created status comment for ${tcIdentity} as '${localStatus}'`);
+                        testcaseStatuses[tcIdentity] = localStatus;
                     }
-
-                    testcaseStatuses[tcIdentity] = localStatus;
+                    i++;
                 }
-                i++;
             }
 
             return { testcaseCommentIds, testcaseStatuses };
