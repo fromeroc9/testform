@@ -1,0 +1,53 @@
+{
+	"name": "@fromeroc9/testform",
+	"version": "1.0.0",
+	"description": "Testform transforms standard issue trackers into full-fledged Test Management ecosystems using declarative Gherkin configurations that can be shared, reviewed, and versioned as code.",
+	"author": "Flavio Romero <flavio.arc9@gmail.com>",
+	"main": "dist/cli/index.js",
+	"license": "GPL-3.0-or-later",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/fromeroc9/testfrom.git"
+	},
+	"keywords": [
+		"test-management",
+		"test-as-code",
+		"gherkin",
+		"bdd",
+		"behavior-driven development",
+		"github",
+		"testfrom"
+	],
+	"files": [
+		"dist",
+		"README"
+	],
+	"bin": {
+		"testform": "dist/cli/index.js"
+	},
+	"scripts": {
+		"test": "jest",
+		"build": "ncc build src/index.ts -m -o dist/cli && ncc build src/action.ts -m -o dist/action",
+		"dev": "tsx src/index.ts"
+	},
+	"devDependencies": {
+		"@types/jest": "30.0.0",
+		"@types/node": "24.12.4",
+		"@vercel/ncc": "0.38.4",
+		"jest": "30.4.2",
+		"ts-jest": "29.4.11",
+		"tsx": "4.19.3",
+		"typescript": "5.8.2"
+	},
+	"dependencies": {
+		"@actions/core": "1.10.1",
+		"@aws-sdk/client-dynamodb": "3.1054.0",
+		"@aws-sdk/client-s3": "3.1054.0",
+		"@azure/storage-blob": "12.31.0",
+		"@cucumber/gherkin": "39.1.0",
+		"@cucumber/messages": "30.1.0",
+		"@google-cloud/storage": "7.19.0",
+		"arg": "5.0.2",
+		"chalk": "4.1.2"
+	}
+}

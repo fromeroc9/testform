@@ -1,0 +1,22 @@
+name: 'Testform Execute'
+description: 'Run Testform commands inside GitHub Actions'
+branding:
+  icon: 'terminal'
+  color: 'blue'
+
+inputs:
+  command:
+    description: 'The testform command to run (e.g. init, plan, apply).'
+    required: true
+  working-directory:
+    description: 'The working directory where testform should execute.'
+    required: false
+    default: '.'
+  args:
+    description: 'Additional arguments for the command (e.g. -auto-approve).'
+    required: false
+    default: ''
+
+runs:
+  using: 'node20'
+  main: 'dist/action/index.js'

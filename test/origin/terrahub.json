@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "github": {
+    "owner": "fromeroc9",
+    "repository": "test-management",
+    "projectId": 1,
+    "tokenEnv": "GITHUB_TOKEN"
+  },
+  "scope": {
+    "testcase": {
+      "identity": "[*]",
+      "fields": [
+        {
+          "name": "priority",
+          "type": "tags",
+          "required": true,
+          "values": [
+            "@low",
+            "@medium",
+            "@high"
+          ]
+        },
+        {
+          "name": "automate",
+          "type": "keywords",
+          "required": true
+        }
+      ]
+    },
+    "testrun": {
+      "fields": [
+        {
+          "name": "priority",
+          "type": "tags",
+          "required": true,
+          "values": [
+            "@low",
+            "@medium",
+            "@high"
+          ]
+        }
+      ]
+    },
+    "testplan": {
+      "fields": [
+        {
+          "name": "priority",
+          "type": "tags",
+          "required": true,
+          "values": [
+            "@low",
+            "@medium",
+            "@high"
+          ]
+        }
+      ]
+    }
+  }
+}
