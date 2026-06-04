@@ -240,7 +240,7 @@ export class GitHubAdapter {
                 nodes {
                     ... on ProjectV2Field { id name dataType }
                     ... on ProjectV2SingleSelectField { id name dataType options { id name } }
-                    ... on ProjectV2IterationField { id name dataType }
+                    ... on ProjectV2IterationField { id name dataType configuration { iterations { id title } } }
                 }
             }
         `;
@@ -311,9 +311,10 @@ export class GitHubAdapter {
                 contentId: issueNodeId,
             });
             return res?.addProjectV2ItemById?.item?.id;
-        } catch {
-            // Non-fatal: issue was created but project link failed
-            return undefined;
+        } catch (e: any) {
+            const error = new Error('Failed to link issue to GitHub Project');
+            error.name = e.message;
+            throw error;
         }
     }
 
@@ -335,6 +336,24 @@ export class GitHubAdapter {
                 if (val !== undefined && val !== null) {
                     fieldValue = { text: String(val) };
                 }
+            } else if (field.dataType === 'NUMBER') {
+                if (val !== undefined && val !== null) {
+                    const parsedNumber = Number(val);
+                    if (!isNaN(parsedNumber)) {
+                        fieldValue = { number: parsedNumber };
+                    }
+                }
+            } else if (field.dataType === 'DATE') {
+                if (val !== undefined && val !== null) {
+                    // Try to extract YYYY-MM-DD
+                    const dateStr = String(val).split('T')[0];
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                        fieldValue = { date: dateStr };
+                    } else {
+                        // Fallback, let GitHub API reject if invalid
+                        fieldValue = { date: String(val) };
+                    }
+                }
             } else if (field.dataType === 'SINGLE_SELECT' && field.options) {
                 // Find option ID by name (case insensitive, ignoring '@' prefix)
                 if (typeof val !== 'string') continue;
@@ -342,6 +361,13 @@ export class GitHubAdapter {
                 const opt = field.options.find((o: any) => o.name.toLowerCase() === cleanVal.toLowerCase());
                 if (opt) {
                     fieldValue = { singleSelectOptionId: opt.id };
+                }
+            } else if (field.dataType === 'ITERATION' && field.configuration?.iterations) {
+                if (typeof val !== 'string') continue;
+                const cleanVal = val.startsWith('@') ? val.substring(1) : val;
+                const opt = field.configuration.iterations.find((o: any) => o.title.toLowerCase() === cleanVal.toLowerCase());
+                if (opt) {
+                    fieldValue = { iterationId: opt.id };
                 }
             }
 
@@ -363,8 +389,10 @@ export class GitHubAdapter {
                     fieldId: field.id,
                     value: fieldValue
                 });
-            } catch (err: any) {
-                // Ignore silent errors for individual fields
+            } catch (e: any) {
+                const error = new Error(`Failed to assign custom field`);
+                error.name = `${field.name}: ${e.message}`
+                throw error;
             }
         }
     }
