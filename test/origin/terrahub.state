@@ -1,0 +1,292 @@
+{
+  "version": "1.0",
+  "serial": 5,
+  "lineage": "68dddc13-8b8e-400e-b395-ca6ff23bc95d",
+  "lastSync": "2026-05-27T03:29:38.877Z",
+  "resources": [
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc1.case.feature::@[1]",
+      "attributes": {
+        "localHash": "fd49fe554a5b500d348ac02f228776f0565d434d458f4bf0620bc5bf35c2c18d",
+        "remoteId": "test-management:121",
+        "issueNumber": 121,
+        "title": "Inicio de sesión exitoso como Reclutador",
+        "body": "```gherkin\nGiven me encuentro en la página de inicio de sesión de Hiring Talent 360\nWhen ingreso mis credenciales válidas de rol \"Reclutador\"\nAnd presiono el botón de \"Iniciar Sesión\"\nThen el sistema me redirige al \"Dashboard de Reclutamiento\"\nAnd el mensaje de bienvenida \"Hola, Reclutador\" es visible\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:51:16.574Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc1.case.feature::@[2]",
+      "attributes": {
+        "localHash": "6ddc121333b6526d5b37fcb9a08427e781489c02314b409c05523d52af14b729",
+        "remoteId": "test-management:122",
+        "issueNumber": 122,
+        "title": "Inicio de sesión con credenciales inválidas",
+        "body": "```gherkin\nGiven me encuentro en la página de inicio de sesión de Hiring Talent 360\nWhen ingreso un correo electrónico \"invalido@empresa.com\"\nAnd ingreso una contraseña incorrecta\nAnd presiono el botón de \"Iniciar Sesión\"\nThen el sistema muestra el mensaje de error \"Usuario o contraseña incorrectos\"\nAnd permanezco en la página de inicio de sesión\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:51:19.197Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc2.feature::@[1]",
+      "attributes": {
+        "localHash": "86a23be37b4a4832f9d1b37df5634a1a093130e579168dafd72ffaf55c4723da",
+        "remoteId": "test-management:123",
+        "issueNumber": 123,
+        "title": "Creación de un nuevo perfil de candidato",
+        "body": "```gherkin\nGiven he iniciado sesión como \"Administrador\"\nWhen navego a la sección \"Candidatos\"\nAnd hago clic en el botón \"Agregar Candidato\"\nAnd completo el formulario con los datos personales y el CV del candidato\nAnd presiono \"Guardar Perfil\"\nThen el sistema muestra el mensaje \"Candidato registrado exitosamente\"\nAnd el candidato aparece en la lista de candidatos activos\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:51:21.961Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc2.feature::@[2-Desarrollador Java]",
+      "attributes": {
+        "localHash": "48f9c0ea35d0da6c002dd38b9c64561d7a0ea59c045720dc2968d76112f09de4",
+        "remoteId": "test-management:124",
+        "issueNumber": 124,
+        "title": "Filtrar candidatos por rol Desarrollador Java",
+        "body": "```gherkin\nGiven me encuentro en la vista de \"Candidatos\"\nWhen selecciono el filtro de rol \"Desarrollador Java\"\nAnd presiono \"Buscar\"\nThen la tabla de resultados solo muestra candidatos con el perfil de \"Desarrollador Java\"\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-27T03:28:23.622Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc2.feature::@[2-Analista QA]",
+      "attributes": {
+        "localHash": "f80f68a6d80c25f35f59ed46478afcd9e33c35a561a1368e8136456fbda08a69",
+        "remoteId": "test-management:125",
+        "issueNumber": 125,
+        "title": "Filtrar candidatos por rol Analista QA",
+        "body": "```gherkin\nGiven me encuentro en la vista de \"Candidatos\"\nWhen selecciono el filtro de rol \"Analista QA\"\nAnd presiono \"Buscar\"\nThen la tabla de resultados solo muestra candidatos con el perfil de \"Analista QA\"\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-27T03:28:25.446Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc2.feature::@[2-Gerente de Proyecto]",
+      "attributes": {
+        "localHash": "6b010419385da7b8cbf1c3869fc5781d6cce90fa37d9f4886962826738aff3e2",
+        "remoteId": "test-management:126",
+        "issueNumber": 126,
+        "title": "Filtrar candidatos por rol Gerente de Proyecto",
+        "body": "```gherkin\nGiven me encuentro en la vista de \"Candidatos\"\nWhen selecciono el filtro de rol \"Gerente de Proyecto\"\nAnd presiono \"Buscar\"\nThen la tabla de resultados solo muestra candidatos con el perfil de \"Gerente de Proyecto\"\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-27T03:28:27.480Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc3.case.feature::@[1]",
+      "attributes": {
+        "localHash": "6b6590fb894c04ab91b82be80614126dc1e6ac31f5ad0b01c69df79f48ae3ba1",
+        "remoteId": "test-management:127",
+        "issueNumber": 127,
+        "title": "Verificación de información legal en el footer",
+        "body": "```gherkin\nGiven Ingreso al portal de agentes de Hiring Talent 360\nWhen me desplazo hacia la parte inferior de la página\nThen verifico que aparece el texto \"© 2024 Caja Arequipa - RUC 20100209641\"\nAnd verifico que aparece el texto \"Todos los derechos reservados.\"\nAnd verifico que aparece el texto \"Caja Municipal de Ahorro y Crédito de Arequipa S.A\"\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:51:32.242Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc3.case.feature::@[2]",
+      "attributes": {
+        "localHash": "b9a97dec899be3563235a0c6783ae9dfec3b284cf5dd5d4d6b72651ed70da36b",
+        "remoteId": "test-management:128",
+        "issueNumber": 128,
+        "title": "Verificar apertura del modal Editar Puesto",
+        "body": "```gherkin\nGiven selecciono la pestaña \"Puestos\"\nWhen en el listado de puestos selecciono \"Editar\" en el primer registro\nThen se abre el modal \"Editar Puesto\"\nAnd los datos del puesto actual se muestran cargados en el formulario\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:51:35.461Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "test/testcase/tc3.case.feature::@[3]",
+      "attributes": {
+        "localHash": "08352c3e4481201f60139391964bcd635dd4e25437f2892aaec24a41879aadd9",
+        "remoteId": "test-management:129",
+        "issueNumber": 129,
+        "title": "Validar guardado de un nuevo puesto sin errores",
+        "body": "```gherkin\nGiven selecciono la pestaña \"Puestos\"\nWhen presiono el botón \"Nuevo Puesto\"\nAnd ingreso \"Desarrollador Full Stack Senior\" en el campo \"Nombre del Puesto\"\nAnd selecciono \"Tecnología de la Información\" en el campo \"Área\"\nAnd presiono \"Guardar\"\nThen el sistema muestra \"Puesto creado correctamente\"\nAnd el nuevo puesto aparece en la tabla de resultados\n```",
+        "labels": [
+          "testcase"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:51:38.252Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test1.run.feature",
+      "attributes": {
+        "localHash": "8b5059cd9bf54fab05f1cce1fd5a7f46db917fea0b706dfa299e73ba85e7c2f0",
+        "remoteId": "test-management:130",
+        "issueNumber": 130,
+        "title": "Smoke Test HT360",
+        "body": "Este testrun valida las funcionalidades críticas del sistema (Smoke Test).\n\n### Test Cases\n- [ ] #121\n- [ ] #128",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:14.121Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test2.run.feature",
+      "attributes": {
+        "localHash": "4a33de1bb23ccdb08efefe8dfcc510f0c2a15c58f4b44678fcc13ce50a1cd3a3",
+        "remoteId": "test-management:131",
+        "issueNumber": 131,
+        "title": "Regresión Completa HT360",
+        "body": "Este testrun valida todo el sistema ejecutando todos los escenarios de los diferentes features.\n\n### Test Cases\n- [ ] #121\n- [ ] #122\n- [ ] #123\n- [ ] #124\n- [ ] #125\n- [ ] #126\n- [ ] #127\n- [ ] #128\n- [ ] #129",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:16.896Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test3.run.feature",
+      "attributes": {
+        "localHash": "1a4b026bcc70aaec0154ea27a5a46f728d27075b889c8d8574cca8e8c348c7a4",
+        "remoteId": "test-management:132",
+        "issueNumber": 132,
+        "title": "Seguridad y Autenticación",
+        "body": "Este testrun agrupa todos los casos relacionados con la seguridad, login inválido y acceso.\n\n### Test Cases\n- [ ] #122",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:18.877Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test4.run.feature",
+      "attributes": {
+        "localHash": "3e0e3d611c79624ce6948e786c3b82d27d84298cda8cc07c65dd75b8af642f65",
+        "remoteId": "test-management:133",
+        "issueNumber": 133,
+        "title": "Administración de Candidatos y Puestos",
+        "body": "Este testrun valida la creación y gestión que realizan los administradores.\n\n### Test Cases\n- [ ] #123\n- [ ] #128\n- [ ] #129",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:20.966Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test5.run.feature",
+      "attributes": {
+        "localHash": "aabaee61b44017b864bcd774e736150a23e20f1e5eef7301de77215191a1a42b",
+        "remoteId": "test-management:134",
+        "issueNumber": 134,
+        "title": "Legal y Footer",
+        "body": "Validaciones básicas de UI y derechos legales.\n\n### Test Cases\n- [ ] #127",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:23.329Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test6.run.feature",
+      "attributes": {
+        "localHash": "04f4efb51ddb5450121dcaec3cf5a513c04407d1654ac35993a2f5ecddbaed57",
+        "remoteId": "test-management:135",
+        "issueNumber": 135,
+        "title": "Filtros y Búsquedas",
+        "body": "Validación exhaustiva de los filtros en la tabla de candidatos.\n\n### Test Cases\n- [ ] #124\n- [ ] #125",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:25.394Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test7.run.feature",
+      "attributes": {
+        "localHash": "8bd4c32dd961f27c528590390d8d5d1270814cfe2bf0064baf909874b03a71a2",
+        "remoteId": "test-management:136",
+        "issueNumber": 136,
+        "title": "Ejecución Nocturna",
+        "body": "Este testrun se ejecuta por la noche. Incluye todo el módulo de login y un par de casos de maestros.\n\n### Test Cases\n- [ ] #121\n- [ ] #122\n- [ ] #128\n- [ ] #129",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:27.461Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "test/testrun/test8.run.feature",
+      "attributes": {
+        "localHash": "1e94b9ae059abe01d88fab5c88addbbeae8fde3d41007b2dccbe77ff53ee90d2",
+        "remoteId": "test-management:137",
+        "issueNumber": 137,
+        "title": "Ejecución Dinámica con Examples",
+        "body": "Este testrun demuestra el uso de @unique y Examples para generar llamadas a múltiples casos de prueba de forma paramétrica.\n\n### Test Cases\n- [ ] #124\n- [ ] #125\n- [ ] #126",
+        "labels": [
+          "testrun"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:53:29.592Z"
+    },
+    {
+      "type": "github_testplan",
+      "identity": "test/testplan/release_q1.plan.feature",
+      "attributes": {
+        "localHash": "f121c13025e945f2725ce591af43f8d755673db4a47d52d6d6a4bb2f8b9698a6",
+        "remoteId": "test-management:138",
+        "issueNumber": 138,
+        "title": "Plan de Pruebas Release Q1",
+        "body": "Este plan de pruebas abarca los módulos críticos para el release Q1.\n\n### Test Runs\n- [ ] #130 - Smoke Test HT360\n- [ ] #131 - Regresión Completa HT360",
+        "labels": [
+          "testplan"
+        ]
+      },
+      "lastApplied": "2026-05-26T15:54:37.762Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "identity",
+      "attributes": {
+        "title": "Creación de un nuevo perfil de candidato",
+        "body": "```gherkin\nGiven he iniciado sesión como \"Administrador\"\nWhen navego a la sección \"Candidatos\"\nAnd hago clic en el botón \"Agregar Candidato\"\nAnd completo el formulario con los datos personales y el CV del candidato\nAnd presiono \"Guardar Perfil\"\nThen el sistema muestra el mensaje \"Candidato registrado exitosamente\"\nAnd el candidato aparece en la lista de candidatos activos\n```",
+        "labels": [],
+        "custom_fields": {},
+        "remoteId": "test-management:123",
+        "issueNumber": 123,
+        "localHash": ""
+      },
+      "lastApplied": "2026-05-27T03:29:38.875Z"
+    }
+  ]
+}
