@@ -286,7 +286,10 @@ resource.registry({
     fields: [
         { name: 'title', value: (s) => s.name },
         { name: 'body', value: (s) => '```gherkin\n' + s.steps.map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```' },
-        { name: 'labels', value: (s) => [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t))] },
+        { name: 'labels', value: (s) => {
+            const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
+            return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
+        } },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
         {
@@ -313,7 +316,7 @@ resource.registry({
                 if (testcases.length > 0 && context?.state) {
                     const state = context.state;
 
-                    const runIdentity = s.custom?.identity ? `${s.uri}::${s.custom.identity}` : s.uri;
+                    const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}::${s.custom.identity}` : s.uri;
                     const existingRun = state.getResources('github_testrun').find((r: any) => r.identity === runIdentity);
                     const existingStatuses = existingRun?.attributes?.testcaseStatuses || {};
 
@@ -425,7 +428,10 @@ resource.registry({
                 return body.trim();
             }
         },
-        { name: 'labels', value: (s) => [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t))] },
+        { name: 'labels', value: (s) => {
+            const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
+            return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
+        } },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
         {
@@ -572,7 +578,10 @@ resource.registry({
                 return body.trim();
             }
         },
-        { name: 'labels', value: (s) => [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t))] },
+        { name: 'labels', value: (s) => {
+            const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
+            return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
+        } },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
         {
