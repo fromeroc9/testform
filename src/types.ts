@@ -179,6 +179,7 @@ export interface ResourceField {
 export interface ResourceTemplate {
     type: string;
     fields: ResourceField[];
+    comments?: (s: any, context?: any) => { identity: string; status: string; body: string; title: string }[];
 }
 
 export interface ResourceFormat {

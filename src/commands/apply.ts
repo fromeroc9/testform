@@ -308,98 +308,22 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             const testcaseStatuses: Record<string, string> = existingAttributes?.testcaseStatuses || {};
             const expandedTestcases: string[] = [];
 
-            let i = 1;
-            const sortedTestcases = [...change.scenario.custom.testcases].sort((a: string, b: string) => {
-                const aName = a.split('::').pop()?.replace('@', '') || '';
-                const bName = b.split('::').pop()?.replace('@', '') || '';
-                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
-            });
+            const comments = resource.evaluateComments(change.resourceType, change.scenario, { state: stateObj, testDirectory, existingAttributes });
 
-            for (const tc of sortedTestcases) {
-                const parts = tc.split('::');
-                const scenarioName = parts.pop();
-                const ruleName = parts.pop() || '';
-                const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
+            for (const comment of comments) {
+                const { identity, status, body } = comment;
+                expandedTestcases.push(identity);
 
-                const tcResources = stateObj.getResources('github_testcase').filter((r: any) =>
-                    r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
-                );
-
-                const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
-                let validResources = tcResources;
-
-                if (distinctFiles.size > 1) {
-                    if (testDirectory) {
-                        const normalizedTestDir = testDirectory.replace(/^\.\//, '');
-                        validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
-                        const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
-                        if (distinctValid.size > 1) {
-                            throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
-                        }
+                if (!testcaseCommentIds[identity] || testcaseStatuses[identity] !== status) {
+                    if (testcaseCommentIds[identity]) {
+                        await github.updateIssueComment(testcaseCommentIds[identity], body);
+                        console.log(`  -> Updated status comment for ${identity} to '${status}'`);
                     } else {
-                        throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                        const result = await github.createIssueComment(issueNumber, body);
+                        testcaseCommentIds[identity] = result.id;
+                        console.log(`  -> Created status comment for ${identity} as '${status}'`);
                     }
-                }
-
-                validResources.sort((a: any, b: any) => {
-                    const aName = a.identity.split('::').pop()?.replace('@', '') || '';
-                    const bName = b.identity.split('::').pop()?.replace('@', '') || '';
-                    return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
-                });
-
-                for (const tcResource of validResources) {
-                    const tcIdentity = tcResource.identity;
-
-                    expandedTestcases.push(tcIdentity);
-
-                    let groupScenario = change.scenario.custom.groupScenarios.find((s: any) => {
-                        if (!s.rule || !s.name) return false;
-                        const sBaseRule = s.rule.name.replace('.case.feature', '').replace('.feature', '');
-                        return tcIdentity.includes(sBaseRule) && tcIdentity.endsWith(`::${s.name}`);
-                    });
-
-                    if (!groupScenario) {
-                        groupScenario = change.scenario.custom.groupScenarios.find((s: any) => {
-                            if (!s.rule || !s.name) return false;
-                            const sBaseRule = s.rule.name.replace('.case.feature', '').replace('.feature', '');
-                            return tcIdentity.includes(sBaseRule) && s.name === '*';
-                        });
-                    }
-
-                    const localStatus = groupScenario?.custom?.fields?.status || existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
-                    const tcTitle = tcResource.attributes?.title || tcIdentity;
-
-                    if (!testcaseCommentIds[tcIdentity] || testcaseStatuses[tcIdentity] !== localStatus) {
-                        const [baseRule, scenarioName] = tcIdentity.split('::');
-                        const originFile = require('path').basename(baseRule || '');
-                        const safeScenario = scenarioName ? scenarioName.replace('@', '') : '';
-
-                        const commentBody = `**Origin:** ${originFile}\n<table border="1" width="100%">
-                        <tr>
-                            <th colspan="3">Feature Name</th>
-                        </tr>
-                        <tr>
-                            <td>${safeScenario}</td>
-                            <td>${tcTitle}</td>
-                            <td>${localStatus}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="3"><br/></td>
-                        </tr>
-                        </table>`;
-
-                        if (testcaseCommentIds[tcIdentity]) {
-                            await github.updateIssueComment(testcaseCommentIds[tcIdentity], commentBody);
-                            console.log(`  -> Updated status comment for ${tcIdentity} to '${localStatus}'`);
-                        } else {
-                            const result = await github.createIssueComment(issueNumber, commentBody);
-                            testcaseCommentIds[tcIdentity] = result.id;
-                            console.log(`  -> Created status comment for ${tcIdentity} as '${localStatus}'`);
-                        }
-
-                        testcaseStatuses[tcIdentity] = localStatus;
-                    }
-                    i++;
+                    testcaseStatuses[identity] = status;
                 }
             }
 
