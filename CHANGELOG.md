@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-06-05
+
+### Added
+- **Test Runs:** Added default test run description and implemented locale-aware sorting for test cases and resources.
+- **Resource Adapters:** Updated resource adapter configuration and dependencies.
+
+### Changed
+- **CLI Commands:** Removed experimental `-expand` command and enforced implicit scenarios in testplans. Updated `apply` command to handle resource application logic.
+- **Network Stack:** Upgraded underlying proxy agent and request libraries for improved network handling.
+- **Reporting:** Formatted issue status comments using HTML tables.
+- **Execution:** Updated resource handling and test case parsing logic for improved CLI execution.
+- **Core Engine:** Updated target matching logic to normalize test case identifiers by handling path delimiters and alias formats.
+- **Sync Logic:** Updated main issue body to reflect status changes during local file sync.
+
 ## [1.0.4] - 2026-06-05
 
 ### Fixed
