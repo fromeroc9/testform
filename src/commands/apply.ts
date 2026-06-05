@@ -11,9 +11,11 @@ import { IScope, GitHubIssuePayload } from '../types';
 import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
 import { askApproval, askStatus } from '../core/prompt';
-import { elapsedSeconds, formatResourceAddress } from '../core/utils';
+import { formatResourceAddress, elapsedSeconds } from '../core/utils';
 import { createCommandContext, CommandContext } from '../core/command-context';
 import { GitHubAdapter } from '../adapters/github';
+import { GherkinEditor } from '../core/gherkin-editor';
+import { Parser } from '../core/parser';
 
 interface ApplyCmdOptions {
     dir?: string;
@@ -27,7 +29,7 @@ interface ApplyCmdOptions {
     variables?: VariableParser;
     statePath?: string;
     backupPath?: string;
-    target?: string;
+    target?: string | string[];
     refresh?: boolean;
     refreshOnly?: boolean;
     setStatus?: string;
@@ -35,6 +37,7 @@ interface ApplyCmdOptions {
     parallelism?: string | number;
     compactWarnings?: boolean;
     testDirectory?: string;
+    expand?: boolean;
 }
 
 export const applyCmd = async (options: ApplyCmdOptions) => {
@@ -57,7 +60,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         replaceTargets,
         parallelism,
         compactWarnings,
-        testDirectory
+        testDirectory,
+        expand
     } = options;
     const logger = new Logger(verbose);
     const stateObj = new State(dir, statePath, backupPath);
@@ -88,9 +92,14 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
         } else {
             if (setStatus && scope === 'testrun') {
+                if (!target || target.length === 0) {
+                    notify.push({ type: 'error', title: `The '-set-status' option requires the '-target' option to specify the testrun or testplan file.`, detail: [] });
+                    return;
+                }
+
                 const ctx = await createCommandContext({ dir, verbose, lock: false });
                 if (!ctx) return;
-                
+
                 let targetId = setStatus;
                 let newStatus = '';
                 if (setStatus.includes('=')) {
@@ -98,14 +107,46 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 } else {
                     newStatus = await askStatus();
                 }
-                targetId = targetId.replace(/^github_testcase\./, '').replace(/^github_testrun\./, '');
+                targetId = targetId.replace(/^github_testcase\\./, '').replace(/^github_testrun\\./, '');
 
+                const matchesFileTarget = (id: string, targetValue: string) => {
+                    const cleanTarget = targetValue.replace(/^github_testrun\\./, '');
+                    if (id === cleanTarget) return true;
+                    const uri = id.split('::')[0];
+                    if (uri === cleanTarget || uri.includes(cleanTarget) || cleanTarget.includes(uri)) return true;
+                    if (uri.split('/').pop() === cleanTarget.split('/').pop()) return true;
+                    return false;
+                };
+
+                const matchesTestcaseTarget = (k: string, targetValue: string) => {
+                    if (k === targetValue) return true;
+                    const partsK = k.split('::');
+                    const partsT = targetValue.split('::');
+                    if (partsK.length === 2 && partsT.length === 2) {
+                        if (partsK[1] !== partsT[1]) return false;
+                        const uriK = partsK[0];
+                        const uriT = partsT[0];
+                        if (uriK.includes(uriT) || uriT.includes(uriK)) return true;
+                        if (uriK.split('/').pop() === uriT.split('/').pop()) return true;
+                    } else if (k.endsWith(`::${targetValue}`)) {
+                        return true;
+                    }
+                    return false;
+                };
+
+                const targetArray = Array.isArray(target) ? target : [target];
                 const rawResources = stateObj.getResources('github_testrun');
+                const candidateRuns = rawResources.filter(r => targetArray.some((t: string) => matchesFileTarget(r.identity, t)));
+
+                if (candidateRuns.length === 0) {
+                    notify.push({ type: 'error', title: `No testrun matched the provided target(s): ${targetArray.join(', ')}`, detail: [] });
+                    return;
+                }
+
                 let foundRun: any = null;
-                
-                for (const r of rawResources) {
+                for (const r of candidateRuns) {
                     const commentIds = r.attributes?.testcaseCommentIds || {};
-                    const matchingKey = Object.keys(commentIds).find(k => k === targetId || k.endsWith(`::${targetId}`));
+                    const matchingKey = Object.keys(commentIds).find(k => matchesTestcaseTarget(k, targetId));
                     if (matchingKey) {
                         foundRun = r;
                         targetId = matchingKey;
@@ -133,6 +174,31 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     foundRun.attributes.testcaseStatuses[targetId] = newStatus;
                     await stateObj.save();
                     console.log(green(bold(`Status successfully updated!`)));
+
+                    // Now update the .run.feature file textually
+                    const parseDir = testDirectory ? require('path').join(dir, testDirectory) : dir;
+                    const parser = new Parser(parseDir, variables);
+                    const allRuns = parser.filter(parser.content(), { identity: '', fields: [] }, 'testrun');
+                    const runScenario = allRuns.find(r =>
+                        r.custom?.identity === foundRun.identity ||
+                        r.uri === foundRun.identity ||
+                        foundRun.identity.startsWith(r.uri + '::')
+                    );
+
+                    if (runScenario && runScenario.uri) {
+                        try {
+                            const [baseRule, scenarioName] = targetId.split('::');
+                            if (baseRule && scenarioName) {
+                                const absolutePath = require('path').join(parseDir, runScenario.uri);
+                                GherkinEditor.updateScenarioStatus(absolutePath, baseRule, scenarioName, newStatus);
+                                console.log(`  -> Synced status to local file: ${runScenario.uri}`);
+                            }
+                        } catch (e: any) {
+                            console.log(`  -> Failed to update local file: ${e.message}`);
+                        }
+                    } else {
+                        console.log(`  -> Warning: Could not find local feature file for testrun identity '${foundRun.identity}' to sync status.`);
+                    }
                 }
                 return;
             }
@@ -204,7 +270,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     const runResources = stateObj.getResources('github_testrun').filter(r =>
                         r.identity.endsWith(tr) || r.identity.includes(tr)
                     );
-                    
+
                     if (runResources.length > 1) {
                         const uris = Array.from(new Set(runResources.map(r => r.identity)));
                         logger.warn(`Rule '${tr}' in Testplan matches multiple Testruns. Linking all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
@@ -233,6 +299,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
             const testcaseCommentIds: Record<string, number> = existingAttributes?.testcaseCommentIds || {};
             const testcaseStatuses: Record<string, string> = existingAttributes?.testcaseStatuses || {};
+            const expandedTestcases: string[] = [];
 
             let i = 1;
             for (const tc of change.scenario.custom.testcases) {
@@ -240,21 +307,31 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 const scenarioName = parts.pop();
                 const ruleName = parts.pop() || '';
                 const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
-                
+
                 const tcResources = stateObj.getResources('github_testcase').filter((r: any) =>
                     r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
                 );
-                
+
                 for (const tcResource of tcResources) {
                     const tcIdentity = tcResource.identity;
-                    
-                    const groupScenario = change.scenario.custom.groupScenarios.find((s: any) => {
+
+                    expandedTestcases.push(tcIdentity);
+
+                    let groupScenario = change.scenario.custom.groupScenarios.find((s: any) => {
                         if (!s.rule || !s.name) return false;
                         const sBaseRule = s.rule.name.replace('.case.feature', '').replace('.feature', '');
-                        return tcIdentity.includes(sBaseRule) && (s.name === '*' || tcIdentity.endsWith(`::${s.name}`));
+                        return tcIdentity.includes(sBaseRule) && tcIdentity.endsWith(`::${s.name}`);
                     });
-                    
-                    const localStatus = groupScenario?.custom?.fields?.status || groupScenario?.custom?.fields?.Status || existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
+
+                    if (!groupScenario) {
+                        groupScenario = change.scenario.custom.groupScenarios.find((s: any) => {
+                            if (!s.rule || !s.name) return false;
+                            const sBaseRule = s.rule.name.replace('.case.feature', '').replace('.feature', '');
+                            return tcIdentity.includes(sBaseRule) && s.name === '*';
+                        });
+                    }
+
+                    const localStatus = groupScenario?.custom?.fields?.status || existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
                     const tcTitle = tcResource.attributes?.title || tcIdentity;
 
                     if (!testcaseCommentIds[tcIdentity] || testcaseStatuses[tcIdentity] !== localStatus) {
@@ -275,7 +352,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 }
             }
 
-            return { testcaseCommentIds, testcaseStatuses };
+            return { testcaseCommentIds, testcaseStatuses, expandedTestcases };
         };
 
         // Execute changes in parallel batches
@@ -310,7 +387,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await linkSubIssues(change, result.number);
 
                         // Sync status comments
-                        const { testcaseCommentIds, testcaseStatuses } = await syncTestrunComments(change, result.number);
+                        const { testcaseCommentIds, testcaseStatuses, expandedTestcases } = await syncTestrunComments(change, result.number);
 
                         // Update state
                         stateObj.upsertResource({
@@ -337,6 +414,18 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await linkSubIssues(change, result.number);
 
                         added++;
+
+                        if (expand && change.scenario.uri && change.scenario.custom?.testcases) {
+                            try {
+                                const parseDir = testDirectory ? require('path').join(dir, testDirectory) : dir;
+                                const absolutePath = require('path').join(parseDir, change.scenario.uri);
+                                const testcasesToExpand = expandedTestcases?.length ? expandedTestcases : change.scenario.custom.testcases;
+                                GherkinEditor.expandScenarios(absolutePath, testcasesToExpand, 'pending');
+                                console.log(`  -> Expanded scenarios in local file: ${change.scenario.uri}`);
+                            } catch (e: any) {
+                                console.log(`  -> Failed to expand scenarios in local file: ${e.message}`);
+                            }
+                        }
 
                     } else if (change.action === 'replace') {
                         const address = formatResourceAddress(change.resourceType, change.identity);
@@ -422,7 +511,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         // Sync status comments
                         const existingAttributes = stateObj.getResources(change.resourceType).find((r: any) => r.identity === change.identity)?.attributes;
-                        const { testcaseCommentIds, testcaseStatuses } = await syncTestrunComments(change, result.number, existingAttributes);
+                        const { testcaseCommentIds, testcaseStatuses, expandedTestcases } = await syncTestrunComments(change, result.number, existingAttributes);
 
                         // Update state
                         stateObj.upsertResource({
@@ -446,6 +535,18 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         });
 
                         changed++;
+
+                        if (expand && change.scenario.uri && change.scenario.custom?.testcases) {
+                            try {
+                                const parseDir = testDirectory ? require('path').join(dir, testDirectory) : dir;
+                                const absolutePath = require('path').join(parseDir, change.scenario.uri);
+                                const testcasesToExpand = expandedTestcases?.length ? expandedTestcases : change.scenario.custom.testcases;
+                                GherkinEditor.expandScenarios(absolutePath, testcasesToExpand, 'pending');
+                                console.log(`  -> Expanded scenarios in local file: ${change.scenario.uri}`);
+                            } catch (e: any) {
+                                console.log(`  -> Failed to expand scenarios in local file: ${e.message}`);
+                            }
+                        }
 
                     } else if (change.action === 'destroy') {
                         const address = formatResourceAddress(change.resourceType, change.identity);

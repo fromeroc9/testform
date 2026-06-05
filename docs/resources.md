@@ -58,10 +58,10 @@ Feature: Regresión Semanal V1.0
 
   Rule: login.case.feature
     Scenario: @[1]
-      * status = passed
+      * link status = passed
     
     Scenario: @[2]
-      * status = failed
+      * link status = failed
 
   Rule: checkout.case.feature
 ```
@@ -73,16 +73,24 @@ Feature: Regresión Semanal V1.0
   - Si declaras un **Scenario específico** bajo una Rule (ej. `Scenario: @[1]`), TestForm solo incluirá ese caso de prueba exacto (nota que se usa el ID único / Tag del caso de prueba, no su nombre completo).
   - Si **solo declaras la Rule** sin ningún escenario debajo (como el ejemplo de `checkout.case.feature`), TestForm **ejecutará e incluirá automáticamente todos los testcases** descubiertos en ese archivo.
 - **Campos Custom**: Utilizando el bloque `Background`, TestForm asignará el Issue a `qa-lead` y lo moverá al milestone `Sprint 1`.
-- **Estados y Comentarios**: TestForm leerá la variable `* status` declarada en cada escenario. TestForm creará **comentarios** independientes dentro del Issue de Testrun para reportar el estado del testcase usando una tabla Markdown.
+- **Estados y Comentarios**: TestForm leerá la variable `* link status` declarada en cada escenario. TestForm creará **comentarios** independientes dentro del Issue de Testrun para reportar el estado del testcase usando una tabla Markdown.
 
 ### Modo Imperativo (`--set-status`)
-En lugar de modificar manualmente el archivo `.feature` para escribir `* status = passed`, puedes automatizar esto usando el CLI de TestForm. Por ejemplo, en tu entorno de CI:
+En lugar de modificar manualmente el archivo `.feature` para escribir `* link status = passed`, puedes automatizar esto usando el CLI de TestForm. Por ejemplo, en tu entorno de CI:
 
 ```bash
 testform apply -scope testrun --set-status="Login exitoso con credenciales correctas=passed"
 ```
 
-TestForm se encargará de inyectar el paso `* status = passed` en el archivo `.feature` y de sincronizarlo con GitHub en el mismo comando. ¡Tú mantienes el control total local y remoto!
+TestForm se encargará de inyectar o actualizar el paso `* link status = passed` directamente en el archivo `.run.feature` local (autocompletando el escenario explícitamente si era implícito) y de sincronizarlo con GitHub en el mismo comando. ¡Tú mantienes el control total local y remoto!
+
+### Autocompletado Masivo (`--expand`)
+Si has importado escenarios implícitamente solo declarando la regla (ej. `Rule: checkout.case.feature`) y deseas que TestForm haga explícitos todos los escenarios encontrados para un mejor control local, puedes usar el flag `--expand` durante un apply normal:
+
+```bash
+testform apply -scope testrun --expand
+```
+Esto modificará tu archivo `.run.feature`, inyectando cada `Scenario` detectado con un estado `* link status = pending` debajo de su respectiva `Rule`.
 
 ---
 

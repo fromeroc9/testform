@@ -34,7 +34,7 @@ interface RefreshStateOptions {
     logger: Logger;
     silent?: boolean;
     parallelismRaw?: string | number;
-    target?: string;
+    target?: string | string[];
 }
 
 export const refreshState = async (options: RefreshStateOptions) => {
@@ -54,7 +54,8 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let resources = state.getResources(resourceType);
 
     if (target) {
-        resources = resources.filter(r => r.identity === target || r.identity.startsWith(`${target}::`) || r.identity.endsWith(`/${target}`) || r.identity.endsWith(target));
+        const targetArray = Array.isArray(target) ? target : [target];
+        resources = resources.filter(r => targetArray.some(t => r.identity === t || r.identity.startsWith(`${t}::`) || r.identity.endsWith(`/${t}`) || r.identity.endsWith(t)));
     }
 
     if (resources.length === 0) {
@@ -225,7 +226,7 @@ interface RefreshCmdOptions {
     backupPath?: string;
     parallelismRaw?: string | number;
     compactWarnings?: boolean;
-    target?: string;
+    target?: string | string[];
 }
 
 export const refreshCmd = async (options: RefreshCmdOptions) => {

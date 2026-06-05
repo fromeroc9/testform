@@ -151,7 +151,8 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         'dry-run',
         'apply',
         'field',
-        'rule'
+        'rule',
+        'expand'
     ]);
 
     return rawArgs.map((arg) => {
@@ -194,7 +195,8 @@ const booleanFlags = new Set([
     '--compact-warnings',
     '--no-tests',
     '--dry-run',
-    '--apply'
+    '--apply',
+    '--expand'
 ]);
 
 const main = async () => {
@@ -272,6 +274,7 @@ const main = async () => {
             '--compact-warnings': Boolean,
             '--no-tests': Boolean,
             '--dry-run': Boolean,
+            '--expand': Boolean,
             '-C': '--chdir',
             '-s': '--scope',
             '-h': '--help',
@@ -443,7 +446,8 @@ const main = async () => {
             replaceTargets: argv['--replace'],
             parallelism: argv['--parallelism'],
             compactWarnings: argv['--compact-warnings'] ?? false,
-            testDirectory: argv['--test-directory']
+            testDirectory: argv['--test-directory'],
+            expand: argv['--expand']
         });
         process.exit(process.exitCode || 0);
     }

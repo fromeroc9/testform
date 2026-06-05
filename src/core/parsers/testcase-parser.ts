@@ -36,8 +36,21 @@ export class TestcaseParser extends BaseParser {
                 s.tags = s.tags.filter((tag) => tag !== tagToRemove);
             }
 
+            if (s.description) {
+                const descMatch = s.description.match(/^\s*\*\s*link\s+status\s*=\s*(.*)$/im);
+                if (descMatch) {
+                    customFields['status'] = descMatch[1]?.trim();
+                }
+            }
+
             if (s.background) {
                 s.background.steps = s.background.steps.filter((step) => {
+                    const linkMatch = step.text.match(/^\s*\*\s*link\s+status\s*=\s*(.*)$/i);
+                    if (linkMatch) {
+                        customFields['status'] = linkMatch[1]?.trim();
+                        return false;
+                    }
+
                     const match = step.text.match(FIELD_PATTERN);
                     if (!match) return true;
 
@@ -61,6 +74,12 @@ export class TestcaseParser extends BaseParser {
             }
 
             s.steps = s.steps.filter((step) => {
+                const linkMatch = step.text.match(/^\s*\*\s*link\s+status\s*=\s*(.*)$/i);
+                if (linkMatch) {
+                    customFields['status'] = linkMatch[1]?.trim();
+                    return false;
+                }
+
                 const match = step.text.match(FIELD_PATTERN);
                 if (!match) return true;
 
