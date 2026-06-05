@@ -189,8 +189,9 @@ If you run `apply` without passing a saved plan file, it will implicitly run a `
 - `-input=true`: Ask for input for variables if they are not directly set.
 - `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `10`). Lower this if you hit GitHub secondary rate limits.
 - `-destroy`: Instructs the apply to destroy all tracked infrastructure instead of creating/updating.
-- `-replace=resource`: Force the replacement of a specific resource instance.
-- `-set-status="assigns"` (alias `-set-state`): Injects or updates the status field in your local testrun features before applying (e.g., `"tc1=passed,tc2=failed"`). Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`.
+- `-replace="resource"`: Force replacement of a specific resource.
+- `-set-status="assigns"` (alias `-set-state`): Injects or updates the `* link status` field in your local testrun feature file and syncs it before applying (e.g., `"tc1=passed"`). Inherently autocompletes the scenario if it was implicitly declared. Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`.
+- `-expand`: Automatically expand implicit scenarios in `.run.feature` or `.plan.feature` files locally to explicitly declare all included testcases.
 - `-state=path`: Custom path to read and save state (resolved relative to `-chdir`).
 - `-backup=path`: Path to backup the existing state file before modifying. Set to `-` to disable backup.
 - `-var="key=value"` / `-var-file=filename`: Inject variables just like in `plan`.

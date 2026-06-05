@@ -142,6 +142,8 @@ export abstract class BaseParser {
                     };
                     const ruleScenarios = processChildren(r.children ?? [], localBg, ruleObj);
                     if (ruleScenarios.length === 0) {
+                        const ruleBgNode = (r.children ?? [])[0]?.background;
+                        const ruleBg = ruleBgNode ? toBackground(ruleBgNode) : localBg;
                         result.push({
                             uri,
                             feature: {
@@ -157,7 +159,7 @@ export abstract class BaseParser {
                             description: r.description,
                             tags: [...(feature?.tags ?? []).map((t: any) => t.name)],
                             steps: [],
-                            ...(localBg ? { background: JSON.parse(JSON.stringify(localBg)) } : {}),
+                            ...(ruleBg ? { background: JSON.parse(JSON.stringify(ruleBg)) } : {}),
                             rule: ruleObj
                         });
                     } else {

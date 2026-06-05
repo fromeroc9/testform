@@ -28,7 +28,7 @@ interface CalculatePlanOptions {
     variables?: VariableParser;
     statePath?: string;
     backupPath?: string;
-    target?: string;
+    target?: string | string[];
     destroyPlan?: boolean;
     refreshOnly?: boolean;
     preLoadedState?: State;
@@ -89,9 +89,10 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     let filtered = parser.filter(rawScenarios, data, scope) || [];
 
     if (target) {
+        const targetArray = Array.isArray(target) ? target : [target];
         filtered = filtered.filter(s => {
             const id = s.custom?.identity ? `${s.uri}::${s.custom.identity}` : '';
-            return id === target || id.startsWith(`${target}::`) || id.endsWith(`/${target}`) || id.endsWith(target);
+            return targetArray.some(t => id === t || id.startsWith(`${t}::`) || id.endsWith(`/${t}`) || id.endsWith(t));
         });
     }
 
@@ -119,7 +120,8 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     let resources = state.getResources(RESOURCE_TYPE);
 
     if (target) {
-        resources = resources.filter(r => r.identity === target || r.identity.startsWith(`${target}::`) || r.identity.endsWith(`/${target}`) || r.identity.endsWith(target));
+        const targetArray = Array.isArray(target) ? target : [target];
+        resources = resources.filter(r => targetArray.some(t => r.identity === t || r.identity.startsWith(`${t}::`) || r.identity.endsWith(`/${t}`) || r.identity.endsWith(t)));
     }
 
     if (refreshOnly) {
@@ -263,7 +265,7 @@ interface PlanCmdOptions {
     detailedExitCode?: boolean;
     statePath?: string;
     backupPath?: string;
-    target?: string;
+    target?: string | string[];
     destroyPlan?: boolean;
     refresh?: boolean;
     refreshOnly?: boolean;
