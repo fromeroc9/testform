@@ -309,7 +309,13 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             const expandedTestcases: string[] = [];
 
             let i = 1;
-            for (const tc of change.scenario.custom.testcases) {
+            const sortedTestcases = [...change.scenario.custom.testcases].sort((a: string, b: string) => {
+                const aName = a.split('::').pop()?.replace('@', '') || '';
+                const bName = b.split('::').pop()?.replace('@', '') || '';
+                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            for (const tc of sortedTestcases) {
                 const parts = tc.split('::');
                 const scenarioName = parts.pop();
                 const ruleName = parts.pop() || '';
@@ -334,6 +340,12 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
                     }
                 }
+
+                validResources.sort((a: any, b: any) => {
+                    const aName = a.identity.split('::').pop()?.replace('@', '') || '';
+                    const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+                    return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                });
 
                 for (const tcResource of validResources) {
                     const tcIdentity = tcResource.identity;
@@ -362,8 +374,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         const originFile = require('path').basename(baseRule || '');
                         const safeScenario = scenarioName ? scenarioName.replace('@', '') : '';
 
-                        const commentBody = `**Origin:** ${originFile}
-                        <table border="1" width="100%">
+                        const commentBody = `**Origin:** ${originFile}\n<table border="1" width="100%">
                         <tr>
                             <th colspan="3">Feature Name</th>
                         </tr>

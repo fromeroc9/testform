@@ -296,12 +296,19 @@ resource.registry({
     fields: [
         { name: 'title', value: (s) => s.feature?.name || '' },
         { name: 'body', value: (s, context) => {
-            let body = s.feature.description || '';
+            let body = s.feature.description || '### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- The test cases will be updated dynamically with the execution status.\n- Click on individual test case links to view their details or attach evidence.';
             const testcases = s.custom?.testcases || [];
             if (testcases.length > 0 && context?.state) {
                 body += '\n\n### Test Cases\n';
                 const state = context.state;
-                for (const tc of testcases) {
+                
+                const sortedTestcases = [...testcases].sort((a: string, b: string) => {
+                    const aName = a.split('::').pop()?.replace('@', '') || '';
+                    const bName = b.split('::').pop()?.replace('@', '') || '';
+                    return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                });
+
+                for (const tc of sortedTestcases) {
                     const parts = tc.split('::');
                     const scenarioName = parts.pop();
                     const ruleName = parts.pop() || '';
@@ -328,6 +335,12 @@ resource.registry({
                     }
 
                     if (validResources.length > 0) {
+                        validResources.sort((a: any, b: any) => {
+                            const aName = a.identity.split('::').pop()?.replace('@', '') || '';
+                            const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+                            return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                        });
+
                         for (const tcResource of validResources) {
                             if (tcResource?.attributes?.issueNumber) {
                                 body += `- [ ] #${tcResource.attributes.issueNumber}\n`;
