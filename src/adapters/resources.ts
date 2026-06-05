@@ -311,14 +311,20 @@ resource.registry({
 
                 const testcases = s.custom?.testcases || [];
                 if (testcases.length > 0 && context?.state) {
-                    body += '\n\n**Testcases**\n';
                     const state = context.state;
+
+                    const runIdentity = s.custom?.identity ? `${s.uri}::${s.custom.identity}` : s.uri;
+                    const existingRun = state.getResources('github_testrun').find((r: any) => r.identity === runIdentity);
+                    const existingStatuses = existingRun?.attributes?.testcaseStatuses || {};
 
                     const sortedTestcases = [...testcases].sort((a: string, b: string) => {
                         const aName = a.split('::').pop()?.replace('@', '') || '';
                         const bName = b.split('::').pop()?.replace('@', '') || '';
                         return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
                     });
+
+                    const allValidResources: any[] = [];
+                    const notFoundTCs: string[] = [];
 
                     for (const tc of sortedTestcases) {
                         const parts = tc.split('::');
@@ -347,23 +353,72 @@ resource.registry({
                         }
 
                         if (validResources.length > 0) {
-                            validResources.sort((a: any, b: any) => {
-                                const aName = a.identity.split('::').pop()?.replace('@', '') || '';
-                                const bName = b.identity.split('::').pop()?.replace('@', '') || '';
-                                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                            allValidResources.push(...validResources);
+                        } else {
+                            notFoundTCs.push(tc);
+                        }
+                    }
+
+                    const uniqueResourcesMap = new Map();
+                    for (const r of allValidResources) {
+                        if (!uniqueResourcesMap.has(r.identity)) {
+                            uniqueResourcesMap.set(r.identity, r);
+                        }
+                    }
+                    const uniqueResources = Array.from(uniqueResourcesMap.values());
+
+                    uniqueResources.sort((a: any, b: any) => {
+                        const aName = a.identity.split('::').pop()?.replace('@', '') || '';
+                        const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+                        return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+
+                    const groupedByOrigin = new Map<string, any[]>();
+                    for (const tcResource of uniqueResources) {
+                        const [baseRule] = tcResource.identity.split('::');
+                        const originFile = require('path').basename(baseRule || '');
+                        if (!groupedByOrigin.has(originFile)) {
+                            groupedByOrigin.set(originFile, []);
+                        }
+                        groupedByOrigin.get(originFile)!.push(tcResource);
+                    }
+
+                    for (const [origin, resources] of groupedByOrigin.entries()) {
+                        body += `\n\n**Origin:** ${origin}\n`;
+                        for (const tcResource of resources) {
+                            const tcIdentity = tcResource.identity;
+                            const safeName = tcIdentity.split('::').pop()?.replace('@', '') || '';
+
+                            let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
+                                if (!gs.rule || !gs.name) return false;
+                                const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
+                                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`::${gs.name}`);
                             });
 
-                            for (const tcResource of validResources) {
-                                const safeName = tcResource.identity.split('::').pop()?.replace('@', '') || '';
-                                if (tcResource?.attributes?.issueNumber) {
-                                    body += `- ${safeName}: #${tcResource.attributes.issueNumber}\n`;
-                                } else {
-                                    body += `- ${safeName}: (known after apply) - ${tcResource.identity}\n`;
-                                }
+                            if (!groupScenario) {
+                                groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
+                                    if (!gs.rule || !gs.name) return false;
+                                    const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
+                                    return tcIdentity.includes(gsBaseRule) && gs.name === '*';
+                                });
                             }
-                        } else {
+
+                            const localStatus = groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || 'pending';
+                            const checkbox = localStatus === 'passed' ? '[x]' : '[ ]';
+
+                            if (tcResource?.attributes?.issueNumber) {
+                                body += `- ${checkbox} ${safeName}: #${tcResource.attributes.issueNumber}\n`;
+                            } else {
+                                body += `- ${checkbox} ${safeName}: (known after apply) - ${tcIdentity}\n`;
+                            }
+                        }
+                    }
+
+                    if (notFoundTCs.length > 0) {
+                        body += `\n\n**Not Found in State**\n`;
+                        for (const tc of notFoundTCs) {
                             const safeName = tc.split('::').pop()?.replace('@', '') || '';
-                            body += `- ${safeName}: (not found in state) - ${tc}\n`;
+                            body += `- [ ] ${safeName}: (not found in state) - ${tc}\n`;
                         }
                     }
                 }

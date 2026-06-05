@@ -122,16 +122,23 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 };
 
                 const matchesTestcaseTarget = (k: string, targetValue: string) => {
-                    if (k === targetValue) return true;
-                    const partsK = k.split('::');
-                    const partsT = targetValue.split('::');
+                    const normalizedK = k.replace('::@', '::');
+                    let normalizedT = targetValue.replace('::@', '::');
+                    if (!normalizedT.includes('::') && normalizedT.includes('@')) {
+                        const lastAt = normalizedT.lastIndexOf('@');
+                        normalizedT = normalizedT.substring(0, lastAt) + '::' + normalizedT.substring(lastAt + 1);
+                    }
+
+                    if (normalizedK === normalizedT) return true;
+                    const partsK = normalizedK.split('::');
+                    const partsT = normalizedT.split('::');
                     if (partsK.length === 2 && partsT.length === 2) {
                         if (partsK[1] !== partsT[1]) return false;
                         const uriK = partsK[0];
                         const uriT = partsT[0];
                         if (uriK.includes(uriT) || uriT.includes(uriK)) return true;
                         if (uriK.split('/').pop() === uriT.split('/').pop()) return true;
-                    } else if (k.endsWith(`::${targetValue}`)) {
+                    } else if (normalizedK.endsWith(`::${normalizedT}`)) {
                         return true;
                     }
                     return false;
