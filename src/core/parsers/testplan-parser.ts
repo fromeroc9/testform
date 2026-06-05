@@ -21,6 +21,11 @@ export class TestplanParser extends TestcaseParser {
 
         // Transform each group into a single plan scenario
         return Object.entries(groups).map(([uri, groupScenarios]) => {
+            const hasExplicitScenarios = groupScenarios.some(s => s.name && s.name !== '*');
+            if (hasExplicitScenarios) {
+                throw new Error(`Testplan validation failed: Testplans must not contain explicit Scenario blocks. Found in ${uri}`);
+            }
+
             const aggregated = JSON.parse(JSON.stringify(groupScenarios[0])) as ParserScenario;
             aggregated.custom ??= {};
             // If the base parser extracted an identity from tags, preserve it, otherwise fallback to uri
