@@ -125,10 +125,9 @@ Plan Customization Options:
                       module of the configuration. Use this option more than
                       once to set more than one variable.
 
-  -var-file=filename  Load variable values from the given file, in addition
-                      to the default files ${TITLE_CLI}.tfvars and *.auto.tfvars.
-                      Use this option more than once to include more than one
-                      variables file.
+  -var-file=filename         Load variable values from the given file (.json or key=value format).
+                             Use this option more than once to include more than one
+                             variables file.
 
 Other Options:
 
@@ -251,8 +250,7 @@ Options:
                          module of the configuration. Use this option more than
                          once to set more than one variable.
 
-  -var-file=filename     Load variable values from the given file, in addition
-                         to the default files ${TITLE_CLI}.tfvars and *.auto.tfvars.
+  -var-file=filename     Load variable values from the given file (.json or key=value format).
                          Use this option more than once to include more than one
                          variables file.
 
