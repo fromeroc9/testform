@@ -10,8 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Comments Status:** Fixed an issue where the testcase status fallback logic accidentally used the global testrun `Status` field rather than its independent execution status, causing Github comment tables to incorrectly show "Todo".
 - **Gherkin Parser:** Fixed an issue where `* link status` could be incorrectly ignored when placed in the description of a Rule instead of a Background or Scenario block.
-- **CLI Commands:** Fixed a bug causing `-expand` flag to fail with `Nothing to repeat` due to improper regular expression escaping when dealing with dummy `*` scenarios.
+- **CLI Commands:** Fixed a bug causing `-expand` flag to fail with `Nothing to repeat` due to improper regular expression escaping when dealing with dummy `*` scenarios. It also has been removed from the `apply -h` help menu as it is an internal process.
 - **Scenario Expansion:** Corrected `apply -expand` logic to expand all explicit testcases belonging to a Rule instead of generating a dummy `*` scenario. It also properly removes the wildcard placeholder from local `.feature` files during expansion.
+- **CLI Options:** Fixed a critical bug in the arguments parser where short flags containing the equals sign (e.g. `-C="."`) were not properly mapped to their long flag equivalents (`--chdir="."`), causing arguments parsing to crash.
+- **Documentation:** Clarified the help text for the `-var-file` option to correctly indicate it accepts `.json` and `key=value` formats rather than Terraform-specific `.tfvars`.
+- **TestRun Formatting:** Refactored the core TestRun rendering pipeline to process and display all testcase comments and checklist bodies in strict alphanumeric order (e.g., `tc-1`, `tc-2`, `tc-3`), regardless of how they are defined in `.feature` files.
+- **TestRun UI:** Updated the default markdown body generated for TestRuns to include professional tracker instructions indicating that statuses are updated dynamically via issue comments.
+- **Resource Extensibility:** Exposed an optional `comments(scenario, context)` callback in the `ResourceTemplate` interface to formally delegate custom status-comment generation to resource registries rather than keeping the HTML string-building logic hardcoded in `apply.ts`.
 
 ## [1.0.3] - 2026-06-05
 

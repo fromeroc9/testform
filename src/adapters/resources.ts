@@ -311,7 +311,7 @@ resource.registry({
 
                 const testcases = s.custom?.testcases || [];
                 if (testcases.length > 0 && context?.state) {
-                    body += '\n\n### Test Cases\n';
+                    body += '\n\n**Testcases**\n';
                     const state = context.state;
 
                     const sortedTestcases = [...testcases].sort((a: string, b: string) => {
@@ -354,14 +354,16 @@ resource.registry({
                             });
 
                             for (const tcResource of validResources) {
+                                const safeName = tcResource.identity.split('::').pop()?.replace('@', '') || '';
                                 if (tcResource?.attributes?.issueNumber) {
-                                    body += `- [ ] #${tcResource.attributes.issueNumber}\n`;
+                                    body += `- ${safeName}: #${tcResource.attributes.issueNumber}\n`;
                                 } else {
-                                    body += `- [ ] (known after apply) - ${tcResource.identity}\n`;
+                                    body += `- ${safeName}: (known after apply) - ${tcResource.identity}\n`;
                                 }
                             }
                         } else {
-                            body += `- [ ] (not found in state) - ${tc}\n`;
+                            const safeName = tc.split('::').pop()?.replace('@', '') || '';
+                            body += `- ${safeName}: (not found in state) - ${tc}\n`;
                         }
                     }
                 }
@@ -424,7 +426,7 @@ resource.registry({
 
             for (const tcResource of validResources) {
                 const tcIdentity = tcResource.identity;
-                
+
                 let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
                     if (!gs.rule || !gs.name) return false;
                     const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
@@ -441,7 +443,7 @@ resource.registry({
 
                 const localStatus = groupScenario?.custom?.fields?.status || context?.existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
                 const tcTitle = tcResource.attributes?.title || tcIdentity;
-                
+
                 const [safeBaseRule, safeScenarioName] = tcIdentity.split('::');
                 const originFile = require('path').basename(safeBaseRule || '');
                 const safeScenario = safeScenarioName ? safeScenarioName.replace('@', '') : '';
