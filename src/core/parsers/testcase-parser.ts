@@ -45,7 +45,7 @@ export class TestcaseParser extends BaseParser {
 
             if (s.background) {
                 s.background.steps = s.background.steps.filter((step) => {
-                    const linkMatch = step.text.match(/^\s*\*\s*link\s+status\s*=\s*(.*)$/i);
+                    const linkMatch = step.text.match(/^\s*(?:\*\s*)?link\s+status\s*=\s*(.*)$/i);
                     if (linkMatch) {
                         customFields['status'] = linkMatch[1]?.trim();
                         return false;
@@ -74,7 +74,7 @@ export class TestcaseParser extends BaseParser {
             }
 
             s.steps = s.steps.filter((step) => {
-                const linkMatch = step.text.match(/^\s*\*\s*link\s+status\s*=\s*(.*)$/i);
+                const linkMatch = step.text.match(/^\s*(?:\*\s*)?link\s+status\s*=\s*(.*)$/i);
                 if (linkMatch) {
                     customFields['status'] = linkMatch[1]?.trim();
                     return false;

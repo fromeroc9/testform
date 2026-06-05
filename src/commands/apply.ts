@@ -1,7 +1,7 @@
 import { createInterface } from 'readline';
 import { MSG_ACQUIRING_LOCK, ERR_NO_INPUT_ALLOWED } from '../const';
 import { existsSync, readFileSync } from 'fs';
-import { bold, green } from 'chalk';
+import { bold, green, yellow } from 'chalk';
 import { resource } from '../adapters/resources';
 import { State } from '../core/state';
 import { Logger } from '../logger';
@@ -184,9 +184,17 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     await ctx.github.updateIssueComment(commentId, commentBody);
                     console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
 
+                    const oldStatus = foundRun.attributes.testcaseStatuses?.[targetId] || 'pending';
                     if (!foundRun.attributes.testcaseStatuses) foundRun.attributes.testcaseStatuses = {};
                     foundRun.attributes.testcaseStatuses[targetId] = newStatus;
                     await stateObj.save();
+
+                    console.log(`\n  ${yellow('~')} resource "github_testrun" "${foundRun.identity}" {`);
+                    console.log(`      ${yellow('~')} testcaseStatuses {`);
+                    console.log(`          ${yellow('~')} "${targetId}": "${oldStatus}" -> "${newStatus}"`);
+                    console.log(`        }`);
+                    console.log(`    }\n`);
+
                     console.log(green(bold(`Status successfully updated!`)));
 
                     // Now update the .run.feature file textually
