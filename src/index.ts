@@ -154,15 +154,32 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         'rule'
     ]);
 
+    const shortFlags: Record<string, string> = {
+        'C': 'chdir',
+        's': 'scope',
+        'h': 'help',
+        'v': 'verbose',
+        'a': 'auto-approve',
+        'o': 'out'
+    };
+
     return rawArgs.map((arg) => {
-        const match = arg.match(/^-([a-z][a-z-]*)(=.*)?$/i);
+        const match = arg.match(/^-([a-zA-Z][a-zA-Z-]*)(=.*)?$/);
         if (!match) return arg;
 
-        const flag = match[1].toLowerCase();
+        const flag = match[1];
         const suffix = match[2] || '';
 
-        if (!longFlags.has(flag)) return arg;
-        return `--${flag}${suffix}`;
+        if (shortFlags[flag]) {
+            return `--${shortFlags[flag]}${suffix}`;
+        }
+
+        const lowerFlag = flag.toLowerCase();
+        if (longFlags.has(lowerFlag)) {
+            return `--${lowerFlag}${suffix}`;
+        }
+        
+        return arg;
     });
 }
 

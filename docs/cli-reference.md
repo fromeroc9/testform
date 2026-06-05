@@ -10,7 +10,7 @@ testform [global options] <command> [arguments]
 
 These options can be used with any command, placed before the subcommand:
 - `-chdir=DIR` (alias `-C`): Switch to a different working directory before executing.
-- `--projectId=ID`: Override the GitHub Projects V2 ID (useful for monorepos with multiple project boards).
+- `-projectId=ID`: Override the GitHub Projects V2 ID (useful for monorepos with multiple project boards).
 - `-scope=SCOPE` (alias `-s`): Limit the scope of the execution (e.g., `testcase`, `testrun`, `testplan`).
 - `-verbose` (alias `-v`): Enable verbose logging.
 - `-help` (alias `-h`): Show help output.
@@ -119,7 +119,7 @@ Generates a speculative execution plan. It compares your local `.feature` files 
 - `-replace=resource`: Force the replacement of a specific resource instance (e.g. `-replace="github_testcase.cart::@tc-01"`).
 - `-refresh-only`: Only update the state to match the remote system, without proposing any local configuration changes.
 - `-var="key=value"`: Set a variable in the Testform configuration.
-- `-var-file=path`: Set variables from a file (e.g. `staging.json`). The path is resolved relative to the `-chdir` directory.
+- `-var-file=path`: Set variables from a file (.json or key=value format). The path is resolved relative to the `-chdir` directory.
 - `-target=resource`: Target a specific resource for planning (e.g. `-target="cart.feature::@tc-01"`).
 - `-detailed-exitcode`: Return detailed exit codes when the command exits (0 = Succeeded/no diff, 1 = Error, 2 = Succeeded/diff present).
 
