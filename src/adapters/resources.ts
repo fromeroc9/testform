@@ -53,6 +53,14 @@ class Resource {
         return result;
     }
 
+    evaluateComments(type: string, scenario: ParserScenario, context?: any): { identity: string; status: string; body: string; title: string }[] {
+        const template = this.get(type);
+        if (template.comments) {
+            return template.comments(scenario, context);
+        }
+        return [];
+    }
+
     private getSymbol(type: PlanAction) {
         const symbol = {
             add: green('+'),
@@ -116,7 +124,7 @@ class Resource {
                         const oldVal = safeOldRaw[k];
                         const newVal = raw[k];
                         const kStr = `"${k}"`;
-                        
+
                         if (action === 'add') {
                             const formattedNewVal = formatHclValue(newVal, 2).trimStart();
                             diffLines.push(`          ${green('+')} ${kStr}: ${formattedNewVal}`);
@@ -281,13 +289,15 @@ resource.registry({
         { name: 'labels', value: (s) => [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t))] },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
-        { name: 'custom_fields', value: (s) => {
-            const fields = { ...(s.custom?.fields || {}) };
-            delete fields['labels'];
-            delete fields['assignees'];
-            delete fields['milestone'];
-            return fields;
-        }}
+        {
+            name: 'custom_fields', value: (s) => {
+                const fields = { ...(s.custom?.fields || {}) };
+                delete fields['labels'];
+                delete fields['assignees'];
+                delete fields['milestone'];
+                return fields;
+            }
+        }
     ]
 });
 
@@ -295,135 +305,228 @@ resource.registry({
     type: 'github_testrun',
     fields: [
         { name: 'title', value: (s) => s.feature?.name || '' },
-        { name: 'body', value: (s, context) => {
-            let body = s.feature.description || '### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- The test cases will be updated dynamically with the execution status.\n- Click on individual test case links to view their details or attach evidence.';
-            const testcases = s.custom?.testcases || [];
-            if (testcases.length > 0 && context?.state) {
-                body += '\n\n### Test Cases\n';
-                const state = context.state;
-                
-                const sortedTestcases = [...testcases].sort((a: string, b: string) => {
-                    const aName = a.split('::').pop()?.replace('@', '') || '';
-                    const bName = b.split('::').pop()?.replace('@', '') || '';
-                    return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
-                });
+        {
+            name: 'body', value: (s, context) => {
+                let body = s.feature.description || '### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- Execution results for each test case will be recorded dynamically as comments on this issue.\n- Click on individual test case links to view their details or attach evidence.';
 
-                for (const tc of sortedTestcases) {
-                    const parts = tc.split('::');
-                    const scenarioName = parts.pop();
-                    const ruleName = parts.pop() || '';
-                    const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
-                    
-                    const tcResources = state.getResources('github_testcase').filter((r: any) =>
-                        r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
-                    );
-                    
-                    const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
-                    let validResources = tcResources;
+                const testcases = s.custom?.testcases || [];
+                if (testcases.length > 0 && context?.state) {
+                    body += '\n\n### Test Cases\n';
+                    const state = context.state;
 
-                    if (distinctFiles.size > 1) {
-                        if (context?.testDirectory) {
-                            const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
-                            validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
-                            const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
-                            if (distinctValid.size > 1) {
+                    const sortedTestcases = [...testcases].sort((a: string, b: string) => {
+                        const aName = a.split('::').pop()?.replace('@', '') || '';
+                        const bName = b.split('::').pop()?.replace('@', '') || '';
+                        return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+
+                    for (const tc of sortedTestcases) {
+                        const parts = tc.split('::');
+                        const scenarioName = parts.pop();
+                        const ruleName = parts.pop() || '';
+                        const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
+
+                        const tcResources = state.getResources('github_testcase').filter((r: any) =>
+                            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
+                        );
+
+                        const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
+                        let validResources = tcResources;
+
+                        if (distinctFiles.size > 1) {
+                            if (context?.testDirectory) {
+                                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
+                                validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                                const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                                if (distinctValid.size > 1) {
+                                    throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                                }
+                            } else {
                                 throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
                             }
-                        } else {
-                            throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
                         }
-                    }
 
-                    if (validResources.length > 0) {
-                        validResources.sort((a: any, b: any) => {
-                            const aName = a.identity.split('::').pop()?.replace('@', '') || '';
-                            const bName = b.identity.split('::').pop()?.replace('@', '') || '';
-                            return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
-                        });
+                        if (validResources.length > 0) {
+                            validResources.sort((a: any, b: any) => {
+                                const aName = a.identity.split('::').pop()?.replace('@', '') || '';
+                                const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+                                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+                            });
 
-                        for (const tcResource of validResources) {
-                            if (tcResource?.attributes?.issueNumber) {
-                                body += `- [ ] #${tcResource.attributes.issueNumber}\n`;
-                            } else {
-                                body += `- [ ] (known after apply) - ${tcResource.identity}\n`;
+                            for (const tcResource of validResources) {
+                                if (tcResource?.attributes?.issueNumber) {
+                                    body += `- [ ] #${tcResource.attributes.issueNumber}\n`;
+                                } else {
+                                    body += `- [ ] (known after apply) - ${tcResource.identity}\n`;
+                                }
                             }
+                        } else {
+                            body += `- [ ] (not found in state) - ${tc}\n`;
                         }
-                    } else {
-                         body += `- [ ] (not found in state) - ${tc}\n`;
                     }
                 }
+                return body.trim();
             }
-            return body.trim();
-        }},
+        },
         { name: 'labels', value: (s) => [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t))] },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
-        { name: 'custom_fields', value: (s) => {
-            const fields = { ...(s.custom?.fields || {}) };
-            delete fields['labels'];
-            delete fields['assignees'];
-            delete fields['milestone'];
-            return fields;
-        }}
-    ]
+        {
+            name: 'custom_fields', value: (s) => {
+                const fields = { ...(s.custom?.fields || {}) };
+                delete fields['labels'];
+                delete fields['assignees'];
+                delete fields['milestone'];
+                return fields;
+            }
+        }
+    ],
+    comments: (s, context) => {
+        const testcases = s.custom?.testcases || [];
+        if (testcases.length === 0 || !context?.state) return [];
+
+        const state = context.state;
+        const result: { identity: string; status: string; body: string; title: string }[] = [];
+
+        const sortedTestcases = [...testcases].sort((a: string, b: string) => {
+            const aName = a.split('::').pop()?.replace('@', '') || '';
+            const bName = b.split('::').pop()?.replace('@', '') || '';
+            return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        for (const tc of sortedTestcases) {
+            const parts = tc.split('::');
+            const scenarioName = parts.pop();
+            const ruleName = parts.pop() || '';
+            const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
+
+            const tcResources = state.getResources('github_testcase').filter((r: any) =>
+                r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
+            );
+
+            const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
+            let validResources = tcResources;
+
+            if (distinctFiles.size > 1) {
+                if (context?.testDirectory) {
+                    const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
+                    validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                } else {
+                    continue; // Skip evaluating on error during comment evaluation
+                }
+            }
+
+            validResources.sort((a: any, b: any) => {
+                const aName = a.identity.split('::').pop()?.replace('@', '') || '';
+                const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            for (const tcResource of validResources) {
+                const tcIdentity = tcResource.identity;
+                
+                let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
+                    if (!gs.rule || !gs.name) return false;
+                    const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
+                    return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`::${gs.name}`);
+                });
+
+                if (!groupScenario) {
+                    groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
+                        if (!gs.rule || !gs.name) return false;
+                        const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
+                        return tcIdentity.includes(gsBaseRule) && gs.name === '*';
+                    });
+                }
+
+                const localStatus = groupScenario?.custom?.fields?.status || context?.existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
+                const tcTitle = tcResource.attributes?.title || tcIdentity;
+                
+                const [safeBaseRule, safeScenarioName] = tcIdentity.split('::');
+                const originFile = require('path').basename(safeBaseRule || '');
+                const safeScenario = safeScenarioName ? safeScenarioName.replace('@', '') : '';
+
+                const commentBody = `**Origin:** ${originFile}\n<table border="1" width="100%">
+                <tr>
+                    <th colspan="3">Feature Name</th>
+                </tr>
+                <tr>
+                    <td>${safeScenario}</td>
+                    <td>${tcTitle}</td>
+                    <td>${localStatus}</td>
+                </tr>
+                <tr>
+                    <td colspan="3"><br/></td>
+                </tr>
+                </table>`;
+
+                result.push({ identity: tcIdentity, status: localStatus, body: commentBody, title: tcTitle });
+            }
+        }
+        return result;
+    }
 });
 
 resource.registry({
     type: 'github_testplan',
     fields: [
         { name: 'title', value: (s) => s.feature?.name || '' },
-        { name: 'body', value: (s, context) => {
-            let body = s.feature.description || '';
-            const testruns = s.custom?.testruns || [];
-            if (testruns.length > 0 && context?.state) {
-                body += '\n\n### Test Runs\n';
-                const state = context.state;
-                for (const tr of testruns) {
-                    const runResources = state.getResources('github_testrun').filter((r: any) =>
-                        r.identity.endsWith(tr)
-                    );
-                    
-                    const distinctFiles = new Set(runResources.map((r: any) => r.identity.split('::')[0]));
-                    let validResources = runResources;
+        {
+            name: 'body', value: (s, context) => {
+                let body = s.feature.description || '';
+                const testruns = s.custom?.testruns || [];
+                if (testruns.length > 0 && context?.state) {
+                    body += '\n\n### Test Runs\n';
+                    const state = context.state;
+                    for (const tr of testruns) {
+                        const runResources = state.getResources('github_testrun').filter((r: any) =>
+                            r.identity.endsWith(tr)
+                        );
 
-                    if (distinctFiles.size > 1) {
-                        if (context?.testDirectory) {
-                            const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
-                            validResources = runResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
-                            const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
-                            if (distinctValid.size > 1) {
+                        const distinctFiles = new Set(runResources.map((r: any) => r.identity.split('::')[0]));
+                        let validResources = runResources;
+
+                        if (distinctFiles.size > 1) {
+                            if (context?.testDirectory) {
+                                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
+                                validResources = runResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                                const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                                if (distinctValid.size > 1) {
+                                    throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                                }
+                            } else {
                                 throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
                             }
-                        } else {
-                            throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
                         }
-                    }
 
-                    if (validResources.length > 0) {
-                        for (const runResource of validResources) {
-                            if (runResource?.attributes?.issueNumber) {
-                                body += `- [ ] #${runResource.attributes.issueNumber} - ${runResource.attributes.title}\n`;
-                            } else {
-                                body += `- [ ] (known after apply) - ${runResource.identity}\n`;
+                        if (validResources.length > 0) {
+                            for (const runResource of validResources) {
+                                if (runResource?.attributes?.issueNumber) {
+                                    body += `- [ ] #${runResource.attributes.issueNumber} - ${runResource.attributes.title}\n`;
+                                } else {
+                                    body += `- [ ] (known after apply) - ${runResource.identity}\n`;
+                                }
                             }
+                        } else {
+                            body += `- [ ] (not found in state) - ${tr}\n`;
                         }
-                    } else {
-                         body += `- [ ] (not found in state) - ${tr}\n`;
                     }
                 }
+                return body.trim();
             }
-            return body.trim();
-        }},
+        },
         { name: 'labels', value: (s) => [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t))] },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
-        { name: 'custom_fields', value: (s) => {
-            const fields = { ...(s.custom?.fields || {}) };
-            delete fields['labels'];
-            delete fields['assignees'];
-            delete fields['milestone'];
-            return fields;
-        }},
+        {
+            name: 'custom_fields', value: (s) => {
+                const fields = { ...(s.custom?.fields || {}) };
+                delete fields['labels'];
+                delete fields['assignees'];
+                delete fields['milestone'];
+                return fields;
+            }
+        },
         { name: 'testruns', value: (s) => s.custom?.testruns || [] }
     ]
 });
