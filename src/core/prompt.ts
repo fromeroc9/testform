@@ -78,8 +78,8 @@ export async function askMigrationApproval(newBackendType: string): Promise<bool
         console.log('');
         console.log(bold('Do you want to copy existing state to the new backend?'));
         console.log('  Pre-existing state was found while migrating the previous');
-        console.log(`  to the newly configured "${newBackendType}" backend. No existing state was found...`);
-        console.log(`  configured "${newBackendType}" backend. Do you want to copy this state to the new backend?`);
+        console.log(`  backend to the newly configured "${newBackendType}" backend.`);
+        console.log('  Do you want to copy this state to the new backend?');
         console.log('  Enter "yes" to copy and "no" to start with an empty state.');
         console.log('');
 

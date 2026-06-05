@@ -3,7 +3,7 @@ import * as readline from 'readline';
 import { Credentials } from '../core/credentials';
 import { TITLE_CLI } from '../const';
 
-export interface LoginCmdOptions {
+interface LoginCmdOptions {
     hostname?: string;
 }
 

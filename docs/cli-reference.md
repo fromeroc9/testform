@@ -9,10 +9,22 @@ testform [global options] <command> [arguments]
 ## Global Options
 
 These options can be used with any command, placed before the subcommand:
-- `-chdir=DIR`: Switch to a different working directory before executing.
+- `-chdir=DIR` (alias `-C`): Switch to a different working directory before executing.
 - `--projectId=ID`: Override the GitHub Projects V2 ID (useful for monorepos with multiple project boards).
-- `-help`: Show help output.
+- `-scope=SCOPE` (alias `-s`): Limit the scope of the execution (e.g., `testcase`, `testrun`, `testplan`).
+- `-verbose` (alias `-v`): Enable verbose logging.
+- `-help` (alias `-h`): Show help output.
 - `-version`: Show the current Testform version.
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Scope-first Variations:**
+You can pass a scope flag (`-scope=testcase`) or you can place the scope before the command for a more natural syntax:
+```bash
+testform testcase plan
+# is equivalent to:
+testform plan -scope=testcase
+```
 
 ---
 
@@ -49,6 +61,21 @@ Initializing provider plugins...
 Testform has been successfully initialized!
 ```
 
+#### 🛠 Advanced Usage & Combinations
+
+**1. Dynamic Backend Configuration (Multiple values):**
+Useful for CI/CD pipelines where you don't want to hardcode credentials.
+```bash
+testform init \
+  -backend-config="sas_token=?sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2024-05-15T01:14:14Z" \
+  -backend-config="container_name=testform-states"
+```
+
+**2. Initializing a sub-directory without colors (Automation-friendly):**
+```bash
+testform -chdir=./e2e-tests init -no-color
+```
+
 ### `validate`
 Checks whether the configuration (i.e., your `.feature` files and `testform.json`) is syntactically valid and complies with all defined policies. It ensures all required fields are present and that there are no schema errors before you run a plan.
 
@@ -58,7 +85,6 @@ Checks whether the configuration (i.e., your `.feature` files and `testform.json
 - `-no-tests`: Skips the policy validation checks and only verifies that the files can be parsed correctly.
 - `-test-directory=path`: Set the Testform test directory where `.feature` files are located (defaults to "tests").
 - `-query="string"`: Acts as a search filter. Only validates scenarios whose name, tags, custom identity, or file path match the specified string (case-insensitive).
-- `-fail-on-warnings`: If specified, the validation process will exit with a failure code (exit code 1) if any warnings are detected, even if there are no strict errors.
 
 **Example Input/Output:**
 ```bash
@@ -70,8 +96,15 @@ $ testform validate -test-directory=./Magento
 │ The field 'type_of_test' is used but not declared in testform.json schema.
 ╵
 Success! The configuration is valid, but there were some warnings.
+#### 🛠 Advanced Usage & Combinations
+
+**1. Validate filtering by query and output to JSON:**
+Validate only the features tagged with `@critical` and parse the output for a CI tool.
+```bash
+testform validate -query="@critical" -json > validation-results.json
 ```
-*(Note: If you run with `-fail-on-warnings`, the same output would result in an exit code of 1 instead of a success message).*
+
+
 
 ### `plan`
 Generates a speculative execution plan. It compares your local `.feature` files against the `testform.state` file and outputs exactly what actions it will take (e.g., creating 2 test cases, destroying 1, updating 1). **It will not modify GitHub.**
@@ -88,6 +121,7 @@ Generates a speculative execution plan. It compares your local `.feature` files 
 - `-var="key=value"`: Set a variable in the Testform configuration.
 - `-var-file=path`: Set variables from a file (e.g. `staging.json`). The path is resolved relative to the `-chdir` directory.
 - `-target=resource`: Target a specific resource for planning (e.g. `-target="cart.feature::@tc-01"`).
+- `-detailed-exitcode`: Return detailed exit codes when the command exits (0 = Succeeded/no diff, 1 = Error, 2 = Succeeded/diff present).
 
 **Example Input/Output:**
 ```bash
@@ -116,6 +150,28 @@ Plan: 1 to add, 1 to change, 0 to destroy.
 Saved the plan to: plan.out
 ```
 
+#### 🛠 Advanced Usage & Combinations
+
+**1. Plan with Variable Injection & Targeting:**
+Only plan changes for a specific test case, injecting environment variables dynamically.
+```bash
+testform plan \
+  -target="github_testcase.cart::@tc-01" \
+  -var="environment=staging" \
+  -var="sprint_id=S14"
+```
+
+**2. Forcing Replacement of a Corrupted Test:**
+If a test is out-of-sync and you want to plan its complete recreation.
+```bash
+testform plan -replace="github_testcase.auth::@tc-login" -out=replace.plan
+```
+
+**3. Plan to Destroy Everything in a Scope:**
+```bash
+testform testcase plan -destroy -out=destroy.plan
+```
+
 ### `apply`
 Executes the actions proposed by a `plan`. It connects to GitHub via the GraphQL API, creates/updates/closes Issues, and securely updates your `testform.state` file to reflect the new reality.
 
@@ -130,10 +186,11 @@ If you run `apply` without passing a saved plan file, it will implicitly run a `
 **Options:**
 - `[PLAN]`: Provide a path to a pre-generated plan file (from `plan -out=path`). Testform will blindly execute this plan without prompting for confirmation.
 - `-auto-approve`: Skip the interactive `yes/no` confirmation prompt (useful for CI/CD).
+- `-input=true`: Ask for input for variables if they are not directly set.
 - `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `10`). Lower this if you hit GitHub secondary rate limits.
 - `-destroy`: Instructs the apply to destroy all tracked infrastructure instead of creating/updating.
 - `-replace=resource`: Force the replacement of a specific resource instance.
-- `-set-status="assigns"`: Injects or updates the status field in your local testrun features before applying (e.g., `"tc1=passed,tc2=failed"`). Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`.
+- `-set-status="assigns"` (alias `-set-state`): Injects or updates the status field in your local testrun features before applying (e.g., `"tc1=passed,tc2=failed"`). Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`.
 - `-state=path`: Custom path to read and save state (resolved relative to `-chdir`).
 - `-backup=path`: Path to backup the existing state file before modifying. Set to `-` to disable backup.
 - `-var="key=value"` / `-var-file=filename`: Inject variables just like in `plan`.
@@ -151,8 +208,36 @@ github_testcase.cart::@tc-01: Modifications complete after 3s [id=testform-demo:
 Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
 ```
 
+#### 🛠 Advanced Usage & Combinations
+
+**1. Auto-Approve and Apply Changes directly:**
+```bash
+testform testcase apply -auto-approve
+```
+
+**2. Apply with Status Updates (CI/CD Test Runner Integration):**
+Inject test execution statuses dynamically after your automated tests finish.
+```bash
+testform testrun apply \
+  -auto-approve \
+  -set-status="tc-01=passed,tc-02=failed,tc-03=skipped"
+```
+
+**3. High Parallelism Apply:**
+When deploying hundreds of test cases to GitHub, speed it up by increasing concurrency.
+```bash
+testform apply -auto-approve -parallelism=30
+```
+
 ### `destroy`
 Convenience alias for `testform apply -destroy`. Soft-deletes (closes) all GitHub Issues managed by your current Testform workspace.
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Destroy resources in a specific scope bypassing prompt:**
+```bash
+testform testplan destroy -auto-approve
+```
 
 ---
 
@@ -161,7 +246,31 @@ Convenience alias for `testform apply -destroy`. Soft-deletes (closes) all GitHu
 ### `report`
 Generates multi-dimensional test analytics from your local state without needing to query GitHub.
 *Usage:* `testform report <type> [options]`
+
+**Options:**
+- `-format <md|csv|json>`: Output format. Default is `md`.
+- `-out <path>`: Path to save the generated report.
+- `-filter <key=val>`: Filter data by any state attribute. Can be specified multiple times.
+- `-apply`: Create a GitHub Issue for the report automatically.
+- `-field <key=val>`: Custom field values to attach when `-apply` is used.
+
 *(See the [Reporting & Analytics](reporting-and-analytics.md) guide for full details on types and filters).*
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Coverage Report Filtered by Sprint:**
+Generate a JSON report, filtering only tests in Sprint 14.
+```bash
+testform report coverage \
+  -filter="attributes.custom_fields.sprint=14" \
+  -format=json -out=coverage-sprint-14.json
+```
+
+**2. Publish Report directly as a GitHub Issue:**
+Generate a defect report and create a GitHub Issue automatically containing the report.
+```bash
+testform report defects -apply -field='{"title": "Automated Defect Report", "label": "bug"}'
+```
 
 ### `refresh`
 Updates the local `testform.state` file by querying the remote system (GitHub) to fetch the latest attributes of all tracked resources. 
@@ -191,6 +300,18 @@ github_testcase.cart::@tc-02: Refreshing state... [id=testform-demo:165]
 Refresh complete! Resources: 2 refreshed.
 ```
 
+#### 🛠 Advanced Usage & Combinations
+
+**1. Refresh state with high parallelism:**
+```bash
+testform refresh -parallelism=20
+```
+
+**2. Refresh and output to a different state file temporarily:**
+```bash
+testform refresh -state=backup.tfstate
+```
+
 ### `import`
 Associates an existing GitHub Issue with a Testform resource, downloading its state and (optionally) generating the local Gherkin code.
 
@@ -203,6 +324,13 @@ Associates an existing GitHub Issue with a Testform resource, downloading its st
   - It analyzes the `Background` of your file and the defaults in `testform.json`.
   - It omits labels or custom fields that are already inherited globally (maintaining your code DRY).
   - It injects missing `tags` above the scenario (`@tag`) and missing `keywords` inside the scenario (`* field key = value`).
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Import test run issue #500 into local state:**
+```bash
+testform import github_testrun.sprint-14-regression 500
+```
 
 ### `diff`
 Shows the drift between your local `.feature` files and your `testform.state`. This command is useful for a quick check to see what has changed locally before running a full `plan`.
@@ -227,6 +355,13 @@ Summary:
   ~ 1 modified_locally
 ```
 
+#### 🛠 Advanced Usage & Combinations
+
+**1. See drift only in a specific module folder:**
+```bash
+testform diff ./OpenCart
+```
+
 ### `fmt`
 Rewrites all `.feature` files to a canonical format and style. It normalizes indentation, spacing, and Gherkin keywords alignment to ensure consistency across the repository.
 
@@ -241,6 +376,13 @@ Rewrites all `.feature` files to a canonical format and style. It normalizes ind
 ```bash
 $ testform fmt -recursive
 /Users/fromero/Desktop/terrahub-demo/OpenCart/checkout.feature
+```
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Check mode for CI (fails if formatting is needed, does not overwrite files):**
+```bash
+testform fmt -recursive -check -write=false
 ```
 
 ### `login`
@@ -271,6 +413,21 @@ Generates an ASCII dependency graph showing the relationship between your Test P
 **Technical Behavior:**
 - **Accurate Topology:** El motor de grafos detecta si un caso de prueba (`testcase`) está vinculado a un plan o run de prueba (`testrun`/`testplan`) o si fue importado remotamente, renderizando flechas direccionales adecuadas y codificando los nodos con íconos e identificadores (como id, tags o ramas).
 
+### `force-unlock`
+Manually unlock the state for the defined configuration using its Lock ID.
+
+This will not modify your infrastructure. This command removes the lock on the state for the current workspace, which is useful if a previous run crashed or was forcefully interrupted while holding the lock.
+
+**Options:**
+- `-force`: Don't ask for input for unlock confirmation.
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Force Unlock a specific state:**
+```bash
+testform force-unlock 1c1b3f9e-4e4b-6d2c-8a0b-1f9b3e1c2a0b -force
+```
+
 ### `workspace`
 Te permite manejar múltiples archivos de estado independientes dentro del mismo directorio de proyecto. Esto es increíblemente útil si quieres probar tus features de Gherkin en diferentes ambientes sin que colisionen entre sí (ej. `staging` vs `production`). Cada workspace mantiene su propio archivo `testform.state` aislado físicamente bajo la carpeta `.testform.state.d/`.
 
@@ -280,18 +437,46 @@ Subcomandos principales:
 - **`workspace select <nombre>`**: Cambia el apuntador al workspace especificado. El siguiente comando `plan` o `apply` que corras actuará sobre el estado y ambiente de ese workspace.
 - **`workspace show`**: Imprime el nombre del workspace actualmente activo.
 - **`workspace delete <nombre>`**: Elimina la carpeta de estado del workspace y lo borra permanentemente. (No puedes borrar el workspace `default` ni el workspace en el que estás actualmente activo).
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Create and isolate a staging environment:**
+```bash
+testform workspace new staging
+testform testcase apply -auto-approve # This goes to staging state
+```
+
+**2. Switch back to production and plan:**
+```bash
+testform workspace select production
+testform plan
+```
+
 ### `state`
 Es el comando principal para la manipulación avanzada del archivo de estado (`testform.state`). El estado es la "memoria" de Testform; aquí vincula tus archivos locales de Gherkin con los issues reales en GitHub.
 
 Subcomandos principales:
-- **`state list`**: Imprime una lista plana con las direcciones de todos los recursos actualmente rastreados.
-- **`state identities -json`**: Imprime un arreglo JSON puramente con los IDs de los recursos. Esencial para integraciones con scripts o CI/CD.
+- **`state list`**: Imprime una lista plana con las direcciones de todos los recursos actualmente rastreados. Soporta la bandera `-id` para filtrar.
+- **`state identities -json`**: Imprime un arreglo JSON puramente con los IDs de los recursos. Soporta la bandera `-id`.
 - **`state show <dirección>`**: Muestra en consola todos los atributos de un recurso específico utilizando una sintaxis HCL pura, alineando los signos de igual `=` y usando bloques Heredoc `<<-EOT` para strings multilinea como Gherkin.
-- **`state rm <dirección>`**: Elimina un recurso del estado (hace que Testform deje de rastrearlo) sin borrarlo de GitHub.
-- **`state mv <origen> <destino>`**: Renombra un recurso en el estado. Útil si cambiaste el nombre de un feature localmente y no quieres que Testform lo destruya y lo vuelva a crear en GitHub.
+- **`state rm <dirección>`**: Elimina un recurso del estado (hace que Testform deje de rastrearlo) sin borrarlo de GitHub. Soporta `-dry-run` para previsualizar, y `-ignore-remote-version` en casos extremos de compatibilidad.
+- **`state mv <origen> <destino>`**: Renombra un recurso en el estado. Útil si cambiaste el nombre de un feature localmente y no quieres que Testform lo destruya y lo vuelva a crear en GitHub. Soporta `-dry-run`.
 - **`state pull` / `state push`**: Extraen o fuerzan una sobrescritura del estado remotamente.
 
 *Nota técnica:* Todos los subcomandos de `state` validan que el archivo de estado exista antes de ejecutarse (usando el método `exists()` de tu backend).
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Find all identities and pipe them to jq:**
+```bash
+testform state identities -json | jq '.[].id'
+```
+
+**2. Move (Rename) a resource safely without destroying it:**
+If you renamed `@tc-old` to `@tc-new` in your `.feature` file, move it in state to prevent destruction.
+```bash
+testform state mv "github_testcase.cart::@tc-old" "github_testcase.cart::@tc-new"
+```
 
 ### `taint` / `untaint`
 Control manual sobre el ciclo de vida de los recursos en tu archivo de estado.
@@ -301,6 +486,19 @@ Control manual sobre el ciclo de vida de los recursos en tu archivo de estado.
 
 **Options:**
 - `-allow-missing`: Si se especifica y el recurso no existe en el estado, el comando finalizará con éxito (exit code 0) en lugar de arrojar error. Ideal para automatizaciones en CI/CD donde no quieres que un script falle si el recurso ya había sido eliminado.
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Force recreate a Test Case:**
+```bash
+testform taint "github_testcase.cart::@tc-01"
+testform apply -auto-approve # Will destroy and create tc-01
+```
+
+**2. CI/CD friendly untaint (ignore if missing):**
+```bash
+testform untaint "github_testcase.cart::@tc-01" -allow-missing
+```
 
 ### `show`
 A diferencia de `state show` (que muestra cómo se ve un recurso individual crudo en el archivo de estado), el comando global `show` lee y muestra todo tu archivo de estado actual de manera tabulada y amigable, o lee un archivo de plan guardado previamente y te muestra exactamente qué acciones se realizarán.
@@ -325,3 +523,23 @@ A secret command created for those who hate writing boilerplate and thinking of 
 - **Rules Mapping (`-rule`):** You can pass one or more `-rule` flags to pre-populate the `.feature` file with your dependencies. The command recursively validates that the target file actually exists in your workspace before generating the file.
 - **Auto-Identity Numbering:** For `testrun` and `testplan` scopes, if your `testform.json` defines a wildcard identity (e.g., `@tr-*`), the generator will scan your workspace, find the highest existing number, and automatically inject the next sequential tag (e.g., `@tr-15`) at the top of the file!
 - **Automatic directories:** If the target directory does not exist, it creates it automatically based on your conventions.
+
+#### 🛠 Advanced Usage & Combinations
+
+**1. Auto-generate a Test Run with multiple rules (Dependencies):**
+Create a new Test Run feature file, automatically populated with scenarios imported from cart and auth features.
+```bash
+testform generate testrun "Sprint 14 Regression" \
+  -rule="cart.feature" \
+  -rule="auth.feature"
+```
+
+**2. Scope-first generation:**
+```bash
+testform testplan generate "Q3 Master Plan"
+```
+
+**3. Generate without title (Will use default naming conventions like timestamps):**
+```bash
+testform testcase generate
+```

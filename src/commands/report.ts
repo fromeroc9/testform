@@ -5,7 +5,7 @@ import { StateResource } from "../types";
 import { Config } from "../core/config";
 import { GitHubAdapter } from "../adapters/github";
 
-export interface ReportCmdOptions {
+interface ReportCmdOptions {
     dir: string;
     type: string;
     format: string;

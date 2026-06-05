@@ -32,7 +32,7 @@ export interface CommandContext {
 /**
  * Options for creating a command context.
  */
-export interface CommandContextOptions {
+interface CommandContextOptions {
     /** Working directory containing testform.json. Defaults to `'.'`. */
     dir?: string;
     /** Enable verbose/debug logging. */

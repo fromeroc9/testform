@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from '
 import { join } from 'path';
 import { homedir } from 'os';
 
-export interface CredentialsFile {
+interface CredentialsFile {
     credentials: {
         [hostname: string]: {
             token: string;

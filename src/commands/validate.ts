@@ -7,7 +7,7 @@ import { policy } from '../core/policy';
 import { Logger } from '../logger';
 import { IScope } from '../types';
 
-export interface ValidateCmdOptions {
+interface ValidateCmdOptions {
     targetPath?: string;
     verbose?: boolean;
     scope: IScope;

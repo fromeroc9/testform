@@ -3,7 +3,7 @@ import { join } from 'path';
 import { TITLE_CLI } from '../const';
 import { logger } from '../logger';
 
-export interface FmtCmdOptions {
+interface FmtCmdOptions {
     dir?: string;
     check?: boolean;
     list?: boolean;

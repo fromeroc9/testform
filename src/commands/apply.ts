@@ -1,4 +1,5 @@
 import { createInterface } from 'readline';
+import { MSG_ACQUIRING_LOCK, ERR_NO_INPUT_ALLOWED } from '../const';
 import { existsSync, readFileSync } from 'fs';
 import { bold, green } from 'chalk';
 import { resource } from '../adapters/resources';
@@ -14,7 +15,7 @@ import { elapsedSeconds, formatResourceAddress } from '../core/utils';
 import { createCommandContext, CommandContext } from '../core/command-context';
 import { GitHubAdapter } from '../adapters/github';
 
-export interface ApplyCmdOptions {
+interface ApplyCmdOptions {
     dir?: string;
     autoApprove?: boolean;
     verbose?: boolean;
@@ -137,7 +138,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
 
             if (refresh && !refreshOnly) {
-                console.log('Acquiring state lock. This may take a few moments...');
+                console.log(MSG_ACQUIRING_LOCK);
                 await refreshState({ dir, scope, state: stateObj, logger, silent: false, parallelismRaw: parallelism, target });
             }
 
@@ -156,7 +157,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             // Ask for approval
             if (!autoApprove) {
                 if (!input) {
-                    const error = new Error('This command requires manual approval, but input is disabled. Use the\n-auto-approve flag to bypass approval.');
+                    const error = new Error(ERR_NO_INPUT_ALLOWED + '\nUse the -auto-approve flag to bypass approval.');
                     error.name = 'No input allowed';
                     throw error;
                 }

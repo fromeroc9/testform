@@ -27,7 +27,7 @@ import { IScope } from '../types';
  * @param logger - Logger for output.
  * @param silent - When `true`, suppresses all console output (used by plan/apply).
  */
-export interface RefreshStateOptions {
+interface RefreshStateOptions {
     dir: string;
     scope: IScope;
     state: State;
@@ -215,7 +215,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
  * @param parallelismRaw - Parallelism limit.
  * @param compactWarnings - Compact warnings.
  */
-export interface RefreshCmdOptions {
+interface RefreshCmdOptions {
     dir?: string;
     verbose?: boolean;
     scope: IScope;

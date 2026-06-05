@@ -15,7 +15,7 @@ export interface IConfig {
     report_mapping?: Record<string, string>;
 }
 
-export interface IBackendConfig {
+interface IBackendConfig {
     type: 'local' | 's3' | 'azurerm';
     config: Record<string, string>;
 }
@@ -27,7 +27,7 @@ export interface IGitHubConfig {
     tokenEnv: string;
 }
 
-export interface IConvention {
+interface IConvention {
     directory?: string;
     filename?: string;
 }
@@ -55,7 +55,7 @@ export interface ParserFeature {
     location: number;
 }
 
-export interface ParserPolicy {
+interface ParserPolicy {
     type: 'undeclared-field' | 'required-field';
     field: string;
 }
@@ -118,7 +118,7 @@ export interface StateResource {
     updatedAt?: string;
 }
 
-export interface StateAttributes {
+interface StateAttributes {
     localHash: string;
     remoteId: string;
     issueNumber: number;

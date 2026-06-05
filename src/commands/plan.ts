@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { MSG_ACQUIRING_LOCK } from '../const';
 import { bold } from 'chalk';
 import { resource } from '../adapters/resources';
 import { Config } from '../core/config';
@@ -21,7 +22,7 @@ export function hashScenario(scenario: ParserScenario): string {
     return createHash('sha256').update(JSON.stringify(scenario)).digest('hex');
 }
 
-export interface CalculatePlanOptions {
+interface CalculatePlanOptions {
     dir: string;
     scope: IScope;
     variables?: VariableParser;
@@ -250,7 +251,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
  * Plan command: show changes required by current configuration.
  * Does NOT modify state — pure read-only.
  */
-export interface PlanCmdOptions {
+interface PlanCmdOptions {
     dir?: string;
     verbose?: boolean;
     scope: IScope;
@@ -302,7 +303,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
     let plan: PlanResult;
     try {
         if (refresh && !destroyPlan) {
-            if (!isJson) console.log('Acquiring state lock. This may take a few moments...');
+            if (!isJson) console.log(MSG_ACQUIRING_LOCK);
             await refreshState({ dir, scope, state: stateObj, logger, silent: isJson, parallelismRaw: parallelism, target });
         }
 

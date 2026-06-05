@@ -88,37 +88,3 @@ export const formatHclValue = (value: any, indentLevel: number): string => {
     return JSON.stringify(value);
 };
 
-/**
- * Parses a `--set-status` flag value into its identity and status parts.
- *
- * The expected format is: `"<run-file>::<case-identity>=<status>"`
- *
- * @param value - Raw flag value string.
- * @returns Parsed object with `runIdentity`, `caseIdentity`, and `status`,
- *          or `null` if the format is invalid.
- *
- * @example
- * parseSetStatus('test1.run.feature::@[tc1]=passed')
- * // → { runIdentity: 'test1.run.feature', caseIdentity: '@[tc1]', status: 'passed' }
- */
-export function parseSetStatus(value: string): {
-    runIdentity: string;
-    caseIdentity: string;
-    status: string;
-} | null {
-    const eqIdx = value.lastIndexOf('=');
-    if (eqIdx === -1) return null;
-
-    const address = value.slice(0, eqIdx);
-    const status = value.slice(eqIdx + 1).trim().toLowerCase();
-
-    const colonIdx = address.indexOf('::');
-    if (colonIdx === -1) return null;
-
-    const runIdentity = address.slice(0, colonIdx).trim();
-    const caseIdentity = address.slice(colonIdx + 2).trim();
-
-    if (!runIdentity || !caseIdentity || !status) return null;
-
-    return { runIdentity, caseIdentity, status };
-}

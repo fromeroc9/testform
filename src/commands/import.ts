@@ -12,7 +12,7 @@ import { Logger } from "../logger";
 
 import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP } from "../const";
 
-export interface ImportCmdOptions {
+interface ImportCmdOptions {
     dir?: string;
     scope: IScope;
     identityArg: string;

@@ -34,7 +34,7 @@ function getStatusLabel(status: DiffStatus): string {
  * Unlike plan (which shows what apply WOULD do), diff shows the raw comparison
  * between local files and the last-applied state.
  */
-export interface DiffCmdOptions {
+interface DiffCmdOptions {
     dir?: string;
     verbose?: boolean;
     scope: IScope;

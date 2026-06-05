@@ -5,7 +5,7 @@ import { TITLE_APP, TITLE_CLI } from '../const';
 
 import pathLib from 'path';
 
-export interface ShowCmdOptions {
+interface ShowCmdOptions {
     path?: string;
     isJson?: boolean;
     verbose?: boolean;

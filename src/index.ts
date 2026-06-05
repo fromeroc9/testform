@@ -132,6 +132,7 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         'lockfile',
         'test-directory',
         'set-status',
+        'set-state',
         'replace',
         'compact-warnings',
         'generate-config-out',
@@ -229,6 +230,7 @@ const main = async () => {
             '--backend-config': [String],
             '--test-directory': String,
             '--set-status': [String],
+            '--set-state': [String],
             '--replace': [String],
             '--parallelism': String,
             '--state-out': String,
@@ -437,7 +439,7 @@ const main = async () => {
             target: argv['--target'],
             refresh: argv['--refresh'] ?? true,
             refreshOnly: argv['--refresh-only'],
-            setStatus: argv['--set-status'],
+            setStatus: argv['--set-status']?.[0] || argv['--set-state']?.[0],
             replaceTargets: argv['--replace'],
             parallelism: argv['--parallelism'],
             compactWarnings: argv['--compact-warnings'] ?? false,
@@ -580,6 +582,11 @@ const main = async () => {
     }
 
     if (command === 'graph') {
+        if (argv['--help']) {
+            const { HELP_GRAPH } = require('./help');
+            console.log(HELP_GRAPH);
+            process.exit(0);
+        }
         ensureNoPositionalArgs(command, commandArgs);
         await graphCmd({
             dir: workDir,
