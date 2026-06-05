@@ -207,8 +207,19 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 GherkinEditor.updateScenarioStatus(absolutePath, baseRule, scenarioName, newStatus);
                                 console.log(`  -> Synced status to local file: ${runScenario.uri}`);
                             }
+
+                            // Re-parse the local files to pick up the updated status for body rendering
+                            const freshParser = new Parser(parseDir, variables);
+                            const freshRuns = freshParser.filter(freshParser.content(), { identity: '', fields: [] }, 'testrun');
+                            const freshRunScenario = freshRuns.find(r => r.uri === runScenario.uri || r.custom?.identity === foundRun.identity);
+
+                            // Update the main issue body to reflect the new status in the checklist
+                            const payload = resource.evaluate('github_testrun', freshRunScenario || runScenario, { state: stateObj, testDirectory }) as any;
+                            await ctx.github.updateIssue(foundRun.attributes.issueNumber, payload);
+                            console.log(`  -> Synced status to main issue body #${foundRun.attributes.issueNumber}`);
+
                         } catch (e: any) {
-                            console.log(`  -> Failed to update local file: ${e.message}`);
+                            console.log(`  -> Failed to update local file or issue body: ${e.message}`);
                         }
                     } else {
                         console.log(`  -> Warning: Could not find local feature file for testrun identity '${foundRun.identity}' to sync status.`);
