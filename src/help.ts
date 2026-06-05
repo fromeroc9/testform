@@ -221,9 +221,6 @@ Options:
                          The command "${TITLE_CLI} destroy" is a convenience alias
                          for this option.
 
-  -expand                Expand implicit scenarios in .run.feature or .plan.feature
-                         files locally to explicitly declare all included testcases.
-
   -lock=false            Don't hold a state lock during the operation. This is
                          dangerous if others might concurrently run commands
                          against the same workspace.

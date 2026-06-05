@@ -311,8 +311,24 @@ resource.registry({
                         r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
                     );
                     
-                    if (tcResources.length > 0) {
-                        for (const tcResource of tcResources) {
+                    const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
+                    let validResources = tcResources;
+
+                    if (distinctFiles.size > 1) {
+                        if (context?.testDirectory) {
+                            const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
+                            validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                            const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                            if (distinctValid.size > 1) {
+                                throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                            }
+                        } else {
+                            throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                        }
+                    }
+
+                    if (validResources.length > 0) {
+                        for (const tcResource of validResources) {
                             if (tcResource?.attributes?.issueNumber) {
                                 body += `- [ ] #${tcResource.attributes.issueNumber}\n`;
                             } else {
@@ -354,8 +370,24 @@ resource.registry({
                         r.identity.endsWith(tr)
                     );
                     
-                    if (runResources.length > 0) {
-                        for (const runResource of runResources) {
+                    const distinctFiles = new Set(runResources.map((r: any) => r.identity.split('::')[0]));
+                    let validResources = runResources;
+
+                    if (distinctFiles.size > 1) {
+                        if (context?.testDirectory) {
+                            const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
+                            validResources = runResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                            const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                            if (distinctValid.size > 1) {
+                                throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                            }
+                        } else {
+                            throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                        }
+                    }
+
+                    if (validResources.length > 0) {
+                        for (const runResource of validResources) {
                             if (runResource?.attributes?.issueNumber) {
                                 body += `- [ ] #${runResource.attributes.issueNumber} - ${runResource.attributes.title}\n`;
                             } else {

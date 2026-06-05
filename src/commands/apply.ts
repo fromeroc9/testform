@@ -37,7 +37,6 @@ interface ApplyCmdOptions {
     parallelism?: string | number;
     compactWarnings?: boolean;
     testDirectory?: string;
-    expand?: boolean;
 }
 
 export const applyCmd = async (options: ApplyCmdOptions) => {
@@ -60,8 +59,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         replaceTargets,
         parallelism,
         compactWarnings,
-        testDirectory,
-        expand
+        testDirectory
     } = options;
     const logger = new Logger(verbose);
     const stateObj = new State(dir, statePath, backupPath);
@@ -91,9 +89,14 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 return;
             }
         } else {
-            if (setStatus && scope === 'testrun') {
+            if (setStatus) {
+                if (scope !== 'testrun') {
+                    notify.push({ type: 'error', title: `The '-set-status' option is exclusive to testrun scope.`, detail: [] });
+                    return;
+                }
+                
                 if (!target || target.length === 0) {
-                    notify.push({ type: 'error', title: `The '-set-status' option requires the '-target' option to specify the testrun or testplan file.`, detail: [] });
+                    notify.push({ type: 'error', title: `The '-set-status' option requires the '-target' option to specify the testrun file.`, detail: [] });
                     return;
                 }
 
@@ -312,7 +315,23 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
                 );
 
-                for (const tcResource of tcResources) {
+                const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
+                let validResources = tcResources;
+
+                if (distinctFiles.size > 1) {
+                    if (testDirectory) {
+                        const normalizedTestDir = testDirectory.replace(/^\.\//, '');
+                        validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                        const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                        if (distinctValid.size > 1) {
+                            throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                        }
+                    } else {
+                        throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
+                    }
+                }
+
+                for (const tcResource of validResources) {
                     const tcIdentity = tcResource.identity;
 
                     expandedTestcases.push(tcIdentity);
@@ -368,7 +387,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Creating...`);
                         const startTime = Date.now();
 
-                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj }) as unknown as GitHubIssuePayload;
+                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj, testDirectory }) as unknown as GitHubIssuePayload;
                         await resolvePayloadMilestone(payload);
                         const result = await github.createIssue(payload);
 
@@ -415,7 +434,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         added++;
 
-                        if (expand && change.scenario.uri && change.scenario.custom?.testcases) {
+                        const hasExplicitScenarios = change.scenario.custom?.testcases?.some((tc: string) => !tc.endsWith('::*'));
+                        if (scope === 'testrun' && !hasExplicitScenarios && change.scenario.uri && change.scenario.custom?.testcases) {
                             try {
                                 const parseDir = testDirectory ? require('path').join(dir, testDirectory) : dir;
                                 const absolutePath = require('path').join(parseDir, change.scenario.uri);
@@ -439,7 +459,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         }
 
                         // 2. Add (create new issue)
-                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj }) as unknown as GitHubIssuePayload;
+                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj, testDirectory }) as unknown as GitHubIssuePayload;
                         await resolvePayloadMilestone(payload);
                         const result = await github.createIssue(payload);
 
@@ -490,7 +510,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Modifying... [id=${remoteId}]`);
                         const startTime = Date.now();
 
-                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj }) as unknown as GitHubIssuePayload;
+                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj, testDirectory }) as unknown as GitHubIssuePayload;
                         await resolvePayloadMilestone(payload);
                         const result = await github.updateIssue(change.issueNumber!, payload);
 
@@ -536,7 +556,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         changed++;
 
-                        if (expand && change.scenario.uri && change.scenario.custom?.testcases) {
+                        const hasExplicitScenarios = change.scenario.custom?.testcases?.some((tc: string) => !tc.endsWith('::*'));
+                        if (scope === 'testrun' && !hasExplicitScenarios && change.scenario.uri && change.scenario.custom?.testcases) {
                             try {
                                 const parseDir = testDirectory ? require('path').join(dir, testDirectory) : dir;
                                 const absolutePath = require('path').join(parseDir, change.scenario.uri);

@@ -182,6 +182,7 @@ If you run `apply` without passing a saved plan file, it will implicitly run a `
 - **State Locking:** Acquires a lock on the state backend to prevent race conditions from concurrent executions.
 - **Idempotency:** Only executes API mutations for fields that drifted from the state.
 - **Immutability of Defaults:** If your local configuration relies on inherited defaults (e.g. `assignees: "fromeroc9"`) and GitHub lacks them, `apply` will actively push these defaults to GitHub to force the remote state to match your local design.
+- **Auto-Expansion (TestRun):** When applying a `testrun`, if you defined a `Rule` pointing to a feature but did *not* define explicit scenarios underneath it, Testform will automatically expand the file locally after the apply, explicitly listing all the inherited testcases as individual Scenarios. If you manually defined Scenarios, auto-expansion is skipped.
 
 **Options:**
 - `[PLAN]`: Provide a path to a pre-generated plan file (from `plan -out=path`). Testform will blindly execute this plan without prompting for confirmation.
@@ -190,8 +191,7 @@ If you run `apply` without passing a saved plan file, it will implicitly run a `
 - `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `10`). Lower this if you hit GitHub secondary rate limits.
 - `-destroy`: Instructs the apply to destroy all tracked infrastructure instead of creating/updating.
 - `-replace="resource"`: Force replacement of a specific resource.
-- `-set-status="assigns"` (alias `-set-state`): Injects or updates the `* link status` field in your local testrun feature file and syncs it before applying (e.g., `"tc1=passed"`). Inherently autocompletes the scenario if it was implicitly declared. Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`.
-- `-expand`: Automatically expand implicit scenarios in `.run.feature` or `.plan.feature` files locally to explicitly declare all included testcases.
+- `-set-status="assigns"` (alias `-set-state`): Injects or updates the `* link status` field in your local testrun feature file and syncs it before applying (e.g., `"tc1=passed"`). Inherently autocompletes the scenario if it was implicitly declared. Supported statuses: `passed`, `failed`, `pending`, `blocked`, `skipped`, `unexecuted`. **(Exclusive to `testrun` scope).**
 - `-state=path`: Custom path to read and save state (resolved relative to `-chdir`).
 - `-backup=path`: Path to backup the existing state file before modifying. Set to `-` to disable backup.
 - `-var="key=value"` / `-var-file=filename`: Inject variables just like in `plan`.
