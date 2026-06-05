@@ -2,7 +2,7 @@ import { bold, cyan, dim, green, magenta } from 'chalk';
 import { Parser } from '../core/parser';
 import { IScope, ParserScenario } from '../types';
 
-export interface GraphCmdOptions {
+interface GraphCmdOptions {
     dir?: string;
     scope?: IScope;
     drawCycles?: boolean;

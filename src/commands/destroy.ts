@@ -28,7 +28,7 @@ import { IScope } from '../types';
  * @param statePath   - Custom path to the state file.
  * @param backupPath  - Custom path to the state backup file.
  */
-export interface DestroyCmdOptions {
+interface DestroyCmdOptions {
     dir?: string;
     verbose?: boolean;
     scope: IScope;

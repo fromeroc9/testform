@@ -4,7 +4,7 @@ import { bold, red, green } from 'chalk';
 import { State } from '../core/state';
 import { TITLE_APP } from '../const';
 
-export interface ForceUnlockCmdOptions {
+interface ForceUnlockCmdOptions {
     dir?: string;
     lockId: string;
     force?: boolean;

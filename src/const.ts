@@ -47,7 +47,7 @@ export const SCOPE_RESOURCE_MAP = {
  * Maps each scope to the Gherkin tag used to identify feature files.
  * A feature file with this tag (or the matching extension) belongs to the scope.
  */
-export const SCOPE_TAG_MAP = {
+const SCOPE_TAG_MAP = {
     testcase: '@testcase',
     testrun: '@testrun',
     testplan: '@testplan',
@@ -58,7 +58,7 @@ export const SCOPE_TAG_MAP = {
  * Maps each scope to the file extension convention used to identify feature files.
  * A file ending in this extension automatically belongs to the scope.
  */
-export const SCOPE_EXT_MAP = {
+const SCOPE_EXT_MAP = {
     testcase: '.case.feature',
     testrun: '.run.feature',
     testplan: '.plan.feature',
@@ -93,16 +93,16 @@ export const SCOPE_CONFIG = {
  * All valid execution statuses for a test case result comment.
  * Aligned with Cucumber's built-in statuses plus common QA states.
  */
-export const TESTCASE_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped', 'undefined'] as const;
+const TESTCASE_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped', 'undefined'] as const;
 
 /** Union type of all valid testcase statuses. */
-export type TestcaseStatus = typeof TESTCASE_STATUSES[number];
+type TestcaseStatus = typeof TESTCASE_STATUSES[number];
 
 /**
  * Emoji representation for each testcase execution status.
  * Used when rendering the status table inside testrun issue comments.
  */
-export const TESTCASE_STATUS_EMOJI: Record<TestcaseStatus, string> = {
+const TESTCASE_STATUS_EMOJI: Record<TestcaseStatus, string> = {
     pending: '⏳',
     passed: '✅',
     failed: '❌',

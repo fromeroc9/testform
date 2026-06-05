@@ -1,7 +1,7 @@
 import { bold, green, yellow } from 'chalk';
 import { Credentials } from '../core/credentials';
 
-export interface LogoutCmdOptions {
+interface LogoutCmdOptions {
     hostname?: string;
 }
 

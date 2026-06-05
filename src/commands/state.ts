@@ -5,7 +5,7 @@ import { State } from '../core/state';
 import { TITLE_CLI } from '../const';
 import { formatHclValue } from '../core/utils';
 
-export interface StateCmdOptions {
+interface StateCmdOptions {
     dir?: string;
     action: string;
     args: string[];

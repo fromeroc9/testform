@@ -3,7 +3,7 @@ import { Logger } from '../logger';
 import { State } from '../core/state';
 import { TITLE_CLI } from '../const';
 
-export interface WorkspaceCmdOptions {
+interface WorkspaceCmdOptions {
     dir: string;
     verbose: boolean;
     args: string[];

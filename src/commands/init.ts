@@ -1,4 +1,5 @@
 import { FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../const';
+import { askMigrationApproval } from '../core/prompt';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { Config } from '../core/config';
 import { Logger } from '../logger';
@@ -83,7 +84,7 @@ const printNextSteps = (logger: Logger): void => {
     logger.info('reinitialize your working directory.');
 };
 
-export interface InitCmdOptions {
+interface InitCmdOptions {
     dir?: string;
     verbose?: boolean;
     backendConfigRaw?: string | string[];
@@ -154,7 +155,6 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
             let doMigrate = options.migrateState;
             if (doMigrate === undefined && inputEnabled) {
-                const { askMigrationApproval } = require('../core/prompt');
                 doMigrate = await askMigrationApproval(backendConfig.type);
             }
 

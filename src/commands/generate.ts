@@ -4,7 +4,7 @@ import { Config } from '../core/config';
 import { IScope } from '../types';
 import { logger } from '../logger';
 
-export interface GenerateCmdOptions {
+interface GenerateCmdOptions {
     dir: string;
     scope: IScope;
     title?: string;
