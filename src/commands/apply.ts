@@ -94,7 +94,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     notify.push({ type: 'error', title: `The '-set-status' option is exclusive to testrun scope.`, detail: [] });
                     return;
                 }
-                
+
                 if (!target || target.length === 0) {
                     notify.push({ type: 'error', title: `The '-set-status' option requires the '-target' option to specify the testrun file.`, detail: [] });
                     return;
@@ -169,7 +169,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     const keys = Object.keys(foundRun.attributes.testcaseCommentIds);
                     const i = keys.indexOf(targetId) + 1;
 
-                    const commentBody = `| # | Test Case | Status |\n|---|-----------|--------|\n| ${i} | ${tcTitle} | ${newStatus} |`;
+                    const [baseRule, scenarioName] = targetId.split('::');
+                    const originFile = require('path').basename(baseRule || '');
+                    const safeScenario = scenarioName ? scenarioName.replace('@', '') : '';
+
+                    const commentBody = `**Origin:** ${originFile}\n<table border="1" width="100%">\n    <tr>\n        <th colspan="3">Feature Name</th>\n    </tr>\n    <tr>\n        <td>${safeScenario}</td>\n        <td>${tcTitle}</td>\n        <td>${newStatus}</td>\n    </tr>\n    <tr>\n        <td colspan="3"><br/></td>\n    </tr>\n</table>`;
                     await ctx.github.updateIssueComment(commentId, commentBody);
                     console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
 
@@ -354,7 +358,24 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     const tcTitle = tcResource.attributes?.title || tcIdentity;
 
                     if (!testcaseCommentIds[tcIdentity] || testcaseStatuses[tcIdentity] !== localStatus) {
-                        const commentBody = `| # | Test Case | Status |\n|---|-----------|--------|\n| ${i} | ${tcTitle} | ${localStatus} |`;
+                        const [baseRule, scenarioName] = tcIdentity.split('::');
+                        const originFile = require('path').basename(baseRule || '');
+                        const safeScenario = scenarioName ? scenarioName.replace('@', '') : '';
+
+                        const commentBody = `**Origin:** ${originFile}
+                        <table border="1" width="100%">
+                        <tr>
+                            <th colspan="3">Feature Name</th>
+                        </tr>
+                        <tr>
+                            <td>${safeScenario}</td>
+                            <td>${tcTitle}</td>
+                            <td>${localStatus}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3"><br/></td>
+                        </tr>
+                        </table>`;
 
                         if (testcaseCommentIds[tcIdentity]) {
                             await github.updateIssueComment(testcaseCommentIds[tcIdentity], commentBody);
