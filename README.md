@@ -22,8 +22,17 @@ We have completely overhauled our documentation to be as intuitive and comprehen
 
 ## Prerequisites
 
-To use Testform, it is a requirement to have an existing GitHub Project. You can create one yourself, or you can clone the following example project:
-- [Testform Template Project](https://github.com/users/fromeroc9/projects/4)
+To use Testform, it is a requirement to have an existing GitHub Project properly configured with the necessary labels and status fields.
+
+We highly recommend using our automated **[Install Testform Labels and Project](.github/workflows/install.yml)** workflow to set everything up for you. This workflow will automatically:
+- Create the required repository labels (`bug`, `testcase`, `testplan`, `testreport`, `testrun`).
+- Clone the [Testform Template Project](https://github.com/users/fromeroc9/projects/4) into your organization or user account and link it to your target repository.
+- Configure the "Status" field with the correct options and colors (`Todo`, `Done`, `passed`, `failed`, `blocked`, `skipped`, `unexecuted`).
+- Install the `close-issue.yml` workflow into your target repository to automate issue state transitions.
+
+> **💡 Authentication Recommendation:** If you plan to use Testform within GitHub Actions, or authenticate via `terratest login` (or equivalent CLI login), we strongly advise configuring a **Personal Access Token (PAT)** (with `repo` and `project` permissions) or creating a **GitHub App token**.
+>
+> *Why?* The default `GITHUB_TOKEN` provided by Actions often lacks the necessary scopes to manipulate organization-level GitHub Projects (V2) or perform cross-repository operations. Using a dedicated PAT or a GitHub App token ensures that your automated pipelines have the robust, fine-grained access required to smoothly transition issues, manage test cases, and keep your project boards flawlessly in sync.
 
 ## Installation
 

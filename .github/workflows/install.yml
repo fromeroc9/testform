@@ -1,0 +1,145 @@
+name: Install Testform Labels and Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: 'Repositorio objetivo (ejemplo: usuario/nombre-del-repo)'
+        required: true
+        type: string
+      pat_token:
+        description: 'Personal Access Token (PAT) con permisos de "repo" y "project"'
+        required: true
+        type: string
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete existing labels and create new ones
+        env:
+          GH_TOKEN: ${{ github.event.inputs.pat_token }}
+          TARGET_REPO: ${{ github.event.inputs.target_repo }}
+        run: |
+          echo "Configurando repositorio objetivo a $TARGET_REPO..."
+          
+          echo "Borrando labels existentes..."
+          gh label list --repo "$TARGET_REPO" --json name --jq '.[].name' | xargs -I {} gh label delete "{}" --repo "$TARGET_REPO" --yes || true
+          
+          echo "Creando nuevos labels..."
+          gh label create "bug" -c "d73a4a" -f --repo "$TARGET_REPO"
+          gh label create "testcase" -c "147af5" -f --repo "$TARGET_REPO"
+          gh label create "testplan" -c "023670" -f --repo "$TARGET_REPO"
+          gh label create "testreport" -c "096dc2" -f --repo "$TARGET_REPO"
+          gh label create "testrun" -c "006b75" -f --repo "$TARGET_REPO"
+
+      - name: Setup Project V2
+        env:
+          GH_TOKEN: ${{ github.event.inputs.pat_token }}
+          TARGET_REPO: ${{ github.event.inputs.target_repo }}
+        run: |
+          OWNER=$(echo "$TARGET_REPO" | cut -d'/' -f1)
+          REPO=$(echo "$TARGET_REPO" | cut -d'/' -f2)
+
+          echo "Verificando si el repositorio $TARGET_REPO ya tiene un proyecto asignado..."
+          LINKED_PROJECTS=$(gh api graphql -F owner="$OWNER" -F repo="$REPO" -f query='
+            query($owner: String!, $repo: String!) {
+              repository(owner: $owner, name: $repo) {
+                projectsV2(first: 1) {
+                  totalCount
+                }
+              }
+            }
+          ' --jq '.data.repository.projectsV2.totalCount')
+
+          if [ "$LINKED_PROJECTS" -gt 0 ]; then
+            echo "El repositorio ya tiene un proyecto asignado. Saltando copia de proyecto..."
+          else
+            echo "Copiando el proyecto base (Project #4 de fromeroc9) para $OWNER..."
+            
+            # Copiar el proyecto
+            NEW_PROJECT_JSON=$(gh project copy 4 --source-owner fromeroc9 --target-owner "$OWNER" --title "$REPO" --format json)
+            NEW_PROJECT_ID=$(echo "$NEW_PROJECT_JSON" | jq -r '.id')
+            NEW_PROJECT_NUM=$(echo "$NEW_PROJECT_JSON" | jq -r '.number')
+            
+            echo "Proyecto copiado exitosamente. ID: $NEW_PROJECT_ID, Número: $NEW_PROJECT_NUM"
+            
+            echo "Vinculando el proyecto al repositorio $TARGET_REPO..."
+            gh project link $NEW_PROJECT_NUM --owner "$OWNER" --repo "$REPO"
+            
+            echo "Buscando el campo 'Status' para configurarlo..."
+            FIELD_INFO=$(gh api graphql -F projectId="$NEW_PROJECT_ID" -f query='
+              query($projectId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    field(name: "Status") {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                      }
+                    }
+                  }
+                }
+              }
+            ')
+            
+            FIELD_ID=$(echo "$FIELD_INFO" | jq -r '.data.node.field.id')
+            
+            if [ "$FIELD_ID" == "null" ] || [ -z "$FIELD_ID" ]; then
+              echo "::warning::No se pudo encontrar el campo Status en el nuevo proyecto."
+            else
+              echo "Actualizando los valores y colores del campo Status (ID: $FIELD_ID)..."
+              gh api graphql -F projectId="$NEW_PROJECT_ID" -F fieldId="$FIELD_ID" -f query='
+                mutation($projectId: ID!, $fieldId: ID!) {
+                  updateProjectV2SingleSelectField(input: {
+                    projectId: $projectId,
+                    fieldId: $fieldId,
+                    options: [
+                      {name: "Todo", color: GREEN, description: ""},
+                      {name: "Done", color: PURPLE, description: ""},
+                      {name: "passed", color: GREEN, description: ""},
+                      {name: "failed", color: RED, description: ""},
+                      {name: "blocked", color: ORANGE, description: ""},
+                      {name: "skipped", color: YELLOW, description: ""},
+                      {name: "unexecuted", color: GRAY, description: ""}
+                    ]
+                  }) {
+                    projectV2SingleSelectField {
+                      id
+                    }
+                  }
+                }
+              '
+              echo "¡Campo Status actualizado exitosamente!"
+            fi
+          fi
+
+      - name: Copy close-issue.yml to target repository
+        env:
+          GH_TOKEN: ${{ github.event.inputs.pat_token }}
+          TARGET_REPO: ${{ github.event.inputs.target_repo }}
+        run: |
+          echo "Copiando close-issue.yml al repositorio $TARGET_REPO..."
+          FILE_PATH=".github/workflows/close-issue.yml"
+          
+          # Verificar si el archivo fuente existe
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "::error::No se encontró $FILE_PATH en el repositorio fuente."
+            exit 1
+          fi
+          
+          CONTENT=$(base64 -w 0 $FILE_PATH)
+          
+          # Obtener el SHA del archivo si ya existe en el repo de destino (para poder actualizarlo)
+          FILE_SHA=$(gh api repos/$TARGET_REPO/contents/$FILE_PATH --jq '.sha' 2>/dev/null || echo "")
+          
+          if [ -z "$FILE_SHA" ]; then
+            gh api -X PUT repos/$TARGET_REPO/contents/$FILE_PATH \
+              -f message="Add close-issue workflow via Testform Installer" \
+              -f content="$CONTENT"
+          else
+            gh api -X PUT repos/$TARGET_REPO/contents/$FILE_PATH \
+              -f message="Update close-issue workflow via Testform Installer" \
+              -f content="$CONTENT" \
+              -f sha="$FILE_SHA"
+          fi
+          echo "¡close-issue.yml copiado exitosamente!"

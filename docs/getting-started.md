@@ -5,7 +5,7 @@ This guide will walk you through the process of setting up Testform, connecting 
 ## Prerequisites
 
 - **Node.js** (v16 or higher)
-- A **GitHub Account** and a **GitHub Personal Access Token (PAT)** with repository permissions.
+- A **GitHub Account** and an existing **GitHub Project** properly configured with labels and status fields. We highly recommend using our **[Install Testform Labels and Project](../.github/workflows/install.yml)** workflow to automatically set this up.
 - Basic knowledge of Gherkin (`.feature`) syntax.
 
 ## 1. Installation
@@ -32,6 +32,10 @@ testform login
 *You will be prompted to paste your GitHub Personal Access Token.*
 
 Alternatively, if you are running Testform in a CI/CD environment (like GitHub Actions), you can skip the login command and expose the token as an environment variable (e.g., `export GITHUB_TOKEN=ghp_...`).
+
+> **💡 Authentication Recommendation:** Whether using the CLI (`testform login`, `terratest login`) or GitHub Actions, we strongly advise configuring a **Personal Access Token (PAT)** (with `repo` and `project` permissions) or natively authenticating via a **GitHub App**.
+>
+> *Why?* The default `GITHUB_TOKEN` provided by Actions often lacks the necessary scopes to manipulate organization-level GitHub Projects (V2) or perform cross-repository operations. Using a dedicated PAT or a GitHub App ensures that your automated pipelines have the robust, fine-grained access required to smoothly transition issues, manage test cases, and keep your project boards flawlessly in sync. Testform natively supports GitHub Apps—simply configure `appId`, `privateKey`, and `installationId` in your `testform.json`.
 
 ## 3. Initialize a Workspace
 

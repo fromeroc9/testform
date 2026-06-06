@@ -1,0 +1,51 @@
+name: Close Issues on Project
+
+on:
+  projects_v2_item:
+    types:
+      - edited
+
+jobs:
+  close_issue_when_done:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Project Field and Close Issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // El payload contiene la información del cambio en el proyecto
+            const payload = context.payload;
+            
+            // Verificamos si el cambio fue en un campo personalizado y si el nuevo valor es 'Done' o 'passed'
+            if (payload.changes && payload.changes.field_value) {
+              const fieldName = payload.changes.field_value.field_name;
+              const newValue = payload.changes.field_value.to;
+              
+              if (fieldName === 'Status' && (newValue === 'Done' || newValue === 'passed')) {
+                console.log(`El item cambió a ${newValue}. Cerrando issue...`);
+                
+                // Extraemos el número del issue y el owner/repo
+                const contentUrl = payload.projects_v2_item.content_node_id;
+                
+                // Usamos GraphQL para mutar el estado del issue a CLOSED
+                const mutation = `
+                  mutation($itemId: ID!) {
+                    updateIssue(input: {id: $itemId, state: CLOSED}) {
+                      issue {
+                        state
+                      }
+                    }
+                  }
+                `;
+                
+                try {
+                  await github.graphql(mutation, {
+                    itemId: contentUrl
+                  });
+                  console.log("Issue cerrado exitosamente.");
+                } catch (error) {
+                  console.error("No era un issue o hubo un error al cerrarlo:", error);
+                }
+              }
+            }

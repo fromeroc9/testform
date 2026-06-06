@@ -1,25 +1,24 @@
 import { IGitHubConfig, GitHubIssuePayload, GitHubIssueResult } from '../types';
 import { notify } from '../notify';
 import { Credentials } from '../core/credentials';
+import { createAppAuth } from '@octokit/auth-app';
 
 export class GitHubAdapter {
     private token: string;
     private owner: string;
     private repo: string;
     private projectId?: number;
+    private config: IGitHubConfig;
 
     constructor(config: IGitHubConfig) {
+        this.config = config;
         const creds = new Credentials();
         const envToken = Object.prototype.hasOwnProperty.call(process.env, config.tokenEnv) ? process.env[config.tokenEnv] : undefined;
         let token = creds.getToken('github.com') || envToken || process.env.GITHUB_TOKEN;
 
         // Allow user to provide token directly instead of env var name
-        if (!token && (config.tokenEnv.startsWith('ghp_') || config.tokenEnv.startsWith('github_pat_'))) {
+        if (!token && (config.tokenEnv.startsWith('ghp_') || config.tokenEnv.startsWith('github_pat_') || config.tokenEnv.startsWith('ghs_'))) {
             token = config.tokenEnv;
-        }
-
-        if (!token) {
-            notify.push({ type: 'error', title: `GitHub token not found`, detail: [`Environment variable "${config.tokenEnv}" is not set.`], close: true });
         }
 
         this.token = token || '';
@@ -28,7 +27,39 @@ export class GitHubAdapter {
         this.projectId = config.projectId;
     }
 
+    private async ensureToken(): Promise<void> {
+        if (this.token) return;
+
+        const creds = new Credentials();
+        const localAuth = creds.getAuth('github.com') || {};
+
+        const appId = localAuth.appId || this.config.appId || process.env.GITHUB_APP_ID;
+        const privateKey = localAuth.privateKey || this.config.privateKey || process.env.GITHUB_PRIVATE_KEY;
+        const installationId = localAuth.installationId || this.config.installationId || process.env.GITHUB_INSTALLATION_ID;
+
+        if (appId && privateKey && installationId) {
+            try {
+                const authOpts: any = {
+                    appId: appId,
+                    privateKey: privateKey.replace(/\\n/g, '\n'),
+                    installationId: installationId
+                };
+
+                const auth = createAppAuth(authOpts);
+                const installationAuthentication = await auth({ type: 'installation' }) as any;
+                this.token = installationAuthentication.token;
+                return;
+            } catch (e: any) {
+                notify.push({ type: 'error', title: 'GitHub App Auth failed', detail: [e.message], close: true });
+            }
+        }
+
+        // If we reach here, we have no token and no valid app credentials
+        notify.push({ type: 'error', title: `GitHub token not found`, detail: [`Environment variable "${this.config.tokenEnv}" is not set, and GitHub App credentials are incomplete.`], close: true });
+    }
+
     private async request(method: string, path: string, body?: any): Promise<any> {
+        await this.ensureToken();
         const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
         const response = await fetch(url, {
             method,
@@ -57,6 +88,7 @@ export class GitHubAdapter {
     }
 
     private async graphql(query: string, variables: any = {}): Promise<any> {
+        await this.ensureToken();
         const response = await this.request('POST', 'https://api.github.com/graphql', { query, variables });
         if (response.errors && response.errors.length > 0) {
             const error = new Error(JSON.stringify(response.errors));
