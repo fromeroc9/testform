@@ -312,22 +312,31 @@ export class GitHubAdapter {
         const meta = await this.resolveProjectMetadata();
         if (!meta) return undefined;
 
-        try {
-            const res = await this.graphql(`
-                mutation($projectId: ID!, $contentId: ID!) {
-                    addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
-                        item { id }
+        let attempt = 0;
+        const maxAttempts = 3;
+        while (attempt < maxAttempts) {
+            try {
+                const res = await this.graphql(`
+                    mutation($projectId: ID!, $contentId: ID!) {
+                        addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+                            item { id }
+                        }
                     }
+                `, {
+                    projectId: meta.id,
+                    contentId: issueNodeId,
+                });
+                return res?.addProjectV2ItemById?.item?.id;
+            } catch (e: any) {
+                attempt++;
+                if (attempt >= maxAttempts) {
+                    const error = new Error(`Failed to link issue to GitHub Project: ${e.message}`);
+                    error.name = 'GitHubProjectError';
+                    throw error;
                 }
-            `, {
-                projectId: meta.id,
-                contentId: issueNodeId,
-            });
-            return res?.addProjectV2ItemById?.item?.id;
-        } catch (e: any) {
-            const error = new Error('Failed to link issue to GitHub Project');
-            error.name = e.message;
-            throw error;
+                // Exponential backoff: 1s, 2s, 4s...
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+            }
         }
     }
 
@@ -386,26 +395,35 @@ export class GitHubAdapter {
 
             if (!fieldValue) continue;
 
-            try {
-                await this.graphql(`
-                    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
-                        updateProjectV2ItemFieldValue(input: {
-                            projectId: $projectId
-                            itemId: $itemId
-                            fieldId: $fieldId
-                            value: $value
-                        }) { projectV2Item { id } }
+            let attempt = 0;
+            const maxAttempts = 3;
+            while (attempt < maxAttempts) {
+                try {
+                    await this.graphql(`
+                        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
+                            updateProjectV2ItemFieldValue(input: {
+                                projectId: $projectId
+                                itemId: $itemId
+                                fieldId: $fieldId
+                                value: $value
+                            }) { projectV2Item { id } }
+                        }
+                    `, {
+                        projectId: meta.id,
+                        itemId: itemId,
+                        fieldId: field.id,
+                        value: fieldValue
+                    });
+                    break;
+                } catch (e: any) {
+                    attempt++;
+                    if (attempt >= maxAttempts) {
+                        const error = new Error(`Failed to assign custom field ${field.name}: ${e.message}`);
+                        error.name = 'GitHubProjectError';
+                        throw error;
                     }
-                `, {
-                    projectId: meta.id,
-                    itemId: itemId,
-                    fieldId: field.id,
-                    value: fieldValue
-                });
-            } catch (e: any) {
-                const error = new Error(`Failed to assign custom field`);
-                error.name = `${field.name}: ${e.message}`
-                throw error;
+                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+                }
             }
         }
     }
