@@ -49,10 +49,7 @@ export class Config {
             owner: github.owner,
             repository: github.repository,
             projectId: github.projectId || github.project_id,
-            tokenEnv: github.tokenEnv || github.token_env || 'GITHUB_TOKEN',
-            appId: github.appId || github.app_id,
-            privateKey: github.privateKey || github.private_key,
-            installationId: github.installationId || github.installation_id
+            tokenEnv: github.tokenEnv || github.token_env || 'GITHUB_TOKEN'
         };
     }
 

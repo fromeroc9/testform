@@ -25,9 +25,6 @@ export interface IGitHubConfig {
     repository: string;
     projectId?: number;
     tokenEnv: string;
-    appId?: string;
-    privateKey?: string;
-    installationId?: string;
 }
 
 interface IConvention {
