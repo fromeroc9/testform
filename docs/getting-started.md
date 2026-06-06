@@ -33,7 +33,7 @@ testform login
 
 Alternatively, if you are running Testform in a CI/CD environment (like GitHub Actions), you can skip the login command and expose the token as an environment variable (e.g., `export GITHUB_TOKEN=ghp_...`).
 
-> **💡 Authentication Recommendation:** Whether using the CLI (`testform login`) or GitHub Actions, we strongly advise configuring a **Personal Access Token (PAT)** (with `repo` and `project` permissions).
+> **💡 Authentication Recommendation:** Whether using the CLI (`testform login`) or GitHub Actions, we strongly advise configuring a **Personal Access Token (PAT)** (with `repo` and `project` permissions). *Note: It is neither mandatory nor recommended to use a GitHub App token.*
 >
 > *Why?* The default `GITHUB_TOKEN` provided by Actions often lacks the necessary scopes to manipulate organization-level GitHub Projects (V2) or perform cross-repository operations. Using a dedicated PAT ensures that your automated pipelines have the robust, fine-grained access required to smoothly transition issues, manage test cases, and keep your project boards flawlessly in sync.
 
