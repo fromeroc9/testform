@@ -7,8 +7,17 @@ import { Logger } from '../logger';
 import { IScope, DiffEntry, DiffStatus, ParserScenario } from '../types';
 import { SCOPE_RESOURCE_MAP } from '../const';
 
-function hashScenario(scenario: ParserScenario): string {
-    return createHash('sha256').update(JSON.stringify(scenario)).digest('hex');
+function hashScenario(scenario: ParserScenario, scope?: IScope): string {
+    const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
+    if (!scope || scope === 'testcase') {
+        clone.name = '';
+    }
+    if (!scope || scope === 'testrun' || scope === 'testplan') {
+        if (clone.feature) {
+            clone.feature.name = '';
+        }
+    }
+    return createHash('sha256').update(JSON.stringify(clone)).digest('hex');
 }
 
 function getStatusIcon(status: DiffStatus): string {
@@ -37,7 +46,7 @@ function getStatusLabel(status: DiffStatus): string {
 interface DiffCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope: IScope;
+    scope: IScope | 'all';
 }
 
 export const diffCmd = async (options: DiffCmdOptions) => {
@@ -49,71 +58,75 @@ export const diffCmd = async (options: DiffCmdOptions) => {
     const parser = new Parser(dir);
     const documents = parser.content();
 
-    const data = {
-        identity: config.getIdentity(scope),
-        fields: config.getFields(scope),
-    };
-
-    const filtered = parser.filter(documents, data, scope) || [];
-
     // Load state
     const state = new State(dir);
     await state.init();
-    const resourceType = SCOPE_RESOURCE_MAP[scope];
-    const resources = state.getResources(resourceType);
-    const stateMap = new Map(resources.map(r => [r.identity, r]));
 
     // Calculate diff
     const entries: DiffEntry[] = [];
-    const localIds = new Set<string>();
+    const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
 
-    for (const scenario of filtered) {
-        const rawIdentity = scenario.custom?.identity;
-        if (!rawIdentity) continue;
+    for (const s of scopesToRun) {
+        const data = {
+            identity: config.getIdentity(s),
+            fields: config.getFields(s),
+        };
 
-        let identity: string;
-        if (rawIdentity.includes('::')) {
-            identity = rawIdentity;
-        } else if (rawIdentity === scenario.uri) {
-            identity = rawIdentity;
-        } else {
-            identity = `${scenario.uri}::${rawIdentity}`;
+        const filtered = parser.filter(documents, data, s) || [];
+
+        const resourceType = SCOPE_RESOURCE_MAP[s];
+        const resources = state.getResources(resourceType);
+        const stateMap = new Map(resources.map(r => [r.identity, r]));
+
+        const localIds = new Set<string>();
+
+        for (const scenario of filtered) {
+            const rawIdentity = scenario.custom?.identity;
+            if (!rawIdentity) continue;
+
+            let identity: string;
+            if (rawIdentity.includes('::')) {
+                identity = rawIdentity;
+            } else if (rawIdentity === scenario.uri) {
+                identity = rawIdentity;
+            } else {
+                identity = `${scenario.uri}::${rawIdentity}`;
+            }
+
+            localIds.add(identity);
+            const localHash = hashScenario(scenario, s);
+            const stateRes = stateMap.get(identity);
+
+            if (!stateRes) {
+                entries.push({ identity, status: 'new_local', localHash });
+            } else if (stateRes.attributes.localHash !== localHash) {
+                entries.push({
+                    identity,
+                    status: 'modified_locally',
+                    localHash,
+                    stateHash: stateRes.attributes.localHash,
+                    remoteId: stateRes.attributes.remoteId,
+                });
+            } else {
+                entries.push({
+                    identity,
+                    status: 'synced',
+                    localHash,
+                    stateHash: stateRes.attributes.localHash,
+                    remoteId: stateRes.attributes.remoteId,
+                });
+            }
         }
 
-        localIds.add(identity);
-        const localHash = hashScenario(scenario);
-        const stateRes = stateMap.get(identity);
-
-        if (!stateRes) {
-            entries.push({ identity, status: 'new_local', localHash });
-        } else if (stateRes.attributes.localHash !== localHash) {
-            entries.push({
-                identity,
-                status: 'modified_locally',
-                localHash,
-                stateHash: stateRes.attributes.localHash,
-                remoteId: stateRes.attributes.remoteId,
-            });
-        } else {
-            entries.push({
-                identity,
-                status: 'synced',
-                localHash,
-                stateHash: stateRes.attributes.localHash,
-                remoteId: stateRes.attributes.remoteId,
-            });
-        }
-    }
-
-    // Check for orphaned resources (in state but not in local)
-    for (const res of resources) {
-        if (!localIds.has(res.identity)) {
-            entries.push({
-                identity: res.identity,
-                status: 'orphaned_remote',
-                stateHash: res.attributes.localHash,
-                remoteId: res.attributes.remoteId,
-            });
+        for (const res of resources) {
+            if (!localIds.has(res.identity)) {
+                entries.push({
+                    identity: res.identity,
+                    status: 'orphaned_remote',
+                    stateHash: res.attributes.localHash,
+                    remoteId: res.attributes.remoteId,
+                });
+            }
         }
     }
 

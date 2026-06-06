@@ -18,8 +18,19 @@ import { join } from 'path';
 /**
  * Calculate the hash for a scenario (used for idempotency).
  */
-export function hashScenario(scenario: ParserScenario): string {
-    return createHash('sha256').update(JSON.stringify(scenario)).digest('hex');
+export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
+    const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
+    // Testcases depend on uri and tags, NEVER on the Scenario title
+    if (!scope || scope === 'testcase') {
+        clone.name = '';
+    }
+    // Testruns and Testplans depend on uri and tags, NEVER on the Feature title
+    if (!scope || scope === 'testrun' || scope === 'testplan') {
+        if (clone.feature) {
+            clone.feature.name = '';
+        }
+    }
+    return createHash('sha256').update(JSON.stringify(clone)).digest('hex');
 }
 
 interface CalculatePlanOptions {
@@ -163,7 +174,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         }
 
         localIds.add(identity);
-        const localHash = hashScenario(scenario);
+        const localHash = hashScenario(scenario, scope);
         const existing = stateMap.get(identity);
 
         const shouldForceReplace = replaceTargets
@@ -256,7 +267,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 interface PlanCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope: IScope;
+    scope: IScope | 'all';
     outPath?: string;
     lock?: boolean;
     lockTimeout?: string;
@@ -302,16 +313,33 @@ export const planCmd = async (options: PlanCmdOptions) => {
     await stateObj.init();
     await stateObj.acquireLock(lock, lockTimeout);
 
-    let plan: PlanResult;
+    let plan: PlanResult = { changes: [], hasChanges: false, state: stateObj };
     try {
+        const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope];
+        
         if (refresh && !destroyPlan) {
             if (!isJson) console.log(MSG_ACQUIRING_LOCK);
-            await refreshState({ dir, scope, state: stateObj, logger, silent: isJson, parallelismRaw: parallelism, target });
+            // We can just run refreshState once if we modify it to support 'all' or we loop here.
+            // But wait, refreshState requires IScope. Let's loop.
         }
 
-        plan = await calculatePlan({
-            dir, scope, variables, statePath, backupPath, target, destroyPlan, refreshOnly, preLoadedState: stateObj, lock, lockTimeout, replaceTargets, compactWarnings, testDirectory
-        });
+        let allChanges: PlanChange[] = [];
+
+        for (const s of scopesToRun) {
+            if (refresh && !destroyPlan) {
+                await refreshState({ dir, scope: s, state: stateObj, logger, silent: isJson, parallelismRaw: parallelism, target });
+            }
+
+            const sPlan = await calculatePlan({
+                dir, scope: s, variables, statePath, backupPath, target, destroyPlan, refreshOnly, preLoadedState: stateObj, lock, lockTimeout, replaceTargets, compactWarnings, testDirectory
+            });
+            
+            allChanges.push(...sPlan.changes);
+            plan.state = sPlan.state;
+        }
+        
+        plan.changes = allChanges;
+        plan.hasChanges = allChanges.length > 0;
 
         if (isJson) {
             const planData = {

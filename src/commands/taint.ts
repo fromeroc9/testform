@@ -29,8 +29,12 @@ export const taintCmd = async (options: TaintCmdOptions) => {
     await state.acquireLock(lock, lockTimeout);
 
     try {
-        const identity = identityRaw.replace(/^github_testcase\./, '');
-        const res = state.getResources('github_testcase').find(r => r.identity === identity);
+        let res: any = null;
+        for (const type of ['github_testcase', 'github_testrun', 'github_testplan']) {
+            const identity = identityRaw.replace(new RegExp(`^${type}\\.`), '');
+            res = state.getResources(type).find((r: any) => r.identity === identity);
+            if (res) break;
+        }
 
         if (!res) {
             if (allowMissing) {

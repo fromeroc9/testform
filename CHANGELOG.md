@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-06-05
+
+### Changed
+- **Global Scope Discovery:** CLI commands (`plan`, `apply`, `refresh`, `destroy`, `diff`) now inherently scan all supported scopes (`testcase`, `testrun`, `testplan`) when the `-scope` argument is omitted, instead of defaulting solely to `testcase`. A warning is emitted when this global fallback is triggered.
+
+### Fixed
+- **State Locking:** Fixed a critical race condition where executing a command with `-lock=false` would incorrectly trigger `releaseLock()` and forcefully delete the `.lock` file held by another concurrent process.
+- **Drift Detection:** Hardened `localHash` generation to ensure that resource identities rely strictly on the `Physical Path` and `Tag`. Volatile fields such as `Scenario Title` (for testcases) and `Feature Title` (for testruns/plans) are now stripped prior to computing hashes to prevent false drift detection.
+- **Resource Targeting:** Refactored the `taint` and `untaint` commands to dynamically resolve targets across all resource types, removing the hardcoded limitation that only allowed targeting `github_testcase` resources.
+
 ## [1.0.6] - 2026-06-05
 
 ### Added

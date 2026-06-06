@@ -31,7 +31,7 @@ import { IScope } from '../types';
 interface DestroyCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope: IScope;
+    scope: IScope | 'all';
     lock?: boolean;
     lockTimeout?: string;
     input?: boolean;
@@ -56,70 +56,76 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
     await stateObj.acquireLock(lock, lockTimeout);
 
     try {
-        if (!Object.prototype.hasOwnProperty.call(SCOPE_RESOURCE_MAP, scope)) {
-            throw new Error(`Invalid scope: ${scope}`);
-        }
-        const resources = stateObj.getResources(SCOPE_RESOURCE_MAP[scope]);
-
-        if (resources.length === 0) {
-            console.log('No resources to destroy. State is empty.');
-            return;
-        }
-
-        console.log(bold(`\n${TITLE_APP} will destroy the following resources:\n`));
-
-        for (const res of resources) {
-            const remoteId = res.attributes.remoteId ?? '';
-            console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.identity)} [id=${remoteId}]`);
-        }
-
-        console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
-
-        // Require interactive approval unless disabled
-        if (!input) {
-            const error = new Error('This command requires manual approval, but input is disabled. Use the\n-auto-approve flag to bypass approval.');
-            error.name = 'No input allowed';
-            throw error;
-        }
-
-        const approved = await askDestroyApproval(resources.length);
-        if (!approved) {
-            notify.push({ type: 'error', title: 'error asking for approval: interrupted', detail: [] });
-            return;
-        }
-
-        // Create GitHub context AFTER approval to avoid locking for nothing if user declines
-        const ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
-        if (!ctx) return;
+        const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
 
         let destroyed = 0;
 
-        for (const res of resources) {
-            try {
+        for (const s of scopesToRun) {
+            if (!Object.prototype.hasOwnProperty.call(SCOPE_RESOURCE_MAP, s)) {
+                throw new Error(`Invalid scope: ${s}`);
+            }
+
+            const resources = stateObj.getResources(SCOPE_RESOURCE_MAP[s]);
+
+            if (resources.length === 0) {
+                console.log(`No resources found in state for scope '${s}'.`);
+                continue;
+            }
+
+            console.log(bold(`\n${TITLE_APP} will destroy the following resources in scope '${s}':\n`));
+            for (const res of resources) {
                 const remoteId = res.attributes.remoteId ?? '';
-                const address = formatResourceAddress(res.type, res.identity);
-                console.log(`${address}: Destroying... [id=${remoteId}]`);
-                const startTime = Date.now();
+                console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.identity)} [id=${remoteId}]`);
+            }
+            console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
 
-                if (res.attributes.issueNumber) {
-                    await ctx.github.closeIssue(res.attributes.issueNumber);
+            // Prompt for approval
+            if (input) {
+                const approved = await askDestroyApproval(resources.length, s);
+                if (!approved) {
+                    notify.push({
+                        type: 'error',
+                        title: `Destruction of scope '${s}' cancelled.`,
+                        detail: [],
+                    });
+                    continue;
                 }
+            }
 
-                console.log(green(`${address}: Destruction complete after ${elapsedSeconds(startTime)}s [id=${remoteId}]`));
-                stateObj.removeResource(res.identity);
-                destroyed++;
-            } catch (error: any) {
-                notify.push({
-                    type: 'error',
-                    title: error.message,
-                    detail: [`  with ${formatResourceAddress(res.type, res.identity)}`],
-                });
+            console.log('');
+            const ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
+            if (!ctx) return;
+            const { github } = ctx;
+            
+            for (const res of resources) {
+                const address = formatResourceAddress(res.type, res.identity);
+                const remoteId = res.attributes.remoteId ?? '';
+                console.log(`${address}: Destroying... [id=${remoteId}]`);
+
+                const startTime = Date.now();
+                try {
+                    if (res.attributes.issueNumber) {
+                        await github.closeIssue(res.attributes.issueNumber);
+                    }
+                    stateObj.removeResource(res.identity);
+                    const elapsed = elapsedSeconds(startTime);
+                    console.log(green(`${address}: Destruction complete after ${elapsed}s [id=${remoteId}]`));
+                    destroyed++;
+                } catch (error: any) {
+                    notify.push({
+                        type: 'error',
+                        title: `Failed to destroy ${address}: ${error.message}`,
+                        detail: [],
+                    });
+                }
             }
         }
 
         await stateObj.save();
-        console.log('');
-        console.log(green(bold(`Destroy complete! Resources: ${destroyed} destroyed.`)));
+        if (destroyed > 0) {
+            console.log('');
+            console.log(green(bold(`Destroy complete! ${destroyed} resource(s) destroyed.`)));
+        }
     } finally {
         await stateObj.releaseLock();
     }

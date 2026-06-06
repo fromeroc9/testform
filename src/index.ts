@@ -343,7 +343,12 @@ const main = async () => {
 
     let command = commandRaw.toLowerCase();
     let commandArgs = commandArgsRaw;
-    let scopeArg = String((argv['--scope'] ?? 'testcase') || 'testcase') as IScope;
+    
+    const hasExplicitScope = Object.prototype.hasOwnProperty.call(argv, '--scope');
+    let scopeArg = (argv['--scope'] as IScope | 'all') || (hasExplicitScope ? 'testcase' : 'all');
+    if (!hasExplicitScope && ['plan', 'apply', 'diff', 'refresh', 'destroy'].includes(command)) {
+        logger.warn(`Warning: Scanning all scopes. You can use -scope (testcase|testrun|testplan) to limit the operation.`);
+    }
     const workDir = String(argv['--chdir'] || '.');
     const variableParser = new VariableParser(argv['--var'], argv['--var-file'], workDir);
 
@@ -356,6 +361,7 @@ const main = async () => {
         scopeArg = command;
         command = args[1].toLowerCase();
         commandArgs = args.slice(2);
+        // If they explicitly did `testform testcase plan`, it's not global
     }
 
     if (!workDir) {
@@ -365,6 +371,7 @@ const main = async () => {
 
     const verbose = Boolean(argv['--verbose'] || argv['--verbose']);
     const scope = scopeArg;
+    const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
 
     if (command === 'version') {
         printVersion(true);
@@ -398,7 +405,7 @@ const main = async () => {
         await validateCmd({
             targetPath: validateDir,
             verbose,
-            scope,
+            scope: singleScope,
             variables: variableParser,
             isJson: argv['--json'],
             testDirectory: argv['--test-directory'],
@@ -529,7 +536,7 @@ const main = async () => {
         const issueNumber = commandArgs[1];
         await importCmd({
             dir: workDir,
-            scope,
+            scope: singleScope,
             identityArg,
             issueNumber,
             lock: argv['--lock'] ?? true,
@@ -607,7 +614,7 @@ const main = async () => {
         ensureNoPositionalArgs(command, commandArgs);
         await graphCmd({
             dir: workDir,
-            scope,
+            scope: singleScope,
             drawCycles: argv['--draw-cycles']
         });
         process.exit(process.exitCode || 0);

@@ -21,7 +21,7 @@ interface ApplyCmdOptions {
     dir?: string;
     autoApprove?: boolean;
     verbose?: boolean;
-    scope: IScope;
+    scope: IScope | 'all';
     planFile?: string;
     lock?: boolean;
     lockTimeout?: string;
@@ -236,15 +236,26 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 return;
             }
 
-            if (refresh && !refreshOnly) {
-                console.log(MSG_ACQUIRING_LOCK);
-                await refreshState({ dir, scope, state: stateObj, logger, silent: false, parallelismRaw: parallelism, target });
-            }
+            const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+            let allChanges: any[] = [];
+            let finalState = stateObj;
 
-            // Calculate plan (read-only)
-            plan = await calculatePlan({
-                dir, scope, variables, statePath, backupPath, target, destroyPlan: false, refreshOnly, preLoadedState: stateObj, lock, lockTimeout, replaceTargets, compactWarnings, testDirectory
-            });
+            for (const s of scopesToRun) {
+                if (refresh && !refreshOnly) {
+                    console.log(MSG_ACQUIRING_LOCK);
+                    await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw: parallelism, target });
+                }
+
+                // Calculate plan (read-only)
+                const sPlan = await calculatePlan({
+                    dir, scope: s, variables, statePath, backupPath, target, destroyPlan: false, refreshOnly, preLoadedState: stateObj, lock, lockTimeout, replaceTargets, compactWarnings, testDirectory
+                });
+                
+                allChanges.push(...sPlan.changes);
+                finalState = sPlan.state;
+            }
+            
+            plan = { changes: allChanges, hasChanges: allChanges.length > 0, state: finalState };
 
             // Show plan summary
             resource.summary(plan.changes, false, { state: plan.state });

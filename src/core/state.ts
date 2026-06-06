@@ -14,6 +14,7 @@ export class State {
     private state!: IState;
     private backend: IBackend;
     private workspaceManager: WorkspaceManager;
+    private lockAcquired: boolean = false;
 
     constructor(
         dir: string,
@@ -107,6 +108,8 @@ export class State {
             console.error(`\nError: Acquiring the state lock.\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.\n`);
             process.exit(1);
         }
+        
+        this.lockAcquired = true;
 
         const cleanup = async () => { await this.releaseLock(); process.exit(1); };
         process.on('SIGINT', cleanup);
@@ -116,7 +119,10 @@ export class State {
     }
 
     async releaseLock(): Promise<void> {
-        await this.backend.unlock();
+        if (this.lockAcquired) {
+            await this.backend.unlock();
+            this.lockAcquired = false;
+        }
     }
 
     async forceUnlock(lockId: string): Promise<{ success: boolean; error?: string; currentLockId?: string }> {
