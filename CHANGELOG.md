@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-06-05
+
+### Added
+- **Authentication:** Native GitHub App Authentication. Supports configuring `appId`, `privateKey`, and `installationId` directly in `testform.json` or through local credentials for autonomous background authentication using `@octokit/auth-app`.
+
+### Changed
+- **CLI Commands:** `testform login` now features an interactive assistant to intuitively configure different GitHub authentication strategies (Tokens vs GitHub App credentials).
+
 ## [1.0.5] - 2026-06-05
 
 ### Added
