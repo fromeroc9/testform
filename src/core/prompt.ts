@@ -56,11 +56,13 @@ export async function askApproval(): Promise<boolean> {
  * Shown before `testform destroy` removes all managed resources.
  *
  * @param count - Number of resources that will be destroyed.
+ * @param scope - Optional scope name being destroyed.
  * @returns `true` if the user approved, `false` if they declined.
  */
-export async function askDestroyApproval(count: number): Promise<boolean> {
+export async function askDestroyApproval(count: number, scope?: string): Promise<boolean> {
+    const scopeMsg = scope ? ` in scope '${scope}'` : '';
     return askConfirmation([
-        red(bold(`${TITLE_APP} will destroy ${count} resource(s).`)),
+        red(bold(`${TITLE_APP} will destroy ${count} resource(s)${scopeMsg}.`)),
         '  This action cannot be undone.',
     ]);
 }

@@ -125,46 +125,46 @@ Plan Customization Options:
                       module of the configuration. Use this option more than
                       once to set more than one variable.
 
-  -var-file=filename         Load variable values from the given file (.json or key=value format).
-                             Use this option more than once to include more than one
-                             variables file.
+  -var-file=filename  Load variable values from the given file (.json or key=value format).
+                      Use this option more than once to include more than one
+                      variables file.
 
 Other Options:
 
-  -compact-warnings          If ${TITLE_APP} produces any warnings that are not
-                             accompanied by errors, shows them in a more compact
-                             form that includes only the summary messages.
+  -compact-warnings   If ${TITLE_APP} produces any warnings that are not
+                      accompanied by errors, shows them in a more compact
+                      form that includes only the summary messages.
 
-  -detailed-exitcode         Return detailed exit codes when the command exits.
-                             This will change the meaning of exit codes to:
-                             0 - Succeeded, diff is empty (no changes)
-                             1 - Errored
-                             2 - Succeeded, there is a diff
+  -detailed-exitcode  Return detailed exit codes when the command exits.
+                      This will change the meaning of exit codes to:
+                      0 - Succeeded, diff is empty (no changes)
+                      1 - Errored
+                      2 - Succeeded, there is a diff
 
-  -lock=false                Don't hold a state lock during the operation. This
-                             is dangerous if others might concurrently run
-                             commands against the same workspace.
+  -lock=false         Don't hold a state lock during the operation. This
+                      is dangerous if others might concurrently run
+                      commands against the same workspace.
 
-  -lock-timeout=0s           Duration to retry a state lock.
+  -lock-timeout=0s    Duration to retry a state lock.
 
-  -no-color                  If specified, output won't contain any color.
+  -no-color           If specified, output won't contain any color.
 
-  -out=path                  Write a plan file to the given path. This can be
-                             used as input to the "apply" command.
+  -out=path           Write a plan file to the given path. This can be
+                      used as input to the "apply" command.
 
-  -parallelism=n             Limit the number of concurrent operations. Defaults
-                             to 10.
+  -parallelism=n      Limit the number of concurrent operations. Defaults
+                      to 10.
 
-  -state=statefile           A legacy option used for the local backend only.
-                             See the local backend's documentation for more
-                             information.
-                             
-  -backup=path               Path to backup the existing state file before
-                             modifying. Defaults to the "-state" path with
-                             ".backup" extension.
+  -state=statefile    A legacy option used for the local backend only.
+                      See the local backend's documentation for more
+                      information.
+                      
+  -backup=path        Path to backup the existing state file before
+                      modifying. Defaults to the "-state" path with
+                      ".backup" extension.
 
-  -test-directory=path       Set the ${TITLE_APP} test directory. If omitted,
-                             defaults to the chdir directory.
+  -test-directory=path Set the ${TITLE_APP} test directory. If omitted,
+                      defaults to the chdir directory.
 `.trim();
 
 export const HELP_VALIDATE = `
@@ -206,56 +206,56 @@ Usage: ${TITLE_CLI} [global options] apply [options] [PLAN]
 
 Options:
 
-  -auto-approve          Skip interactive approval of plan before applying.
+  -auto-approve       Skip interactive approval of plan before applying.
 
-  -backup=path           Path to backup the existing state file before
-                         modifying. Defaults to the "-state" path with
-                         ".backup" extension. Set to "-" to disable backup.
+  -backup=path        Path to backup the existing state file before
+                      modifying. Defaults to the "-state" path with
+                      ".backup" extension. Set to "-" to disable backup.
 
-  -compact-warnings      If ${TITLE_APP} produces any warnings that are not
-                         accompanied by errors, show them in a more compact
-                         form that includes only the summary messages.
+  -compact-warnings   If ${TITLE_APP} produces any warnings that are not
+                      accompanied by errors, show them in a more compact
+                      form that includes only the summary messages.
 
-  -destroy               Destroy ${TITLE_APP}-managed infrastructure.
-                         The command "${TITLE_CLI} destroy" is a convenience alias
-                         for this option.
+  -destroy            Destroy ${TITLE_APP}-managed infrastructure.
+                      The command "${TITLE_CLI} destroy" is a convenience alias
+                      for this option.
 
-  -lock=false            Don't hold a state lock during the operation. This is
-                         dangerous if others might concurrently run commands
-                         against the same workspace.
+  -lock=false         Don't hold a state lock during the operation. This is
+                      dangerous if others might concurrently run commands
+                      against the same workspace.
 
-  -lock-timeout=0s       Duration to retry a state lock.
+  -lock-timeout=0s    Duration to retry a state lock.
 
-  -input=true            Ask for input for variables if not directly set.
+  -input=true         Ask for input for variables if not directly set.
 
-  -no-color              If specified, output won't contain any color.
+  -no-color           If specified, output won't contain any color.
 
-  -parallelism=n         Limit the number of parallel resource operations.
-                         Defaults to 10.
+  -parallelism=n      Limit the number of parallel resource operations.
+                      Defaults to 10.
 
-  -replace=resource      ${TITLE_APP} will plan to replace this resource instance
-                         instead of doing an update or no-op action. 
+  -replace=resource   ${TITLE_APP} will plan to replace this resource instance
+                      instead of doing an update or no-op action. 
 
-  -set-status=assigns    Injects or updates the status field in your local
-                         testrun features before applying.
-                         (e.g., "tc1=passed,tc2=failed").
-                         Supported statuses: passed, failed, pending,
-                         blocked, skipped, unexecuted.
+  -set-status=assigns Injects or updates the status field in your local
+                      testrun features before applying.
+                      (e.g., "tc1=passed,tc2=failed").
+                      Supported statuses: passed, failed, pending,
+                      blocked, skipped, unexecuted.
 
-  -state=path            Path to read and save state. Defaults to "testform.tfstate".
-                         Legacy option for the local backend only. See the local
-                         backend's documentation for more information.
+  -state=path         Path to read and save state. Defaults to "testform.tfstate".
+                      Legacy option for the local backend only. See the local
+                      backend's documentation for more information.
 
-  -var 'foo=bar'         Set a value for one of the input variables in the root
-                         module of the configuration. Use this option more than
-                         once to set more than one variable.
+  -var 'foo=bar'      Set a value for one of the input variables in the root
+                      module of the configuration. Use this option more than
+                      once to set more than one variable.
 
-  -var-file=filename     Load variable values from the given file (.json or key=value format).
-                         Use this option more than once to include more than one
-                         variables file.
+  -var-file=filename  Load variable values from the given file (.json or key=value format).
+                      Use this option more than once to include more than one
+                      variables file.
 
-  -test-directory=path   Set the ${TITLE_APP} test directory. If omitted,
-                         defaults to the chdir directory.
+  -test-directory=path Set the ${TITLE_APP} test directory. If omitted,
+                      defaults to the chdir directory.
 
   If you don't provide a saved plan file then this command will also accept
   all of the plan-customization options accepted by the ${TITLE_CLI} plan command.

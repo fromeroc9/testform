@@ -219,7 +219,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 interface RefreshCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope: IScope;
+    scope: IScope | 'all';
     lock?: boolean;
     lockTimeout?: string;
     statePath?: string;
@@ -248,7 +248,10 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
     await stateObj.acquireLock(lock, lockTimeout);
 
     try {
-        await refreshState({ dir, scope, state: stateObj, logger, silent: false, parallelismRaw, target });
+        const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+        for (const s of scopesToRun) {
+            await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw, target });
+        }
     } finally {
         await stateObj.releaseLock();
     }
