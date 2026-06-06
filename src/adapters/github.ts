@@ -1,7 +1,6 @@
 import { IGitHubConfig, GitHubIssuePayload, GitHubIssueResult } from '../types';
 import { notify } from '../notify';
 import { Credentials } from '../core/credentials';
-import { createAppAuth } from '@octokit/auth-app';
 
 export class GitHubAdapter {
     private token: string;
@@ -30,32 +29,7 @@ export class GitHubAdapter {
     private async ensureToken(): Promise<void> {
         if (this.token) return;
 
-        const creds = new Credentials();
-        const localAuth = creds.getAuth('github.com') || {};
-
-        const appId = localAuth.appId || this.config.appId || process.env.GITHUB_APP_ID;
-        const privateKey = localAuth.privateKey || this.config.privateKey || process.env.GITHUB_PRIVATE_KEY;
-        const installationId = localAuth.installationId || this.config.installationId || process.env.GITHUB_INSTALLATION_ID;
-
-        if (appId && privateKey && installationId) {
-            try {
-                const authOpts: any = {
-                    appId: appId,
-                    privateKey: privateKey.replace(/\\n/g, '\n'),
-                    installationId: installationId
-                };
-
-                const auth = createAppAuth(authOpts);
-                const installationAuthentication = await auth({ type: 'installation' }) as any;
-                this.token = installationAuthentication.token;
-                return;
-            } catch (e: any) {
-                notify.push({ type: 'error', title: 'GitHub App Auth failed', detail: [e.message], close: true });
-            }
-        }
-
-        // If we reach here, we have no token and no valid app credentials
-        notify.push({ type: 'error', title: `GitHub token not found`, detail: [`Environment variable "${this.config.tokenEnv}" is not set, and GitHub App credentials are incomplete.`], close: true });
+        notify.push({ type: 'error', title: `GitHub token not found`, detail: [`Environment variable "${this.config.tokenEnv}" is not set.`], close: true });
     }
 
     private async request(method: string, path: string, body?: any): Promise<any> {
@@ -315,9 +289,16 @@ export class GitHubAdapter {
                 this.projectFields = orgResult.organization.projectV2.fields.nodes;
                 return { id: this.projectNodeId!, fields: this.projectFields! };
             }
-        } catch (error) {
+        } catch (error: any) {
             // Not an org or project not found
         }
+
+        // If we reach here, neither user nor org query found the project
+        const chalk = require('chalk');
+        console.warn(chalk.yellow(`\n⚠️ Warning: Could not resolve GitHub Project V2 with ID ${this.projectId} for owner "${this.owner}".`));
+        console.warn(chalk.yellow(`   If "${this.owner}" is a User account and you are authenticating via a GitHub App,`));
+        console.warn(chalk.yellow(`   note that GitHub Apps are technically not allowed to access User-level Projects.`));
+        console.warn(chalk.yellow(`   Please use a Personal Access Token (PAT) instead.\n`));
 
         return undefined;
     }

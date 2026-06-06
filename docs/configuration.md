@@ -11,10 +11,7 @@ At the root of every Testform workspace lies the `testform.json` file. This file
     "owner": "hashicorp",
     "repository": "testform",
     "projectId": 12,
-    "tokenEnv": "GITHUB_TOKEN",
-    "appId": "123456",
-    "privateKey": "-----BEGIN PRIVATE KEY-----\\n...",
-    "installationId": "987654"
+    "tokenEnv": "GITHUB_TOKEN"
   },
   "backend": {
     "type": "local",
@@ -54,9 +51,6 @@ Configures the connection to your GitHub repository and GitHub Projects V2 board
 - **`repository`** (string): The repository name where Issues will be created.
 - **`projectId`** (number, optional): The ID of your GitHub Projects V2 board. If provided, Testform will attempt to link all created issues to this project board, enabling the use of Custom Fields. *(Note: For monorepos or dynamic environments, this can be provided dynamically via the CLI using the `--projectId=<id>` flag).*
 - **`tokenEnv`** (string): The name of the environment variable containing your GitHub token. Defaults to `GITHUB_TOKEN`.
-- **`appId`** (string, optional): Your GitHub App ID (or configure via `GITHUB_APP_ID` environment variable).
-- **`privateKey`** (string, optional): Your GitHub App Private Key (or configure via `GITHUB_PRIVATE_KEY` environment variable).
-- **`installationId`** (string, optional): Your GitHub App Installation ID (or configure via `GITHUB_INSTALLATION_ID` environment variable).
 
 ---
 

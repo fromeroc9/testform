@@ -4,9 +4,6 @@ import { homedir } from 'os';
 
 export interface CredentialsData {
     token?: string;
-    appId?: string;
-    privateKey?: string;
-    installationId?: string;
 }
 
 interface CredentialsFile {
