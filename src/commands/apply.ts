@@ -471,7 +471,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await linkSubIssues(change, result.number);
 
                         // Sync status comments (existingAttributes is empty because it's a replacement)
-                        const { testcaseCommentIds, testcaseStatuses } = await syncTestrunComments(change, result.number);
+                        const { testcaseCommentIds, testcaseStatuses, expandedTestcases } = await syncTestrunComments(change, result.number);
 
                         // 3. Update state
                         stateObj.upsertResource({
@@ -496,6 +496,19 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         destroyed++;
                         added++;
+
+                        const hasExplicitScenarios = change.scenario.custom?.testcases?.some((tc: string) => !tc.endsWith('::*'));
+                        if (scope === 'testrun' && !hasExplicitScenarios && change.scenario.uri && change.scenario.custom?.testcases) {
+                            try {
+                                const parseDir = testDirectory ? require('path').join(dir, testDirectory) : dir;
+                                const absolutePath = require('path').join(parseDir, change.scenario.uri);
+                                const testcasesToExpand = expandedTestcases?.length ? expandedTestcases : change.scenario.custom.testcases;
+                                GherkinEditor.expandScenarios(absolutePath, testcasesToExpand, 'pending');
+                                console.log(`  -> Expanded scenarios in local file: ${change.scenario.uri}`);
+                            } catch (e: any) {
+                                console.log(`  -> Failed to expand scenarios in local file: ${e.message}`);
+                            }
+                        }
 
                     } else if (change.action === 'change') {
                         const address = formatResourceAddress(change.resourceType, change.identity);

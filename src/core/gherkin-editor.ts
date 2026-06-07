@@ -15,23 +15,25 @@ export class GherkinEditor {
         let ruleStartIndex = -1;
         let ruleEndIndex = lines.length;
 
-        const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-        const baseRuleEscaped = escapeRegex(baseRule);
-        const basenameEscaped = escapeRegex(baseRule.split('/').pop() || baseRule);
-
-        const rulePattern = new RegExp(`^\\s*Rule:\\s*(${baseRuleEscaped}|${basenameEscaped})(\\.feature)?\\s*$`, 'i');
+        const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const scenarioPattern = new RegExp(`^\\s*Scenario:\\s*${escapeRegex(scenarioName)}\\s*$`, 'i');
         const nextRulePattern = /^\s*Rule:/i;
         const statusFieldPattern = /^\s*\*\s*link\s+status\s*=\s*(.*)$/i;
+        const generalRulePattern = /^\s*Rule:\s*(.+?)\s*$/i;
 
         // 1. Locate the target Rule block
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             
             if (!insideTargetRule) {
-                if (rulePattern.test(line)) {
-                    insideTargetRule = true;
-                    ruleStartIndex = i;
+                const match = generalRulePattern.exec(line);
+                if (match) {
+                    const ruleText = match[1].replace(/\.feature$/i, '');
+                    const normalizedBaseRule = baseRule.replace(/\.feature$/i, '');
+                    if (normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText)) {
+                        insideTargetRule = true;
+                        ruleStartIndex = i;
+                    }
                 }
             } else {
                 if (nextRulePattern.test(line)) {
@@ -160,24 +162,25 @@ export class GherkinEditor {
         const lines = content.split('\n');
         
         let insideTargetRule = false;
-        let insideTargetScenario = false;
         let ruleStartIndex = -1;
         let ruleEndIndex = lines.length;
 
         const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const baseRuleEscaped = escapeRegex(baseRule);
-        const basenameEscaped = escapeRegex(baseRule.split('/').pop() || baseRule);
-
-        const rulePattern = new RegExp(`^\\s*Rule:\\s*(${baseRuleEscaped}|${basenameEscaped})(\\.feature)?\\s*$`, 'i');
         const scenarioPattern = new RegExp(`^\\s*Scenario:\\s*${escapeRegex(scenarioName)}\\s*$`, 'i');
         const nextRulePattern = /^\s*Rule:/i;
+        const generalRulePattern = /^\s*Rule:\s*(.+?)\s*$/i;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             if (!insideTargetRule) {
-                if (rulePattern.test(line)) {
-                    insideTargetRule = true;
-                    ruleStartIndex = i;
+                const match = generalRulePattern.exec(line);
+                if (match) {
+                    const ruleText = match[1].replace(/\.feature$/i, '');
+                    const normalizedBaseRule = baseRule.replace(/\.feature$/i, '');
+                    if (normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText)) {
+                        insideTargetRule = true;
+                        ruleStartIndex = i;
+                    }
                 }
             } else {
                 if (nextRulePattern.test(line)) {
