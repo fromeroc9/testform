@@ -24,6 +24,7 @@ import { logoutCmd } from './commands/logout';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
 import { generateCmd } from './commands/generate';
+import { debugCmd } from './commands/debug';
 import { IScope } from './types';
 import { VariableParser } from './core/variables';
 import { notify } from './notify';
@@ -686,6 +687,21 @@ const main = async () => {
             list: argv['--list'] ?? true,
             write: argv['--write'] ?? true,
             recursive: argv['--recursive']
+        });
+        process.exit(process.exitCode || 0);
+    }
+
+    if (command === 'debug') {
+        if (commandArgs.length === 0) {
+            logger.error(`Usage: ${TITLE_CLI} debug <file> [options]`);
+            process.exit(1);
+        }
+        await debugCmd({
+            dir: workDir,
+            file: commandArgs[0],
+            format: argv['--format'] || 'testform',
+            scope: singleScope,
+            variables: variableParser
         });
         process.exit(process.exitCode || 0);
     }

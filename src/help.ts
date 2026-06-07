@@ -17,8 +17,10 @@ ${bold('Main commands:')}
 
 ${bold('All other commands:')}
   diff          Show drift between local configuration and state
+  debug         Parse a feature file and print the JSON AST
   fmt           Reformat your configuration in the standard style
   force-unlock  Release a stuck lock on the current workspace
+  generate      Generate new feature files based on your scope and convention
   graph         Generate a Graphviz graph of the steps in an operation
   import        Associate existing infrastructure with a ${TITLE_APP} resource
   login         Obtain and save credentials for a remote host
@@ -34,8 +36,8 @@ ${bold('All other commands:')}
 
 ${bold('Global options (use these before the subcommand, if any):')}
   -chdir=DIR    Switch to a different working directory before executing the given subcommand.
-  -projectId=ID Override the default project ID defined in your testform.json.
-  -scope=SCOPE  Limit the scope of the execution (e.g. to a specific feature or tag).
+  -projectId    Override the default project ID defined in your testform.json.
+  -scope        Limit the scope of the execution (testcase, testrun, testplan).
   -help         Show this help output, or the help for a specified subcommand.
   -version      An alias for the "version" subcommand.
 `;
@@ -786,6 +788,42 @@ Options:
                          Can be specified multiple times.
 `.trim();
 
+export const HELP_GENERATE = `
+Usage: ${TITLE_CLI} [global options] generate <scope> [title] [options]
+
+  Generate new feature files based on your scope and convention.
+
+  This command simplifies creating new testcase, testrun, or testplan files.
+  It automatically resolves the appropriate directory and applies the naming
+  convention defined in your ${TITLE_APP} configuration.
+
+  <scope> can be one of: testcase, testrun, testplan.
+  [title] is an optional title for the feature. If not provided, a default
+  will be generated.
+
+Options:
+
+  -rule <rule>        Include a business rule block (Rule: <rule>) in the generated
+                      feature file. The command verifies that a feature file for
+                      this rule exists in the workspace.
+                      Can be specified multiple times.
+`.trim();
+
+export const HELP_DEBUG = `
+Usage: ${TITLE_CLI} [global options] debug <file> [options]
+
+  Parse a specific feature file and print its JSON Abstract Syntax Tree (AST).
+  This command is designed for developers to debug Gherkin feature parsing and Testform's
+  filtering behavior.
+
+  <file>    The filename or partial filename to parse and output.
+
+Options:
+
+  -format <format>    Choose between 'gherkin' (raw Gherkin AST) or 'testform' 
+                      (filtered and enriched by Testform). Default is 'testform'.
+`.trim();
+
 export function getCommandHelp(command: string): string | null {
   switch (command) {
     case 'init': return HELP_INIT;
@@ -802,6 +840,8 @@ export function getCommandHelp(command: string): string | null {
     case 'login': return HELP_LOGIN;
     case 'workspace': return HELP_WORKSPACE;
     case 'report': return HELP_REPORT;
+    case 'generate': return HELP_GENERATE;
+    case 'debug': return HELP_DEBUG;
     case 'logout': return HELP_LOGOUT;
     case 'state': return HELP_STATE;
     case 'state identities': return HELP_STATE_IDENTITIES;
