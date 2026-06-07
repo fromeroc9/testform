@@ -447,6 +447,8 @@ export class GitHubAdapter {
                                     fieldValues(first: 100) {
                                         nodes {
                                             ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
+                                            ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2FieldCommon { name } } }
+                                            ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }
                                             ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
                                             ... on ProjectV2ItemFieldIterationValue { title field { ... on ProjectV2FieldCommon { name } } }
                                         }
@@ -472,6 +474,8 @@ export class GitHubAdapter {
                 if (val.text !== undefined) stringValue = val.text;
                 else if (val.name !== undefined) stringValue = val.name;
                 else if (val.title !== undefined) stringValue = val.title;
+                else if (val.date !== undefined) stringValue = val.date;
+                else if (val.number !== undefined) stringValue = String(val.number);
 
                 customFields[fieldName.toLowerCase()] = stringValue;
             }
