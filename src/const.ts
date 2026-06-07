@@ -14,7 +14,7 @@ export const TITLE_APP = "Testform";
 export const TITLE_CLI = "testform";
 
 /** Current CLI semver version. Keep in sync with package.json. */
-export const VERSION_CLI = "1.0.0-beta";
+export const VERSION_CLI = "1.0.9";
 
 /** Version token written into testform.json config files. */
 export const VERSION_CONFIG = "1.0";
