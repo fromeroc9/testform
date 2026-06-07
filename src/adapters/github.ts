@@ -1,6 +1,17 @@
 import { IGitHubConfig, GitHubIssuePayload, GitHubIssueResult } from '../types';
 import { notify } from '../notify';
 import { Credentials } from '../core/credentials';
+import { logger } from '../logger';
+
+class Mutex {
+    private mutex = Promise.resolve();
+    lock(): Promise<() => void> {
+        let begin: (unlock: () => void) => void = () => { };
+        this.mutex = this.mutex.then(() => new Promise(begin));
+        return new Promise(res => { begin = res; });
+    }
+}
+const projectMutex = new Mutex();
 
 export class GitHubAdapter {
     private token: string;
@@ -315,6 +326,7 @@ export class GitHubAdapter {
         let attempt = 0;
         const maxAttempts = 3;
         while (attempt < maxAttempts) {
+            const unlock = await projectMutex.lock();
             try {
                 const res = await this.graphql(`
                     mutation($projectId: ID!, $contentId: ID!) {
@@ -326,8 +338,10 @@ export class GitHubAdapter {
                     projectId: meta.id,
                     contentId: issueNodeId,
                 });
+                unlock();
                 return res?.addProjectV2ItemById?.item?.id;
             } catch (e: any) {
+                unlock();
                 attempt++;
                 if (attempt >= maxAttempts) {
                     const error = new Error(`Failed to link issue to GitHub Project: ${e.message}`);
@@ -346,6 +360,14 @@ export class GitHubAdapter {
     async updateProjectItemFields(itemId: string, customFields: Record<string, string>): Promise<void> {
         const meta = await this.resolveProjectMetadata();
         if (!meta || !meta.fields) return;
+
+        const mutations: string[] = [];
+        const variables: any = {
+            projectId: meta.id,
+            itemId: itemId
+        };
+
+        let fieldIndex = 0;
 
         for (const [key, val] of Object.entries(customFields)) {
             // Find field in project by name (case insensitive)
@@ -372,58 +394,78 @@ export class GitHubAdapter {
                     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                         fieldValue = { date: dateStr };
                     } else {
-                        // Fallback, let GitHub API reject if invalid
                         fieldValue = { date: String(val) };
                     }
                 }
             } else if (field.dataType === 'SINGLE_SELECT' && field.options) {
-                // Find option ID by name (case insensitive, ignoring '@' prefix)
-                if (typeof val !== 'string') continue;
-                const cleanVal = val.startsWith('@') ? val.substring(1) : val;
-                const opt = field.options.find((o: any) => o.name.toLowerCase() === cleanVal.toLowerCase());
-                if (opt) {
-                    fieldValue = { singleSelectOptionId: opt.id };
+                if (typeof val === 'string') {
+                    const cleanVal = val.startsWith('@') ? val.substring(1) : val;
+                    const opt = field.options.find((o: any) => o.name.toLowerCase() === cleanVal.toLowerCase());
+                    if (opt) {
+                        fieldValue = { singleSelectOptionId: opt.id };
+                    } else {
+                        logger.warn(`Option "${val}" not found for Single Select field "${field.name}".`);
+                    }
                 }
             } else if (field.dataType === 'ITERATION' && field.configuration?.iterations) {
-                if (typeof val !== 'string') continue;
-                const cleanVal = val.startsWith('@') ? val.substring(1) : val;
-                const opt = field.configuration.iterations.find((o: any) => o.title.toLowerCase() === cleanVal.toLowerCase());
-                if (opt) {
-                    fieldValue = { iterationId: opt.id };
+                if (typeof val === 'string') {
+                    const cleanVal = val.startsWith('@') ? val.substring(1) : val;
+                    const opt = field.configuration.iterations.find((o: any) => o.title.toLowerCase() === cleanVal.toLowerCase());
+                    if (opt) {
+                        fieldValue = { iterationId: opt.id };
+                    } else {
+                        logger.warn(`Iteration "${val}" not found for Iteration field "${field.name}".`);
+                    }
                 }
             }
 
             if (!fieldValue) continue;
 
-            let attempt = 0;
-            const maxAttempts = 3;
-            while (attempt < maxAttempts) {
-                try {
-                    await this.graphql(`
-                        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
-                            updateProjectV2ItemFieldValue(input: {
-                                projectId: $projectId
-                                itemId: $itemId
-                                fieldId: $fieldId
-                                value: $value
-                            }) { projectV2Item { id } }
-                        }
-                    `, {
-                        projectId: meta.id,
-                        itemId: itemId,
-                        fieldId: field.id,
-                        value: fieldValue
-                    });
-                    break;
-                } catch (e: any) {
-                    attempt++;
-                    if (attempt >= maxAttempts) {
-                        const error = new Error(`Failed to assign custom field ${field.name}: ${e.message}`);
-                        error.name = 'GitHubProjectError';
-                        throw error;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+            const fieldVarName = `fieldId${fieldIndex}`;
+            const valueVarName = `value${fieldIndex}`;
+            variables[fieldVarName] = field.id;
+            variables[valueVarName] = fieldValue;
+
+            mutations.push(`
+                f${fieldIndex}: updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $${fieldVarName}
+                    value: $${valueVarName}
+                }) { projectV2Item { id } }
+            `);
+            fieldIndex++;
+        }
+
+        if (mutations.length === 0) return;
+
+        const variableDefs = [
+            `$projectId: ID!`,
+            `$itemId: ID!`,
+            ...Array.from({ length: fieldIndex }, (_, i) => `$fieldId${i}: ID!, $value${i}: ProjectV2FieldValue!`)
+        ].join(', ');
+
+        const query = `mutation(${variableDefs}) {
+            ${mutations.join('\n')}
+        }`;
+
+        let attempt = 0;
+        const maxAttempts = 3;
+        while (attempt < maxAttempts) {
+            const unlock = await projectMutex.lock();
+            try {
+                await this.graphql(query, variables);
+                unlock();
+                break;
+            } catch (e: any) {
+                unlock();
+                attempt++;
+                if (attempt >= maxAttempts) {
+                    const error = new Error(`Failed to assign custom fields: ${e.message}`);
+                    error.name = 'GitHubProjectError';
+                    throw error;
                 }
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
             }
         }
     }
