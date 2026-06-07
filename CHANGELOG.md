@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Generate Command:** Changed the default directory for generated feature files to be the root folder when no directory convention is specified, instead of defaulting to the scope name (e.g. `testrun`).
+
 ## [1.0.10] - 2026-06-06
 
 ### Fixed

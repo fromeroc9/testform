@@ -60,8 +60,8 @@ export const generateCmd = async (options: GenerateCmdOptions) => {
     
     const scopeExt = scope.replace('test', ''); // e.g., 'run', 'case', 'plan'
 
-    // Default directory is the scope itself (e.g. 'testrun') if not specified in convention
-    const outDir = convention?.directory || scope;
+    // Default directory is the root if not specified in convention
+    const outDir = convention?.directory || '';
 
     const fileTpl = convention?.filename || `{YYYYMMDD}_{HHmmss}.${scopeExt}.feature`;
 
