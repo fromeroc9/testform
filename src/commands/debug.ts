@@ -27,7 +27,15 @@ export const debugCmd = async (options: DebugOptions) => {
     const originalScenarios = parser.content();
     
     // Filter by the provided file name
-    const fileScenarios = originalScenarios.filter(s => s.uri && s.uri.includes(file));
+    const path = require('path');
+    const absoluteFile = path.resolve(dir, file);
+    
+    const fileScenarios = originalScenarios.filter(s => {
+        if (!s.uri) return false;
+        if (s.uri.includes(file)) return true;
+        const absoluteUri = path.resolve(dir, s.uri);
+        return absoluteUri === absoluteFile || absoluteUri.includes(absoluteFile);
+    });
 
     if (fileScenarios.length === 0) {
         logger.error(`No scenarios found for file matching: ${file}`);

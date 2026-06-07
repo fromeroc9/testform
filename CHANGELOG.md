@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] - 2026-06-06
+
+### Fixed
+- **Debug Command:** Fixed an issue where executing `testform debug` with an absolute file path inside the project directory would fail to match the scenario file. It now normalizes paths accurately.
+
 ## [1.0.9] - 2026-06-06
 
 ### Added
