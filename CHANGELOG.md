@@ -5,9 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-06-07
 
-## [1.0.11] - 2026-06-07
+### Changed
+- **CLI Architecture:** Replaced the `commander` dependency with native Node.js `util.parseArgs` for full CLI argument parsing control, reducing bundle size and external dependencies.
+- **Help Output:** Overhauled the help text formatting to strictly follow Terraform's CLI visual style, including proper indentation, alignment, and bold headers.
+
+### Fixed
+- **Security:** Resolved vulnerabilities in transitive dependencies (`undici` and `uuid`) by explicitly overriding their versions.
+- **Node Types:** Fixed missing `@types/node` definition resolution during compilation.
+
+## [1.0.12] - 2026-06-07
 
 ### Added
 - **Gherkin Editor:** Added a Gherkin editor command and internal dependency support.
@@ -16,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Projects:** Fixed concurrency and rate limit issues that caused project custom fields to be populated incompletely. Custom field mutations are now serialized and batched via GraphQL aliases. Added warnings for invalid 'Single Select' or 'Iteration' field mappings.
 - **Generate Command:** Changed the default directory for generated feature files to be the root folder when no directory convention is specified, instead of defaulting to the scope name (e.g. `testrun`).
 - **HTTP Client:** Handled `204 No Content` HTTP status code in the internal `teenyRequest` logic to prevent crashing on empty API responses.
+
+## [1.0.11] - 2026-06-07
+
+### Fixed
+- **Generate Command:** Changed the default directory for generated feature files to be the root folder when no directory convention is specified, instead of defaulting to the scope name (e.g. `testrun`).
+- **GitHub Projects:** Fixed concurrency and rate limit issues that caused project custom fields to be populated incompletely. Custom field mutations are now serialized and batched via GraphQL aliases. Added warnings for invalid 'Single Select' or 'Iteration' field mappings.
 
 ## [1.0.10] - 2026-06-06
 
