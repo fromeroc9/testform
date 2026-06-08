@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-06-07
 
 ### Changed
-- **CLI Architecture:** Replaced the `commander` dependency with native Node.js `util.parseArgs` for full CLI argument parsing control, reducing bundle size and external dependencies.
+- **CLI Architecture:** Migrated the CLI parsing logic to a custom `arg`-based implementation, restoring exact Terraform-style option parsing (e.g., `-scope testcase`, `testcase plan`) and detailed `-version` outputs.
 - **Help Output:** Overhauled the help text formatting to strictly follow Terraform's CLI visual style, including proper indentation, alignment, and bold headers.
 
 ### Fixed
