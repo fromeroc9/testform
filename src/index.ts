@@ -24,6 +24,7 @@ import { logoutCmd } from './commands/logout';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
 import { generateCmd } from './commands/generate';
+import { testCmd } from './commands/tool';
 import { printCmd } from './commands/print';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
@@ -131,7 +132,6 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         'reconfigure',
         'lockfile',
         'test-directory',
-        'set-status',
         'set-state',
         'replace',
         'compact-warnings',
@@ -150,7 +150,8 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         'id',
         'dry-run',
         'apply',
-        'rule'
+        'rule',
+        'title'
     ]);
 
     const shortFlags: Record<string, string> = {
@@ -177,7 +178,7 @@ function normalizeLongFlags(rawArgs: string[]): string[] {
         if (longFlags.has(lowerFlag)) {
             return `--${lowerFlag}${suffix}`;
         }
-        
+
         return arg;
     });
 }
@@ -245,8 +246,6 @@ const main = async () => {
             '--module-depth': String,
             '--backend-config': [String],
             '--test-directory': String,
-            '--set-status': [String],
-            '--set-state': [String],
             '--replace': [String],
             '--parallelism': String,
             '--state-out': String,
@@ -259,6 +258,7 @@ const main = async () => {
             '--filter': [String],
             '--id': String,
             '--rule': [String],
+            '--title': String,
             '--help': Boolean,
             '--verbose': Boolean,
             '--version': Boolean,
@@ -322,6 +322,9 @@ const main = async () => {
             if (commandRaw === 'state' && commandArgsRaw.length > 0) {
                 helpKey = `state ${commandArgsRaw[0]}`;
             }
+            if (commandRaw === 'tool' && commandArgsRaw.length > 0) {
+                helpKey = `tool ${commandArgsRaw[0]}`;
+            }
             const cmdHelp = getCommandHelp(helpKey);
             if (cmdHelp) {
                 console.log(cmdHelp);
@@ -341,7 +344,7 @@ const main = async () => {
 
     let command = commandRaw.toLowerCase();
     let commandArgs = commandArgsRaw;
-    
+
     const hasExplicitScope = Object.prototype.hasOwnProperty.call(argv, '--scope');
     let scopeArg = (argv['--scope'] as IScope | 'all') || (hasExplicitScope ? 'testcase' : 'all');
     if (!hasExplicitScope && ['plan', 'apply', 'diff', 'refresh', 'destroy'].includes(command)) {
@@ -460,7 +463,6 @@ const main = async () => {
             target: argv['--target'],
             refresh: argv['--refresh'] ?? true,
             refreshOnly: argv['--refresh-only'],
-            setStatus: argv['--set-status']?.[0] || argv['--set-state']?.[0],
             replaceTargets: argv['--replace'],
             parallelism: argv['--parallelism'],
             compactWarnings: argv['--compact-warnings'] ?? false,
@@ -631,43 +633,33 @@ const main = async () => {
         process.exit(0);
     }
 
-    if (command === 'generate') {
-        let genScope: string | undefined = undefined;
-        let titleArg: string | undefined = undefined;
-        
-        const hasScopeFlag = Object.prototype.hasOwnProperty.call(argv, '--scope');
-        
-        if (commandArgs.length > 0) {
-            const first = commandArgs[0].toLowerCase();
-            if (['testcase', 'testrun', 'testplan'].includes(first)) {
-                genScope = first;
-                titleArg = commandArgs.slice(1).join(' ');
-            } else {
-                titleArg = commandArgs.join(' ');
-            }
-        }
-        
-        if (!genScope && hasScopeFlag) {
-            genScope = String(argv['--scope']);
-        }
-        
-        if (!genScope) {
-            logger.error(`Usage: testform generate <scope> [title]\n\nYou must specify the scope either as the first argument or using the -scope flag (e.g., -scope=testrun).`);
+    if (command === 'tool') {
+        if (commandArgs.length === 0) {
+            const helpText = `\nUsage: ${TITLE_CLI} [global options] tool <subcommand> [options]\n\nSubcommands:\n  feature       Create a new testrun or testplan feature file\n  autocomplete  Expand empty Rule blocks in a testrun file from its source .case.feature (testrun only)\n  state         Update a testcase execution status within a testrun\n\nRun '${TITLE_CLI} tool <subcommand> -help' for more information.`;
+            console.log(helpText);
             process.exit(1);
         }
+        const testSubCommand = commandArgs[0];
+        const testSubArgs = commandArgs.slice(1);
 
-        if (!['testcase', 'testrun', 'testplan'].includes(genScope)) {
-            logger.error(`Invalid scope '${genScope}'. Must be one of: testcase, testrun, testplan.`);
-            process.exit(1);
+        let testScope: IScope | undefined = undefined;
+        if (argv['--scope'] && ['testcase', 'testrun', 'testplan'].includes(String(argv['--scope']))) {
+            testScope = String(argv['--scope']) as IScope;
         }
 
-        if (!titleArg) titleArg = undefined;
-
-        await generateCmd({
+        await toolCmd({
             dir: workDir,
-            scope: genScope as IScope,
-            title: titleArg,
-            rules: argv['--rule'] || []
+            subCommand: testSubCommand,
+            subArgs: testSubArgs,
+            scope: testScope,
+            title: argv['--title'],
+            rules: argv['--rule'] || [],
+            target: argv['--target']?.[0] || argv['--target'] as string | undefined,
+            testDirectory: argv['--test-directory'],
+            statePath: argv['--state'],
+            backupPath: argv['--backup'],
+            variables: variableParser,
+            verbose,
         });
         process.exit(process.exitCode || 0);
     }

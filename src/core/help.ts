@@ -20,7 +20,6 @@ ${bold(`All other commands:`)}
   print         Parse a feature file and print the JSON AST
   fmt           Reformat your configuration in the standard style
   force-unlock  Release a stuck lock on the current workspace
-  generate      Generate new feature files based on your scope and convention
   graph         Generate a Graphviz graph of the steps in an operation
   import        Associate existing infrastructure with a ${TITLE_APP} resource
   login         Obtain and save credentials for a remote host
@@ -30,6 +29,7 @@ ${bold(`All other commands:`)}
   show          Show the current state or a saved plan
   state         Advanced state management
   taint         Mark a resource instance as not fully functional
+  tool          Manage test files locally (add, autocomplete, state)
   untaint       Remove the 'tainted' state from a resource instance
   version       Show the current ${TITLE_APP} version
   workspace     Workspace management
@@ -804,28 +804,106 @@ ${bold(`Options:`)}
                       to attach when -apply is used.
 `.trim();
 
-export const HELP_GENERATE = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] generate [options]
+export const HELP_TEST = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] test <subcommand> [options]
 
-  Generate new feature files based on your scope and convention.
+  Manage test files locally. Groups operations for creating and updating
+  testrun and testplan feature files without interacting with GitHub.
 
-  This command simplifies creating new testcase, testrun, or testplan files.
-  It automatically resolves the appropriate directory and applies the naming
-  convention defined in your ${TITLE_APP} configuration.
+  These subcommands do NOT interact with GitHub. They operate on local files
+  and testform.state only.
 
-  It will generate the file for the active scope (specified by the global
-  -scope option). If no title is provided, a default will be generated.
+${bold(`Subcommands:`)}
+  add           Create a new testrun or testplan feature file
+  autocomplete  Expand empty Rule blocks in a testrun file from its source
+                .case.feature (testrun only)
+  state         Update a testcase execution status within a testrun
+
+${bold(`Target Resolution (-target flag):`)}
+  All subcommands accept three forms to identify a testrun/testplan:
+    Full path:    tests/testrun/20260607_013738_ef7c0c.run.feature
+    Relative:     20260607_013738_ef7c0c.run.feature  (or fragment)
+    Identity:     @tr-2  (resolved from testform.state)
+
+  If a fragment matches more than one file, an error lists all ambiguous
+  matches so you can be more specific.
+`.trim();
+
+export const HELP_TEST_FEATURE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] test feature [options]
+
+  Create a new testrun or testplan feature file based on your naming
+  convention defined in testform.json.
+
+  This subcommand does NOT apply to testcase scope.
+  It automatically resolves the output directory and applies the naming
+  convention (including timestamp, hash, and slug) defined in your config.
 
 ${bold(`Options:`)}
 
-  -scope=scope        Limit the scope of the execution (testcase, testrun, testplan).
+  -scope=scope        Required. Must be 'testrun' or 'testplan'.
 
-  -title=title        An optional title for the feature.
+  -title=title        An optional title for the feature file. If not provided,
+                      a default name based on the timestamp is generated.
 
-  -rule=rule          Include a business rule block (Rule: <rule>) in the generated
-                      feature file. The command verifies that a feature file for
-                      this rule exists in the workspace.
+  -rule=rule          Include a Rule block (Rule: <rule>) in the generated file.
+                      The command verifies that a feature file for this rule
+                      exists in the workspace.
                       Can be specified multiple times.
+`.trim();
+
+export const HELP_TEST_AUTOCOMPLETE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] test autocomplete -target=<resource>
+
+  [testrun only] Reads each Rule block in the target testrun feature file,
+  finds the referenced .case.feature on disk, and expands its scenarios into
+  the testrun file with 'link status = pending'.
+
+  Files are matched by @testrun tag OR the .run.feature extension.
+
+  Rules that already have explicit Scenario blocks are left unchanged —
+  manual control is always preserved.
+
+${bold(`Options:`)}
+
+  -target=resource    Required. Identifies the testrun file. Accepts:
+                        Full path:  tests/testrun/20260607_ef7c0c.run.feature
+                        Relative:   20260607_ef7c0c.run.feature  (or fragment)
+                        Identity:   @tr-2  (resolved from testform.state)
+
+  -test-directory=dir Optional. Limits the search scope for .case.feature files.
+`.trim();
+
+export const HELP_TEST_STATE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] test state "featureFile@tc-N=status" -target=<resource>
+
+  [testrun only] Update the execution status of a specific testcase within
+  a testrun. Simultaneously updates:
+    - The GitHub comment for that testcase
+    - The issue body checklist
+    - The local testrun feature file
+
+  The testcase argument must include the source feature file to avoid
+  ambiguity when multiple Rules share the same @tc-N numbering.
+
+${bold(`Available statuses:`)} passed, failed, pending, skipped, blocked, wip
+
+${bold(`Options:`)}
+
+  -target=resource    Required. Identifies the testrun file. Accepts:
+                        Full path:  tests/testrun/20260607_ef7c0c.run.feature
+                        Relative:   20260607_ef7c0c.run.feature  (or fragment)
+                        Identity:   @tr-2  (resolved from testform.state)
+
+${bold(`Argument:`)} "featureFile@tc-N=status"
+
+  The featureFile can be a filename, a relative path, or a full identity.
+  Use the full path when multiple Rules share the same @tc-N numbers.
+
+${bold(`Examples:`)}
+
+  ${TITLE_CLI} test state "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
+  ${TITLE_CLI} test state "github_testcase.agencia/cuenta.feature::@tc-3=failed" -target="20260607.run.feature"
 `.trim();
 
 export const HELP_PRINT = `
@@ -856,35 +934,38 @@ ${bold(`Options:`)}
 `.trim();
 
 export function getCommandHelp(command: string): string | null {
-    switch (command) {
-        case 'init': return HELP_INIT;
-        case 'validate': return HELP_VALIDATE;
-        case 'plan': return HELP_PLAN;
-        case 'apply': return HELP_APPLY;
-        case 'destroy': return HELP_DESTROY;
-        case 'import': return HELP_IMPORT;
-        case 'refresh': return HELP_REFRESH;
-        case 'diff': return HELP_DIFF;
-        case 'show': return HELP_SHOW;
-        case 'fmt': return HELP_FMT;
-        case 'force-unlock': return HELP_FORCE_UNLOCK;
-        case 'login': return HELP_LOGIN;
-        case 'workspace': return HELP_WORKSPACE;
-        case 'report': return HELP_REPORT;
-        case 'generate': return HELP_GENERATE;
-        case 'print': return HELP_PRINT;
-        case 'logout': return HELP_LOGOUT;
-        case 'state': return HELP_STATE;
-        case 'state identities': return HELP_STATE_IDENTITIES;
-        case 'state list': return HELP_STATE_LIST;
-        case 'state mv': return HELP_STATE_MV;
-        case 'state pull': return HELP_STATE_PULL;
-        case 'state push': return HELP_STATE_PUSH;
-        case 'state rm': return HELP_STATE_RM;
-        case 'state show': return HELP_STATE_SHOW;
-        case 'taint': return HELP_TAINT;
-        case 'untaint': return HELP_UNTAINT;
-        case 'version': return HELP_VERSION;
-        default: return null;
-    }
+  switch (command) {
+    case 'init': return HELP_INIT;
+    case 'validate': return HELP_VALIDATE;
+    case 'plan': return HELP_PLAN;
+    case 'apply': return HELP_APPLY;
+    case 'destroy': return HELP_DESTROY;
+    case 'import': return HELP_IMPORT;
+    case 'refresh': return HELP_REFRESH;
+    case 'diff': return HELP_DIFF;
+    case 'show': return HELP_SHOW;
+    case 'fmt': return HELP_FMT;
+    case 'force-unlock': return HELP_FORCE_UNLOCK;
+    case 'login': return HELP_LOGIN;
+    case 'workspace': return HELP_WORKSPACE;
+    case 'report': return HELP_REPORT;
+    case 'print': return HELP_PRINT;
+    case 'logout': return HELP_LOGOUT;
+    case 'state': return HELP_STATE;
+    case 'state identities': return HELP_STATE_IDENTITIES;
+    case 'state list': return HELP_STATE_LIST;
+    case 'state mv': return HELP_STATE_MV;
+    case 'state pull': return HELP_STATE_PULL;
+    case 'state push': return HELP_STATE_PUSH;
+    case 'state rm': return HELP_STATE_RM;
+    case 'state show': return HELP_STATE_SHOW;
+    case 'taint': return HELP_TAINT;
+    case 'untaint': return HELP_UNTAINT;
+    case 'version': return HELP_VERSION;
+    case 'tool': return HELP_TEST;
+    case 'tool feature': return HELP_TEST_FEATURE;
+    case 'tool autocomplete': return HELP_TEST_AUTOCOMPLETE;
+    case 'tool state': return HELP_TEST_STATE;
+    default: return null;
+  }
 }
