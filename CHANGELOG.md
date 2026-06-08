@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-06-07
+## [1.0.13] - 2026-06-07
 
 ### Changed
 - **CLI Architecture:** Migrated the CLI parsing logic to a custom `arg`-based implementation, restoring exact Terraform-style option parsing (e.g., `-scope testcase`, `testcase plan`) and detailed `-version` outputs.

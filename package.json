@@ -1,6 +1,6 @@
 {
 	"name": "@fromeroc9/testform",
-	"version": "1.1.0",
+	"version": "1.0.13",
 	"description": "Testform transforms standard issue trackers into full-fledged Test Management ecosystems using declarative Gherkin configurations that can be shared, reviewed, and versioned as code.",
 	"author": "Flavio Romero <flavio.arc9@gmail.com>",
 	"main": "dist/cli/index.js",
