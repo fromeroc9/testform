@@ -137,11 +137,14 @@ async function runAutocomplete(options: {
     let expandedCount = 0;
 
     for (const child of ruleChildren) {
-        const rule = child.rule;
-        const ruleName: string = rule.name || '';
+        const rule = child?.rule;
+        if (!rule) continue;
+
+        const ruleName: string = typeof rule === 'string' ? rule : (rule.name || '');
 
         // If Rule already has explicit scenarios → skip (respect manual control)
-        const ruleScenarios = (rule.children || []).filter((c: any) => c.scenario);
+        const ruleChildrenNodes = typeof rule === 'object' && rule.children ? rule.children : [];
+        const ruleScenarios = ruleChildrenNodes.filter((c: any) => c.scenario);
         if (ruleScenarios.length > 0) {
             console.log(`  ${yellow('~')} Rule '${ruleName}': already has ${ruleScenarios.length} explicit scenario(s). Skipping.`);
             continue;
@@ -426,7 +429,7 @@ export interface ToolCmdOptions {
     verbose?: boolean;
 }
 
-export const testCmd = async (options: ToolCmdOptions) => {
+export const toolCmd = async (options: ToolCmdOptions) => {
     const {
         dir, subCommand, subArgs, scope, title, rules,
         target, testDirectory, statePath, backupPath, variables, verbose

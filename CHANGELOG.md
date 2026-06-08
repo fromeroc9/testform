@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.14] - 2026-06-08
+
+### Changed
+- **CLI Tools:** Refactored the `testform tool` command to leverage the native Testform `Parser` and `Config` engines instead of manual file discovery. This ensures target resolution respects existing configurations and prevents duplicate logic.
+
+### Fixed
+- **Gherkin Parser:** Fixed an issue where AST `Rule` nodes were being parsed as strings or `undefined` instead of objects, causing the `tool autocomplete` command to fail during scenario expansion.
+- **Scope Matching:** Added safety checks to `matchesScope` to prevent crashes when scenarios lack a defined `uri` property.
+
 ## [1.0.13] - 2026-06-07
 
 ### Changed
