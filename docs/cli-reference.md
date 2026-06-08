@@ -242,7 +242,21 @@ testform testplan destroy -auto-approve
 
 ---
 
-## Advanced Commands
+### `print`
+
+*Usage:* `testform print [options]`
+
+Parses a specific feature file and prints its JSON Abstract Syntax Tree (AST). This command is designed for developers to debug Gherkin feature parsing and Testform's filtering behavior.
+
+**Options:**
+- `-file <path>`: The filename or partial filename to parse and output. If not provided, all parsed scenarios in the current scope will be printed.
+- `-format <format>`: Choose between 'gherkin' (raw Gherkin AST) or 'testform' (filtered and enriched by Testform). Default is 'testform'.
+- `-var <key=val>`: Set a value for an input variable.
+- `-var-file <filename>`: Load variable values from a file.
+
+---
+
+## 3. Other Commands
 
 ### `report`
 Generates multi-dimensional test analytics from your local state without needing to query GitHub.
@@ -253,7 +267,8 @@ Generates multi-dimensional test analytics from your local state without needing
 - `-out <path>`: Path to save the generated report.
 - `-filter <key=val>`: Filter data by any state attribute. Can be specified multiple times.
 - `-apply`: Create a GitHub Issue for the report automatically.
-- `-field <key=val>`: Custom field values to attach when `-apply` is used.
+- `-var "<key=val>"`: Set a custom variable to attach when `-apply` is used. Can be used multiple times.
+- `-var-file <path>`: Load variable values from a JSON or key=value file.
 
 *(See the [Reporting & Analytics](reporting-and-analytics.md) guide for full details on types and filters).*
 
@@ -270,7 +285,7 @@ testform report coverage \
 **2. Publish Report directly as a GitHub Issue:**
 Generate a defect report and create a GitHub Issue automatically containing the report.
 ```bash
-testform report defects -apply -field='{"title": "Automated Defect Report", "label": "bug"}'
+testform report defects -apply -var="title=Automated Defect Report" -var="label=bug"
 ```
 
 ### `refresh`

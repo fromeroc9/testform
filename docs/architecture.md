@@ -14,7 +14,7 @@ The CLI operates in three main phases for any mutating operation:
 
 ## Core Internal Components
 
-### 1. The Parser Layer (`src/core/parsers/`)
+### 1. The Parser Layer (`src/parsers/`)
 The parser layer is responsible for converting raw Gherkin syntax into structured JSON objects. It operates using a Base/Derived architecture:
 - `BaseParser`: Handles tokenization, AST generation, and generic Gherkin field extraction.
 - `TestcaseParser`: Specializes in `@testcase` scopes. Extracts fields directly into `custom.fields`.
@@ -25,7 +25,7 @@ The state is a JSON representation of remote resources tracked by Testform. It i
 - **Idempotency**: Operations are hashed locally (`localHash`). If the local hash matches the state hash, no API call is made.
 - **Concurrency**: Uses an `.lock` mechanism to prevent concurrent executions in CI environments.
 
-### 3. Resources Adapter (`src/adapters/resources.ts`)
+### 3. Resources Core (`src/core/resources.ts`)
 This acts as the translation layer between generic parser output (`ParserScenario`) and the specific remote target (`GitHubIssuePayload`).
 - Uses a declarative template system (`registerResource`).
 - Resolves computed fields, testrun linkages, and status comment updates dynamically based on the current context and state.
@@ -41,6 +41,6 @@ Handles the actual network communication with GitHub.
 
 Testform's architecture is built to be extensible. To add a new Scope (e.g., `testsuite`), you must:
 1. Define the scope config in `src/const.ts`.
-2. Create a specialized parser in `src/core/parsers/`.
-3. Add a resource template in `src/adapters/resources.ts`.
+2. Create a specialized parser in `src/parsers/`.
+3. Add a resource template in `src/core/resources.ts`.
 4. Register the new scope across typing and minimist CLI options in `src/index.ts`.

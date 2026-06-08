@@ -43,7 +43,16 @@ function getVariables(varArg: any, varFileArg: any, workDir: string) {
   return new VariableParser(vars, varFiles, workDir);
 }
 
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const args = rawArgs.map(arg => {
+  if (arg.startsWith('-') && !arg.startsWith('--')) {
+    const key = arg.split('=')[0];
+    if (key.length > 2) {
+      return '-' + arg; // Convert -scope to --scope for util.parseArgs
+    }
+  }
+  return arg;
+});
 
 // 1. Global Parse
 let globalValues: any;
