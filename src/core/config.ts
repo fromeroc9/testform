@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
-import { FILE_CONFIG, TITLE_APP, VERSION_CONFIG } from "../const";
-import { IConfig, IGitHubConfig, IField, IScope, ITest } from "../types";
-import { notify } from "../notify";
+import { FILE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
+import { IConfig, IGitHubConfig, IField, IScope, ITest } from '../core/types';
+import { logger as notify } from '../core/logger';
 
 export class Config {
 

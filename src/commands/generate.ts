@@ -1,8 +1,8 @@
 import { join, dirname } from 'path';
 import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { Config } from '../core/config';
-import { IScope } from '../types';
-import { logger } from '../logger';
+import { IScope } from '../core/types';
+import { logger } from '../core/logger';
 
 interface GenerateCmdOptions {
     dir: string;

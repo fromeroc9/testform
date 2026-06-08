@@ -6,12 +6,12 @@
  * to maintain backward compatibility with existing commands.
  */
 
-import { ITest, IScope, ParserScenario } from "../types";
+import { ITest, IScope, ParserScenario } from '../core/types';
 import { VariableParser } from "./variables";
-import { BaseParser } from "./parsers/base-parser";
-import { TestcaseParser } from "./parsers/testcase-parser";
-import { TestrunParser } from "./parsers/testrun-parser";
-import { TestplanParser } from "./parsers/testplan-parser";
+import { BaseParser } from '../parsers/base-parser';
+import { TestcaseParser } from '../parsers/testcase-parser';
+import { TestrunParser } from '../parsers/testrun-parser';
+import { TestplanParser } from '../parsers/testplan-parser';
 
 /**
  * Minimal concrete implementation of BaseParser to handle reading

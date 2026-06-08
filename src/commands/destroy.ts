@@ -8,13 +8,13 @@
 
 import { bold, green, red } from 'chalk';
 import { State } from '../core/state';
-import { Logger } from '../logger';
-import { notify } from '../notify';
-import { TITLE_APP, SCOPE_RESOURCE_MAP } from '../const';
+import { Logger } from '../core/logger';
+import { logger as notify } from '../core/logger';
+import { TITLE_APP, SCOPE_RESOURCE_MAP } from '../core/const';
 import { createCommandContext } from '../core/command-context';
 import { askDestroyApproval } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
-import { IScope } from '../types';
+import { IScope } from '../core/types';
 
 /**
  * Destroy command: closes all GitHub issues tracked by TestForm in the current scope.
@@ -56,7 +56,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
     await stateObj.acquireLock(lock, lockTimeout);
 
     try {
-        const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+        const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
 
         let destroyed = 0;
 

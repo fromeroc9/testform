@@ -1,6 +1,6 @@
-import { logger } from "../logger";
-import { notify } from "../notify";
-import { IScope, ParserScenario, PolicyRule, PolicyAction, PolicyDefinition } from "../types";
+import { Logger, logger } from '../core/logger';
+import { logger as notify } from '../core/logger';
+import { IScope, ParserScenario, PolicyRule, PolicyAction, PolicyDefinition } from '../core/types';
 
 class Policy {
     private builtinPolicies: Record<string, PolicyDefinition> = {};

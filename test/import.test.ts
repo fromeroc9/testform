@@ -4,7 +4,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { GitHubAdapter } from '../src/adapters/github';
-import { FILE_STATE } from '../src/const';
+import { FILE_STATE } from '../src/core/const';
 
 const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);

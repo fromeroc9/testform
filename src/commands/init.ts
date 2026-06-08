@@ -1,8 +1,8 @@
-import { FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../const';
+import { FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
 import { askMigrationApproval } from '../core/prompt';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { Config } from '../core/config';
-import { Logger } from '../logger';
+import { Logger } from '../core/logger';
 import { join } from 'path';
 import { State } from '../core/state';
 import { WorkspaceManager } from '../core/workspace';

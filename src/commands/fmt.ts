@@ -1,7 +1,7 @@
 import { readdirSync, statSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { TITLE_CLI } from '../const';
-import { logger } from '../logger';
+import { TITLE_CLI } from '../core/const';
+import { logger } from '../core/logger';
 
 interface FmtCmdOptions {
     dir?: string;

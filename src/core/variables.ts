@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
-import { logger } from '../logger';
-import { notify } from '../notify';
+import { logger } from '../core/logger';
+import { logger as notify } from '../core/logger';
 
 export class VariableParser {
     private vars: Record<string, string> = {};

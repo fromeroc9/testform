@@ -1,108 +1,99 @@
 import { readFileSync, writeFileSync } from 'fs';
+import { Parser, AstBuilder, GherkinClassicTokenMatcher } from '@cucumber/gherkin';
+import { IdGenerator } from '@cucumber/messages';
+import { Document, Feature, Rule, Scenario, Step } from 'gherkin-ast';
+import { format } from 'gherkin-formatter';
 
 export class GherkinEditor {
     /**
-     * Expands or updates a single scenario's status inside a .feature file text.
-     * This mutates the file on disk.
+     * Parse a feature file into a gherkin-ast Document
+     */
+    private static parseDocument(filePath: string): Document {
+        const content = readFileSync(filePath, 'utf-8');
+        const builder = new AstBuilder(IdGenerator.uuid());
+        const parser = new Parser(builder, new GherkinClassicTokenMatcher());
+        const gherkinDocument = parser.parse(content);
+        gherkinDocument.uri = filePath;
+        
+        return Document.parse({ gherkinDocument: gherkinDocument as any });
+    }
+
+    /**
+     * Save a gherkin-ast Document back to the file system
+     */
+    private static saveDocument(filePath: string, document: Document) {
+        const formatted = format(document);
+        writeFileSync(filePath, formatted, 'utf-8');
+    }
+
+    /**
+     * Find a rule within a feature by matching the baseRule string
+     */
+    private static findRule(feature: Feature, baseRule: string): Rule | undefined {
+        const normalizedBaseRule = baseRule.replace(/\.feature$/i, '');
+        return feature.elements.find(element => {
+            if (element instanceof Rule) {
+                const ruleText = element.name.replace(/\.feature$/i, '');
+                return normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText);
+            }
+            return false;
+        }) as Rule | undefined;
+    }
+
+    /**
+     * Expands or updates a single scenario's status inside a .feature file.
      */
     public static updateScenarioStatus(filePath: string, baseRule: string, scenarioName: string, newStatus: string) {
-        let content = readFileSync(filePath, 'utf-8');
-        const lines = content.split('\n');
-        
-        let insideTargetRule = false;
-        let insideTargetScenario = false;
-        let scenarioStartIndex = -1;
-        let ruleStartIndex = -1;
-        let ruleEndIndex = lines.length;
-
-        const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const scenarioPattern = new RegExp(`^\\s*Scenario:\\s*${escapeRegex(scenarioName)}\\s*$`, 'i');
-        const nextRulePattern = /^\s*Rule:/i;
-        const statusFieldPattern = /^\s*\*\s*link\s+status\s*=\s*(.*)$/i;
-        const generalRulePattern = /^\s*Rule:\s*(.+?)\s*$/i;
-
-        // 1. Locate the target Rule block
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            if (!insideTargetRule) {
-                const match = generalRulePattern.exec(line);
-                if (match) {
-                    const ruleText = match[1].replace(/\.feature$/i, '');
-                    const normalizedBaseRule = baseRule.replace(/\.feature$/i, '');
-                    if (normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText)) {
-                        insideTargetRule = true;
-                        ruleStartIndex = i;
-                    }
-                }
-            } else {
-                if (nextRulePattern.test(line)) {
-                    ruleEndIndex = i;
-                    break;
-                }
-            }
+        const document = this.parseDocument(filePath);
+        if (!document.feature) {
+            throw new Error(`File ${filePath} has no feature definition.`);
         }
 
-        if (!insideTargetRule) {
+        const rule = this.findRule(document.feature, baseRule);
+        if (!rule) {
             throw new Error(`Could not find Rule '${baseRule}' in ${filePath}`);
         }
 
-        // 2. Locate the target Scenario block within the Rule
-        let foundStatusField = false;
-        for (let i = ruleStartIndex + 1; i < ruleEndIndex; i++) {
-            const line = lines[i];
-            
-            if (!insideTargetScenario) {
-                if (scenarioPattern.test(line)) {
-                    insideTargetScenario = true;
-                    scenarioStartIndex = i;
-                }
+        let targetScenario: Scenario | undefined;
+        
+        // Find existing scenario
+        for (const element of rule.elements) {
+            if (element instanceof Scenario && element.name === scenarioName) {
+                targetScenario = element;
+                break;
+            }
+        }
+
+        if (targetScenario) {
+            // Update existing status step
+            let statusStep = targetScenario.steps.find(step => 
+                step.keyword.trim() === '*' && step.text.startsWith('link status =')
+            );
+
+            if (statusStep) {
+                statusStep.text = `link status = ${newStatus}`;
             } else {
-                // If we hit another Scenario or Rule, the current scenario block ends
-                if (/^\s*(Scenario|Rule):/i.test(line)) {
-                    break;
-                }
-                
-                // If we find the link status field, replace it
-                if (statusFieldPattern.test(line)) {
-                    lines[i] = line.replace(/(^\s*\*\s*link\s+status\s*=\s*).*/i, `$1${newStatus}`);
-                    foundStatusField = true;
-                    break;
-                }
+                // Insert status step at the beginning
+                const newStep = new Step('*', `link status = ${newStatus}`);
+                targetScenario.steps.unshift(newStep);
             }
+        } else {
+            // Create new scenario
+            const newScenario = new Scenario('Scenario', scenarioName, '');
+            newScenario.steps.push(new Step('*', `link status = ${newStatus}`));
+            rule.elements.push(newScenario);
         }
 
-        // 3. Inject if not found
-        if (insideTargetScenario && !foundStatusField) {
-            // Scenario exists, but no status field. Insert it right after the Scenario line.
-            lines.splice(scenarioStartIndex + 1, 0, `    * link status = ${newStatus}`);
-        } else if (!insideTargetScenario) {
-            // Scenario doesn't exist under this Rule. Inject it at the end of the Rule block.
-            // Find the last non-empty line of the rule block to maintain good spacing
-            let insertAt = ruleEndIndex;
-            while (insertAt > ruleStartIndex + 1 && lines[insertAt - 1].trim() === '') {
-                insertAt--;
-            }
-            
-            // Ensure there's a blank line before the new scenario if it's not immediately after the Rule
-            if (insertAt > ruleStartIndex + 1 && lines[insertAt - 1].trim() !== '') {
-                lines.splice(insertAt, 0, '');
-                insertAt++;
-            }
-            
-            lines.splice(insertAt, 0, `  Scenario: ${scenarioName}`, `    * link status = ${newStatus}`);
-        }
-
-        writeFileSync(filePath, lines.join('\n'), 'utf-8');
+        this.saveDocument(filePath, document);
     }
 
     /**
      * Expands all implicit scenarios in a .feature file to be explicit.
-     * @param filePath Path to the .feature file
-     * @param testcases Array of testcases in "RuleName::ScenarioName" format
-     * @param defaultStatus The default status to assign to newly expanded scenarios
      */
     public static expandScenarios(filePath: string, testcases: string[], defaultStatus: string = 'pending') {
+        const document = this.parseDocument(filePath);
+        if (!document.feature) return;
+
         let hasExplicit = false;
         for (const tc of testcases) {
             const parts = tc.split('::');
@@ -113,7 +104,7 @@ export class GherkinEditor {
         }
 
         if (hasExplicit) {
-            this.removeWildcardScenario(filePath);
+            this.removeWildcardScenario(document);
         }
 
         for (const tc of testcases) {
@@ -125,93 +116,35 @@ export class GherkinEditor {
             
             if (hasExplicit && scenarioName === '*') continue;
 
-            this.ensureScenarioExists(filePath, ruleName, scenarioName, defaultStatus);
+            const rule = this.findRule(document.feature, ruleName);
+            if (rule) {
+                let scenarioExists = rule.elements.some(element => 
+                    element instanceof Scenario && element.name === scenarioName
+                );
+                
+                if (!scenarioExists) {
+                    const newScenario = new Scenario('Scenario', scenarioName, '');
+                    newScenario.steps.push(new Step('*', `link status = ${defaultStatus}`));
+                    rule.elements.push(newScenario);
+                }
+            }
         }
+
+        this.saveDocument(filePath, document);
     }
 
-    private static removeWildcardScenario(filePath: string) {
-        let content = readFileSync(filePath, 'utf-8');
-        const lines = content.split('\n');
-        const newLines = [];
-        let skip = false;
+    private static removeWildcardScenario(document: Document) {
+        if (!document.feature) return;
         
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (/^\s*Scenario:\s*\*\s*$/i.test(line)) {
-                skip = true;
-                continue;
-            }
-            if (skip && /^\s*(Scenario|Rule|Feature|Background):/i.test(line)) {
-                skip = false;
-            }
-            if (!skip) {
-                newLines.push(line);
-            }
-        }
-        
-        // Remove trailing empty lines that might have been left by removing the wildcard block
-        while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
-            newLines.pop();
-        }
-        
-        writeFileSync(filePath, newLines.join('\n'), 'utf-8');
-    }
-
-    private static ensureScenarioExists(filePath: string, baseRule: string, scenarioName: string, defaultStatus: string) {
-        let content = readFileSync(filePath, 'utf-8');
-        const lines = content.split('\n');
-        
-        let insideTargetRule = false;
-        let ruleStartIndex = -1;
-        let ruleEndIndex = lines.length;
-
-        const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const scenarioPattern = new RegExp(`^\\s*Scenario:\\s*${escapeRegex(scenarioName)}\\s*$`, 'i');
-        const nextRulePattern = /^\s*Rule:/i;
-        const generalRulePattern = /^\s*Rule:\s*(.+?)\s*$/i;
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (!insideTargetRule) {
-                const match = generalRulePattern.exec(line);
-                if (match) {
-                    const ruleText = match[1].replace(/\.feature$/i, '');
-                    const normalizedBaseRule = baseRule.replace(/\.feature$/i, '');
-                    if (normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText)) {
-                        insideTargetRule = true;
-                        ruleStartIndex = i;
+        for (const element of document.feature.elements) {
+            if (element instanceof Rule) {
+                element.elements = element.elements.filter(child => {
+                    if (child instanceof Scenario && child.name.trim() === '*') {
+                        return false;
                     }
-                }
-            } else {
-                if (nextRulePattern.test(line)) {
-                    ruleEndIndex = i;
-                    break;
-                }
+                    return true;
+                });
             }
         }
-
-        if (!insideTargetRule) return;
-
-        for (let i = ruleStartIndex + 1; i < ruleEndIndex; i++) {
-            const line = lines[i];
-            if (scenarioPattern.test(line)) {
-                // Scenario already exists, do nothing
-                return;
-            }
-        }
-
-        // Inject at the end of the Rule
-        let insertAt = ruleEndIndex;
-        while (insertAt > ruleStartIndex + 1 && lines[insertAt - 1].trim() === '') {
-            insertAt--;
-        }
-        
-        if (insertAt > ruleStartIndex + 1 && lines[insertAt - 1].trim() !== '') {
-            lines.splice(insertAt, 0, '');
-            insertAt++;
-        }
-        
-        lines.splice(insertAt, 0, `  Scenario: ${scenarioName}`, `    * link status = ${defaultStatus}`);
-        writeFileSync(filePath, lines.join('\n'), 'utf-8');
     }
 }

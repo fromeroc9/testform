@@ -10,10 +10,10 @@ import { bold, green, yellow, red, dim } from 'chalk';
 import { GitHubAdapter } from '../adapters/github';
 import { Config } from '../core/config';
 import { State } from '../core/state';
-import { Logger } from '../logger';
-import { notify } from '../notify';
-import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../const';
-import { IScope } from '../types';
+import { Logger } from '../core/logger';
+import { logger as notify } from '../core/logger';
+import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
+import { IScope } from '../core/types';
 
 /**
  * Core refresh logic: updates the state to reflect remote GitHub reality.
@@ -248,7 +248,7 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
     await stateObj.acquireLock(lock, lockTimeout);
 
     try {
-        const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+        const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
         for (const s of scopesToRun) {
             await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw, target });
         }

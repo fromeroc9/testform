@@ -9,10 +9,10 @@
 
 import { GitHubAdapter } from '../adapters/github';
 import { Config } from './config';
-import { State } from './state';
-import { Logger } from '../logger';
-import { notify } from '../notify';
-import { ERR_GITHUB_CONFIG_NOT_FOUND } from '../const';
+import { State } from '../core/state';
+import { Logger } from '../core/logger';
+import { logger as notify } from '../core/logger';
+import { ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 
 /**
  * The initialized context shared by commands that interact with GitHub
@@ -105,4 +105,30 @@ export async function createCommandContext(
     const github = new GitHubAdapter(ghConfig);
 
     return { state, github, config, logger };
+}
+
+/**
+ * Middleware for CLI commands to automatically initialize context and manage locks.
+ * 
+ * @param action - The core command logic. Receives the initialized context and original options.
+ * @returns A wrapped function that can be executed directly by Commander or the index router.
+ */
+export function withContext<T extends CommandContextOptions>(
+    action: (ctx: CommandContext, options: T, ...args: any[]) => Promise<void>
+) {
+    return async (options: T, ...args: any[]) => {
+        const ctx = await createCommandContext(options);
+        if (!ctx) {
+            process.exit(1);
+        }
+
+        try {
+            await action(ctx, options, ...args);
+        } catch (error: any) {
+            ctx.logger.error(error.message, error);
+            process.exit(1);
+        } finally {
+            await ctx.state.releaseLock();
+        }
+    };
 }

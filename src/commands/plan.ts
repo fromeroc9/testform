@@ -1,17 +1,17 @@
 import { createHash } from 'crypto';
-import { MSG_ACQUIRING_LOCK } from '../const';
+import { MSG_ACQUIRING_LOCK } from '../core/const';
 import { bold } from 'chalk';
-import { resource } from '../adapters/resources';
+import { resource } from '../core/resources';
 import { Config } from '../core/config';
 import { Parser } from '../core/parser';
 import { policy } from '../core/policy';
 import { State } from '../core/state';
-import { Logger } from '../logger';
+import { Logger } from '../core/logger';
 import { writeFileSync } from 'fs';
-import { IScope, PlanChange, PlanResult, ParserScenario } from '../types';
+import { IScope, PlanChange, PlanResult, ParserScenario } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
-import { SCOPE_CONFIG, VERSION_CLI } from '../const';
+import { SCOPE_CONFIG, VERSION_CLI } from '../core/const';
 import { formatResourceAddress } from '../core/utils';
 import { join } from 'path';
 
@@ -315,7 +315,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
     let plan: PlanResult = { changes: [], hasChanges: false, state: stateObj };
     try {
-        const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope];
+        const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
         
         if (refresh && !destroyPlan) {
             if (!isJson) console.log(MSG_ACQUIRING_LOCK);

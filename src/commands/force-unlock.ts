@@ -2,7 +2,7 @@ import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { resolve } from 'path';
 import { bold, red, green } from 'chalk';
 import { State } from '../core/state';
-import { TITLE_APP } from '../const';
+import { TITLE_APP } from '../core/const';
 
 interface ForceUnlockCmdOptions {
     dir?: string;

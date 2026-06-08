@@ -1,6 +1,6 @@
 import { bold, cyan, dim, green, magenta } from 'chalk';
 import { Parser } from '../core/parser';
-import { IScope, ParserScenario } from '../types';
+import { IScope, ParserScenario } from '../core/types';
 
 interface GraphCmdOptions {
     dir?: string;

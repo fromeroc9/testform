@@ -1,7 +1,7 @@
 import { bold, cyan, dim, green, yellow } from 'chalk';
 import { State } from '../core/state';
-import { Logger } from '../logger';
-import { TITLE_APP, TITLE_CLI } from '../const';
+import { Logger } from '../core/logger';
+import { TITLE_APP, TITLE_CLI } from '../core/const';
 
 import pathLib from 'path';
 
