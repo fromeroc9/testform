@@ -94,7 +94,7 @@ export const SCOPE_CONFIG = {
  * All valid execution statuses for a test case result comment.
  * Aligned with Cucumber's built-in statuses plus common QA states.
  */
-const TESTCASE_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped', 'undefined'] as const;
+export const TESTCASE_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped', 'undefined'] as const;
 
 /** Union type of all valid testcase statuses. */
 type TestcaseStatus = typeof TESTCASE_STATUSES[number];

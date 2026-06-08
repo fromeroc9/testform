@@ -28,7 +28,8 @@
 	"scripts": {
 		"test": "jest",
 		"build": "ncc build src/index.ts -m -o dist",
-		"dev": "tsx src/index.ts"
+		"dev": "tsx src/index.ts",
+		"publish": "npm run build && npm version patch && npm publish"
 	},
 	"devDependencies": {
 		"@types/jest": "30.0.0",
