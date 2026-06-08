@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.11] - 2026-06-07
 
+### Added
+- **Gherkin Editor:** Added a Gherkin editor command and internal dependency support.
+
 ### Fixed
-- **Generate Command:** Changed the default directory for generated feature files to be the root folder when no directory convention is specified, instead of defaulting to the scope name (e.g. `testrun`).
 - **GitHub Projects:** Fixed concurrency and rate limit issues that caused project custom fields to be populated incompletely. Custom field mutations are now serialized and batched via GraphQL aliases. Added warnings for invalid 'Single Select' or 'Iteration' field mappings.
+- **Generate Command:** Changed the default directory for generated feature files to be the root folder when no directory convention is specified, instead of defaulting to the scope name (e.g. `testrun`).
+- **HTTP Client:** Handled `204 No Content` HTTP status code in the internal `teenyRequest` logic to prevent crashing on empty API responses.
 
 ## [1.0.10] - 2026-06-06
 
