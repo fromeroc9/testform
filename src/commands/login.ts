@@ -1,7 +1,7 @@
 import { bold, green, cyan, yellow } from 'chalk';
 import * as readline from 'readline';
 import { Credentials, CredentialsData } from '../core/credentials';
-import { TITLE_CLI } from '../const';
+import { TITLE_CLI } from '../core/const';
 
 interface LoginCmdOptions {
     hostname?: string;

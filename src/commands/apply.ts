@@ -1,13 +1,13 @@
 import { createInterface } from 'readline';
-import { MSG_ACQUIRING_LOCK, ERR_NO_INPUT_ALLOWED } from '../const';
+import { MSG_ACQUIRING_LOCK, ERR_NO_INPUT_ALLOWED } from '../core/const';
 import { existsSync, readFileSync } from 'fs';
 import { bold, green, yellow } from 'chalk';
-import { resource } from '../adapters/resources';
+import { resource } from '../core/resources';
 import { State } from '../core/state';
-import { Logger } from '../logger';
-import { notify } from '../notify';
+import { Logger } from '../core/logger';
+import { logger as notify } from '../core/logger';
 import { calculatePlan } from './plan';
-import { IScope, GitHubIssuePayload } from '../types';
+import { IScope, GitHubIssuePayload } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
 import { askApproval, askStatus } from '../core/prompt';
@@ -67,7 +67,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
     await stateObj.acquireLock(lock, lockTimeout);
 
     try {
-        let plan: import('../types').PlanResult;
+        let plan: import('../core/types').PlanResult;
 
         if (planFile) {
             const path = require('path');
@@ -236,7 +236,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 return;
             }
 
-            const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+            const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
             let allChanges: any[] = [];
             let finalState = stateObj;
 
@@ -341,7 +341,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         const syncTestrunComments = async (change: any, issueNumber: number, existingAttributes?: any) => {
             if (change.resourceType !== 'github_testrun' || !change.scenario.custom?.testcases) return {};
 
-            const testcaseCommentIds: Record<string, number> = existingAttributes?.testcaseCommentIds || {};
+            const testcaseCommentIds: Record<string, any> = existingAttributes?.testcaseCommentIds || {};
             const testcaseStatuses: Record<string, string> = existingAttributes?.testcaseStatuses || {};
             const expandedTestcases: string[] = [];
 

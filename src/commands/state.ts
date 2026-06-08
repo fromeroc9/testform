@@ -2,7 +2,7 @@ import { bold, red, green } from 'chalk';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { State } from '../core/state';
-import { TITLE_CLI } from '../const';
+import { TITLE_CLI } from '../core/const';
 import { formatHclValue } from '../core/utils';
 
 interface StateCmdOptions {

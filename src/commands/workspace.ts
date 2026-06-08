@@ -1,7 +1,7 @@
 import { red, green, bold } from 'chalk';
-import { Logger } from '../logger';
+import { Logger } from '../core/logger';
 import { State } from '../core/state';
-import { TITLE_CLI } from '../const';
+import { TITLE_CLI } from '../core/const';
 
 interface WorkspaceCmdOptions {
     dir: string;

@@ -7,7 +7,7 @@
 
 import { createInterface } from 'readline';
 import { bold, red } from 'chalk';
-import { TITLE_APP, MSG_APPROVE_ONLY_YES } from '../const';
+import { TITLE_APP, MSG_APPROVE_ONLY_YES } from '../core/const';
 
 /**
  * Generic stdin confirmation prompt that accepts only "yes" as approval.

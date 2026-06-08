@@ -1,7 +1,8 @@
-import { IGitHubConfig, GitHubIssuePayload, GitHubIssueResult } from '../types';
-import { notify } from '../notify';
+import { IGitHubConfig } from '../core/types';
+import { logger as notify } from '../core/logger';
 import { Credentials } from '../core/credentials';
-import { logger } from '../logger';
+import { logger } from '../core/logger';
+import { IProviderAdapter, IProviderIssuePayload, IProviderIssueResult } from './interface';
 
 class Mutex {
     private mutex = Promise.resolve();
@@ -13,7 +14,7 @@ class Mutex {
 }
 const projectMutex = new Mutex();
 
-export class GitHubAdapter {
+export class GitHubAdapter implements IProviderAdapter {
     private token: string;
     private owner: string;
     private repo: string;
@@ -86,7 +87,7 @@ export class GitHubAdapter {
     /**
      * Create a GitHub Issue.
      */
-    async createIssue(payload: GitHubIssuePayload): Promise<GitHubIssueResult> {
+    async createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult> {
         const data = await this.request('POST', `/repos/${this.owner}/${this.repo}/issues`, {
             title: payload.title,
             body: payload.body,
@@ -109,7 +110,7 @@ export class GitHubAdapter {
     /**
      * Update an existing GitHub Issue.
      */
-    async updateIssue(issueNumber: number, payload: Partial<GitHubIssuePayload>): Promise<GitHubIssueResult> {
+    async updateIssue(issueNumber: number | string, payload: Partial<IProviderIssuePayload>): Promise<IProviderIssueResult> {
         const data = await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
             title: payload.title,
             body: payload.body,
@@ -132,7 +133,7 @@ export class GitHubAdapter {
     /**
      * Close a GitHub Issue (soft delete).
      */
-    async closeIssue(issueNumber: number): Promise<void> {
+    async closeIssue(issueNumber: number | string): Promise<void> {
         await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
             state: 'closed',
         });
@@ -141,7 +142,7 @@ export class GitHubAdapter {
     /**
      * Get a specific issue by number (for refresh).
      */
-    async getIssue(issueNumber: number): Promise<GitHubIssueResult | null> {
+    async getIssue(issueNumber: number | string): Promise<IProviderIssueResult | null> {
         try {
             const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`);
             return {
@@ -163,8 +164,8 @@ export class GitHubAdapter {
     /**
      * List all issues with a specific label (for refresh/diff).
      */
-    async listIssuesByLabel(label: string): Promise<GitHubIssueResult[]> {
-        const results: GitHubIssueResult[] = [];
+    async listIssuesByLabel(label: string): Promise<IProviderIssueResult[]> {
+        const results: IProviderIssueResult[] = [];
         let page = 1;
 
         while (true) {
@@ -205,7 +206,7 @@ export class GitHubAdapter {
     /**
      * Create a comment on an issue.
      */
-    async createIssueComment(issueNumber: number, body: string): Promise<{ id: number }> {
+    async createIssueComment(issueNumber: number | string, body: string): Promise<{ id: number | string }> {
         const data = await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments`, { body });
         return { id: data.id };
     }
@@ -213,15 +214,15 @@ export class GitHubAdapter {
     /**
      * Update an existing comment.
      */
-    async updateIssueComment(commentId: number, body: string): Promise<void> {
+    async updateIssueComment(commentId: number | string, body: string): Promise<void> {
         await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`, { body });
     }
 
     /**
      * List all comments on an issue.
      */
-    async listIssueComments(issueNumber: number): Promise<{ id: number, body: string }[]> {
-        const results: { id: number, body: string }[] = [];
+    async listIssueComments(issueNumber: number | string): Promise<{ id: number | string, body: string }[]> {
+        const results: { id: number | string, body: string }[] = [];
         let page = 1;
 
         while (true) {
@@ -319,7 +320,7 @@ export class GitHubAdapter {
      * Add an issue to a GitHub Project v2 (GraphQL).
      * Only called if projectId is configured. Returns the Item ID inside the project.
      */
-    async addToProject(issueNodeId: string): Promise<string | undefined> {
+    async addToProject(issueNodeId: string | number): Promise<string | undefined> {
         const meta = await this.resolveProjectMetadata();
         if (!meta) return undefined;
 
@@ -474,7 +475,7 @@ export class GitHubAdapter {
      * Get fields of a Project V2 item (GraphQL).
      * Returns a map of field name (lowercase) to its value.
      */
-    async getProjectItemFields(issueNodeId: string): Promise<Record<string, string>> {
+    async getProjectItemFields(issueNodeId: string | number): Promise<Record<string, string>> {
         const meta = await this.resolveProjectMetadata();
         if (!meta || !meta.fields) return {};
 
@@ -530,7 +531,7 @@ export class GitHubAdapter {
     /**
      * Get the node_id of an issue (needed for GraphQL Project v2 operations).
      */
-    async getIssueNodeId(issueNumber: number): Promise<string | null> {
+    async getIssueNodeId(issueNumber: number | string): Promise<string | null> {
         try {
             const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`);
             return data.node_id ?? null;
@@ -542,14 +543,14 @@ export class GitHubAdapter {
     /**
      * Get the remote ID format: "owner/repo:issueNumber"
      */
-    formatRemoteId(issueNumber: number): string {
+    formatRemoteId(issueNumber: number | string): string {
         return `${this.repo}:${issueNumber}`;
     }
 
     /**
      * Add a sub-issue to a parent issue (REST API).
      */
-    async addSubIssue(parentIssueNumber: number, subIssueId: number): Promise<void> {
+    async addSubIssue(parentIssueNumber: number | string, subIssueId: number | string): Promise<void> {
         try {
             await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${parentIssueNumber}/sub_issues`, {
                 sub_issue_id: subIssueId,

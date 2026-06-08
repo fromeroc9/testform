@@ -1,14 +1,14 @@
 import { randomUUID } from 'crypto';
-import { FILE_STATE, VERSION_STATE } from '../const';
-import { notify } from '../notify';
-import { IState, StateResource } from '../types';
-import { IBackend } from './backends/backend';
-import { LocalBackend } from './backends/local';
-import { S3Backend, S3BackendConfig } from './backends/s3';
-import { AzureRMBackend, AzureRMBackendConfig } from './backends/azurerm';
-import { GCSBackend, GCSBackendConfig } from './backends/gcs';
-import { Config } from './config';
-import { WorkspaceManager } from './workspace';
+import { FILE_STATE, VERSION_STATE } from '../core/const';
+import { logger as notify } from '../core/logger';
+import { IState, StateResource } from '../core/types';
+import { IBackend } from '../backends/backend';
+import { LocalBackend } from '../backends/local';
+import { S3Backend, S3BackendConfig } from '../backends/s3';
+import { AzureRMBackend, AzureRMBackendConfig } from '../backends/azurerm';
+import { GCSBackend, GCSBackendConfig } from '../backends/gcs';
+import { Config } from '../core/config';
+import { WorkspaceManager } from '../core/workspace';
 
 export class State {
     private state!: IState;

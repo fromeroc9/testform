@@ -1,6 +1,6 @@
 import { red, green } from 'chalk';
 import { State } from '../core/state';
-import { TITLE_CLI } from '../const';
+import { TITLE_CLI } from '../core/const';
 
 interface TaintCmdOptions {
     dir?: string;

@@ -1,16 +1,16 @@
-import { IConfig, IScope } from "../types";
+import { IConfig, IScope } from '../core/types';
 import { resolve, normalize, join } from 'path';
-import { Config } from "../core/config";
-import { State } from "../core/state";
-import { GitHubAdapter } from "../adapters/github";
-import { Parser } from "../core/parser";
-import { resource } from "../adapters/resources";
+import { Config } from '../core/config';
+import { State } from '../core/state';
+import { GitHubAdapter } from '../adapters/github';
+import { Parser } from '../core/parser';
+import { resource } from '../core/resources';
 import { bold, green, red, yellow } from "chalk";
 import { hashScenario } from "./plan";
 import fs from "fs";
-import { Logger } from "../logger";
+import { Logger } from '../core/logger';
 
-import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP } from "../const";
+import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP } from '../core/const';
 
 interface ImportCmdOptions {
     dir?: string;
@@ -246,7 +246,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
             attributes: {
                 title: issue.title,
                 body: issue.body || '',
-                labels: issue.labels || [],
+                labels: issue.labels?.filter((l: any) => l.name).map((l: any) => l.name) ?? [],
                 assignees: issue.assignees || [],
                 milestone: issue.milestone || '',
                 custom_fields: customFields,

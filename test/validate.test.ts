@@ -3,7 +3,7 @@ import { validateCmd } from '../src/commands/validate';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
-import { FILE_CONFIG } from '../src/const';
+import { FILE_CONFIG } from '../src/core/const';
 import { policy } from '../src/core/policy';
 
 const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {

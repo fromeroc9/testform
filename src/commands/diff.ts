@@ -3,9 +3,9 @@ import { bold, green, yellow, red, cyan, dim } from 'chalk';
 import { Config } from '../core/config';
 import { Parser } from '../core/parser';
 import { State } from '../core/state';
-import { Logger } from '../logger';
-import { IScope, DiffEntry, DiffStatus, ParserScenario } from '../types';
-import { SCOPE_RESOURCE_MAP } from '../const';
+import { Logger } from '../core/logger';
+import { IScope, DiffEntry, DiffStatus, ParserScenario } from '../core/types';
+import { SCOPE_RESOURCE_MAP } from '../core/const';
 
 function hashScenario(scenario: ParserScenario, scope?: IScope): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
@@ -64,7 +64,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
 
     // Calculate diff
     const entries: DiffEntry[] = [];
-    const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+    const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
 
     for (const s of scopesToRun) {
         const data = {

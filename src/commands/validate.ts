@@ -4,8 +4,8 @@ import { Config } from '../core/config';
 import { Parser } from '../core/parser';
 import { VariableParser } from '../core/variables';
 import { policy } from '../core/policy';
-import { Logger } from '../logger';
-import { IScope } from '../types';
+import { Logger } from '../core/logger';
+import { IScope } from '../core/types';
 
 interface ValidateCmdOptions {
     targetPath?: string;

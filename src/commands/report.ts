@@ -1,9 +1,10 @@
-import { State } from "../core/state";
+import { State } from '../core/state';
 import { bold, green, red, yellow } from "chalk";
 import fs from "fs";
-import { StateResource } from "../types";
-import { Config } from "../core/config";
-import { GitHubAdapter } from "../adapters/github";
+import { StateResource } from '../core/types';
+import { Config } from '../core/config';
+import { GitHubAdapter } from '../adapters/github';
+import { VariableParser } from '../core/variables';
 
 interface ReportCmdOptions {
     dir: string;
@@ -14,7 +15,7 @@ interface ReportCmdOptions {
     groupBy?: string;
     statePath?: string;
     apply?: boolean;
-    fields?: string[];
+    variables?: VariableParser;
 }
 
 export function resolvePath(obj: any, path: string): any {
@@ -47,7 +48,7 @@ interface FlatData {
 }
 
 export const reportCmd = async (options: ReportCmdOptions) => {
-    const { dir, type, format, filter, out, groupBy, statePath, apply, fields } = options;
+    const { dir, type, format, filter, out, groupBy, statePath, apply, variables } = options;
 
     const stateObj = new State(dir, statePath);
     await stateObj.init();
@@ -188,37 +189,18 @@ export const reportCmd = async (options: ReportCmdOptions) => {
         let milestone: string | undefined = undefined;
         let issueLabels: string[] = ['testreport'];
 
-        // Parse --field arguments
-        for (const f of fields || []) {
-            let parsedField: Record<string, string> = {};
-            if (f.trim().startsWith('{')) {
-                try {
-                    parsedField = JSON.parse(f);
-                } catch (e) {
-                    console.log(yellow(`Warning: Could not parse field JSON: ${f}`));
-                    continue;
-                }
-            } else {
-                const parts = f.split('=');
-                if (parts.length >= 2) {
-                    parsedField[parts[0]] = parts.slice(1).join('=');
-                } else {
-                    console.log(yellow(`Warning: Invalid field format: ${f}. Expected key=value or JSON`));
-                    continue;
-                }
-            }
+        const parsedField = variables ? variables.getVars() : {};
 
-            for (const [k, v] of Object.entries(parsedField)) {
-                const def = reportFields.find(df => df.name.toLowerCase() === k.toLowerCase());
-                if (k.toLowerCase() === 'assignees') {
-                    assignees = assignees.concat(v.split(',').map(s => s.trim().replace(/^@/, '')));
-                } else if (k.toLowerCase() === 'milestone') {
-                    milestone = v;
-                } else if (def?.type === 'tags') {
-                    issueLabels.push(v);
-                } else {
-                    customFieldsMap[k] = v;
-                }
+        for (const [k, v] of Object.entries(parsedField)) {
+            const def = reportFields.find(df => df.name.toLowerCase() === k.toLowerCase());
+            if (k.toLowerCase() === 'assignees') {
+                assignees = assignees.concat(String(v).split(',').map(s => s.trim().replace(/^@/, '')));
+            } else if (k.toLowerCase() === 'milestone') {
+                milestone = String(v);
+            } else if (def?.type === 'tags') {
+                issueLabels.push(String(v));
+            } else {
+                customFieldsMap[k] = String(v);
             }
         }
 

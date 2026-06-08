@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-import arg from 'arg';
-import { bold, red, cyan } from 'chalk';
-import { arch, platform } from 'node:process';
+import { parseArgs } from 'node:util';
+import chalk from 'chalk';
 import { resolve } from 'path';
 
-// Import commands
+// Commands
 import { initCmd } from './commands/init';
 import { planCmd } from './commands/plan';
 import { validateCmd } from './commands/validate';
@@ -24,713 +23,606 @@ import { logoutCmd } from './commands/logout';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
 import { generateCmd } from './commands/generate';
-import { debugCmd } from './commands/debug';
-import { IScope } from './types';
+import { printCmd } from './commands/print';
+
+import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
-import { notify } from './notify';
-import chalk from 'chalk';
-import { logger } from './logger';
-import { TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE, VERSION_CLI, FILE_CONFIG, FILE_STATE } from './const';
-import { getCommandHelp, HELP_GLOBAL } from './help';
+import { VERSION_CLI } from './core/const';
+import { HELP_GLOBAL, getCommandHelp } from './core/help';
 
-type InputScope = IScope;
-
-function compareVersions(a: string, b: string): number {
-    const pa = a.split('.').map((v) => Number(v));
-    const pb = b.split('.').map((v) => Number(v));
-    const size = Math.max(pa.length, pb.length);
-
-    for (let i = 0; i < size; i++) {
-        const av = pa.at(i) ?? 0;
-        const bv = pb.at(i) ?? 0;
-        if (av > bv) return 1;
-        if (av < bv) return -1;
-    }
-
-    return 0;
+function getScope(scopeStr?: string): IScope | 'all' {
+  if (scopeStr === 'testrun' || scopeStr === 'testplan' || scopeStr === 'testcase' || scopeStr === 'all') {
+    return scopeStr;
+  }
+  return 'testcase'; // default
 }
 
-function printVersion(detailed: boolean = false) {
-    const latestVersion = process.env.TESTSTATE_LATEST_VERSION;
-    const platformArch = `${platform}_${arch}`;
-
-    console.log(cyan(`${TITLE_APP} v${VERSION_CLI}`));
-    console.log(`on ${platformArch}`);
-
-    if (detailed) {
-        console.log(`+ Config Version: ${VERSION_CONFIG} (${FILE_CONFIG})`);
-        console.log(`+ State Version: ${VERSION_STATE} (${FILE_STATE})`);
-    }
-
-    if (latestVersion && compareVersions(VERSION_CLI, latestVersion) < 0) {
-        console.log('');
-        console.log(`Your version of ${TITLE_APP} is out of date! The latest version`);
-        console.log(`is ${latestVersion}. You can update from your release source.`);
-    }
+function getVariables(varArg: any, varFileArg: any, workDir: string) {
+  const vars: string[] = Array.isArray(varArg) ? varArg : (varArg ? [varArg] : []);
+  const varFiles: string[] = Array.isArray(varFileArg) ? varFileArg : (varFileArg ? [varFileArg] : []);
+  return new VariableParser(vars, varFiles, workDir);
 }
 
-function printTooManyArgsForInit(): void {
-    logger.error('Too many command line arguments. Did you mean to use -chdir?');
+const args = process.argv.slice(2);
+
+// 1. Global Parse
+let globalValues: any;
+let globalPositionals: any;
+
+try {
+  const parsed = parseArgs({
+    args,
+    options: {
+      chdir: { type: 'string', short: 'C', default: '.' },
+      'no-color': { type: 'boolean' },
+      help: { type: 'boolean', short: 'h' },
+      version: { type: 'boolean', short: 'v' },
+      scope: { type: 'string', short: 's' }
+    },
+    strict: false
+  });
+  globalValues = parsed.values;
+  globalPositionals = parsed.positionals;
+} catch (err: any) {
+  console.error(chalk.red(`Error: ${err.message}`));
+  process.exit(1);
 }
 
-function ensureNoPositionalArgs(command: string, args: string[]): void {
-    if (args.length > 0) {
-        logger.error(`Too many command line arguments\n\nTo specify a working directory for the ${command}, use the global -chdir flag.`);
-    }
+if (globalValues.version || globalValues.v) {
+  console.log(VERSION_CLI);
+  process.exit(0);
 }
 
-function isScopeToken(value?: string): value is InputScope {
-    if (!value) return false;
-    return [
-        'testcase',
-        'testrun',
-        'testplan',
-    ].includes(value.toLowerCase());
+if (globalValues['no-color']) {
+  chalk.level = 0;
 }
 
-function normalizeLongFlags(rawArgs: string[]): string[] {
-    const longFlags = new Set([
-        'chdir',
-        'scope',
-        'help',
-        'verbose',
-        'version',
-        'auto-approve',
-        'out',
-        'lock',
-        'lock-timeout',
-        'input',
-        'var',
-        'var-file',
-        'no-color',
-        'json',
-        'detailed-exitcode',
-        'state',
-        'backup',
-        'target',
-        'destroy',
-        'refresh',
-        'refresh-only',
-        'force',
-        'check',
-        'list',
-        'write',
-        'diff',
-        'recursive',
-        'plan',
-        'draw-cycles',
-        'type',
-        'module-depth',
-        'allow-missing',
-        'ignore-remote-version',
-        'backend',
-        'backend-config',
-        'force-copy',
-        'from-module',
-        'get',
-        'plugin-dir',
-        'reconfigure',
-        'lockfile',
-        'test-directory',
-        'set-status',
-        'set-state',
-        'replace',
-        'compact-warnings',
-        'generate-config-out',
-        'parallelism',
-        'no-tests',
-        'query',
-        'state-out',
-        'config',
-        'taint',
-        'untaint',
-        'workspace',
-        'report',
-        'format',
-        'filter',
-        'id',
-        'dry-run',
-        'apply',
-        'field',
-        'rule'
-    ]);
-
-    const shortFlags: Record<string, string> = {
-        'C': 'chdir',
-        's': 'scope',
-        'h': 'help',
-        'v': 'verbose',
-        'a': 'auto-approve',
-        'o': 'out'
-    };
-
-    return rawArgs.map((arg) => {
-        const match = arg.match(/^-([a-zA-Z][a-zA-Z-]*)(=.*)?$/);
-        if (!match) return arg;
-
-        const flag = match[1];
-        const suffix = match[2] || '';
-
-        if (shortFlags[flag]) {
-            return `--${shortFlags[flag]}${suffix}`;
-        }
-
-        const lowerFlag = flag.toLowerCase();
-        if (longFlags.has(lowerFlag)) {
-            return `--${lowerFlag}${suffix}`;
-        }
-        
-        return arg;
-    });
-}
-
-const booleanFlags = new Set([
-    '--help',
-    '--verbose',
-    '--version',
-    '--auto-approve',
-    '--lock',
-    '--input',
-    '--no-color',
-    '--json',
-    '--detailed-exitcode',
-    '--destroy',
-    '--refresh',
-    '--refresh-only',
-    '--force',
-    '--check',
-    '--list',
-    '--write',
-    '--diff',
-    '--recursive',
-    '--draw-cycles',
-    '--allow-missing',
-    '--ignore-remote-version',
-    '--backend',
-    '--reconfigure',
-    '--migrate-state',
-    '--compact-warnings',
-    '--no-tests',
-    '--dry-run',
-    '--apply'
-]);
-
-const main = async () => {
-    let argv: arg.Result<any>;
-    try {
-        const rawArgs = normalizeLongFlags(process.argv.slice(2));
-        const booleanOverrides = new Map<string, boolean>();
-        const filteredArgs: string[] = [];
-
-        for (const argOption of rawArgs) {
-            const match = argOption.match(/^(--[a-z][a-z-]*)=(true|false)$/i);
-            if (match && booleanFlags.has(match[1])) {
-                booleanOverrides.set(match[1], match[2].toLowerCase() === 'true');
-            } else {
-                filteredArgs.push(argOption);
-            }
-        }
-
-        argv = arg({
-            '--chdir': String,
-            '--projectId': String,
-            '--scope': String,
-            '--out': String,
-            '--lock-timeout': String,
-            '--var': [String],
-            '--var-file': [String],
-            '--state': String,
-            '--backup': String,
-            '--target': [String],
-            '--plan': String,
-            '--type': String,
-            '--module-depth': String,
-            '--backend-config': [String],
-            '--test-directory': String,
-            '--set-status': [String],
-            '--set-state': [String],
-            '--replace': [String],
-            '--parallelism': String,
-            '--state-out': String,
-            '--config': String,
-            '--taint': [String],
-            '--untaint': [String],
-            '--workspace': String,
-            '--report': String,
-            '--format': String,
-            '--filter': [String],
-            '--id': String,
-            '--field': [String],
-            '--rule': [String],
-            '--help': Boolean,
-            '--verbose': Boolean,
-            '--version': Boolean,
-            '--auto-approve': Boolean,
-            '--lock': Boolean,
-            '--input': Boolean,
-            '--no-color': Boolean,
-            '--json': Boolean,
-            '--detailed-exitcode': Boolean,
-            '--destroy': Boolean,
-            '--refresh': Boolean,
-            '--refresh-only': Boolean,
-            '--force': Boolean,
-            '--check': Boolean,
-            '--list': Boolean,
-            '--write': Boolean,
-            '--diff': Boolean,
-            '--apply': Boolean,
-            '--recursive': Boolean,
-            '--draw-cycles': Boolean,
-            '--allow-missing': Boolean,
-            '--ignore-remote-version': Boolean,
-            '--backend': Boolean,
-            '--reconfigure': Boolean,
-            '--migrate-state': Boolean,
-            '--compact-warnings': Boolean,
-            '--no-tests': Boolean,
-            '--dry-run': Boolean,
-            '-C': '--chdir',
-            '-s': '--scope',
-            '-h': '--help',
-            '-v': '--verbose',
-            '-a': '--auto-approve',
-            '-o': '--out',
-        }, { argv: filteredArgs });
-
-        Object.assign(argv, Object.fromEntries(booleanOverrides));
-    } catch (err: any) {
-        if (err.code === 'ARG_UNKNOWN_OPTION') {
-            console.error(`\x1b[31mError: ${err.message}\x1b[0m\n`);
-            console.log(`Usage: ${TITLE_CLI} [global options] <subcommand> [args]\nRun '${TITLE_CLI} --help' for more information.`);
-            process.exit(1);
-        }
-        throw err;
-    }
-
-    const args = argv._.map(String);
-
-    if (argv['--version']) {
-        printVersion(false);
-        process.exit(0);
-    }
-
-    const rawArgs = argv._;
-    const commandRaw = rawArgs[0];
-    const commandArgsRaw = rawArgs.slice(1);
-
-    if (argv['--help']) {
-        if (commandRaw) {
-            let helpKey = commandRaw;
-            if (commandRaw === 'state' && commandArgsRaw.length > 0) {
-                helpKey = `state ${commandArgsRaw[0]}`;
-            }
-            const cmdHelp = getCommandHelp(helpKey);
-            if (cmdHelp) {
-                console.log(cmdHelp);
-            } else {
-                console.log(`Unknown command: ${helpKey}\n\n${HELP_GLOBAL}`);
-            }
-        } else {
-            console.log(HELP_GLOBAL);
-        }
-        process.exit(0);
-    }
-
-    if (!commandRaw) {
-        console.log(HELP_GLOBAL);
-        process.exit(0);
-    }
-
-    let command = commandRaw.toLowerCase();
-    let commandArgs = commandArgsRaw;
-    
-    const hasExplicitScope = Object.prototype.hasOwnProperty.call(argv, '--scope');
-    let scopeArg = (argv['--scope'] as IScope | 'all') || (hasExplicitScope ? 'testcase' : 'all');
-    if (!hasExplicitScope && ['plan', 'apply', 'diff', 'refresh', 'destroy'].includes(command)) {
-        logger.warn(`Warning: Scanning all scopes. You can use -scope (testcase|testrun|testplan) to limit the operation.`);
-    }
-    const workDir = String(argv['--chdir'] || '.');
-    const variableParser = new VariableParser(argv['--var'], argv['--var-file'], workDir);
-
-    if (argv['--no-color']) {
-        chalk.level = 0;
-    }
-
-    // Supports: testcase plan ... (scope-first style)
-    if (isScopeToken(command) && args[1]) {
-        scopeArg = command;
-        command = args[1].toLowerCase();
-        commandArgs = args.slice(2);
-        // If they explicitly did `testform testcase plan`, it's not global
-    }
-
-    if (!workDir) {
-        printTooManyArgsForInit();
-        process.exit(1);
-    }
-
-    const verbose = Boolean(argv['--verbose'] || argv['--verbose']);
-    const scope = scopeArg;
-    const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
-
-    if (command === 'version') {
-        printVersion(true);
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'init') {
-        if (commandArgs.length > 0) {
-            printTooManyArgsForInit();
-        }
-        await initCmd({
-            dir: workDir,
-            verbose,
-            backendConfigRaw: argv['--backend-config'],
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            reconfigure: argv['--reconfigure'],
-            migrateState: argv['--migrate-state'],
-            backendEnabled: argv['--backend'] ?? true,
-            isJson: argv['--json'],
-            inputEnabled: argv['--input'] ?? true
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'validate') {
-        const validateDir = commandArgs.length > 0 ? commandArgs[0] : workDir;
-        if (commandArgs.length > 1) {
-            logger.error(`Too many command line arguments\n\nExpected at most one positional argument.`);
-        }
-        await validateCmd({
-            targetPath: validateDir,
-            verbose,
-            scope: singleScope,
-            variables: variableParser,
-            isJson: argv['--json'],
-            testDirectory: argv['--test-directory'],
-            noTests: argv['--no-tests'],
-            query: argv['--query']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'plan') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await planCmd({
-            dir: workDir,
-            verbose,
-            scope,
-            outPath: argv['--out'],
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            variables: variableParser,
-            isJson: argv['--json'],
-            detailedExitCode: argv['--detailed-exitcode'],
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            target: argv['--target'],
-            destroyPlan: argv['--destroy'],
-            refresh: argv['--refresh'] ?? true,
-            refreshOnly: argv['--refresh-only'],
-            replaceTargets: argv['--replace'],
-            parallelism: argv['--parallelism'],
-            compactWarnings: argv['--compact-warnings'] ?? false,
-            testDirectory: argv['--test-directory']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'apply') {
-        let planFile: string | undefined = undefined;
-        if (commandArgs.length === 1) {
-            planFile = commandArgs[0];
-        } else if (commandArgs.length > 1) {
-            logger.error(`Too many command line arguments\n\nExpected at most one positional argument.`);
-        }
-        await applyCmd({
-            dir: workDir,
-            autoApprove: Boolean(argv['--auto-approve'] || argv['--auto-approve']), // (Keeping the original logic from index.ts, though redundant)
-            verbose,
-            scope,
-            planFile,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            input: argv['--input'] ?? true,
-            variables: variableParser,
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            target: argv['--target'],
-            refresh: argv['--refresh'] ?? true,
-            refreshOnly: argv['--refresh-only'],
-            setStatus: argv['--set-status']?.[0] || argv['--set-state']?.[0],
-            replaceTargets: argv['--replace'],
-            parallelism: argv['--parallelism'],
-            compactWarnings: argv['--compact-warnings'] ?? false,
-            testDirectory: argv['--test-directory']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'destroy') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await destroyCmd({
-            dir: workDir,
-            verbose,
-            scope,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            input: argv['--input'] ?? true,
-            statePath: argv['--state'],
-            backupPath: argv['--backup']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'show') {
-        const path = commandArgs[0];
-
-        await showCmd({
-            path,
-            isJson: argv['--json'],
-            verbose,
-            dir: String(argv['--chdir'] || '.'),
-            statePath: argv['--state'],
-            backupPath: argv['--backup']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'refresh') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await refreshCmd({
-            dir: workDir,
-            verbose,
-            scope,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            parallelismRaw: argv['--parallelism'],
-            compactWarnings: argv['--compact-warnings'] ?? false
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'diff') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await diffCmd({
-            dir: workDir,
-            verbose,
-            scope
-        });
-        process.exit(0);
-    }
-
-    if (command === 'import') {
-        if (commandArgs.length !== 2) {
-            logger.error(`Usage: ${TITLE_CLI} import [options] ADDR ISSUE_NUMBER`);
-            process.exit(1);
-        }
-        const identityArg = commandArgs[0];
-        const issueNumber = commandArgs[1];
-        await importCmd({
-            dir: workDir,
-            scope: singleScope,
-            identityArg,
-            issueNumber,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            statePath: argv['--state'],
-            backupPath: argv['--backup']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'state') {
-        if (commandArgs.length === 0) {
-            console.log(getCommandHelp('state'));
-            process.exit(1);
-        }
-        const stateSubCommand = commandArgs[0];
-        const stateArgs = commandArgs.slice(1);
-        await stateCmd({
-            dir: workDir,
-            action: stateSubCommand,
-            args: stateArgs,
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            isJson: argv['--json'],
-            id: argv['--id'],
-            dryRun: argv['--dry-run'],
-            force: argv['--force']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'taint' || command === 'untaint') {
-        if (commandArgs.length === 0) {
-            logger.error(`Usage: ${TITLE_CLI} ${command} [options] name`);
-            process.exit(1);
-        }
-        await taintCmd({
-            dir: workDir,
-            action: command as 'taint' | 'untaint',
-            identityRaw: commandArgs[0],
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            allowMissing: argv['--allow-missing'],
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s'
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'workspace') {
-        await workspaceCmd({ dir: workDir, verbose, args: commandArgs });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'force-unlock') {
-        if (commandArgs.length !== 1) {
-            logger.error(`Usage: ${TITLE_CLI} force-unlock [options] LOCK_ID`);
-            process.exit(1);
-        }
-        await forceUnlockCmd({
-            dir: workDir,
-            lockId: commandArgs[0],
-            force: argv['--force'],
-            statePath: argv['--state']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'graph') {
-        if (argv['--help']) {
-            const { HELP_GRAPH } = require('./help');
-            console.log(HELP_GRAPH);
-            process.exit(0);
-        }
-        ensureNoPositionalArgs(command, commandArgs);
-        await graphCmd({
-            dir: workDir,
-            scope: singleScope,
-            drawCycles: argv['--draw-cycles']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'report') {
-        const type = commandArgs.length > 0 ? commandArgs[0] : 'raw';
-        await reportCmd({
-            dir: workDir,
-            type,
-            format: argv['--format'] || 'md',
-            filter: argv['--filter'] || [],
-            fields: argv['--field'] || [],
-            apply: argv['--apply'],
-            out: argv['--out'],
-            statePath: argv['--state']
-        });
-        process.exit(0);
-    }
-
-    if (command === 'generate') {
-        let genScope: string | undefined = undefined;
-        let titleArg: string | undefined = undefined;
-        
-        const hasScopeFlag = Object.prototype.hasOwnProperty.call(argv, '--scope');
-        
-        if (commandArgs.length > 0) {
-            // First argument could be scope or title
-            const first = commandArgs[0].toLowerCase();
-            if (['testcase', 'testrun', 'testplan'].includes(first)) {
-                genScope = first;
-                titleArg = commandArgs.slice(1).join(' ');
-            } else {
-                titleArg = commandArgs.join(' ');
-            }
-        }
-        
-        if (!genScope && hasScopeFlag) {
-            genScope = String(argv['--scope']);
-        }
-        
-        if (!genScope) {
-            logger.error(`Usage: testform generate <scope> [title]\n\nYou must specify the scope either as the first argument or using the -scope flag (e.g., -scope=testrun).`);
-            process.exit(1);
-        }
-
-        if (!['testcase', 'testrun', 'testplan'].includes(genScope)) {
-            logger.error(`Invalid scope '${genScope}'. Must be one of: testcase, testrun, testplan.`);
-            process.exit(1);
-        }
-
-        if (!titleArg) titleArg = undefined; // empty string to undefined
-
-        await generateCmd({
-            dir: workDir,
-            scope: genScope as IScope,
-            title: titleArg,
-            rules: argv['--rule'] || []
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'fmt') {
-        const testDir = argv['--test-directory'] ? resolve(workDir, argv['--test-directory']) : workDir;
-        const targetDir = commandArgs.length > 0 ? resolve(workDir, commandArgs[0]) : testDir;
-        await fmtCmd({
-            dir: targetDir,
-            check: argv['--check'],
-            list: argv['--list'] ?? true,
-            write: argv['--write'] ?? true,
-            recursive: argv['--recursive']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'debug') {
-        if (commandArgs.length === 0) {
-            logger.error(`Usage: ${TITLE_CLI} debug <file> [options]`);
-            process.exit(1);
-        }
-        await debugCmd({
-            dir: workDir,
-            file: commandArgs[0],
-            format: argv['--format'] || 'testform',
-            scope: singleScope,
-            variables: variableParser
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'login') {
-        const hostname = commandArgs.length > 0 ? commandArgs[0] : 'github.com';
-        await loginCmd({ hostname });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'logout') {
-        const hostname = commandArgs.length > 0 ? commandArgs[0] : 'github.com';
-        await logoutCmd({ hostname });
-        process.exit(process.exitCode || 0);
-    }
-
-    console.log(HELP_GLOBAL);
-    process.exit(1);
+const globals = {
+  chdir: globalValues.chdir || '.',
+  noColor: !!globalValues['no-color'],
+  scope: globalValues.scope,
+  help: !!globalValues.help || !!globalValues.h
 };
 
-export { main };
+const command = globalPositionals[0];
 
-if (require.main === module || !module.parent) {
-    main().catch((err: any) => {
-        // console.error(err.stack);
-        notify.push({
-            type: 'error',
-            title: err.name,
-            detail: [err.message]
-        })
-    });
+if (!command) {
+  console.log(HELP_GLOBAL);
+  process.exit(globals.help ? 0 : 1);
 }
+
+const subArgs = args.slice(args.indexOf(command) + 1);
+
+// Helper to check sub-help
+function checkSubHelp(options: any) {
+  if (options.help || options.h || globals.help) {
+    const helpTxt = getCommandHelp(command);
+    if (helpTxt) console.log(helpTxt);
+    else console.log(`No help available for ${command}`);
+    process.exit(0);
+  }
+}
+
+// 2. Subcommand Routing
+async function main() {
+  switch (command) {
+
+    case 'init': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          'backend-config': { type: 'string', multiple: true },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          reconfigure: { type: 'boolean' },
+          'migrate-state': { type: 'boolean' },
+          backend: { type: 'boolean', default: true },
+          json: { type: 'boolean' },
+          input: { type: 'boolean', default: true },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await initCmd({
+        dir: globals.chdir, verbose: !!opts.verbose, backendConfigRaw: opts['backend-config'] as string[],
+        lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string, reconfigure: !!opts.reconfigure,
+        migrateState: !!opts['migrate-state'], backendEnabled: opts.backend as boolean, isJson: !!opts.json, inputEnabled: opts.input as boolean
+      });
+      break;
+    }
+
+    case 'validate': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          var: { type: 'string', multiple: true },
+          'var-file': { type: 'string', multiple: true },
+          json: { type: 'boolean' },
+          'test-directory': { type: 'string' },
+          'no-tests': { type: 'boolean' },
+          query: { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const dir = positionals[0] || globals.chdir;
+      await validateCmd({
+        targetPath: dir, verbose: !!opts.verbose, scope: getScope(opts.scope as string || globals.scope) as IScope,
+        variables: getVariables(opts.var, opts['var-file'], globals.chdir), isJson: !!opts.json, testDirectory: opts['test-directory'] as string,
+        noTests: !!opts['no-tests'], query: opts.query as string
+      });
+      break;
+    }
+
+    case 'plan': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          out: { type: 'string', short: 'o' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          var: { type: 'string', multiple: true },
+          'var-file': { type: 'string', multiple: true },
+          json: { type: 'boolean' },
+          'detailed-exitcode': { type: 'boolean' },
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          target: { type: 'string', multiple: true },
+          destroy: { type: 'boolean' },
+          refresh: { type: 'boolean', default: true },
+          'refresh-only': { type: 'boolean' },
+          replace: { type: 'string', multiple: true },
+          parallelism: { type: 'string' },
+          'compact-warnings': { type: 'boolean' },
+          'test-directory': { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await planCmd({
+        dir: globals.chdir, verbose: !!opts.verbose, scope: getScope(opts.scope as string || globals.scope), outPath: opts.out as string,
+        lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string, variables: getVariables(opts.var, opts['var-file'], globals.chdir),
+        isJson: !!opts.json, detailedExitCode: !!opts['detailed-exitcode'], statePath: opts.state as string, backupPath: opts.backup as string,
+        target: opts.target as string[], destroyPlan: !!opts.destroy, refresh: opts.refresh as boolean, refreshOnly: !!opts['refresh-only'],
+        replaceTargets: opts.replace as string[], parallelism: opts.parallelism as string, compactWarnings: !!opts['compact-warnings'],
+        testDirectory: opts['test-directory'] as string
+      });
+      break;
+    }
+
+    case 'apply': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          'auto-approve': { type: 'boolean', short: 'a' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          input: { type: 'boolean', default: true },
+          var: { type: 'string', multiple: true },
+          'var-file': { type: 'string', multiple: true },
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          target: { type: 'string', multiple: true },
+          refresh: { type: 'boolean', default: true },
+          'refresh-only': { type: 'boolean' },
+          'set-status': { type: 'string' },
+          replace: { type: 'string', multiple: true },
+          parallelism: { type: 'string' },
+          'compact-warnings': { type: 'boolean' },
+          'test-directory': { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const planFile = positionals[0];
+      await applyCmd({
+        dir: globals.chdir, autoApprove: !!opts['auto-approve'], verbose: !!opts.verbose, scope: getScope(opts.scope as string || globals.scope),
+        planFile: planFile, lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string, input: opts.input as boolean,
+        variables: getVariables(opts.var, opts['var-file'], globals.chdir), statePath: opts.state as string, backupPath: opts.backup as string,
+        target: opts.target as string[], refresh: opts.refresh as boolean, refreshOnly: !!opts['refresh-only'], setStatus: opts['set-status'] as string,
+        replaceTargets: opts.replace as string[], parallelism: opts.parallelism as string, compactWarnings: !!opts['compact-warnings'],
+        testDirectory: opts['test-directory'] as string
+      });
+      break;
+    }
+
+    case 'destroy': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          'auto-approve': { type: 'boolean', short: 'a' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          input: { type: 'boolean', default: true },
+          var: { type: 'string', multiple: true },
+          'var-file': { type: 'string', multiple: true },
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          target: { type: 'string', multiple: true },
+          refresh: { type: 'boolean', default: true },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await destroyCmd({
+        dir: globals.chdir, verbose: !!opts.verbose, scope: getScope(opts.scope as string || globals.scope),
+        lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string, input: opts.input as boolean,
+        statePath: opts.state as string, backupPath: opts.backup as string
+      });
+      break;
+    }
+
+    case 'show': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          json: { type: 'boolean' },
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const path = positionals[0];
+      await showCmd({
+        path: path, isJson: !!opts.json, verbose: !!opts.verbose, dir: globals.chdir, statePath: opts.state as string, backupPath: opts.backup as string
+      });
+      break;
+    }
+
+    case 'refresh': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          parallelism: { type: 'string' },
+          'compact-warnings': { type: 'boolean' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await refreshCmd({
+        dir: globals.chdir, verbose: !!opts.verbose, scope: getScope(opts.scope as string || globals.scope), lock: opts.lock as boolean,
+        lockTimeout: opts['lock-timeout'] as string, statePath: opts.state as string, backupPath: opts.backup as string,
+        parallelismRaw: opts.parallelism as string, compactWarnings: !!opts['compact-warnings']
+      });
+      break;
+    }
+
+    case 'diff': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await diffCmd({ dir: globals.chdir, verbose: !!opts.verbose, scope: getScope(opts.scope as string || globals.scope) });
+      break;
+    }
+
+    case 'import': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          scope: { type: 'string', short: 's' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const addr = positionals[0];
+      const issue = positionals[1];
+      await importCmd({
+        dir: globals.chdir, scope: getScope(opts.scope as string || globals.scope) as IScope, identityArg: addr, issueNumber: issue,
+        lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string, statePath: opts.state as string, backupPath: opts.backup as string
+      });
+      break;
+    }
+
+    case 'state': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          json: { type: 'boolean' },
+          id: { type: 'string' },
+          'dry-run': { type: 'boolean' },
+          force: { type: 'boolean' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const action = positionals[0];
+      const cmdArgs = positionals.slice(1);
+      await stateCmd({
+        dir: globals.chdir, action: action, args: cmdArgs, statePath: opts.state as string, backupPath: opts.backup as string,
+        isJson: !!opts.json, id: opts.id as string, dryRun: !!opts['dry-run'], force: !!opts.force
+      });
+      break;
+    }
+
+    case 'taint': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          'allow-missing': { type: 'boolean' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const name = positionals[0];
+      await taintCmd({
+        dir: globals.chdir, action: 'taint', identityRaw: name, statePath: opts.state as string, backupPath: opts.backup as string,
+        allowMissing: !!opts['allow-missing'], lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string
+      });
+      break;
+    }
+
+    case 'untaint': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          state: { type: 'string' },
+          backup: { type: 'string' },
+          'allow-missing': { type: 'boolean' },
+          lock: { type: 'boolean', default: true },
+          'lock-timeout': { type: 'string', default: '0s' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const name = positionals[0];
+      await taintCmd({
+        dir: globals.chdir, action: 'untaint', identityRaw: name, statePath: opts.state as string, backupPath: opts.backup as string,
+        allowMissing: !!opts['allow-missing'], lock: opts.lock as boolean, lockTimeout: opts['lock-timeout'] as string
+      });
+      break;
+    }
+
+    case 'force-unlock': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          force: { type: 'boolean' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const lockId = positionals[0];
+      await forceUnlockCmd({ dir: globals.chdir, lockId: lockId, force: !!opts.force });
+      break;
+    }
+
+    case 'graph': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          type: { type: 'string', default: 'plan' },
+          'draw-cycles': { type: 'boolean' },
+          'module-depth': { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await graphCmd({ dir: globals.chdir, drawCycles: !!opts['draw-cycles'] });
+      break;
+    }
+
+    case 'workspace': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await workspaceCmd({ dir: globals.chdir, verbose: !!opts.verbose, args: positionals });
+      break;
+    }
+
+    case 'report': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          verbose: { type: 'boolean' },
+          format: { type: 'string', default: 'text' },
+          filter: { type: 'string', multiple: true },
+          out: { type: 'string' },
+          apply: { type: 'boolean' },
+          var: { type: 'string', multiple: true },
+          'var-file': { type: 'string', multiple: true },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const type = positionals[0] || 'default';
+      await reportCmd({
+        dir: globals.chdir, type: type, format: opts.format as string, filter: (opts.filter as string[]) || [], out: opts.out as string, apply: !!opts.apply,
+        variables: getVariables(opts.var, opts['var-file'], globals.chdir)
+      });
+      break;
+    }
+
+    case 'generate': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          title: { type: 'string' },
+          rule: { type: 'string', multiple: true },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await generateCmd({ dir: globals.chdir, scope: getScope(globals.scope) as IScope, title: opts.title as string, rules: opts.rule as string[] });
+      break;
+    }
+
+    case 'fmt': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          check: { type: 'boolean' },
+          list: { type: 'boolean', default: true },
+          write: { type: 'boolean', default: true },
+          recursive: { type: 'boolean' },
+          'test-directory': { type: 'string' },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const dir = positionals[0];
+      const testDir = opts['test-directory'] ? resolve(globals.chdir, opts['test-directory'] as string) : globals.chdir;
+      await fmtCmd({ dir: dir || testDir, check: !!opts.check, list: !!opts.list, write: !!opts.write, recursive: !!opts.recursive });
+      break;
+    }
+
+    case 'print': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+          file: { type: 'string' },
+          format: { type: 'string', default: 'testform' },
+          var: { type: 'string', multiple: true },
+          'var-file': { type: 'string', multiple: true },
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      await printCmd({
+        dir: globals.chdir, file: opts.file as string, format: opts.format as string, scope: getScope(globals.scope) as IScope,
+        variables: getVariables(opts.var, opts['var-file'], globals.chdir)
+      });
+      break;
+    }
+
+    case 'login': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const hostname = positionals[0] || 'github.com';
+      await loginCmd({ hostname });
+      break;
+    }
+
+    case 'logout': {
+      const parsed = parseArgs({
+        args: subArgs,
+        options: {
+
+          help: { type: 'boolean', short: 'h' }
+        },
+        strict: false
+      });
+      const opts = parsed.values;
+      const positionals = parsed.positionals;
+      checkSubHelp(opts);
+      const hostname = positionals[0] || 'github.com';
+      await logoutCmd({ hostname });
+      break;
+    }
+
+    default:
+      console.error(chalk.red(`Unknown command: ${command}`));
+      console.log(HELP_GLOBAL);
+      process.exit(1);
+  }
+}
+
+main().catch(err => {
+  console.error(chalk.red(`Fatal Error: ${err.message}`));
+  process.exit(1);
+});
