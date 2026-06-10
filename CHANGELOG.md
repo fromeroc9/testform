@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.15] - 2026-06-10
+
+### Added
+- **GitHub API Resiliency:** Implemented automatic rate limit retries (handling `403` and `429` secondary rate limits) in the request pipeline. Reads the `retry-after` header to pause execution and retry up to 5 times. Added a custom `User-Agent: testform/<version>` to identify API requests.
+
+### Changed
+- **CLI Parallelism:** Reduced default parallelism limit from `10` to `3` for apply and refresh batches to prevent hitting GitHub secondary rate limits under concurrent operations. Updated help text and CLI documentation to match.
+
+### Fixed
+- **Custom Fields Mapping:** Excluded the internal `status` field (extracted from Gherkin `* link status` steps used for test case status tracking) from being sent to GitHub Projects V2 `custom_fields`, keeping it strictly internal and preventing conflicts with the project board's native `Status` field.
+- **CLI Prefix Path Resolution:** Fixed folder path resolution issues when running the CLI tool from other directories using `npm run dev --prefix` or `-chdir`.
+
 ## [1.0.14] - 2026-06-08
 
 ### Changed

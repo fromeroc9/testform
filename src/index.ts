@@ -349,7 +349,8 @@ const main = async () => {
     if (!hasExplicitScope && ['plan', 'apply', 'diff', 'refresh', 'destroy'].includes(command)) {
         logger.warn(`Warning: Scanning all scopes. You can use -scope (testcase|testrun|testplan) to limit the operation.`);
     }
-    const workDir = String(argv['--chdir'] || '.');
+    const workDirRaw = String(argv['--chdir'] || '.');
+    const workDir = resolve(process.env.INIT_CWD || process.cwd(), workDirRaw);
     const variableParser = new VariableParser(argv['--var'], argv['--var-file'], workDir);
 
     if (argv['--no-color']) {
