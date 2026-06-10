@@ -174,9 +174,29 @@ export abstract class BaseParser {
         return processChildren(feature.children ?? []);
     }
 
+    private findProjectRoot(startDir: string): string {
+        const { resolve, dirname } = require('path');
+        const { existsSync } = require('fs');
+        let currentDir = resolve(startDir);
+        const rootDir = resolve('/');
+
+        while (currentDir !== rootDir) {
+            const configPath = resolve(currentDir, 'testform.json');
+            if (existsSync(configPath)) {
+                return currentDir;
+            }
+            const parentDir = dirname(currentDir);
+            if (parentDir === currentDir) break;
+            currentDir = parentDir;
+        }
+
+        return startDir;
+    }
+
     public content(): ParserScenario[] {
         const featureFiles = this.find(this.dir);
         const scenarios: ParserScenario[] = [];
+        const projectRoot = this.findProjectRoot(this.dir);
 
         for (const file of featureFiles) {
             let content = readFileSync(file, "utf-8");
@@ -185,7 +205,7 @@ export abstract class BaseParser {
             }
             const parser = new Parse(new AstBuilder(IdGenerator.uuid()), new GherkinClassicTokenMatcher());
             const rawDoc = parser.parse(content);
-            rawDoc.uri = relative(this.dir, file);
+            rawDoc.uri = relative(projectRoot, file);
 
             scenarios.push(...this.format(rawDoc));
         }

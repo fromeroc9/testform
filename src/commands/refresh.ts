@@ -84,7 +84,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let refreshed = 0;
     let removed = 0;
 
-    const parallelism = parallelismRaw ? parseInt(String(parallelismRaw), 10) || 10 : 10;
+    const parallelism = parallelismRaw ? parseInt(String(parallelismRaw), 10) || 3 : 3;
 
     for (let i = 0; i < resources.length; i += parallelism) {
         const batch = resources.slice(i, i + parallelism);

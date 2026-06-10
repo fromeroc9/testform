@@ -216,7 +216,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         };
 
         // Execute changes in parallel batches
-        const parallelismNum = parallelism ? parseInt(String(parallelism), 10) || 10 : 10;
+        const parallelismNum = parallelism ? parseInt(String(parallelism), 10) || 1 : 1;
 
         for (let i = 0; i < plan.changes.length; i += parallelismNum) {
             const batch = plan.changes.slice(i, i + parallelismNum);

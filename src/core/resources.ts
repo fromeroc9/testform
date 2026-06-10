@@ -298,6 +298,7 @@ resource.registry({
                 delete fields['labels'];
                 delete fields['assignees'];
                 delete fields['milestone'];
+                delete fields['status'];
                 return fields;
             }
         }
@@ -440,6 +441,7 @@ resource.registry({
                 delete fields['labels'];
                 delete fields['assignees'];
                 delete fields['milestone'];
+                delete fields['status'];
                 return fields;
             }
         }
@@ -590,6 +592,7 @@ resource.registry({
                 delete fields['labels'];
                 delete fields['assignees'];
                 delete fields['milestone'];
+                delete fields['status'];
                 return fields;
             }
         },

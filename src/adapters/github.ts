@@ -3,6 +3,7 @@ import { logger as notify } from '../core/logger';
 import { Credentials } from '../core/credentials';
 import { logger } from '../core/logger';
 import { IProviderAdapter, IProviderIssuePayload, IProviderIssueResult } from './interface';
+import { TITLE_CLI, VERSION_CLI } from '../core/const';
 
 class Mutex {
     private mutex = Promise.resolve();
@@ -44,33 +45,68 @@ export class GitHubAdapter implements IProviderAdapter {
         notify.push({ type: 'error', title: `GitHub token not found`, detail: [`Environment variable "${this.config.tokenEnv}" is not set.`], close: true });
     }
 
-    private async request(method: string, path: string, body?: any): Promise<any> {
+    private async request(method: string, path: string, body?: any, attempt = 1): Promise<any> {
         await this.ensureToken();
         const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
-        const response = await fetch(url, {
-            method,
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'X-GitHub-Api-Version': '2022-11-28',
-                'Content-Type': 'application/json',
-            },
-            body: body ? JSON.stringify(body) : undefined,
-        });
+        const maxAttempts = 5;
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            const error = new Error(errorText);
-            error.name = `GitHub API Error [${response.status}]`;
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'X-GitHub-Api-Version': '2022-11-28',
+                    'Content-Type': 'application/json',
+                    'User-Agent': `${TITLE_CLI}/${VERSION_CLI}`,
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+
+            if (response.status === 403 || response.status === 429) {
+                const errorText = await response.text();
+                const isRateLimit = response.status === 429 ||
+                    errorText.toLowerCase().includes('rate limit') ||
+                    errorText.toLowerCase().includes('abuse') ||
+                    errorText.toLowerCase().includes('secondary');
+
+                if (isRateLimit && attempt <= maxAttempts) {
+                    const retryAfterHeader = response.headers.get('retry-after');
+                    const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : (attempt * 3);
+                    const chalk = require('chalk');
+                    console.warn(chalk.yellow(`\n⚠️ GitHub Rate Limit / Secondary Rate Limit hit. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                    return this.request(method, path, body, attempt + 1);
+                } else {
+                    const error = new Error(errorText);
+                    error.name = `GitHub API Error [${response.status}]`;
+                    throw error;
+                }
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = new Error(errorText);
+                error.name = `GitHub API Error [${response.status}]`;
+                throw error;
+            }
+
+            // Handle empty responses (like 204 No Content)
+            if (response.status === 204) {
+                return null;
+            }
+
+            return await response.json();
+        } catch (error: any) {
+            if (attempt <= maxAttempts && (!error.name || !error.name.startsWith('GitHub API Error'))) {
+                const retryAfter = attempt * 3;
+                const chalk = require('chalk');
+                console.warn(chalk.yellow(`\n⚠️ Network error: ${error.message}. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
+                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                return this.request(method, path, body, attempt + 1);
+            }
             throw error;
         }
-
-        // Handle empty responses (like 204 No Content)
-        if (response.status === 204) {
-            return null;
-        }
-
-        return await response.json();
     }
 
     private async graphql(query: string, variables: any = {}): Promise<any> {

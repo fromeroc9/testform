@@ -187,7 +187,7 @@ If you run `apply` without passing a saved plan file, it will implicitly run a `
 - `[PLAN]`: Provide a path to a pre-generated plan file (from `plan -out=path`). Testform will blindly execute this plan without prompting for confirmation.
 - `-auto-approve`: Skip the interactive `yes/no` confirmation prompt (useful for CI/CD).
 - `-input=true`: Ask for input for variables if they are not directly set.
-- `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `10`). Lower this if you hit GitHub secondary rate limits.
+- `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `3`). Lower this if you hit GitHub secondary rate limits.
 - `-destroy`: Instructs the apply to destroy all tracked infrastructure instead of creating/updating.
 - `-replace="resource"`: Force replacement of a specific resource.
 - `-state=path`: Custom path to read and save state (resolved relative to `-chdir`).
@@ -288,7 +288,7 @@ If someone manually modifies an Issue title, label, or custom field directly in 
 - **Strict Case-Sensitivity:** Arrays are evaluated with strict case sensitivity. If GitHub has changed a label from `TestCase` to `testcase`, the local state will be overwritten with `testcase`, triggering a drift upon the next `plan`.
 
 **Options:**
-- `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `10`).
+- `-parallelism=n`: Limit the number of concurrent API requests to GitHub (Default: `3`).
 - `-state=path`: Custom path to read and save state (resolved relative to `-chdir`).
 - `-backup=path`: Path to backup the existing state file before modifying. Set to `-` to disable backup.
 - `-lock=false`: Don't hold a state lock during the operation.

@@ -155,7 +155,7 @@ ${bold(`Other Options:`)}
                       used as input to the "apply" command.
 
   -parallelism=n      Limit the number of concurrent operations. Defaults
-                      to 10.
+                      to 3.
 
   -state=statefile    A legacy option used for the local backend only.
                       See the local backend's documentation for more
@@ -233,7 +233,7 @@ ${bold(`Options:`)}
   -no-color           If specified, output won't contain any color.
 
   -parallelism=n      Limit the number of parallel resource operations.
-                      Defaults to 10.
+                      Defaults to 3.
 
   -replace=resource   ${TITLE_APP} will plan to replace this resource instance
                       instead of doing an update or no-op action. 
@@ -331,7 +331,7 @@ ${bold(`Options:`)}
 
   -no-color           If specified, output won't contain any color.
 
-  -parallelism=n      Limit the number of concurrent operations. Defaults to 10.
+  -parallelism=n      Limit the number of concurrent operations. Defaults to 3.
 
   -state, and -backup Custom paths for the state and backup files.
 `.trim();
