@@ -545,7 +545,7 @@ resource.registry({
                     const state = context.state;
                     for (const tr of testruns) {
                         const runResources = state.getResources('github_testrun').filter((r: any) =>
-                            r.identity.endsWith(tr)
+                            r.identity.split('::')[0].endsWith(tr)
                         );
 
                         const distinctFiles = new Set(runResources.map((r: any) => r.identity.split('::')[0]));
@@ -567,7 +567,7 @@ resource.registry({
                         if (validResources.length > 0) {
                             for (const runResource of validResources) {
                                 if (runResource?.attributes?.issueNumber) {
-                                    body += `- [ ] #${runResource.attributes.issueNumber} - ${runResource.attributes.title}\n`;
+                                    body += `- [ ] #${runResource.attributes.issueNumber}\n`;
                                 } else {
                                     body += `- [ ] (known after apply) - ${runResource.identity}\n`;
                                 }
