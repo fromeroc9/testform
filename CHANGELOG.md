@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2026-06-12
+
+### Added
+- **Testplan Duplicate Testruns Policy:** Added a policy rule `duplicate-testruns-in-testplan` that validates both local duplicate testruns inside the same testplan file and global duplicate testruns declared across different testplan files.
+
+### Changed
+- **Testrun Link Clean Up:** Removed the redundant title suffix from testrun checklist items in the generated testplan issue body (keeping only the clean `#<issue_number>` reference).
+
+### Fixed
+- **Testrun State Lookup:** Fixed a bug in `github_testplan` body generation where testrun matching failed due to comparing identities with rule tag suffixes (e.g. `::@tr-X`).
+
 ## [1.0.15] - 2026-06-10
 
 ### Added

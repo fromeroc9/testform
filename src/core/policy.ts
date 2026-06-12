@@ -370,4 +370,63 @@ policy.registry({
             }
         }
     }
-})
+});
+
+policy.registry({
+    id: "duplicate-testruns-in-testplan",
+    scope: ["testplan"],
+    action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
+        const globalSeen = new Map<string, { uri: string; scenario: string; line: number }[]>();
+
+        for (const scenario of scenarios) {
+            const testruns = scenario.custom?.testruns || [];
+            const seenInFile = new Set<string>();
+            const fileDuplicates = new Set<string>();
+
+            for (const tr of testruns) {
+                if (seenInFile.has(tr)) {
+                    fileDuplicates.add(tr);
+                } else {
+                    seenInFile.add(tr);
+                }
+
+                const trKey = tr.trim();
+                const info = { uri: scenario.uri, scenario: scenario.name, line: scenario.location };
+                if (!globalSeen.has(trKey)) {
+                    globalSeen.set(trKey, []);
+                }
+                globalSeen.get(trKey)!.push(info);
+            }
+
+            if (fileDuplicates.size > 0) {
+                rules.push({
+                    id: "duplicate-testruns-in-testplan",
+                    title: `Duplicate testruns defined in the same testplan: ${Array.from(fileDuplicates).join(", ")}`,
+                    detail: `Remove the duplicate Rule declarations from this testplan.`,
+                    uri: scenario.uri,
+                    scenario: scenario.name,
+                    line: scenario.location,
+                });
+            }
+        }
+
+        for (const [tr, occurrences] of globalSeen) {
+            if (occurrences.length > 1) {
+                const distinctUris = new Set(occurrences.map(o => o.uri));
+                if (distinctUris.size > 1) {
+                    for (const occ of occurrences) {
+                        const otherFiles = Array.from(distinctUris).filter(u => u !== occ.uri);
+                        rules.push({
+                            id: "duplicate-testruns-across-testplans",
+                            title: `Testrun "${tr}" is declared in multiple testplans`,
+                            detail: `This testrun is also declared in: ${otherFiles.join(", ")}. A testrun should only belong to one testplan.`,
+                            uri: occ.uri,
+                            scenario: occ.scenario,
+                            line: occ.line,
+                        });
+                    }
+                }
+            }
+        }
+    }
+});
