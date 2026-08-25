@@ -95,7 +95,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log('');
             const ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
             if (!ctx) return;
-            const { github } = ctx;
+            const { adapter: github } = ctx;
             
             for (const res of resources) {
                 const address = formatResourceAddress(res.type, res.identity);

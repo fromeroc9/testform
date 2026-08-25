@@ -1,3 +1,118 @@
 {
-    "version": "1.0"
+    "version": "1.0",
+    "provider": {
+        "type": "github",
+        "config": {
+            "owner": "fromeroc9",
+            "repository": "terratest-demo",
+            "projectId": 1
+        }
+    },
+    "backend": {
+        "type": "local"
+    },
+    "scope": {
+        "global": {
+            "fields": [
+                {
+                    "name": "priority",
+                    "type": "tags",
+                    "required": true,
+                    "values": [
+                        "@low",
+                        "@medium",
+                        "@high"
+                    ],
+                    "default": "@medium"
+                },
+                {
+                    "name": "Status",
+                    "type": "keywords",
+                    "required": false,
+                    "default": "Done"
+                },
+                {
+                    "name": "assignees",
+                    "type": "keywords",
+                    "required": false,
+                    "default": "fromeroc9"
+                },
+                {
+                    "name": "project",
+                    "type": "keywords",
+                    "required": true
+                }
+            ]
+        },
+        "testcase": {
+            "fields": [
+                {
+                    "name": "type_of_test",
+                    "type": "keywords",
+                    "required": false,
+                    "default": "funcional"
+                },
+                {
+                    "name": "automate",
+                    "type": "tags",
+                    "default": "not apply"
+                },
+                {
+                    "name": "module",
+                    "type": "keywords",
+                    "required": true
+                }
+            ]
+        },
+        "testrun": {
+            "fields": [
+                {
+                    "name": "component",
+                    "type": "keywords",
+                    "required": false
+                },
+                {
+                    "name": "sprint",
+                    "type": "keywords",
+                    "required": false
+                },
+                {
+                    "name": "startDate",
+                    "type": "keywords",
+                    "required": false
+                },
+                {
+                    "name": "endDate",
+                    "type": "keywords",
+                    "required": false
+                },
+                {
+                    "name": "quarter",
+                    "type": "keywords",
+                    "required": false,
+                    "default": "Q2"
+                },
+                {
+                    "name": "sprint",
+                    "type": "keywords",
+                    "required": false,
+                    "default": "Sprint 3"
+                }
+            ]
+        },
+        "testplan": {
+            "fields": [
+                {
+                    "name": "component",
+                    "type": "keywords",
+                    "required": false
+                },
+                {
+                    "name": "squad",
+                    "type": "keywords",
+                    "required": false
+                }
+            ]
+        }
+    }
 }

@@ -3,6 +3,8 @@ import { resolve, normalize, join } from 'path';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { GitHubAdapter } from '../adapters/github';
+import { LocalAdapter } from '../adapters/local';
+import { IProviderAdapter } from '../adapters/interface';
 import { Parser } from '../core/parser';
 import { resource } from '../core/resources';
 import { bold, green, red, yellow } from "chalk";
@@ -57,7 +59,13 @@ export const importCmd = async (options: ImportCmdOptions) => {
             process.exit(1);
         }
         const config: IConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        const github = new GitHubAdapter(config.github!);
+        let github: IProviderAdapter;
+        const configClass = new Config(dir);
+        if (configClass.getAdapterType() === 'local') {
+            github = new LocalAdapter(dir);
+        } else {
+            github = new GitHubAdapter(configClass.getGitHub()!);
+        }
 
         // Validate issueNumber
         const issueNum = parseInt(issueNumber, 10);
@@ -136,7 +144,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
         // Fetch custom fields
         let customFields: Record<string, string> = {};
         if (issue.node_id) {
-            customFields = await github.getProjectItemFields(issue.node_id);
+            customFields = github.getProjectItemFields ? await github.getProjectItemFields(issue.node_id) : {};
         }
 
         // Auto-reconstruct code if not matched

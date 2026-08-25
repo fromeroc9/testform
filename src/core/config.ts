@@ -42,8 +42,15 @@ export class Config {
         return this.config;
     }
 
+    getAdapterType(): 'github' | 'local' {
+        return this.config.provider?.type || 'local';
+    }
+
     getGitHub(): IGitHubConfig | undefined {
-        const github = this.config.github as any;
+        let github: any = undefined;
+        if (this.config.provider?.type === 'github' && this.config.provider.config) {
+            github = this.config.provider.config;
+        }
         if (!github) return undefined;
         return {
             owner: github.owner,

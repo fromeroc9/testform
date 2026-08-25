@@ -15,6 +15,7 @@ export class State {
     private backend: IBackend;
     private workspaceManager: WorkspaceManager;
     private lockAcquired: boolean = false;
+    private dir: string;
 
     constructor(
         dir: string,
@@ -24,6 +25,7 @@ export class State {
         backendConfigRaw?: string | string[],
         explicitBackendConfig?: any
     ) {
+        this.dir = dir;
         const config = new Config(dir);
         let backendConfig = explicitBackendConfig || config.getBackend();
 
@@ -91,11 +93,14 @@ export class State {
             });
         }
 
+        const config = new Config(this.dir);
+
         this.state = {
             version: parsed.version || VERSION_STATE,
             serial: parsed.serial ?? 0,
             lineage: parsed.lineage ?? randomUUID(),
             lastSync: parsed.lastSync ?? '',
+            provider: parsed.provider ?? config.getAdapterType(),
             resources: parsed.resources ?? [],
         };
     }

@@ -140,7 +140,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         // We pass lock: false because stateObj already holds the lock.
         const ctx = await createCommandContext({ dir, verbose, lock: false });
         if (!ctx) return;
-        const { github } = ctx;
+        const { adapter: github } = ctx;
 
         let added = 0;
         let changed = 0;
@@ -173,7 +173,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             try {
                                 const issueDetails = await github.getIssue(runResource.attributes.issueNumber as number);
                                 if (issueDetails && issueDetails.id) {
-                                    await github.addSubIssue(parentIssueNumber, issueDetails.id);
+                                    if (github.addSubIssue) await github.addSubIssue(parentIssueNumber, issueDetails.id);
                                     console.log(`  -> Linked testrun ${runResource.identity} as sub-issue to testplan`);
                                 }
                             } catch (e: any) {
@@ -232,9 +232,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await resolvePayloadMilestone(payload);
                         const result = await github.createIssue(payload);
 
-                        if (result.node_id) {
+                        if (result.node_id && github.addToProject) {
                             const itemId = await github.addToProject(result.node_id);
-                            if (itemId && (payload as any).custom_fields) {
+                            if (itemId && (payload as any).custom_fields && github.updateProjectItemFields) {
                                 await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
                             }
                         }
@@ -291,9 +291,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await resolvePayloadMilestone(payload);
                         const result = await github.createIssue(payload);
 
-                        if (result.node_id) {
+                        if (result.node_id && github.addToProject) {
                             const itemId = await github.addToProject(result.node_id);
-                            if (itemId && (payload as any).custom_fields) {
+                            if (itemId && (payload as any).custom_fields && github.updateProjectItemFields) {
                                 await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
                             }
                         }
@@ -342,9 +342,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await resolvePayloadMilestone(payload);
                         const result = await github.updateIssue(change.issueNumber!, payload);
 
-                        if (result.node_id) {
+                        if (result.node_id && github.addToProject) {
                             const itemId = await github.addToProject(result.node_id);
-                            if (itemId && (payload as any).custom_fields) {
+                            if (itemId && (payload as any).custom_fields && github.updateProjectItemFields) {
                                 await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
                             }
                         }

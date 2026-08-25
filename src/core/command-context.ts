@@ -8,6 +8,8 @@
  */
 
 import { GitHubAdapter } from '../adapters/github';
+import { LocalAdapter } from '../adapters/local';
+import { IProviderAdapter } from '../adapters/interface';
 import { Config } from './config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
@@ -21,8 +23,8 @@ import { ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 export interface CommandContext {
     /** Initialized and locked state instance. */
     state: State;
-    /** Authenticated GitHub adapter ready for API calls. */
-    github: GitHubAdapter;
+    /** Authenticated provider adapter ready for API calls. */
+    adapter: IProviderAdapter;
     /** Loaded project configuration (testform.json). */
     config: Config;
     /** Logger configured with the command's verbosity setting. */
@@ -85,26 +87,31 @@ export async function createCommandContext(
     const logger = new Logger(verbose);
     const config = new Config(dir);
     const ghConfig = config.getGitHub();
+    const adapterType = config.getAdapterType();
+    let adapter: IProviderAdapter;
 
-    if (!ghConfig) {
-        if (!silent) {
-            notify.push({
-                type: 'error',
-                title: 'GitHub configuration not found',
-                detail: [ERR_GITHUB_CONFIG_NOT_FOUND],
-                close: true,
-            });
+    if (adapterType === 'local') {
+        adapter = new LocalAdapter(dir);
+    } else {
+        if (!ghConfig) {
+            if (!silent) {
+                notify.push({
+                    type: 'error',
+                    title: 'GitHub configuration not found',
+                    detail: [ERR_GITHUB_CONFIG_NOT_FOUND],
+                    close: true,
+                });
+            }
+            return null;
         }
-        return null;
+        adapter = new GitHubAdapter(ghConfig);
     }
 
     const state = new State(dir, statePath, backupPath);
     await state.init();
     await state.acquireLock(lock, lockTimeout);
 
-    const github = new GitHubAdapter(ghConfig);
-
-    return { state, github, config, logger };
+    return { state, adapter, config, logger };
 }
 
 /**

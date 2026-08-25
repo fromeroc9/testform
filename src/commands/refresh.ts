@@ -8,6 +8,8 @@
 
 import { bold, green, yellow, red, dim } from 'chalk';
 import { GitHubAdapter } from '../adapters/github';
+import { LocalAdapter } from '../adapters/local';
+import { IProviderAdapter } from '../adapters/interface';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
@@ -65,21 +67,26 @@ export const refreshState = async (options: RefreshStateOptions) => {
     }
 
     const config = new Config(dir);
-    const ghConfig = config.getGitHub();
+    const adapterType = config.getAdapterType();
+    let github: IProviderAdapter;
 
-    if (!ghConfig) {
-        if (!silent) {
-            notify.push({
-                type: 'error',
-                title: 'GitHub configuration not found',
-                detail: [ERR_GITHUB_CONFIG_NOT_FOUND],
-                close: true,
-            });
+    if (adapterType === 'local') {
+        github = new LocalAdapter(dir);
+    } else {
+        const ghConfig = config.getGitHub();
+        if (!ghConfig) {
+            if (!silent) {
+                notify.push({
+                    type: 'error',
+                    title: 'GitHub configuration not found',
+                    detail: [ERR_GITHUB_CONFIG_NOT_FOUND],
+                    close: true,
+                });
+            }
+            return;
         }
-        return;
+        github = new GitHubAdapter(ghConfig);
     }
-
-    const github = new GitHubAdapter(ghConfig);
 
     let refreshed = 0;
     let removed = 0;
@@ -151,7 +158,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
                     // Fetch custom fields
                     if (issue.node_id) {
-                        const remoteCustomFields = await github.getProjectItemFields(issue.node_id);
+                        const remoteCustomFields = github.getProjectItemFields ? await github.getProjectItemFields(issue.node_id) : {};
                         const localCustomFields: Record<string, string> = (res.attributes.custom_fields as Record<string, string>) || {};
 
                         // Check all local custom fields to see if they changed or were cleared on remote

@@ -4,6 +4,8 @@ import fs from "fs";
 import { StateResource } from '../core/types';
 import { Config } from '../core/config';
 import { GitHubAdapter } from '../adapters/github';
+import { LocalAdapter } from '../adapters/local';
+import { IProviderAdapter } from '../adapters/interface';
 import { VariableParser } from '../core/variables';
 
 interface ReportCmdOptions {
@@ -176,11 +178,18 @@ export const reportCmd = async (options: ReportCmdOptions) => {
         }
 
         const config = new Config(dir);
+        const adapterType = config.getAdapterType();
+        let github: IProviderAdapter;
 
-        const ghConfig = config.getGitHub();
-        if (!ghConfig) {
-            console.error(red('Error: GitHub configuration not found in testform.json'));
-            process.exit(1);
+        if (adapterType === 'local') {
+            github = new LocalAdapter(dir);
+        } else {
+            const ghConfig = config.getGitHub();
+            if (!ghConfig) {
+                console.error(red('Error: GitHub configuration not found in testform.json'));
+                process.exit(1);
+            }
+            github = new GitHubAdapter(ghConfig);
         }
 
         const reportFields = config.getFields('testreport');
@@ -204,7 +213,6 @@ export const reportCmd = async (options: ReportCmdOptions) => {
             }
         }
 
-        const github = new GitHubAdapter(ghConfig);
 
         const dateStr = new Date().toISOString().split('T')[0];
         const titleType = type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ');
@@ -219,14 +227,19 @@ export const reportCmd = async (options: ReportCmdOptions) => {
             milestone: milestone ? parseInt(milestone, 10) : undefined
         });
 
-        console.log(green(`✅ Report successfully created: https://github.com/${ghConfig.owner}/${ghConfig.repository}/issues/${result.number}`));
+        const ghConfig = config.getGitHub();
+        if (ghConfig) {
+            console.log(green(`✅ Report successfully created: https://github.com/${ghConfig.owner}/${ghConfig.repository}/issues/${result.number}`));
+        } else {
+            console.log(green(`✅ Report successfully created: #${result.number}`));
+        }
 
-        if (result.node_id && ghConfig.projectId) {
+        if (result.node_id && ghConfig?.projectId && github.addToProject) {
             try {
                 const itemId = await github.addToProject(result.node_id!);
                 if (itemId) {
-                    console.log(green(`✅ Issue added to GitHub Project.`));
-                    if (Object.keys(customFieldsMap).length > 0) {
+                    console.log(green(`✅ Issue added to Project.`));
+                    if (Object.keys(customFieldsMap).length > 0 && github.updateProjectItemFields) {
                         console.log(`Setting custom fields...`);
                         await github.updateProjectItemFields(itemId, customFieldsMap);
                         console.log(green(`✅ Custom fields updated successfully.`));

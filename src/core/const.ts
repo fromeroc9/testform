@@ -31,6 +31,9 @@ export const FILE_CONFIG = "testform.json";
 /** Default state file name. */
 export const FILE_STATE = "testform.state";
 
+// Default data file name.
+export const FILE_DATA = "testform.data";
+
 // ─── Scope Maps ───────────────────────────────────────────────────────────────
 
 /**

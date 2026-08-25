@@ -2,9 +2,14 @@
 export type IScope = 'testcase' | 'testrun' | 'testplan' | 'testreport';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
+export interface IProviderConfig {
+    type: 'github' | 'local';
+    config?: any;
+}
+
 export interface IConfig {
     version?: string;
-    github?: IGitHubConfig;
+    provider?: IProviderConfig;
     backend?: IBackendConfig;
     scope?: {
         global?: ITest;
@@ -105,6 +110,7 @@ export interface IState {
     serial: number;
     lineage: string;
     lastSync: string;
+    provider?: string;
     resources: StateResource[];
 }
 
@@ -214,7 +220,7 @@ export interface GitHubIssuePayload {
     body: string;
     labels: string[];
     assignees?: string[];
-    milestone?: number;
+    milestone?: number | string;
     state?: string;
 }
 

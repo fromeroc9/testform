@@ -373,7 +373,7 @@ async function runState(options: {
 
     const commentBody = `**Origin:** ${originFile}\n<table border="1" width="100%">\n    <tr>\n        <th colspan="3">Feature Name</th>\n    </tr>\n    <tr>\n        <td>${safeScenario}</td>\n        <td>${tcTitle}</td>\n        <td>${newStatus}</td>\n    </tr>\n    <tr>\n        <td colspan="3"><br/></td>\n    </tr>\n</table>`;
 
-    await ctx.github.updateIssueComment(commentId, commentBody);
+    await ctx.adapter.updateIssueComment(commentId, commentBody);
     console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
 
     if (!foundRun.attributes.testcaseStatuses) foundRun.attributes.testcaseStatuses = {};
@@ -400,7 +400,7 @@ async function runState(options: {
                 r.uri === runScenario.uri || r.custom?.identity === foundRun.identity
             );
             const payload = resource.evaluate('github_testrun', freshRunScenario || runScenario, { state: stateObj, testDirectory }) as any;
-            await ctx.github.updateIssue(foundRun.attributes.issueNumber, payload);
+            await ctx.adapter.updateIssue(foundRun.attributes.issueNumber, payload);
             console.log(`  -> Synced status to main issue body #${foundRun.attributes.issueNumber}`);
         } catch (e: any) {
             console.log(`  -> Failed to update local file or issue body: ${e.message}`);
