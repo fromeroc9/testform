@@ -211,8 +211,8 @@ async function runAutocomplete(options: {
  * Returns: { featurePart, tcIdentity, newStatus }
  */
 function parseTcArg(tcArg: string): { featurePart: string; tcIdentity: string; newStatus: string } {
-    // Strip type prefix
-    const stripped = tcArg.replace(/^github_testcase\./, '');
+    // Strip type prefix (e.g. github_testcase., local_testcase., testcase.)
+    const stripped = tcArg.replace(/^([a-zA-Z0-9_-]+_)?testcase\./, '');
     // Normalize :: to @
     const normalized = stripped.replace('::', '@');
 
@@ -286,7 +286,7 @@ async function runState(options: {
     }
 
     // Find testrun resource in state
-    const runs = stateObj.getResources('github_testrun');
+    const runs = stateObj.getResources('testrun');
     const foundRun = runs.find((r: any) => r.identity === identity);
 
     if (!foundRun) {
@@ -365,7 +365,7 @@ async function runState(options: {
     if (!ctx) process.exit(1);
 
     // Build comment body
-    const tcResource = stateObj.getResources('github_testcase').find((r: any) => r.identity === targetId);
+    const tcResource = stateObj.getResources('testcase').find((r: any) => r.identity === targetId);
     const tcTitle = tcResource?.attributes?.title || targetId;
     const [baseRule, scenarioName] = targetId.split('::');
     const originFile = require('path').basename(baseRule || '');
@@ -380,7 +380,7 @@ async function runState(options: {
     foundRun.attributes.testcaseStatuses[targetId] = newStatus;
     await stateObj.save();
 
-    console.log(`\n  ${yellow('~')} resource "github_testrun" "${foundRun.identity}" {`);
+    console.log(`\n  ${yellow('~')} resource "${foundRun.type || 'testrun'}" "${foundRun.identity}" {`);
     console.log(`      ${yellow('~')} testcaseStatuses {`);
     console.log(`          ${yellow('~')} "${targetId}": "${oldStatus}" -> "${newStatus}"`);
     console.log(`        }`);
@@ -399,7 +399,7 @@ async function runState(options: {
             const freshRunScenario = freshRuns?.find((r: any) =>
                 r.uri === runScenario.uri || r.custom?.identity === foundRun.identity
             );
-            const payload = resource.evaluate('github_testrun', freshRunScenario || runScenario, { state: stateObj, testDirectory }) as any;
+            const payload = resource.evaluate(foundRun.type || 'testrun', freshRunScenario || runScenario, { state: stateObj, testDirectory }) as any;
             await ctx.adapter.updateIssue(foundRun.attributes.issueNumber, payload);
             console.log(`  -> Synced status to main issue body #${foundRun.attributes.issueNumber}`);
         } catch (e: any) {

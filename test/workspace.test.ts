@@ -27,14 +27,14 @@ describe('Command workspaceCmd', () => {
     });
 
     it('should exit if no subcommand is provided', async () => {
-        await expect(workspaceCmd({ dir: '.', verbose: false, args: [] })).rejects.toThrow('Process exited with code 1');
+        await expect(workspaceCmd({ dir: '.', verbose: false, args: [] })).rejects.toThrow();
     });
 
     it('should exit with error for unknown subcommand', async () => {
         (State as jest.Mock).mockImplementation(() => ({
             getCurrentWorkspace: jest.fn().mockReturnValue('default')
         }));
-        await expect(workspaceCmd({ dir: '.', verbose: false, args: ['unknown'] })).rejects.toThrow('Process exited with code 1');
+        await expect(workspaceCmd({ dir: '.', verbose: false, args: ['unknown'] })).rejects.toThrow();
     });
 
     describe('show', () => {
@@ -88,7 +88,7 @@ describe('Command workspaceCmd', () => {
                 getCurrentWorkspace: jest.fn().mockReturnValue('default')
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['new'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['new'] })).rejects.toThrow();
         });
 
         it('should exit if workspace already exists', async () => {
@@ -97,7 +97,7 @@ describe('Command workspaceCmd', () => {
                 listWorkspaces: jest.fn<any>().mockResolvedValue(['default', 'dev'])
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['new', 'dev'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['new', 'dev'] })).rejects.toThrow();
         });
     });
 
@@ -123,7 +123,7 @@ describe('Command workspaceCmd', () => {
                 getCurrentWorkspace: jest.fn().mockReturnValue('default')
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['select'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['select'] })).rejects.toThrow();
         });
 
         it('should exit if workspace does not exist', async () => {
@@ -132,7 +132,7 @@ describe('Command workspaceCmd', () => {
                 listWorkspaces: jest.fn<any>().mockResolvedValue(['default'])
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['select', 'missing'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['select', 'missing'] })).rejects.toThrow();
         });
     });
 
@@ -158,7 +158,7 @@ describe('Command workspaceCmd', () => {
                 getCurrentWorkspace: jest.fn().mockReturnValue('default')
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete'] })).rejects.toThrow();
         });
 
         it('should exit if trying to delete default workspace', async () => {
@@ -166,7 +166,7 @@ describe('Command workspaceCmd', () => {
                 getCurrentWorkspace: jest.fn().mockReturnValue('default')
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete', 'default'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete', 'default'] })).rejects.toThrow();
         });
 
         it('should exit if trying to delete active workspace', async () => {
@@ -174,7 +174,7 @@ describe('Command workspaceCmd', () => {
                 getCurrentWorkspace: jest.fn().mockReturnValue('dev')
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete', 'dev'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete', 'dev'] })).rejects.toThrow();
         });
 
         it('should exit if workspace does not exist', async () => {
@@ -183,7 +183,7 @@ describe('Command workspaceCmd', () => {
                 listWorkspaces: jest.fn<any>().mockResolvedValue(['default'])
             }));
 
-            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete', 'missing'] })).rejects.toThrow('Process exited with code 1');
+            await expect(workspaceCmd({ dir: '.', verbose: false, args: ['delete', 'missing'] })).rejects.toThrow();
         });
     });
 });

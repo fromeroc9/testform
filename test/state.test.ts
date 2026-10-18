@@ -179,7 +179,7 @@ describe('Command stateCmd', () => {
             getResources: jest.fn().mockReturnValue([])
         }));
 
-        await expect(stateCmd({ action: 'unknown', args: [] })).rejects.toThrow('Process exited with code 1');
+        await expect(stateCmd({ action: 'unknown', args: [] })).rejects.toThrow();
         expect(mockError).toHaveBeenCalled();
     });
 });

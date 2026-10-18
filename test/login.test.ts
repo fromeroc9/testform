@@ -37,9 +37,9 @@ describe('Command loginCmd', () => {
     });
 
     it('should successfully log in when a valid token is provided', async () => {
-        const mockSetToken = jest.fn();
+        const mockSetAuth = jest.fn();
         (Credentials as jest.Mock).mockImplementation(() => ({
-            setToken: mockSetToken
+            setAuth: mockSetAuth
         }));
 
         // Simulate user typing a valid token
@@ -49,10 +49,10 @@ describe('Command loginCmd', () => {
 
         await loginCmd({ hostname: 'github.com' });
 
-        expect(mockSetToken).toHaveBeenCalledWith('github.com', 'my-secret-token');
+        expect(mockSetAuth).toHaveBeenCalledWith('github.com', { token: 'my-secret-token' });
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
-        expect(logs).toContain('Logged in to github.com');
+        expect(logs).toContain('Configuration saved for github.com');
         expect(mockClose).toHaveBeenCalled();
     });
 
@@ -66,22 +66,22 @@ describe('Command loginCmd', () => {
 
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
-        expect(logs).toContain('Token cannot be empty. Login aborted.');
+        expect(logs).toContain('Token cannot be empty');
         expect(mockClose).toHaveBeenCalled();
     });
 
     it('should default to github.com if hostname is app.terraform.io', async () => {
-        const mockSetToken = jest.fn();
+        const mockSetAuth = jest.fn();
         (Credentials as jest.Mock).mockImplementation(() => ({
-            setToken: mockSetToken
+            setAuth: mockSetAuth
         }));
 
         mockQuestion.mockImplementation(((questionText: string, cb: any) => {
             cb('token123');
         }) as any);
 
-        await loginCmd(); // Default options use app.terraform.io
+        await loginCmd({ hostname: 'app.terraform.io' });
 
-        expect(mockSetToken).toHaveBeenCalledWith('github.com', 'token123');
+        expect(mockSetAuth).toHaveBeenCalledWith('github.com', { token: 'token123' });
     });
 });

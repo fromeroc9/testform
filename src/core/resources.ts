@@ -18,14 +18,22 @@ class Resource {
     }
 
     private get(type: string): ResourceTemplate {
-        const template = this.resolve().find(t => t.type === type);
+        const templates = this.resolve();
+        let template = templates.find(t => t.type === type);
+        if (!template && type.includes('_')) {
+            const canonical = type.split('_').slice(1).join('_');
+            template = templates.find(t => t.type === canonical || t.type.endsWith(`_${canonical}`));
+        }
+        if (!template) {
+            template = templates.find(t => t.type.endsWith(`_${type}`));
+        }
         if (!template) {
             notify.push({
                 type: 'error',
                 title: `Unknown resource type: "${type}"`,
                 detail: [
                     `No template is registered for resource type "${type}".`,
-                    `Available types: ${this.resolve().map(t => t.type).join(', ') || '(none)'}`,
+                    `Available types: ${templates.map(t => t.type).join(', ') || '(none)'}`,
                 ],
                 close: true,
             });

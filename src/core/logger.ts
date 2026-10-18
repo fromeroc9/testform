@@ -1,5 +1,6 @@
 import { cyan, green, yellow, red, gray, bold, dim } from 'chalk';
 import { LogLevel, LogOptions, INotify } from './types';
+import { TestformError } from './errors';
 
 export class Logger {
     private verbose: boolean = false;
@@ -98,8 +99,7 @@ export class Logger {
         const msgStr = this.formatMessage(message);
         if (this.isJson) {
             this.emitJson("error", msgStr, error ? (error instanceof Error ? error.stack : error) : undefined);
-            process.exit(1);
-            return;
+            throw new TestformError(msgStr);
         }
         console.error(red('╷'));
         const prefix = bold(red('Error:'));
@@ -125,7 +125,7 @@ export class Logger {
             }
         }
         console.error(red('╵'));
-        process.exit(1);
+        throw new TestformError(msgStr);
     }
 
     blank(): void {
@@ -142,7 +142,7 @@ export class Logger {
 
         if (this.isJson) {
             this.emitJson(options.type === 'warning' ? "warn" : "error", options.title, { detail: options.detail, extra: options.extra });
-            if (close) process.exit(1);
+            if (close) throw new TestformError(options.title);
             return;
         }
 
@@ -164,7 +164,7 @@ export class Logger {
 
         console.log(lineColor('╵'));
 
-        if (close) process.exit(1);
+        if (close) throw new TestformError(options.title);
     }
 
     refresh(resourceId: string, remoteId?: string) {

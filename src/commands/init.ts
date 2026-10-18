@@ -30,9 +30,12 @@ const createConfigIfNotExists = (configPath: string, logger: Logger): boolean =>
 
     const initialConfig = {
         version: VERSION_CONFIG,
-        github: {
-            owner: "<required>",
-            repository: "<required>"
+        provider: {
+            type: "github",
+            config: {
+                owner: "<required>",
+                repository: "<required>"
+            }
         },
         backend: {
             type: "local",
@@ -135,12 +138,11 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     const isBackendChanged = activeBackend && backendConfig && JSON.stringify(activeBackend) !== JSON.stringify(backendConfig);
 
     if (wasAlreadyInitialized && !isBackendChanged && !reconfigure) {
-        logger.error([
+        logger.info([
             `${TITLE_APP} initialized in not empty directory!`,
             `The directory has ${TITLE_APP} configuration files. You may begin working`,
             `with ${TITLE_APP} immediately by creating ${TITLE_APP} resources.`
         ]);
-        return;
     }
 
     if (isBackendChanged && backendConfig) {

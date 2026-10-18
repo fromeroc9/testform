@@ -135,7 +135,7 @@ describe('Command taintCmd', () => {
             getResources: jest.fn().mockReturnValue([])
         }));
 
-        await expect(taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1' })).rejects.toThrow('Process exited with code 1');
+        await expect(taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1' })).rejects.toThrow();
         
         expect(mockError).toHaveBeenCalled();
         const logs = mockError.mock.calls.join(' ');
@@ -150,7 +150,7 @@ describe('Command taintCmd', () => {
             getResources: jest.fn().mockReturnValue([])
         }));
 
-        await expect(taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1', allowMissing: true })).rejects.toThrow('Process exited with code 0');
+        await taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1', allowMissing: true });
         
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');

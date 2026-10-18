@@ -117,6 +117,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 if (!input) {
                     const error = new Error(ERR_NO_INPUT_ALLOWED + '\nUse the -auto-approve flag to bypass approval.');
                     error.name = 'No input allowed';
+                    console.error(error.name + ': ' + error.message);
                     throw error;
                 }
                 const approved = await askApproval();
@@ -140,7 +141,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         // We pass lock: false because stateObj already holds the lock.
         const ctx = await createCommandContext({ dir, verbose, lock: false });
         if (!ctx) return;
-        const { adapter: github } = ctx;
+        const github = (ctx.adapter || (ctx as any).github);
 
         let added = 0;
         let changed = 0;
@@ -157,9 +158,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
         // Helper to link testruns as sub-issues to testplans
         const linkSubIssues = async (change: any, parentIssueNumber: number) => {
-            if (change.resourceType === 'github_testplan' && change.scenario.custom?.testruns) {
+            if (change.resourceType.endsWith('testplan') && change.scenario.custom?.testruns) {
                 for (const tr of change.scenario.custom.testruns) {
-                    const runResources = stateObj.getResources('github_testrun').filter(r =>
+                    const runResources = stateObj.getResources('testrun').filter(r =>
                         r.identity.endsWith(tr) || r.identity.includes(tr)
                     );
 
@@ -187,7 +188,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
         // Helper to sync status comments for testruns
         const syncTestrunComments = async (change: any, issueNumber: number, existingAttributes?: any) => {
-            if (change.resourceType !== 'github_testrun' || !change.scenario.custom?.testcases) return {};
+            if (!change.resourceType.endsWith('testrun') || !change.scenario.custom?.testcases) return {};
 
             const testcaseCommentIds: Record<string, any> = existingAttributes?.testcaseCommentIds || {};
             const testcaseStatuses: Record<string, string> = existingAttributes?.testcaseStatuses || {};

@@ -1,13 +1,17 @@
-import { createHash } from 'crypto';
-import { bold, green, yellow, red, cyan, dim } from 'chalk';
+﻿import { createHash } from 'crypto';
+import { bold, green, yellow, red, cyan, dim, gray } from 'chalk';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { resolve, join } from 'path';
+import * as readline from 'readline';
 import { Config } from '../core/config';
 import { Parser } from '../core/parser';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
-import { IScope, DiffEntry, DiffStatus, ParserScenario } from '../core/types';
-import { SCOPE_RESOURCE_MAP } from '../core/const';
+import { IScope, DiffEntry, DiffStatus, ParserScenario, StateResource } from '../core/types';
+import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
+import { createCommandContext } from '../core/command-context';
 
-function hashScenario(scenario: ParserScenario, scope?: IScope): string {
+export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
     if (!scope || scope === 'testcase') {
         clone.name = '';
@@ -22,7 +26,7 @@ function hashScenario(scenario: ParserScenario, scope?: IScope): string {
 
 function getStatusIcon(status: DiffStatus): string {
     switch (status) {
-        case 'synced': return green('✓');
+        case 'synced': return green('✔');
         case 'modified_locally': return yellow('~');
         case 'new_local': return cyan('+');
         case 'orphaned_remote': return red('-');
@@ -38,33 +42,117 @@ function getStatusLabel(status: DiffStatus): string {
     }
 }
 
-/**
- * Diff command: show drift between local configuration and state.
- * Unlike plan (which shows what apply WOULD do), diff shows the raw comparison
- * between local files and the last-applied state.
- */
-interface DiffCmdOptions {
+export interface DiffCmdOptions {
     dir?: string;
+    testDirectory?: string;
     verbose?: boolean;
-    scope: IScope | 'all';
+    scope: IScope | 'all' | 'remote';
+    remote?: boolean;
+    interactive?: boolean;
+    statePath?: string;
+    backupPath?: string;
+}
+
+export interface RemoteDriftDifference {
+    field: string;
+    local: string;
+    remote: string;
+}
+
+export interface RemoteDriftItem {
+    identity: string;
+    resourceType: string;
+    issueNumber: number;
+    filePath?: string;
+    differences: RemoteDriftDifference[];
+    isClosed?: boolean;
+    remoteIssue: any;
+    scenario?: ParserScenario;
+}
+
+function promptUser(rl: readline.Interface, question: string): Promise<string> {
+    return new Promise((resolvePrompt) => {
+        rl.question(question, (answer) => resolvePrompt(answer.trim()));
+    });
+}
+
+function updateFeatureScenario(
+    filePath: string,
+    oldTitle: string,
+    newTitle: string,
+    newLabels?: string[]
+): boolean {
+    if (!existsSync(filePath)) return false;
+    let content = readFileSync(filePath, 'utf8');
+
+    // 1. Update Scenario title if changed
+    if (oldTitle && newTitle && oldTitle !== newTitle) {
+        const escapedOld = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const scenarioRegex = new RegExp(`(Scenario(?: Outline)?:\\s*)${escapedOld}`, 'g');
+        if (scenarioRegex.test(content)) {
+            content = content.replace(scenarioRegex, `$1${newTitle}`);
+        }
+    }
+
+    // 2. Update labels if provided
+    if (newLabels && newLabels.length > 0) {
+        const searchTitle = newTitle || oldTitle;
+        const scenarioIdx = content.indexOf(`Scenario: ${searchTitle}`);
+        if (scenarioIdx !== -1) {
+            const beforeScenario = content.slice(0, scenarioIdx);
+            const lines = beforeScenario.split('\n');
+            const prevLine = lines[lines.length - 2]?.trim();
+            const formattedTags = newLabels.map(l => l.startsWith('@') ? l : `@${l}`).join(' ');
+
+            if (prevLine && prevLine.startsWith('@')) {
+                // Replace previous tag line
+                lines[lines.length - 2] = `  ${formattedTags}`;
+                content = lines.join('\n') + content.slice(scenarioIdx);
+            } else {
+                // Insert tags line before scenario
+                content = content.slice(0, scenarioIdx) + `  ${formattedTags}\n` + content.slice(scenarioIdx);
+            }
+        }
+    }
+
+    writeFileSync(filePath, content, 'utf8');
+    return true;
 }
 
 export const diffCmd = async (options: DiffCmdOptions) => {
-    const { dir = '.', verbose = false, scope } = options;
+    const {
+        dir = '.',
+        testDirectory,
+        verbose = false,
+        scope,
+        remote = false,
+        interactive = false,
+        statePath,
+        backupPath
+    } = options;
+
     const logger = new Logger(verbose);
+    const isRemote = remote || (scope as string) === 'remote';
+    const effectiveScope: IScope | 'all' = (scope as string) === 'remote' ? 'all' : (scope as IScope | 'all');
 
     // Load config and parse features
     const config = new Config(dir);
-    const parser = new Parser(dir);
+    const parseDir = testDirectory ? resolve(dir, testDirectory) : resolve(dir);
+    const parser = new Parser(parseDir);
     const documents = parser.content();
 
     // Load state
-    const state = new State(dir);
+    const state = new State(dir, statePath, backupPath);
     await state.init();
 
-    // Calculate diff
+    if (isRemote) {
+        await executeRemoteDrift(dir, parseDir, effectiveScope, state, config, parser, documents, interactive, verbose);
+        return;
+    }
+
+    // ── Local vs State Diff Mode ──
     const entries: DiffEntry[] = [];
-    const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+    const scopesToRun: IScope[] = effectiveScope === 'all' ? ['testcase', 'testrun', 'testplan'] : [effectiveScope];
 
     for (const s of scopesToRun) {
         const data = {
@@ -155,9 +243,188 @@ export const diffCmd = async (options: DiffCmdOptions) => {
 
     console.log('');
     console.log(bold('Summary:'));
-    console.log(`  ${green('✓')} ${synced} synced`);
+    console.log(`  ${green('✔')} ${synced} synced`);
     if (modified > 0) console.log(`  ${yellow('~')} ${modified} modified locally`);
     if (newLocal > 0) console.log(`  ${cyan('+')} ${newLocal} new (not applied)`);
     if (orphaned > 0) console.log(`  ${red('-')} ${orphaned} orphaned (not in config)`);
     console.log('');
+};
+
+async function executeRemoteDrift(
+    dir: string,
+    parseDir: string,
+    scope: IScope | 'all',
+    state: State,
+    config: Config,
+    parser: Parser,
+    documents: ParserScenario[],
+    interactive: boolean,
+    verbose: boolean
+) {
+    console.log('');
+    console.log(bold(`# ${TITLE_APP} Remote Drift Detection`));
+    console.log(dim('Checking local configuration and state against live remote provider...'));
+    console.log('═'.repeat(60));
+    console.log('');
+
+    const ctx = await createCommandContext({ dir, verbose, lock: false, silent: true });
+    if (!ctx) {
+        console.error(red('Failed to initialize provider context for remote drift check.'));
+        return;
+    }
+    const github = ctx.adapter || (ctx as any).github;
+
+    const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope];
+    const driftedItems: RemoteDriftItem[] = [];
+
+    for (const s of scopesToRun) {
+        const resourceType = SCOPE_RESOURCE_MAP[s];
+        const resources = state.getResources(resourceType);
+        const filterData = { identity: config.getIdentity(s), fields: config.getFields(s) };
+        const localScenarios = parser.filter(documents, filterData, s) || [];
+
+        for (const res of resources) {
+            const issueNum = res.attributes.issueNumber;
+            if (!issueNum) continue;
+
+            const matchedScenario = localScenarios.find(ls => {
+                const raw = ls.custom?.identity;
+                return raw === res.identity || `${ls.uri}::${raw}` === res.identity || res.identity.endsWith(raw || '');
+            });
+
+            try {
+                const issue = await github.getIssue(issueNum);
+                if (!issue) {
+                    driftedItems.push({
+                        identity: res.identity,
+                        resourceType,
+                        issueNumber: issueNum,
+                        differences: [{ field: 'status', local: 'exists in state', remote: 'not found on remote' }],
+                        remoteIssue: null,
+                        scenario: matchedScenario
+                    });
+                    continue;
+                }
+
+                const differences: RemoteDriftDifference[] = [];
+                const isClosed = issue.state === 'closed';
+
+                if (isClosed) {
+                    differences.push({ field: 'state', local: 'open/tracked', remote: 'closed on remote' });
+                }
+
+                // Check title
+                const localTitle = matchedScenario?.name || res.attributes.title || '';
+                if (localTitle && issue.title && localTitle.trim() !== issue.title.trim()) {
+                    differences.push({ field: 'title', local: localTitle, remote: issue.title });
+                }
+
+                // Check labels
+                const localLabels = Array.isArray(res.attributes.labels)
+                    ? res.attributes.labels.map(l => l.replace(/^@/, '').toLowerCase()).sort()
+                    : [];
+                const remoteLabels = Array.isArray(issue.labels)
+                    ? issue.labels.map((l: any) => (typeof l === 'string' ? l : l.name || '').replace(/^@/, '').toLowerCase()).sort()
+                    : [];
+
+                if (JSON.stringify(localLabels) !== JSON.stringify(remoteLabels)) {
+                    differences.push({
+                        field: 'labels',
+                        local: `[${localLabels.join(', ')}]`,
+                        remote: `[${remoteLabels.join(', ')}]`
+                    });
+                }
+
+                if (differences.length > 0) {
+                    driftedItems.push({
+                        identity: res.identity,
+                        resourceType,
+                        issueNumber: issueNum,
+                        filePath: matchedScenario?.uri,
+                        differences,
+                        isClosed,
+                        remoteIssue: issue,
+                        scenario: matchedScenario
+                    });
+                }
+            } catch (err: any) {
+                if (verbose) console.warn(yellow(`Could not fetch issue #${issueNum}: ${err.message}`));
+            }
+        }
+    }
+
+    if (driftedItems.length === 0) {
+        console.log(green('✔ No remote drift detected. Local configuration and state are fully synchronized with remote.'));
+        console.log('');
+        return;
+    }
+
+    console.log(yellow(`Found ${driftedItems.length} resource(s) with remote drift:\n`));
+
+    for (const item of driftedItems) {
+        console.log(`  ${yellow('~')} ${cyan(item.resourceType)}.${bold(item.identity)} (Issue #${item.issueNumber})`);
+        for (const diff of item.differences) {
+            console.log(`     Field ${bold(diff.field)}:`);
+            console.log(`       - Local:  ${red(diff.local)}`);
+            console.log(`       + Remote: ${green(diff.remote)}`);
+        }
+        console.log('');
+    }
+
+    // ── Interactive Resolution ──
+    if (interactive && driftedItems.length > 0) {
+        console.log(bold('Interactive Drift Resolution'));
+        console.log(dim('You can choose how to handle each drifted resource.\n'));
+
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+        try {
+            for (const item of driftedItems) {
+                console.log(`Resolution for ${bold(item.identity)} (Issue #${item.issueNumber}):`);
+                console.log(`  [1] PULL:      Update local .feature file with remote values`);
+                console.log(`  [2] OVERWRITE: Keep local .feature (next 'apply' will overwrite remote)`);
+                console.log(`  [3] SKIP:      Ignore for now`);
+
+                const answer = await promptUser(rl, 'Choose action [1-3]: ');
+
+                if (answer === '1') {
+                    if (item.filePath && existsSync(item.filePath) && item.remoteIssue) {
+                        const rawLabels = Array.isArray(item.remoteIssue.labels)
+                            ? item.remoteIssue.labels.map((l: any) => typeof l === 'string' ? l : l.name || '')
+                            : [];
+                        const updated = updateFeatureScenario(
+                            item.filePath,
+                            item.scenario?.name || '',
+                            item.remoteIssue.title,
+                            rawLabels
+                        );
+                        if (updated) {
+                            // Update state attributes
+                            const res = state.getResources(item.resourceType).find(r => r.identity === item.identity);
+                            if (res) {
+                                res.attributes.title = item.remoteIssue.title;
+                                res.attributes.labels = rawLabels;
+                                state.upsertResource(res);
+                            }
+                            console.log(green(`  ✔ Updated ${item.filePath} successfully!\n`));
+                        } else {
+                            console.log(yellow(`  Could not write changes to ${item.filePath}\n`));
+                        }
+                    } else {
+                        console.log(yellow(`  No local file mapped for ${item.identity}. Cannot pull automatically.\n`));
+                    }
+                } else if (answer === '2') {
+                    console.log(cyan(`  → Kept local version. Will overwrite remote on next apply.\n`));
+                } else {
+                    console.log(dim(`  → Skipped.\n`));
+                }
+            }
+
+            await state.save();
+        } finally {
+            rl.close();
+        }
+    } else if (!interactive) {
+        console.log(dim(`Tip: Run 'testform diff --remote --interactive' (or -i) to resolve drift interactively.\n`));
+    }
 }

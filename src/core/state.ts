@@ -9,6 +9,7 @@ import { AzureRMBackend, AzureRMBackendConfig } from '../backends/azurerm';
 import { GCSBackend, GCSBackendConfig } from '../backends/gcs';
 import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
+import { StateLockError } from '../core/errors';
 
 export class State {
     private state!: IState;
@@ -110,17 +111,10 @@ export class State {
 
         const success = await this.backend.lock(timeoutRaw);
         if (!success) {
-            console.error(`\nError: Acquiring the state lock.\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.\n`);
-            process.exit(1);
+            throw new StateLockError(`Error acquiring the state lock.\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.`);
         }
-        
-        this.lockAcquired = true;
 
-        const cleanup = async () => { await this.releaseLock(); process.exit(1); };
-        process.on('SIGINT', cleanup);
-        process.on('SIGTERM', cleanup);
-        // Using 'exit' with async is problematic, but we try to clean up synchronously if we can.
-        // Actually, we'll just handle clean exits gracefully via releaseLock().
+        this.lockAcquired = true;
     }
 
     async releaseLock(): Promise<void> {
@@ -159,12 +153,17 @@ export class State {
     }
 
     /**
-     * Get all resources of a given type.
+     * Get all resources of a given type (supports exact or canonical scope match).
      */
     getResources(type?: string): StateResource[] {
         if (!this.state.resources) return [];
         if (!type) return this.state.resources;
-        return this.state.resources.filter(r => r.type === type);
+        return this.state.resources.filter(r => {
+            if (r.type === type) return true;
+            const canonicalR = r.type.includes('_') ? r.type.split('_').slice(1).join('_') : r.type;
+            const canonicalT = type.includes('_') ? type.split('_').slice(1).join('_') : type;
+            return canonicalR === canonicalT;
+        });
     }
 
     // Workspace Delegation

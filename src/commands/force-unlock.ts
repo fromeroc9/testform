@@ -48,16 +48,20 @@ export const forceUnlockCmd = async (options: ForceUnlockCmdOptions) => {
     const { createInterface } = require('readline');
     const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-    return new Promise<void>((resolveReject) => {
+    return new Promise<void>((resolve, reject) => {
         rl.question('  Enter a value: ', async (answer: string) => {
             rl.close();
-            if (answer.trim().toLowerCase() === 'yes') {
-                await executeUnlock();
-            } else {
-                console.error(red(`\nUnlock cancelled.\n`));
-                process.exitCode = 1;
+            try {
+                if (answer.trim().toLowerCase() === 'yes') {
+                    await executeUnlock();
+                } else {
+                    console.error(red(`\nUnlock cancelled.\n`));
+                    process.exitCode = 1;
+                }
+                resolve();
+            } catch (err) {
+                reject(err);
             }
-            resolveReject();
         });
     });
 };

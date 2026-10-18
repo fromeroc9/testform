@@ -127,7 +127,7 @@ describe('Command applyCmd', () => {
             getResources: jest.fn().mockReturnValue([])
         }));
 
-        await expect(applyCmd({ dir: tmpDir, scope: 'testcase', refresh: false, autoApprove: false, input: false })).rejects.toThrow('Process exited with code 1');
+        await expect(applyCmd({ dir: tmpDir, scope: 'testcase', refresh: false, autoApprove: false, input: false })).rejects.toThrow(/No input allowed|This command requires manual approval/);
         
         expect(mockError).toHaveBeenCalled();
         const logs = mockError.mock.calls.join(' ');

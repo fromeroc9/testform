@@ -7,11 +7,14 @@ At the root of every Testform workspace lies the `testform.json` file. This file
 ```json
 {
   "version": "1.0",
-  "github": {
-    "owner": "hashicorp",
-    "repository": "testform",
-    "projectId": 12,
-    "tokenEnv": "GITHUB_TOKEN"
+  "provider": {
+    "type": "github",
+    "config": {
+      "owner": "hashicorp",
+      "repository": "testform",
+      "projectId": 12,
+      "tokenEnv": "GITHUB_TOKEN"
+    }
   },
   "backend": {
     "type": "local",
@@ -43,9 +46,12 @@ At the root of every Testform workspace lies the `testform.json` file. This file
 
 ---
 
-## The `github` Block
+## The `provider` Block
 
-Configures the connection to your GitHub repository and GitHub Projects V2 board.
+Configures the issue tracker adapter. Currently supports `"github"` and `"local"`.
+
+For GitHub (`type: "github"`):
+Inside `config`:
 
 - **`owner`** (string): The GitHub organization or username that owns the repository.
 - **`repository`** (string): The repository name where Issues will be created.

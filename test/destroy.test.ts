@@ -73,7 +73,7 @@ describe('Command destroyCmd', () => {
             getResources: jest.fn().mockReturnValue([{ identity: 'tc1', attributes: { issueNumber: 123 } }])
         }));
 
-        await expect(destroyCmd({ dir: tmpDir, scope: 'testcase', input: false })).rejects.toThrow('Process exited with code 1');
+        await expect(destroyCmd({ dir: tmpDir, scope: 'testcase', input: false })).rejects.toThrow(/No input allowed|This command requires manual approval|Process exited with code 1/);
         
         expect(mockError).toHaveBeenCalled();
         const logs = mockError.mock.calls.join(' ');

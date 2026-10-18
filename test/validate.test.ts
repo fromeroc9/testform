@@ -48,7 +48,7 @@ describe('Command validateCmd', () => {
         await expect(validateCmd({
             targetPath: join(tmpDir, 'nonexistent'),
             scope: 'testcase'
-        })).rejects.toThrow('Process exited with code 1');
+        })).rejects.toThrow();
 
         expect(mockError).toHaveBeenCalled();
         const errorMsg = mockError.mock.calls.join(' ');

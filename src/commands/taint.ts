@@ -1,6 +1,7 @@
 import { red, green } from 'chalk';
 import { State } from '../core/state';
 import { TITLE_CLI } from '../core/const';
+import { TestformError } from '../core/errors';
 
 interface TaintCmdOptions {
     dir?: string;
@@ -30,8 +31,8 @@ export const taintCmd = async (options: TaintCmdOptions) => {
 
     try {
         let res: any = null;
-        for (const type of ['github_testcase', 'github_testrun', 'github_testplan']) {
-            const identity = identityRaw.replace(new RegExp(`^${type}\\.`), '');
+        for (const type of ['testcase', 'testrun', 'testplan']) {
+            const identity = identityRaw.replace(new RegExp(`^([a-zA-Z0-9_-]+_)?${type}\\.`), '');
             res = state.getResources(type).find((r: any) => r.identity === identity);
             if (res) break;
         }
@@ -39,10 +40,10 @@ export const taintCmd = async (options: TaintCmdOptions) => {
         if (!res) {
             if (allowMissing) {
                 console.log(green(`Resource not found in state, but allow-missing is set. Exiting successfully.`));
-                process.exit(0);
+                return;
             }
             console.error(red(`Error: Resource not found in state.`));
-            process.exit(1);
+            throw new TestformError(`Resource not found in state.`);
         }
 
         if (action === 'taint') {

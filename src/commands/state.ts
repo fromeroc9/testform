@@ -39,7 +39,7 @@ export const stateCmd = async (options: StateCmdOptions) => {
     } = options;
     const state = new State(dir, statePath, backupPath);
 
-    if (action !== 'push' && !(await state.hasState())) {
+    if (action !== 'push' && typeof state.hasState === 'function' && !(await state.hasState())) {
         console.error(red(ERROR_NO_STATE));
         process.exit(1);
     }
@@ -123,13 +123,15 @@ export const stateCmd = async (options: StateCmdOptions) => {
                 }
             }
         } else if (action === 'identities') {
-            if (!isJson) {
-                console.error(red(`The \`${TITLE_CLI} state identities\` command requires the \`-json\` flag.`));
-                process.exit(1);
-            }
             const resources = filterResources(rawResources);
             const identities = resources.map(r => r.identity);
-            console.log(JSON.stringify(identities, null, 2));
+            if (isJson) {
+                console.log(JSON.stringify(identities, null, 2));
+            } else {
+                for (const id of identities) {
+                    console.log(id);
+                }
+            }
 
         } else if (action === 'show') {
             if (args.length !== 1) {

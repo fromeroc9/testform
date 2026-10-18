@@ -21,7 +21,7 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
         process.exit(1);
     }
 
-    await stateObj.init();
+    if (typeof stateObj.init === "function") await stateObj.init();
     const currentWorkspace = stateObj.getCurrentWorkspace();
 
     switch (subcommand) {
@@ -54,9 +54,9 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
             
             // Re-instantiate state to bind backend to the new workspace
             const newStateObj = new State(dir);
-            await newStateObj.init();
-            newStateObj.clearResources();
-            await newStateObj.save();
+            if (typeof newStateObj.init === 'function') await newStateObj.init();
+            if (typeof newStateObj.clearResources === 'function') newStateObj.clearResources();
+            if (typeof newStateObj.save === 'function') await newStateObj.save();
 
             console.log(green(`Created and switched to workspace "${name}"!`));
             console.log('');

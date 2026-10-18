@@ -43,13 +43,21 @@ export class Config {
     }
 
     getAdapterType(): 'github' | 'local' {
-        return this.config.provider?.type || 'local';
+        if (this.config.provider?.type) {
+            return this.config.provider.type;
+        }
+        if ((this.config as any).github) {
+            return 'github';
+        }
+        return 'local';
     }
 
     getGitHub(): IGitHubConfig | undefined {
         let github: any = undefined;
         if (this.config.provider?.type === 'github' && this.config.provider.config) {
             github = this.config.provider.config;
+        } else if ((this.config as any).github) {
+            github = (this.config as any).github;
         }
         if (!github) return undefined;
         return {

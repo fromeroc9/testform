@@ -751,7 +751,29 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] diff [options]
 
 ${bold(`Options:`)}
 
-  -scope=scope        Limit the scope of the execution (testcase, testrun, testplan).
+  -scope=scope            Limit the scope of the execution (testcase, testrun, testplan).
+  -remote                 Compare local and state against live remote provider issues.
+  -i, -interactive        Interactively resolve detected drift (pull / overwrite / skip).
+  -test-directory=dir     Subdirectory containing test files.
+`.trim();
+
+export const HELP_QUERY = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] query [options]
+
+  Query and filter managed test resources in state.
+
+${bold(`Options:`)}
+
+  -scope=scope            Limit search scope (testcase, testrun, testplan, all).
+  -status=status          Filter by issue state (open, closed, etc.).
+  -label=label            Filter by label.
+  -assignee=assignee      Filter by assignee username.
+  -milestone=milestone    Filter by milestone title.
+  -custom=key=value       Filter by custom field value.
+  -search=text            Free-text search across resource titles and labels.
+  -json                   Output results formatted as JSON.
+  -count                  Output only the count of matched resources.
+  -test-directory=dir     Subdirectory containing test files.
 `.trim();
 
 export const HELP_REPORT = `
@@ -943,6 +965,7 @@ export function getCommandHelp(command: string): string | null {
     case 'import': return HELP_IMPORT;
     case 'refresh': return HELP_REFRESH;
     case 'diff': return HELP_DIFF;
+    case 'query': return HELP_QUERY;
     case 'show': return HELP_SHOW;
     case 'fmt': return HELP_FMT;
     case 'force-unlock': return HELP_FORCE_UNLOCK;

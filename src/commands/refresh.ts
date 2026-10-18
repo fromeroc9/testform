@@ -114,6 +114,10 @@ export const refreshState = async (options: RefreshStateOptions) => {
                     if (!silent) console.log(red(`  ${res.identity}: Issue #${res.attributes.issueNumber} not found — removing from state`));
                     state.removeResource(res.identity);
                     removed++;
+                } else if (issue.state === 'closed') {
+                    if (!silent) console.log(yellow(`  ${res.identity}: Issue #${res.attributes.issueNumber} is closed — removing from state`));
+                    state.removeResource(res.identity);
+                    removed++;
                 } else {
                     let driftDetected = false;
 
@@ -183,6 +187,10 @@ export const refreshState = async (options: RefreshStateOptions) => {
                     }
 
                     if (driftDetected) {
+                        if (!silent) {
+                            console.log(yellow(`  ! Drift detected on remote for ${res.identity} (Issue #${res.attributes.issueNumber})`));
+                            console.log(dim(`    Run 'testform diff --remote' to inspect differences or interactively pull changes.`));
+                        }
                         // Invalidate localHash to force a plan diff
                         res.attributes.localHash = 'drift_detected';
                         state.upsertResource(res);

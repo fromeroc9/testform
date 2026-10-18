@@ -56,9 +56,14 @@ export const reportCmd = async (options: ReportCmdOptions) => {
     await stateObj.init();
 
     // 1. Extract data into a unified FlatData array
-    const testcases = stateObj.getResources('github_testcase');
-    const testruns = stateObj.getResources('github_testrun');
-    const testplans = stateObj.getResources('github_testplan');
+    const getRes = (canonical: string, legacy: string) => {
+        const list = stateObj.getResources(canonical);
+        if (list && list.length > 0) return list;
+        return stateObj.getResources(legacy) || [];
+    };
+    const testcases = getRes('testcase', 'github_testcase');
+    const testruns = getRes('testrun', 'github_testrun');
+    const testplans = getRes('testplan', 'github_testplan');
 
     // Build map for quick access
     const runMap = new Map<string, StateResource>();

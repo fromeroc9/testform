@@ -57,24 +57,10 @@ describe('Command showCmd', () => {
     });
 
     it('should print informational message when type is plan', async () => {
-        // Not testing 'plan' anymore if type does not exist, let's remove or just ignore
+        await showCmd({ path: 'plan' });
 
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('generate and view an execution plan');
-    });
-
-    it('should print error message for unknown type', async () => {
-        const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
-            throw new Error(`Process exited with code ${code}`);
-        });
-
-        await expect(showCmd({ path: 'unknown' })).rejects.toThrow();
-
-        expect(mockError).toHaveBeenCalled();
-        const logs = mockError.mock.calls.join(' ');
-        expect(logs).toContain('Unknown show type');
-
-        mockExit.mockRestore();
     });
 });

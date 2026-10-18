@@ -3,7 +3,7 @@
 	"version": "1.0.17",
 	"description": "Testform transforms standard issue trackers into full-fledged Test Management ecosystems using declarative Gherkin configurations that can be shared, reviewed, and versioned as code.",
 	"author": "Flavio Romero <flavio.arc9@gmail.com>",
-	"main": "dist/cli/index.js",
+	"main": "dist/index.js",
 	"license": "GPL-3.0-or-later",
 	"repository": {
 		"type": "git",
@@ -20,15 +20,17 @@
 	],
 	"files": [
 		"dist",
-		"README"
+		"README.md"
 	],
 	"bin": {
 		"testform": "dist/index.js"
 	},
 	"scripts": {
 		"test": "jest",
+		"typecheck": "tsc --noEmit",
 		"build": "ncc build src/index.ts -m -o dist",
 		"dev": "tsx src/index.ts",
+		"format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
 		"publish": "npm run build && npm version patch && npm publish"
 	},
 	"devDependencies": {
@@ -36,19 +38,25 @@
 		"@types/node": "^24.12.4",
 		"@vercel/ncc": "0.38.4",
 		"jest": "30.4.2",
+		"prettier": "^3.5.0",
 		"ts-jest": "29.4.11",
 		"tsx": "4.19.3",
 		"typescript": "5.8.2"
 	},
 	"dependencies": {
 		"@actions/core": "1.10.1",
-		"@aws-sdk/client-dynamodb": "3.1054.0",
-		"@aws-sdk/client-s3": "3.1054.0",
-		"@azure/storage-blob": "12.31.0",
+		"@aws-sdk/client-dynamodb": "^3.1152.0",
+		"@aws-sdk/client-s3": "^3.1152.0",
+		"@azure/core-rest-pipeline": "^1.25.0",
+		"@azure/storage-blob": "^12.31.0",
+		"@azure/storage-common": "^12.5.0",
+		"@babel/core": "^7.29.7",
+		"@babel/generator": "^8.0.6",
 		"@cucumber/gherkin": "39.1.0",
 		"@cucumber/messages": "30.1.0",
 		"@google-cloud/storage": "7.19.0",
 		"arg": "^5.0.2",
+		"cac": "^6.7.14",
 		"chalk": "4.1.2",
 		"gherkin-ast": "^3.4.2",
 		"gherkin-formatter": "^1.2.2"

@@ -21,7 +21,7 @@ export const fmtCmd = async (options: FmtCmdOptions) => {
     } = options;
     const files = findFeatureFiles(dir, recursive);
     if (files.length === 0) {
-        logger.warn('No .feature files found to format.');
+        console.log('No .feature files found.');
         return;
     }
 
@@ -38,9 +38,9 @@ export const fmtCmd = async (options: FmtCmdOptions) => {
             }
             if (list) {
                 if (check) {
-                    logger.warn(file);
+                    console.log(file);
                 } else {
-                    logger.success(file);
+                    console.log(file);
                 }
             }
         }
@@ -48,7 +48,7 @@ export const fmtCmd = async (options: FmtCmdOptions) => {
 
     if (check) {
         if (unformattedCount > 0) {
-            logger.warn(`\n${unformattedCount} file(s) would be reformatted.`);
+            console.log(`\n${unformattedCount} file(s) would be reformatted.`);
             process.exit(3); // fmt -check returns 3 if unformatted
         } else {
             logger.success('All files are formatted correctly.');

@@ -49,10 +49,17 @@ npm install -g testform
 1. Create a `testform.json` configuration file at the root of your project:
    ```json
    {
-       "github": {
-           "owner": "MyOrg",
-           "repository": "MyRepo",
-           "tokenEnv": "GITHUB_TOKEN"
+       "version": "1.0",
+       "provider": {
+           "type": "github",
+           "config": {
+               "owner": "MyOrg",
+               "repository": "MyRepo",
+               "tokenEnv": "GITHUB_TOKEN"
+           }
+       },
+       "backend": {
+           "type": "local"
        },
        "scope": {
            "testcase": {

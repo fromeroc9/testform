@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import arg from 'arg';
-import { bold, red, cyan } from 'chalk';
+import { cac } from 'cac';
+import { cyan } from 'chalk';
 import { arch, platform } from 'node:process';
 import { resolve } from 'path';
 
@@ -25,14 +25,14 @@ import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
 import { toolCmd } from './commands/tool';
 import { printCmd } from './commands/print';
+import { queryCmd } from './commands/query';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
 import chalk from 'chalk';
 import { logger } from './core/logger';
 import { TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE, VERSION_CLI, FILE_CONFIG, FILE_STATE } from './core/const';
 import { getCommandHelp, HELP_GLOBAL } from './core/help';
-
-type InputScope = IScope;
+import { TestformError } from './core/errors';
 
 function compareVersions(a: string, b: string): number {
     const pa = a.split('.').map((v) => Number(v));
@@ -68,650 +68,623 @@ function printVersion(detailed: boolean = false) {
     }
 }
 
-function printTooManyArgsForInit(): void {
-    logger.error('Too many command line arguments. Did you mean to use -chdir?');
-}
+/**
+ * Normalizes Terraform-style single-dash flags (e.g. -chdir=foo, -auto-approve)
+ * to standard double-dash flags (--chdir=foo, --auto-approve) for cac compatibility.
+ */
+function normalizeArgv(argv: string[]): string[] {
+    const shortFlags = new Set(['C', 's', 'h', 'v', 'a', 'o']);
 
-function ensureNoPositionalArgs(command: string, args: string[]): void {
-    if (args.length > 0) {
-        logger.error(`Too many command line arguments\n\nTo specify a working directory for the ${command}, use the global -chdir flag.`);
-    }
-}
-
-function isScopeToken(value?: string): value is InputScope {
-    if (!value) return false;
-    return [
-        'testcase',
-        'testrun',
-        'testplan',
-    ].includes(value.toLowerCase());
-}
-
-function normalizeLongFlags(rawArgs: string[]): string[] {
-    const longFlags = new Set([
-        'chdir',
-        'scope',
-        'help',
-        'verbose',
-        'version',
-        'auto-approve',
-        'out',
-        'lock',
-        'lock-timeout',
-        'input',
-        'var',
-        'var-file',
-        'no-color',
-        'json',
-        'detailed-exitcode',
-        'state',
-        'backup',
-        'target',
-        'destroy',
-        'refresh',
-        'refresh-only',
-        'force',
-        'check',
-        'list',
-        'write',
-        'diff',
-        'recursive',
-        'plan',
-        'draw-cycles',
-        'type',
-        'module-depth',
-        'allow-missing',
-        'ignore-remote-version',
-        'backend',
-        'backend-config',
-        'force-copy',
-        'from-module',
-        'get',
-        'plugin-dir',
-        'reconfigure',
-        'lockfile',
-        'test-directory',
-        'set-state',
-        'replace',
-        'compact-warnings',
-        'generate-config-out',
-        'parallelism',
-        'no-tests',
-        'query',
-        'state-out',
-        'config',
-        'taint',
-        'untaint',
-        'workspace',
-        'report',
-        'format',
-        'filter',
-        'id',
-        'dry-run',
-        'apply',
-        'rule',
-        'title'
-    ]);
-
-    const shortFlags: Record<string, string> = {
-        'C': 'chdir',
-        's': 'scope',
-        'h': 'help',
-        'v': 'verbose',
-        'a': 'auto-approve',
-        'o': 'out'
-    };
-
-    return rawArgs.map((arg) => {
-        const match = arg.match(/^-([a-zA-Z][a-zA-Z-]*)(=.*)?$/);
+    return argv.map((arg) => {
+        // e.g. -chdir, -auto-approve, -var=foo
+        const match = arg.match(/^-([a-zA-Z][a-zA-Z0-9-]*)(=(.*))?$/);
         if (!match) return arg;
 
         const flag = match[1];
         const suffix = match[2] || '';
 
-        if (shortFlags[flag]) {
-            return `--${shortFlags[flag]}${suffix}`;
+        // If it's a known single-character short flag, keep it as is
+        if (shortFlags.has(flag)) {
+            return arg;
         }
 
-        const lowerFlag = flag.toLowerCase();
-        if (longFlags.has(lowerFlag)) {
-            return `--${lowerFlag}${suffix}`;
-        }
-
-        return arg;
+        // Convert single dash word flags to double dash
+        return `--${flag}${suffix}`;
     });
 }
 
-const booleanFlags = new Set([
-    '--help',
-    '--verbose',
-    '--version',
-    '--auto-approve',
-    '--lock',
-    '--input',
-    '--no-color',
-    '--json',
-    '--detailed-exitcode',
-    '--destroy',
-    '--refresh',
-    '--refresh-only',
-    '--force',
-    '--check',
-    '--list',
-    '--write',
-    '--diff',
-    '--recursive',
-    '--draw-cycles',
-    '--allow-missing',
-    '--ignore-remote-version',
-    '--backend',
-    '--reconfigure',
-    '--migrate-state',
-    '--compact-warnings',
-    '--no-tests',
-    '--dry-run',
-    '--apply'
-]);
+function getWorkDir(options: any): string {
+    const workDirRaw = String(options.chdir || '.');
+    return resolve(process.env.INIT_CWD || process.cwd(), workDirRaw);
+}
 
-const main = async () => {
-    let argv: arg.Result<any>;
-    try {
-        const rawArgs = normalizeLongFlags(process.argv.slice(2));
-        const booleanOverrides = new Map<string, boolean>();
-        const filteredArgs: string[] = [];
+function getVariableParser(options: any, workDir: string): VariableParser {
+    const varArr = options.var ? (Array.isArray(options.var) ? options.var : [options.var]) : undefined;
+    const varFileArr = options.varFile ? (Array.isArray(options.varFile) ? options.varFile : [options.varFile]) : undefined;
+    return new VariableParser(varArr, varFileArr, workDir);
+}
 
-        for (const argOption of rawArgs) {
-            const match = argOption.match(/^(--[a-z][a-z-]*)=(true|false)$/i);
-            if (match && booleanFlags.has(match[1])) {
-                booleanOverrides.set(match[1], match[2].toLowerCase() === 'true');
-            } else {
-                filteredArgs.push(argOption);
+function getScope(options: any): { scope: IScope | 'all'; singleScope: IScope } {
+    const scopeVal = options.scope as IScope | 'all' | undefined;
+    const scope: IScope | 'all' = scopeVal || 'all';
+    const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
+    return { scope, singleScope };
+}
+
+export function createCli() {
+    const cli = cac(TITLE_CLI);
+
+    // Global options
+    cli.option('-C, --chdir <dir>', 'Working directory (default: current directory)', { default: '.' });
+    cli.option('-s, --scope <scope>', 'Scope filter (testcase | testrun | testplan | all)');
+    cli.option('-v, --verbose', 'Show detailed debug output');
+    cli.option('--no-color', 'Disable colorized console output');
+    cli.option('--var <var>', 'Set a variable value (key=value)');
+    cli.option('--var-file <file>', 'Load variables from a JSON file');
+
+    // ─── init ─────────────────────────────────────────────────────────────
+    cli.command('init', 'Initialize a new Testform workspace')
+        .option('--backend-config <config>', 'Backend configuration override')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .option('--reconfigure', 'Reconfigure backend')
+        .option('--migrate-state', 'Migrate state to new backend')
+        .option('--backend', 'Configure backend', { default: true })
+        .option('--json', 'Output results in JSON format')
+        .option('--input', 'Allow interactive input', { default: true })
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            await initCmd({
+                dir: workDir,
+                verbose: Boolean(options.verbose),
+                backendConfigRaw: options.backendConfig,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s',
+                reconfigure: options.reconfigure,
+                migrateState: options.migrateState,
+                backendEnabled: options.backend ?? true,
+                isJson: options.json,
+                inputEnabled: options.input ?? true
+            });
+        });
+
+    // ─── validate ─────────────────────────────────────────────────────────
+    cli.command('validate [targetPath]', 'Check feature files for syntax and DSL violations')
+        .option('--json', 'Output diagnostics in JSON format')
+        .option('--test-directory <dir>', 'Subdirectory containing test files')
+        .option('--no-tests', 'Suppress test execution checks')
+        .option('--query <query>', 'Filter query for validation')
+        .action(async (targetPath, options) => {
+            const workDir = getWorkDir(options);
+            const validateDir = targetPath || workDir;
+            const { singleScope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await validateCmd({
+                targetPath: validateDir,
+                verbose: Boolean(options.verbose),
+                scope: singleScope,
+                variables: variableParser,
+                isJson: options.json,
+                testDirectory: options.testDirectory,
+                noTests: options.tests === false,
+                query: options.query
+            });
+        });
+
+    // ─── plan ─────────────────────────────────────────────────────────────
+    cli.command('plan', 'Generate and show an execution plan')
+        .option('-o, --out <path>', 'Write the plan to the given file')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .option('--input', 'Allow interactive input', { default: true })
+        .option('--json', 'Output results in JSON format')
+        .option('--detailed-exitcode', 'Return detailed exit code on plan changes')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .option('--target <target>', 'Target a specific resource')
+        .option('--destroy', 'Generate plan to destroy all resources')
+        .option('--refresh', 'Refresh remote state before planning', { default: true })
+        .option('--refresh-only', 'Only refresh state without planning changes')
+        .option('--replace <target>', 'Force replacement of specified resource')
+        .option('--parallelism <n>', 'Concurrent operation limit')
+        .option('--compact-warnings', 'Show warnings in compact form')
+        .option('--test-directory <dir>', 'Directory containing feature files')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await planCmd({
+                dir: workDir,
+                verbose: Boolean(options.verbose),
+                scope,
+                outPath: options.out,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s',
+                variables: variableParser,
+                isJson: options.json,
+                detailedExitCode: options.detailedExitcode,
+                statePath: options.state,
+                backupPath: options.backup,
+                target: options.target,
+                destroyPlan: options.destroy,
+                refresh: options.refresh ?? true,
+                refreshOnly: options.refreshOnly,
+                replaceTargets: options.replace,
+                parallelism: options.parallelism,
+                compactWarnings: options.compactWarnings ?? false,
+                testDirectory: options.testDirectory
+            });
+        });
+
+    // ─── apply ────────────────────────────────────────────────────────────
+    cli.command('apply [planFile]', 'Create or update infrastructure according to configuration')
+        .option('-a, --auto-approve', 'Skip interactive approval of plan')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .option('--input', 'Allow interactive input', { default: true })
+        .option('--json', 'Output results in JSON format')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .option('--target <target>', 'Target a specific resource')
+        .option('--refresh', 'Refresh remote state before applying', { default: true })
+        .option('--refresh-only', 'Only refresh state without applying changes')
+        .option('--replace <target>', 'Force replacement of specified resource')
+        .option('--parallelism <n>', 'Concurrent operation limit')
+        .option('--compact-warnings', 'Show warnings in compact form')
+        .option('--test-directory <dir>', 'Directory containing feature files')
+        .action(async (planFile, options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await applyCmd({
+                dir: workDir,
+                autoApprove: Boolean(options.autoApprove),
+                verbose: Boolean(options.verbose),
+                scope,
+                planFile,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s',
+                input: options.input ?? true,
+                variables: variableParser,
+                statePath: options.state,
+                backupPath: options.backup,
+                target: options.target,
+                refresh: options.refresh ?? true,
+                refreshOnly: options.refreshOnly,
+                replaceTargets: options.replace,
+                parallelism: options.parallelism,
+                compactWarnings: options.compactWarnings ?? false,
+                testDirectory: options.testDirectory
+            });
+        });
+
+    // ─── destroy ──────────────────────────────────────────────────────────
+    cli.command('destroy', 'Destroy all remote-managed test resources')
+        .option('-a, --auto-approve', 'Skip interactive approval')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .option('--input', 'Allow interactive input', { default: true })
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+
+            await destroyCmd({
+                dir: workDir,
+                verbose: Boolean(options.verbose),
+                scope,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s',
+                input: options.input ?? true,
+                statePath: options.state,
+                backupPath: options.backup
+            });
+        });
+
+    // ─── show ─────────────────────────────────────────────────────────────
+    cli.command('show [path]', 'Inspect Testform state or a plan file')
+        .option('--json', 'Output state in JSON format')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (path, options) => {
+            const workDir = getWorkDir(options);
+            await showCmd({
+                path,
+                isJson: options.json,
+                verbose: Boolean(options.verbose),
+                dir: workDir,
+                statePath: options.state,
+                backupPath: options.backup
+            });
+        });
+
+    // ─── refresh ──────────────────────────────────────────────────────────
+    cli.command('refresh', 'Update the state file against remote target platform')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .option('--parallelism <n>', 'Concurrent operation limit')
+        .option('--compact-warnings', 'Show warnings in compact form')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+
+            await refreshCmd({
+                dir: workDir,
+                verbose: Boolean(options.verbose),
+                scope,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s',
+                statePath: options.state,
+                backupPath: options.backup,
+                parallelismRaw: options.parallelism,
+                compactWarnings: options.compactWarnings ?? false
+            });
+        });
+
+    // ─── diff ─────────────────────────────────────────────────────────────
+    cli.command('diff', 'Display human-readable difference between local and state')
+        .option('--remote', 'Detect and compare against remote target platform')
+        .option('-i, --interactive', 'Interactively resolve detected drift (pull / overwrite / skip)')
+        .option('--test-directory <dir>', 'Subdirectory containing test files')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+
+            await diffCmd({
+                dir: workDir,
+                testDirectory: options.testDirectory,
+                verbose: Boolean(options.verbose),
+                scope,
+                remote: Boolean(options.remote),
+                interactive: Boolean(options.interactive),
+                statePath: options.state,
+                backupPath: options.backup
+            });
+        });
+
+    // ─── import ───────────────────────────────────────────────────────────
+    cli.command('import <address> <issueNumber>', 'Associate an existing remote Issue with a local scenario')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (address, issueNumber, options) => {
+            const workDir = getWorkDir(options);
+            const { singleScope } = getScope(options);
+
+            await importCmd({
+                dir: workDir,
+                scope: singleScope,
+                identityArg: address,
+                issueNumber,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s',
+                statePath: options.state,
+                backupPath: options.backup
+            });
+        });
+
+    // ─── state ────────────────────────────────────────────────────────────
+    cli.command('state [subcommand] [...args]', 'Advanced state management (list, show, rm, mv, pull, push)')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .option('--json', 'Output in JSON format')
+        .option('--id <id>', 'Filter by ID')
+        .option('--dry-run', 'Preview state modifications without writing')
+        .option('--force', 'Bypass safety checks')
+        .action(async (subcommand, args, options) => {
+            const workDir = getWorkDir(options);
+            if (!subcommand) {
+                console.log(getCommandHelp('state') || HELP_GLOBAL);
+                return;
             }
-        }
+            await stateCmd({
+                dir: workDir,
+                action: subcommand,
+                args: args || [],
+                statePath: options.state,
+                backupPath: options.backup,
+                isJson: options.json,
+                id: options.id,
+                dryRun: options.dryRun,
+                force: options.force
+            });
+        });
 
-        argv = arg({
-            '--chdir': String,
-            '--projectId': String,
-            '--scope': String,
-            '--out': String,
-            '--lock-timeout': String,
-            '--var': [String],
-            '--var-file': [String],
-            '--state': String,
-            '--backup': String,
-            '--target': [String],
-            '--plan': String,
-            '--type': String,
-            '--module-depth': String,
-            '--backend-config': [String],
-            '--test-directory': String,
-            '--replace': [String],
-            '--parallelism': String,
-            '--state-out': String,
-            '--config': String,
-            '--taint': [String],
-            '--untaint': [String],
-            '--workspace': String,
-            '--report': String,
-            '--format': String,
-            '--filter': [String],
-            '--id': String,
-            '--rule': [String],
-            '--title': String,
-            '--help': Boolean,
-            '--verbose': Boolean,
-            '--version': Boolean,
-            '--auto-approve': Boolean,
-            '--lock': Boolean,
-            '--input': Boolean,
-            '--no-color': Boolean,
-            '--json': Boolean,
-            '--detailed-exitcode': Boolean,
-            '--destroy': Boolean,
-            '--refresh': Boolean,
-            '--refresh-only': Boolean,
-            '--force': Boolean,
-            '--check': Boolean,
-            '--list': Boolean,
-            '--write': Boolean,
-            '--diff': Boolean,
-            '--apply': Boolean,
-            '--recursive': Boolean,
-            '--draw-cycles': Boolean,
-            '--allow-missing': Boolean,
-            '--ignore-remote-version': Boolean,
-            '--backend': Boolean,
-            '--reconfigure': Boolean,
-            '--migrate-state': Boolean,
-            '--compact-warnings': Boolean,
-            '--no-tests': Boolean,
-            '--dry-run': Boolean,
-            '-C': '--chdir',
-            '-s': '--scope',
-            '-h': '--help',
-            '-v': '--verbose',
-            '-a': '--auto-approve',
-            '-o': '--out',
-        }, { argv: filteredArgs });
+    // ─── taint / untaint ──────────────────────────────────────────────────
+    cli.command('taint <address>', 'Mark a resource instance as degraded or corrupted')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .option('--allow-missing', 'Do not error if resource is missing from state')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .action(async (address, options) => {
+            const workDir = getWorkDir(options);
+            await taintCmd({
+                dir: workDir,
+                action: 'taint',
+                identityRaw: address,
+                statePath: options.state,
+                backupPath: options.backup,
+                allowMissing: options.allowMissing,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s'
+            });
+        });
 
-        Object.assign(argv, Object.fromEntries(booleanOverrides));
-    } catch (err: any) {
-        if (err.code === 'ARG_UNKNOWN_OPTION') {
-            console.error(`\x1b[31mError: ${err.message}\x1b[0m\n`);
-            console.log(`Usage: ${TITLE_CLI} [global options] <subcommand> [args]\nRun '${TITLE_CLI} -help' for more information.`);
-            process.exit(1);
-        }
-        throw err;
-    }
+    cli.command('untaint <address>', 'Remove degraded status mark from a resource instance')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .option('--allow-missing', 'Do not error if resource is missing from state')
+        .option('--lock', 'Lock state during operation', { default: true })
+        .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
+        .action(async (address, options) => {
+            const workDir = getWorkDir(options);
+            await taintCmd({
+                dir: workDir,
+                action: 'untaint',
+                identityRaw: address,
+                statePath: options.state,
+                backupPath: options.backup,
+                allowMissing: options.allowMissing,
+                lock: options.lock ?? true,
+                lockTimeout: options.lockTimeout ?? '0s'
+            });
+        });
 
-    const args = argv._.map(String);
+    // ─── workspace ────────────────────────────────────────────────────────
+    cli.command('workspace [subcommand] [name]', 'Workspace management (list, select, new, delete, show)')
+        .action(async (subcommand, name, options) => {
+            const workDir = getWorkDir(options);
+            const args = [subcommand, name].filter(Boolean);
+            await workspaceCmd({ dir: workDir, verbose: Boolean(options.verbose), args });
+        });
 
-    if (argv['--version']) {
-        printVersion(false);
-        process.exit(0);
-    }
+    // ─── force-unlock ─────────────────────────────────────────────────────
+    cli.command('force-unlock <lockId>', 'Release a stuck state lock')
+        .option('--force', 'Do not ask for confirmation')
+        .option('--state <path>', 'Path to state file')
+        .action(async (lockId, options) => {
+            const workDir = getWorkDir(options);
+            await forceUnlockCmd({
+                dir: workDir,
+                lockId,
+                force: options.force,
+                statePath: options.state
+            });
+        });
 
-    const rawArgs = argv._;
-    const commandRaw = rawArgs[0];
-    const commandArgsRaw = rawArgs.slice(1);
+    // ─── report ───────────────────────────────────────────────────────────
+    cli.command('report [type]', 'Generate test metrics and matrices (raw, matrix, summary)')
+        .option('--format <format>', 'Report output format (md, json, html)', { default: 'md' })
+        .option('--filter <filter>', 'Filter report items')
+        .option('--apply', 'Automatically apply execution reports to platform')
+        .option('-o, --out <path>', 'Write report to destination file')
+        .option('--state <path>', 'Path to state file')
+        .action(async (type, options) => {
+            const workDir = getWorkDir(options);
+            const variableParser = getVariableParser(options, workDir);
+            const filterArr = options.filter ? (Array.isArray(options.filter) ? options.filter : [options.filter]) : [];
 
-    if (argv['--help']) {
-        if (commandRaw) {
-            let helpKey = commandRaw;
-            if (commandRaw === 'state' && commandArgsRaw.length > 0) {
-                helpKey = `state ${commandArgsRaw[0]}`;
-            }
-            if (commandRaw === 'tool' && commandArgsRaw.length > 0) {
-                helpKey = `tool ${commandArgsRaw[0]}`;
-            }
-            const cmdHelp = getCommandHelp(helpKey);
-            if (cmdHelp) {
-                console.log(cmdHelp);
-            } else {
-                console.log(`Unknown command: ${helpKey}\n\n${HELP_GLOBAL}`);
-            }
-        } else {
-            console.log(HELP_GLOBAL);
-        }
-        process.exit(0);
-    }
+            await reportCmd({
+                dir: workDir,
+                type: type || 'raw',
+                format: options.format || 'md',
+                filter: filterArr,
+                variables: variableParser,
+                apply: options.apply,
+                out: options.out,
+                statePath: options.state
+            });
+        });
 
-    if (!commandRaw) {
+    // ─── tool ─────────────────────────────────────────────────────────────
+    cli.command('tool <subcommand> [...args]', 'QA utilities (feature, autocomplete, state)')
+        .option('--title <title>', 'Feature title')
+        .option('--rule <rule>', 'Rule definitions')
+        .option('--target <target>', 'Target feature file')
+        .option('--test-directory <dir>', 'Directory containing test files')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (subcommand, subArgs, options) => {
+            const workDir = getWorkDir(options);
+            const { singleScope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
+            const ruleArr = options.rule ? (Array.isArray(options.rule) ? options.rule : [options.rule]) : [];
+
+            await toolCmd({
+                dir: workDir,
+                subCommand: subcommand,
+                subArgs: subArgs || [],
+                scope: singleScope,
+                title: options.title,
+                rules: ruleArr,
+                target: options.target,
+                testDirectory: options.testDirectory,
+                statePath: options.state,
+                backupPath: options.backup,
+                variables: variableParser,
+                verbose: Boolean(options.verbose)
+            });
+        });
+
+    // ─── fmt ──────────────────────────────────────────────────────────────
+    cli.command('fmt [targetDir]', 'Rewrites Gherkin configuration files to canonical format')
+        .option('--check', 'Check if files are formatted without rewriting')
+        .option('--list', 'List unformatted files', { default: true })
+        .option('--write', 'Write reformatted files to disk', { default: true })
+        .option('--recursive', 'Recursively format subdirectories')
+        .option('--test-directory <dir>', 'Test directory')
+        .action(async (targetDir, options) => {
+            const workDir = getWorkDir(options);
+            const testDir = options.testDirectory ? resolve(workDir, options.testDirectory) : workDir;
+            const destDir = targetDir ? resolve(workDir, targetDir) : testDir;
+
+            await fmtCmd({
+                dir: destDir,
+                check: options.check,
+                list: options.list ?? true,
+                write: options.write ?? true,
+                recursive: options.recursive
+            });
+        });
+
+    // ─── query ───────────────────────────────────────────────────────────
+    cli.command('query', 'Query and filter managed test resources in state')
+        .option('--test-directory <dir>', 'Subdirectory containing test files')
+        .option('--status <status>', 'Filter by issue state (open, closed, etc.)')
+        .option('--label <label>', 'Filter by label')
+        .option('--assignee <assignee>', 'Filter by assignee')
+        .option('--milestone <milestone>', 'Filter by milestone')
+        .option('--custom <custom>', 'Filter by custom field (key=value)')
+        .option('--search <text>', 'Free-text search in title or labels')
+        .option('--json', 'Output results formatted as JSON')
+        .option('--count', 'Output only the count of matched resources')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+
+            await queryCmd({
+                dir: workDir,
+                testDirectory: options.testDirectory,
+                scope,
+                status: options.status,
+                label: options.label,
+                assignee: options.assignee,
+                milestone: options.milestone,
+                custom: options.custom,
+                search: options.search,
+                json: Boolean(options.json),
+                count: Boolean(options.count),
+                verbose: Boolean(options.verbose),
+                statePath: options.state,
+                backupPath: options.backup
+            });
+        });
+
+    // ─── print ────────────────────────────────────────────────────────────
+    cli.command('print <file>', 'Print parsed representation of a feature file')
+        .option('--format <format>', 'Print format', { default: 'testform' })
+        .action(async (file, options) => {
+            const workDir = getWorkDir(options);
+            const { singleScope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await printCmd({
+                dir: workDir,
+                file,
+                format: options.format || 'testform',
+                scope: singleScope,
+                variables: variableParser
+            });
+        });
+
+    // ─── graph ────────────────────────────────────────────────────────────
+    cli.command('graph', 'Generate a visual dependency graph of resources')
+        .option('--draw-cycles', 'Highlight cycles in dependency graph')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { singleScope } = getScope(options);
+
+            await graphCmd({
+                dir: workDir,
+                scope: singleScope,
+                drawCycles: options.drawCycles
+            });
+        });
+
+    // ─── login / logout ───────────────────────────────────────────────────
+    cli.command('login [hostname]', 'Authenticate with a remote provider')
+        .action(async (hostname) => {
+            await loginCmd({ hostname: hostname || 'github.com' });
+        });
+
+    cli.command('logout [hostname]', 'Remove stored credentials')
+        .action(async (hostname) => {
+            await logoutCmd({ hostname: hostname || 'github.com' });
+        });
+
+    // ─── version ──────────────────────────────────────────────────────────
+    cli.command('version', 'Show detailed version information')
+        .action(() => {
+            printVersion(true);
+        });
+
+    cli.help();
+    cli.version(`${TITLE_APP} v${VERSION_CLI}`);
+
+    return cli;
+}
+
+export const main = async () => {
+    const rawArgs = process.argv.slice(2);
+
+    // If no args or just help
+    if (rawArgs.length === 0) {
         console.log(HELP_GLOBAL);
         process.exit(0);
     }
 
-    let command = commandRaw.toLowerCase();
-    let commandArgs = commandArgsRaw;
-
-    const hasExplicitScope = Object.prototype.hasOwnProperty.call(argv, '--scope');
-    let scopeArg = (argv['--scope'] as IScope | 'all') || (hasExplicitScope ? 'testcase' : 'all');
-    if (!hasExplicitScope && ['plan', 'apply', 'diff', 'refresh', 'destroy'].includes(command)) {
-        logger.warn(`Warning: Scanning all scopes. You can use -scope (testcase|testrun|testplan) to limit the operation.`);
+    // Version flag
+    if (rawArgs.includes('--version') || rawArgs.includes('-version') || rawArgs.includes('-v') && rawArgs.length === 1) {
+        printVersion(false);
+        process.exit(0);
     }
-    const workDirRaw = String(argv['--chdir'] || '.');
-    const workDir = resolve(process.env.INIT_CWD || process.cwd(), workDirRaw);
-    const variableParser = new VariableParser(argv['--var'], argv['--var-file'], workDir);
 
-    if (argv['--no-color']) {
+    // Help flag check with specific command
+    if (rawArgs.includes('--help') || rawArgs.includes('-help') || rawArgs.includes('-h')) {
+        const cmdName = rawArgs.find(a => !a.startsWith('-'));
+        if (cmdName) {
+            const helpText = getCommandHelp(cmdName);
+            if (helpText) {
+                console.log(helpText);
+                process.exit(0);
+            }
+        }
+    }
+
+    if (rawArgs.includes('--no-color')) {
         chalk.level = 0;
     }
 
-    // Supports: testcase plan ... (scope-first style)
-    if (isScopeToken(command) && args[1]) {
-        scopeArg = command;
-        command = args[1].toLowerCase();
-        commandArgs = args.slice(2);
-    }
+    const normalized = normalizeArgv(rawArgs);
+    const cli = createCli();
 
-    if (!workDir) {
-        printTooManyArgsForInit();
+    try {
+        cli.parse([process.argv[0], process.argv[1], ...normalized], { run: false });
+        await cli.runMatchedCommand();
+    } catch (err: any) {
+        if (err instanceof TestformError) {
+            process.exit(err.exitCode);
+        }
+        if (err.name === 'CACError') {
+            console.error(chalk.red(`\nError: ${err.message}\n`));
+            console.log(`Run '${TITLE_CLI} --help' for usage instructions.`);
+            process.exit(1);
+        }
+        console.error(chalk.red(`\nFatal Error: ${err.message}\n`));
+        if (process.env.DEBUG && err.stack) {
+            console.error(err.stack);
+        }
         process.exit(1);
     }
-
-    const verbose = Boolean(argv['--verbose'] || argv['--verbose']);
-    const scope = scopeArg;
-    const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
-
-    if (command === 'version') {
-        printVersion(true);
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'init') {
-        if (commandArgs.length > 0) {
-            printTooManyArgsForInit();
-        }
-        await initCmd({
-            dir: workDir,
-            verbose,
-            backendConfigRaw: argv['--backend-config'],
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            reconfigure: argv['--reconfigure'],
-            migrateState: argv['--migrate-state'],
-            backendEnabled: argv['--backend'] ?? true,
-            isJson: argv['--json'],
-            inputEnabled: argv['--input'] ?? true
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'validate') {
-        const validateDir = commandArgs.length > 0 ? commandArgs[0] : workDir;
-        if (commandArgs.length > 1) {
-            logger.error(`Too many command line arguments\n\nExpected at most one positional argument.`);
-        }
-        await validateCmd({
-            targetPath: validateDir,
-            verbose,
-            scope: singleScope,
-            variables: variableParser,
-            isJson: argv['--json'],
-            testDirectory: argv['--test-directory'],
-            noTests: argv['--no-tests'],
-            query: argv['--query']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'plan') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await planCmd({
-            dir: workDir,
-            verbose,
-            scope,
-            outPath: argv['--out'],
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            variables: variableParser,
-            isJson: argv['--json'],
-            detailedExitCode: argv['--detailed-exitcode'],
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            target: argv['--target'],
-            destroyPlan: argv['--destroy'],
-            refresh: argv['--refresh'] ?? true,
-            refreshOnly: argv['--refresh-only'],
-            replaceTargets: argv['--replace'],
-            parallelism: argv['--parallelism'],
-            compactWarnings: argv['--compact-warnings'] ?? false,
-            testDirectory: argv['--test-directory']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'apply') {
-        let planFile: string | undefined = undefined;
-        if (commandArgs.length === 1) {
-            planFile = commandArgs[0];
-        } else if (commandArgs.length > 1) {
-            logger.error(`Too many command line arguments\n\nExpected at most one positional argument.`);
-        }
-        await applyCmd({
-            dir: workDir,
-            autoApprove: Boolean(argv['--auto-approve']),
-            verbose,
-            scope,
-            planFile,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            input: argv['--input'] ?? true,
-            variables: variableParser,
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            target: argv['--target'],
-            refresh: argv['--refresh'] ?? true,
-            refreshOnly: argv['--refresh-only'],
-            replaceTargets: argv['--replace'],
-            parallelism: argv['--parallelism'],
-            compactWarnings: argv['--compact-warnings'] ?? false,
-            testDirectory: argv['--test-directory']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'destroy') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await destroyCmd({
-            dir: workDir,
-            verbose,
-            scope,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            input: argv['--input'] ?? true,
-            statePath: argv['--state'],
-            backupPath: argv['--backup']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'show') {
-        const path = commandArgs[0];
-        await showCmd({
-            path,
-            isJson: argv['--json'],
-            verbose,
-            dir: String(argv['--chdir'] || '.'),
-            statePath: argv['--state'],
-            backupPath: argv['--backup']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'refresh') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await refreshCmd({
-            dir: workDir,
-            verbose,
-            scope,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            parallelismRaw: argv['--parallelism'],
-            compactWarnings: argv['--compact-warnings'] ?? false
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'diff') {
-        ensureNoPositionalArgs(command, commandArgs);
-        await diffCmd({
-            dir: workDir,
-            verbose,
-            scope
-        });
-        process.exit(0);
-    }
-
-    if (command === 'import') {
-        if (commandArgs.length !== 2) {
-            logger.error(`Usage: ${TITLE_CLI} import [options] ADDR ISSUE_NUMBER`);
-            process.exit(1);
-        }
-        const identityArg = commandArgs[0];
-        const issueNumber = commandArgs[1];
-        await importCmd({
-            dir: workDir,
-            scope: singleScope,
-            identityArg,
-            issueNumber,
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s',
-            statePath: argv['--state'],
-            backupPath: argv['--backup']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'state') {
-        if (commandArgs.length === 0) {
-            console.log(getCommandHelp('state'));
-            process.exit(1);
-        }
-        const stateSubCommand = commandArgs[0];
-        const stateArgs = commandArgs.slice(1);
-        await stateCmd({
-            dir: workDir,
-            action: stateSubCommand,
-            args: stateArgs,
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            isJson: argv['--json'],
-            id: argv['--id'],
-            dryRun: argv['--dry-run'],
-            force: argv['--force']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'taint' || command === 'untaint') {
-        if (commandArgs.length === 0) {
-            logger.error(`Usage: ${TITLE_CLI} ${command} [options] name`);
-            process.exit(1);
-        }
-        await taintCmd({
-            dir: workDir,
-            action: command as 'taint' | 'untaint',
-            identityRaw: commandArgs[0],
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            allowMissing: argv['--allow-missing'],
-            lock: argv['--lock'] ?? true,
-            lockTimeout: argv['--lock-timeout'] ?? '0s'
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'workspace') {
-        await workspaceCmd({ dir: workDir, verbose, args: commandArgs });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'force-unlock') {
-        if (commandArgs.length !== 1) {
-            logger.error(`Usage: ${TITLE_CLI} force-unlock [options] LOCK_ID`);
-            process.exit(1);
-        }
-        await forceUnlockCmd({
-            dir: workDir,
-            lockId: commandArgs[0],
-            force: argv['--force'],
-            statePath: argv['--state']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'graph') {
-        if (argv['--help']) {
-            const { HELP_GRAPH } = require('./core/help');
-            console.log(HELP_GRAPH);
-            process.exit(0);
-        }
-        ensureNoPositionalArgs(command, commandArgs);
-        await graphCmd({
-            dir: workDir,
-            scope: singleScope,
-            drawCycles: argv['--draw-cycles']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'report') {
-        const type = commandArgs.length > 0 ? commandArgs[0] : 'raw';
-        await reportCmd({
-            dir: workDir,
-            type,
-            format: argv['--format'] || 'md',
-            filter: argv['--filter'] || [],
-            variables: variableParser,
-            apply: argv['--apply'],
-            out: argv['--out'],
-            statePath: argv['--state']
-        });
-        process.exit(0);
-    }
-
-    if (command === 'tool') {
-        if (commandArgs.length === 0) {
-            const helpText = `\nUsage: ${TITLE_CLI} [global options] tool <subcommand> [options]\n\nSubcommands:\n  feature       Create a new testrun or testplan feature file\n  autocomplete  Expand empty Rule blocks in a testrun file from its source .case.feature (testrun only)\n  state         Update a testcase execution status within a testrun\n\nRun '${TITLE_CLI} tool <subcommand> -help' for more information.`;
-            console.log(helpText);
-            process.exit(1);
-        }
-        const testSubCommand = commandArgs[0];
-        const testSubArgs = commandArgs.slice(1);
-
-        let testScope: IScope | undefined = undefined;
-        if (argv['--scope'] && ['testcase', 'testrun', 'testplan'].includes(String(argv['--scope']))) {
-            testScope = String(argv['--scope']) as IScope;
-        }
-
-        await toolCmd({
-            dir: workDir,
-            subCommand: testSubCommand,
-            subArgs: testSubArgs,
-            scope: testScope,
-            title: argv['--title'],
-            rules: argv['--rule'] || [],
-            target: argv['--target']?.[0] || argv['--target'] as string | undefined,
-            testDirectory: argv['--test-directory'],
-            statePath: argv['--state'],
-            backupPath: argv['--backup'],
-            variables: variableParser,
-            verbose,
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'fmt') {
-        const testDir = argv['--test-directory'] ? resolve(workDir, argv['--test-directory']) : workDir;
-        const targetDir = commandArgs.length > 0 ? resolve(workDir, commandArgs[0]) : testDir;
-        await fmtCmd({
-            dir: targetDir,
-            check: argv['--check'],
-            list: argv['--list'] ?? true,
-            write: argv['--write'] ?? true,
-            recursive: argv['--recursive']
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'print') {
-        if (commandArgs.length === 0) {
-            logger.error(`Usage: ${TITLE_CLI} print <file> [options]`);
-            process.exit(1);
-        }
-        await printCmd({
-            dir: workDir,
-            file: commandArgs[0],
-            format: argv['--format'] || 'testform',
-            scope: singleScope,
-            variables: variableParser
-        });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'login') {
-        const hostname = commandArgs.length > 0 ? commandArgs[0] : 'github.com';
-        await loginCmd({ hostname });
-        process.exit(process.exitCode || 0);
-    }
-
-    if (command === 'logout') {
-        const hostname = commandArgs.length > 0 ? commandArgs[0] : 'github.com';
-        await logoutCmd({ hostname });
-        process.exit(process.exitCode || 0);
-    }
-
-    console.log(`Unknown command: ${command}\n\n${HELP_GLOBAL}`);
-    process.exit(1);
 };
-
-export { main };
 
 if (require.main === module || !module.parent) {
     main().catch((err: any) => {
+        if (err instanceof TestformError) {
+            process.exit(err.exitCode);
+        }
         console.error(chalk.red(`\nFatal Error: ${err.message}\n`));
         process.exit(1);
     });

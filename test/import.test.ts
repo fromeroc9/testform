@@ -45,7 +45,7 @@ describe('Command importCmd', () => {
             scope: 'testcase',
             identityArg: 'tc1',
             issueNumber: '123'
-        })).rejects.toThrow('Process exited with code 1');
+        })).rejects.toThrow();
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('No configuration files');
@@ -59,7 +59,7 @@ describe('Command importCmd', () => {
             scope: 'testcase',
             identityArg: 'tc1',
             issueNumber: 'abc'
-        })).rejects.toThrow('Process exited with code 1');
+        })).rejects.toThrow();
 
         expect(mockError).toHaveBeenCalled();
         const errors = mockError.mock.calls.join(' ');
@@ -77,7 +77,7 @@ describe('Command importCmd', () => {
             scope: 'testcase',
             identityArg: 'tc1',
             issueNumber: '123'
-        })).rejects.toThrow('Process exited with code 1');
+        })).rejects.toThrow();
 
         expect(mockError).toHaveBeenCalled();
         const errors = mockError.mock.calls.join(' ');

@@ -15,6 +15,7 @@ import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
+import { TestformError } from './errors';
 
 /**
  * The initialized context shared by commands that interact with GitHub
@@ -25,6 +26,7 @@ export interface CommandContext {
     state: State;
     /** Authenticated provider adapter ready for API calls. */
     adapter: IProviderAdapter;
+    github: IProviderAdapter;
     /** Loaded project configuration (testform.json). */
     config: Config;
     /** Logger configured with the command's verbosity setting. */
@@ -111,7 +113,7 @@ export async function createCommandContext(
     await state.init();
     await state.acquireLock(lock, lockTimeout);
 
-    return { state, adapter, config, logger };
+    return { state, adapter, github: adapter, config, logger };
 }
 
 /**
@@ -126,14 +128,14 @@ export function withContext<T extends CommandContextOptions>(
     return async (options: T, ...args: any[]) => {
         const ctx = await createCommandContext(options);
         if (!ctx) {
-            process.exit(1);
+            throw new TestformError('Failed to initialize command context');
         }
 
         try {
             await action(ctx, options, ...args);
         } catch (error: any) {
             ctx.logger.error(error.message, error);
-            process.exit(1);
+            throw error;
         } finally {
             await ctx.state.releaseLock();
         }

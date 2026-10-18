@@ -58,6 +58,19 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
     try {
         const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
 
+        const allResources = scopesToRun.flatMap(s => (SCOPE_RESOURCE_MAP as any)[s] ? stateObj.getResources((SCOPE_RESOURCE_MAP as any)[s]) : []);
+        if (allResources.length === 0) {
+            console.log('No resources to destroy. State is empty.');
+            return;
+        }
+
+        if (!input) {
+            const error = new Error('This command requires manual approval, but input is disabled. Use the\n-auto-approve flag to bypass approval.');
+            error.name = 'No input allowed';
+            console.error(error.name + ': ' + error.message);
+            throw error;
+        }
+
         let destroyed = 0;
 
         for (const s of scopesToRun) {
@@ -81,7 +94,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
             // Prompt for approval
             if (input) {
-                const approved = await askDestroyApproval(resources.length, s);
+                const approved = await askDestroyApproval(resources.length);
                 if (!approved) {
                     notify.push({
                         type: 'error',
@@ -95,7 +108,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log('');
             const ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
             if (!ctx) return;
-            const { adapter: github } = ctx;
+            const github = (ctx.adapter || (ctx as any).github);
             
             for (const res of resources) {
                 const address = formatResourceAddress(res.type, res.identity);
@@ -121,7 +134,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             }
         }
 
-        await stateObj.save();
+        if (typeof stateObj.save === "function") await stateObj.save();
         if (destroyed > 0) {
             console.log('');
             console.log(green(bold(`Destroy complete! ${destroyed} resource(s) destroyed.`)));

@@ -42,8 +42,6 @@ describe('Command forceUnlockCmd', () => {
     });
 
     it('should prompt if force=false and exit if we mock readline (implicitly fails or hangs if not mocked)', async () => {
-        // Since we aren't mocking readline properly here for full interactive test,
-        // we can just check if it fails with invalid lock id.
         const mockForceUnlock = jest.fn<any>().mockResolvedValue({
             success: false,
             currentLockId: 'different-lock-id'
@@ -53,7 +51,14 @@ describe('Command forceUnlockCmd', () => {
             forceUnlock: mockForceUnlock
         }));
 
+        const readline = require('readline');
+        const spy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+            question: (_q: string, cb: any) => cb('yes'),
+            close: jest.fn()
+        } as any);
+
         await expect(forceUnlockCmd({ lockId: 'my-lock-id' })).rejects.toThrow('Process exited with code 1');
+        spy.mockRestore();
 
         expect(mockError).toHaveBeenCalled();
         const errors = mockError.mock.calls.join(' ');
