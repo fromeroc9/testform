@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import { resolve, basename } from "path";
 import YAML from "yaml";
 import { CONFIG_FILE_NAMES, FILE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
-import { IConfig, IGitHubConfig, IField, IScope, ITest, IScopeConfig } from '../core/types';
+import { IConfig, IGitHubConfig, IField, IScope, ITest, IScopeConfig, IBackendConfig } from '../core/types';
 import { logger as notify } from '../core/logger';
 
 export class Config {
@@ -83,8 +83,48 @@ export class Config {
         };
     }
 
-    getBackend() {
-        return this.config.backend;
+    getBackend(): IBackendConfig | undefined {
+        const raw = this.config.backend;
+        if (!raw) return undefined;
+
+        // 1. Support string scalar, e.g. "backend: local"
+        if (typeof raw === 'string') {
+            return {
+                type: raw.trim().toLowerCase() as any,
+                config: {}
+            };
+        }
+
+        // 2. Support optimized format where backend type is the root key:
+        // backend:
+        //   s3:
+        //     bucket: my-bucket
+        const KNOWN_BACKENDS = ['local', 'github', 's3', 'azurerm', 'gcs', 'oci'];
+        for (const type of KNOWN_BACKENDS) {
+            if ((raw as any)[type] !== undefined && typeof (raw as any)[type] === 'object') {
+                return {
+                    type: type as any,
+                    config: (raw as any)[type] || {}
+                };
+            }
+        }
+
+        // 2. Support direct / flat format:
+        // backend:
+        //   type: s3
+        //   bucket: my-bucket
+        if (raw.type) {
+            if (raw.config && typeof raw.config === 'object') {
+                return raw as IBackendConfig;
+            }
+            const { type, ...rest } = raw as any;
+            return {
+                type,
+                config: rest
+            };
+        }
+
+        return raw as IBackendConfig;
     }
 
     private getScopeConf(scope: IScope | 'global'): IScopeConfig | undefined {

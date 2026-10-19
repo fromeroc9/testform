@@ -51,7 +51,7 @@ describe('Command refreshCmd', () => {
     });
 
     it('should refresh a resource and sync title', async () => {
-        writeFileSync(join(tmpDir, 'testform.json'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
 
         const mockResource = {
             type: 'github_testcase',
@@ -94,7 +94,7 @@ describe('Command refreshCmd', () => {
     });
 
     it('should remove a resource if issue is closed', async () => {
-        writeFileSync(join(tmpDir, 'testform.json'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
 
         const mockResource = {
             type: 'github_testcase',
@@ -135,7 +135,7 @@ describe('Command refreshCmd', () => {
     });
 
     it('should remove a resource if it lacks an issue number', async () => {
-        writeFileSync(join(tmpDir, 'testform.json'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
 
         const mockResource = {
             type: 'github_testcase',

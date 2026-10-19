@@ -1,8 +1,9 @@
-import { BlobServiceClient, ContainerClient, BlockBlobClient } from '@azure/storage-blob';
+import type { ContainerClient, BlockBlobClient } from '@azure/storage-blob';
 import { randomUUID } from 'crypto';
 import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
+import { loadDriver } from '../core/driver-loader';
 
 export interface AzureRMBackendConfig {
     resource_group_name: string;
@@ -28,6 +29,7 @@ export class AzureRMBackend implements IBackend {
             throw error;
         }
 
+        const { BlobServiceClient } = loadDriver('@azure/storage-blob');
         const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
         this.containerClient = blobServiceClient.getContainerClient(config.container_name);
 

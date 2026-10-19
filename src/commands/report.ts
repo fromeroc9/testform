@@ -191,7 +191,7 @@ export const reportCmd = async (options: ReportCmdOptions) => {
         } else {
             const ghConfig = config.getGitHub();
             if (!ghConfig) {
-                console.error(red('Error: GitHub configuration not found in testform.json'));
+                console.error(red('Error: GitHub configuration not found in testform.yml'));
                 process.exit(1);
             }
             github = new GitHubAdapter(ghConfig);

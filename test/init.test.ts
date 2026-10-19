@@ -4,6 +4,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { FILE_CONFIG, FILE_STATE } from '../src/core/const';
+import YAML from 'yaml';
 
 // Mock process.exit to prevent the test runner from exiting
 const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
@@ -46,20 +47,20 @@ describe('Comando initCmd', () => {
         expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
     });
 
-    it('debe fallar si el archivo testform.json no tiene una versión válida', async () => {
+    it('debe fallar si el archivo testform.yml no tiene una versión válida', async () => {
         // Crear configuración sin versión
         const configPath = join(tmpDir, FILE_CONFIG);
-        require('fs').writeFileSync(configPath, JSON.stringify({ backend: {} }));
+        require('fs').writeFileSync(configPath, JSON.stringify({ backend: 'local' }));
 
         await expect(initCmd({ dir: tmpDir, lock: true })).rejects.toThrow();
     });
 
-    it('debe inicializarse correctamente si testform.json es válido (Camino Feliz)', async () => {
+    it('debe inicializarse correctamente si testform.yml es válido (Camino Feliz)', async () => {
         // Crear archivo de configuración válido
         const configPath = join(tmpDir, FILE_CONFIG);
         const configData = {
             version: '1.0',
-            backend: { type: 'local', config: {} }
+            backend: 'local'
         };
         require('fs').writeFileSync(configPath, JSON.stringify(configData));
 
@@ -81,7 +82,7 @@ describe('Comando initCmd', () => {
         const configPath = join(tmpDir, FILE_CONFIG);
         const configData = {
             version: '1.0',
-            backend: { type: 'local', config: {} }
+            backend: 'local'
         };
         require('fs').writeFileSync(configPath, JSON.stringify(configData));
 
@@ -99,7 +100,7 @@ describe('Comando initCmd', () => {
 
     it('debe manejar opciones mixtas correctamente (verbose, reconfigure, sin lock)', async () => {
         const configPath = join(tmpDir, FILE_CONFIG);
-        const configData = { version: '1.0', backend: { type: 'local', config: {} } };
+        const configData = { version: '1.0', backend: 'local' };
         require('fs').writeFileSync(configPath, JSON.stringify(configData));
 
         await initCmd({
@@ -120,7 +121,7 @@ describe('Comando initCmd', () => {
 
     it('debe aceptar backendConfigRaw como string único', async () => {
         const configPath = join(tmpDir, FILE_CONFIG);
-        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: { type: 'local' } }));
+        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: 'local' }));
 
         await initCmd({ dir: tmpDir, backendConfigRaw: 'path/to/config.json' });
 
@@ -130,7 +131,7 @@ describe('Comando initCmd', () => {
 
     it('debe aceptar backendConfigRaw como arreglo de strings', async () => {
         const configPath = join(tmpDir, FILE_CONFIG);
-        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: { type: 'local' } }));
+        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: 'local' }));
 
         await initCmd({ dir: tmpDir, backendConfigRaw: ['key1=value1', 'key2=value2'] });
 
@@ -139,7 +140,7 @@ describe('Comando initCmd', () => {
 
     it('debe respetar el parámetro lockTimeout', async () => {
         const configPath = join(tmpDir, FILE_CONFIG);
-        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: { type: 'local' } }));
+        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: 'local' }));
 
         await initCmd({ dir: tmpDir, lockTimeout: '10s' });
 
@@ -148,7 +149,7 @@ describe('Comando initCmd', () => {
 
     it('debe omitir la inicialización del backend si backendEnabled es false (-backend=false)', async () => {
         const configPath = join(tmpDir, FILE_CONFIG);
-        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: { type: 'local' } }));
+        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: 'local' }));
 
         await initCmd({ dir: tmpDir, backendEnabled: false });
 
@@ -159,10 +160,82 @@ describe('Comando initCmd', () => {
 
     it('debe advertir si se usa reconfigure=true (-reconfigure)', async () => {
         const configPath = join(tmpDir, FILE_CONFIG);
-        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: { type: 'local' } }));
+        require('fs').writeFileSync(configPath, JSON.stringify({ version: '1.0', backend: 'local' }));
 
         await initCmd({ dir: tmpDir, reconfigure: true });
 
         expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+    });
+
+    it('debe crear plantilla para backend github cuando se pasa backendType="github"', async () => {
+        await initCmd({ dir: tmpDir, backendType: 'github' });
+
+        const configPath = join(tmpDir, FILE_CONFIG);
+        expect(existsSync(configPath)).toBe(true);
+
+        const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
+        expect(parsed.backend).toEqual({
+            github: {
+                branch: 'testform-state',
+                path: 'state/testform.state'
+            }
+        });
+    });
+
+    it('debe crear plantilla para backend s3 cuando se pasa backendType="s3"', async () => {
+        await initCmd({ dir: tmpDir, backendType: 's3' });
+
+        const configPath = join(tmpDir, FILE_CONFIG);
+        expect(existsSync(configPath)).toBe(true);
+
+        const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
+        expect(parsed.backend.s3).toBeDefined();
+        expect(parsed.backend.s3.bucket).toBe('<required>');
+        expect(parsed.backend.s3.region).toBe('us-east-1');
+    });
+
+    it('debe crear plantilla para backend oci con namespace cuando se pasa backendType="oci"', async () => {
+        await initCmd({ dir: tmpDir, backendType: 'oci' });
+
+        const configPath = join(tmpDir, FILE_CONFIG);
+        expect(existsSync(configPath)).toBe(true);
+
+        const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
+        expect(parsed.backend.oci).toBeDefined();
+        expect(parsed.backend.oci.bucket).toBe('<required_oci_bucket>');
+        expect(parsed.backend.oci.namespace).toBe('<required_namespace>');
+        expect(parsed.backend.oci.region).toBe('us-ashburn-1');
+    });
+
+    it('debe crear plantilla para backend azurerm cuando se pasa backendType="azurerm"', async () => {
+        await initCmd({ dir: tmpDir, backendType: 'azurerm' });
+
+        const configPath = join(tmpDir, FILE_CONFIG);
+        expect(existsSync(configPath)).toBe(true);
+
+        const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
+        expect(parsed.backend.azurerm).toBeDefined();
+        expect(parsed.backend.azurerm.resource_group_name).toBe('<required>');
+    });
+
+    it('debe crear plantilla para backend gcs cuando se pasa backendType="gcs"', async () => {
+        await initCmd({ dir: tmpDir, backendType: 'gcs' });
+
+        const configPath = join(tmpDir, FILE_CONFIG);
+        expect(existsSync(configPath)).toBe(true);
+
+        const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
+        expect(parsed.backend.gcs).toBeDefined();
+        expect(parsed.backend.gcs.bucket).toBe('<required>');
+    });
+
+    it('debe usar backend local por defecto si se pasa un backendType desconocido', async () => {
+        await initCmd({ dir: tmpDir, backendType: 'desconocido' });
+
+        const configPath = join(tmpDir, FILE_CONFIG);
+        expect(existsSync(configPath)).toBe(true);
+
+        const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
+        expect(parsed.backend).toBe('local');
     });
 });

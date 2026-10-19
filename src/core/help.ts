@@ -38,7 +38,7 @@ ${bold(`All other commands:`)}
 
 ${bold(`Global options (use these before the subcommand, if any):`)}
   -chdir=DIR    Switch to a different working directory before executing the given subcommand.
-  -projectId    Override the default project ID defined in your testform.json.
+  -projectId    Override the default project ID defined in your testform.yml.
   -scope        Limit the scope of the execution (testcase, testrun, testplan).
   -help         Show this help output, or the help for a specified subcommand.
   -version      An alias for the "version" subcommand.
@@ -56,6 +56,10 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] init [options]
   This command is always safe to run multiple times.
 
 ${bold(`Options:`)}
+
+  -backend-type=<type>    Backend type to scaffold when creating a new
+                          configuration (local | github | s3 | azurerm | gcs | oci).
+                          (default: local)
 
   -backend=false          Disable backend initialization for this configuration
                           and use what was previously initialized instead.
@@ -878,7 +882,7 @@ export const HELP_TEST_FEATURE = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] test feature [options]
 
   Create a new testrun or testplan feature file based on your naming
-  convention defined in testform.json.
+  convention defined in testform.yml.
 
   This subcommand does NOT apply to testcase scope.
   It automatically resolves the output directory and applies the naming

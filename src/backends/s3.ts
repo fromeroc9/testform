@@ -1,20 +1,18 @@
-import {
-    S3Client,
-    GetObjectCommand, HeadObjectCommand,
-    PutObjectCommand,
-    NoSuchKey
-} from '@aws-sdk/client-s3';
-import {
-    DynamoDBClient,
-    PutItemCommand,
-    DeleteItemCommand,
-    GetItemCommand,
-    ConditionalCheckFailedException
-} from '@aws-sdk/client-dynamodb';
+import type { S3Client as S3ClientType } from '@aws-sdk/client-s3';
+import type { DynamoDBClient as DynamoDBClientType } from '@aws-sdk/client-dynamodb';
 import { randomUUID } from 'crypto';
 import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
+import { loadDriver } from '../core/driver-loader';
+
+function getAwsS3(): any {
+    return loadDriver('@aws-sdk/client-s3');
+}
+
+function getAwsDynamo(): any {
+    return loadDriver('@aws-sdk/client-dynamodb');
+}
 
 export interface S3BackendConfig {
     bucket: string;
@@ -22,16 +20,38 @@ export interface S3BackendConfig {
     region?: string;
     dynamodb_table?: string;
     profile?: string;
+    endpoint?: string;
+    namespace?: string;
+    forcePathStyle?: boolean;
 }
 
 export class S3Backend implements IBackend {
-    private s3: S3Client;
-    private dynamo?: DynamoDBClient;
+    private s3: S3ClientType;
+    private dynamo?: DynamoDBClientType;
     private originalKey: string;
 
     constructor(private config: S3BackendConfig, private workspace: string = 'default') {
+        const { S3Client } = getAwsS3();
         const clientConfig: any = { region: config.region || process.env.AWS_REGION || 'us-east-1' };
         
+        let endpoint = config.endpoint;
+        // Option A: Auto-construct OCI endpoint if namespace is provided
+        if (!endpoint && config.namespace) {
+            const reg = config.region || process.env.AWS_REGION || 'us-ashburn-1';
+            endpoint = `https://${config.namespace}.compat.objectstorage.${reg}.oraclecloud.com`;
+        }
+
+        // Option B: If explicit endpoint is provided, use it
+        if (endpoint) {
+            clientConfig.endpoint = endpoint;
+            // OCI Object Storage and custom S3 endpoints require path-style addressing!
+            clientConfig.forcePathStyle = config.forcePathStyle ?? true;
+        }
+
+        if (config.forcePathStyle !== undefined) {
+            clientConfig.forcePathStyle = config.forcePathStyle;
+        }
+
         if (config.profile === 'local') {
             clientConfig.endpoint = config.region && config.region.startsWith('http') ? config.region : 'http://localhost:4566';
             clientConfig.region = process.env.AWS_REGION || 'us-east-1';
@@ -42,11 +62,10 @@ export class S3Backend implements IBackend {
             };
         }
         
-        // Profiles are usually handled by the SDK automatically if AWS_PROFILE is set,
-        // or through credential providers, but for simplicity we rely on the default provider chain.
         this.s3 = new S3Client(clientConfig);
         
         if (config.dynamodb_table) {
+            const { DynamoDBClient } = getAwsDynamo();
             this.dynamo = new DynamoDBClient(clientConfig);
         }
 
@@ -59,6 +78,7 @@ export class S3Backend implements IBackend {
 
     async exists(): Promise<boolean> {
         try {
+            const { HeadObjectCommand } = getAwsS3();
             await this.s3.send(new HeadObjectCommand({ Bucket: this.config.bucket, Key: this.config.key }));
             return true;
         } catch (e: any) {
@@ -67,12 +87,13 @@ export class S3Backend implements IBackend {
     }
 
     async read(): Promise<IState> {
+        const { GetObjectCommand, NoSuchKey } = getAwsS3();
         try {
             const command = new GetObjectCommand({
                 Bucket: this.config.bucket,
                 Key: this.config.key,
             });
-            const response = await this.s3.send(command);
+            const response: any = await this.s3.send(command);
             const raw = await response.Body?.transformToString();
             
             if (!raw) {
@@ -80,7 +101,10 @@ export class S3Backend implements IBackend {
             }
             return JSON.parse(raw) as IState;
         } catch (err: any) {
-            if (err instanceof NoSuchKey || err.name === 'NoSuchKey' || err.Code === 'NoSuchKey') {
+            if (NoSuchKey && (err instanceof NoSuchKey || err.name === 'NoSuchKey' || err.Code === 'NoSuchKey')) {
+                return this.emptyState();
+            }
+            if (err.name === 'NoSuchKey' || err.Code === 'NoSuchKey') {
                 return this.emptyState();
             }
             throw err;
@@ -88,6 +112,7 @@ export class S3Backend implements IBackend {
     }
 
     async write(state: IState): Promise<void> {
+        const { PutObjectCommand } = getAwsS3();
         const command = new PutObjectCommand({
             Bucket: this.config.bucket,
             Key: this.config.key,
@@ -99,10 +124,10 @@ export class S3Backend implements IBackend {
 
     async lock(timeoutRaw: string): Promise<boolean> {
         if (!this.dynamo || !this.config.dynamodb_table) {
-            // If no dynamodb table is configured, locking is bypassed (or purely optimistic).
             return true;
         }
 
+        const { PutItemCommand, ConditionalCheckFailedException } = getAwsDynamo();
         const timeoutMatch = timeoutRaw.match(/^(\d+)s$/);
         const timeoutMs = timeoutMatch ? parseInt(timeoutMatch[1], 10) * 1000 : 0;
         const start = Date.now();
@@ -120,7 +145,6 @@ export class S3Backend implements IBackend {
 
         while (true) {
             try {
-                // Try to acquire lock
                 await this.dynamo.send(new PutItemCommand({
                     TableName: this.config.dynamodb_table,
                     Item: item,
@@ -128,7 +152,8 @@ export class S3Backend implements IBackend {
                 }));
                 return true;
             } catch (err: any) {
-                if (err instanceof ConditionalCheckFailedException || err.name === 'ConditionalCheckFailedException') {
+                const isConflict = (ConditionalCheckFailedException && err instanceof ConditionalCheckFailedException) || err.name === 'ConditionalCheckFailedException';
+                if (isConflict) {
                     if (Date.now() - start >= timeoutMs) {
                         return false;
                     }
@@ -143,6 +168,7 @@ export class S3Backend implements IBackend {
     async unlock(): Promise<boolean> {
         if (!this.dynamo || !this.config.dynamodb_table) return true;
 
+        const { DeleteItemCommand } = getAwsDynamo();
         try {
             await this.dynamo.send(new DeleteItemCommand({
                 TableName: this.config.dynamodb_table,
@@ -159,8 +185,9 @@ export class S3Backend implements IBackend {
             return { success: false, error: 'DynamoDB locking is not configured for this backend.' };
         }
 
+        const { GetItemCommand, DeleteItemCommand } = getAwsDynamo();
         try {
-            const response = await this.dynamo.send(new GetItemCommand({
+            const response: any = await this.dynamo.send(new GetItemCommand({
                 TableName: this.config.dynamodb_table,
                 Key: { LockID: { S: this.config.bucket + '/' + this.config.key } }
             }));
@@ -187,8 +214,9 @@ export class S3Backend implements IBackend {
     async isLocked(): Promise<boolean> {
         if (!this.dynamo || !this.config.dynamodb_table) return false;
 
+        const { GetItemCommand } = getAwsDynamo();
         try {
-            const response = await this.dynamo.send(new GetItemCommand({
+            const response: any = await this.dynamo.send(new GetItemCommand({
                 TableName: this.config.dynamodb_table,
                 Key: { LockID: { S: this.config.bucket + '/' + this.config.key } }
             }));
@@ -211,12 +239,12 @@ export class S3Backend implements IBackend {
     async listWorkspaces(): Promise<string[]> {
         const workspaces = new Set<string>(['default']);
         try {
-            const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+            const { ListObjectsV2Command } = getAwsS3();
             const command = new ListObjectsV2Command({
                 Bucket: this.config.bucket,
                 Prefix: 'env:/'
             });
-            const response = await this.s3.send(command);
+            const response: any = await this.s3.send(command);
             if (response.Contents) {
                 for (const item of response.Contents) {
                     if (item.Key) {
@@ -228,7 +256,7 @@ export class S3Backend implements IBackend {
                 }
             }
         } catch (e) {
-            // Ignore error and just return what we have (fallback to local knowledge basically)
+            // Ignore error and just return what we have
         }
         return Array.from(workspaces);
     }
@@ -236,7 +264,7 @@ export class S3Backend implements IBackend {
     async deleteWorkspace(name: string): Promise<boolean> {
         if (name === 'default') return false;
         try {
-            const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+            const { DeleteObjectCommand } = getAwsS3();
             const targetKey = `env:/${name}/${this.originalKey}`;
             
             const command = new DeleteObjectCommand({

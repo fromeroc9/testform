@@ -126,6 +126,7 @@ export function createCli() {
 
     // ─── init ─────────────────────────────────────────────────────────────
     cli.command('init', 'Initialize a new Testform workspace')
+        .option('--backend-type <type>', 'Backend type to initialize (local | github | s3 | azurerm | gcs | oci)')
         .option('--backend-config <config>', 'Backend configuration override')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
@@ -136,15 +137,19 @@ export function createCli() {
         .option('--input', 'Allow interactive input', { default: true })
         .action(async (options) => {
             const workDir = getWorkDir(options);
+            const resolvedBackendType = options.backendType || (typeof options.backend === 'string' ? options.backend : undefined);
+            const backendEnabled = options.backend !== false && options.backend !== 'false';
+
             await initCmd({
                 dir: workDir,
+                backendType: resolvedBackendType,
                 verbose: Boolean(options.verbose),
                 backendConfigRaw: options.backendConfig,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
                 reconfigure: options.reconfigure,
                 migrateState: options.migrateState,
-                backendEnabled: options.backend ?? true,
+                backendEnabled: backendEnabled,
                 isJson: options.json,
                 inputEnabled: options.input ?? true
             });

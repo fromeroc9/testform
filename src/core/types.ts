@@ -8,7 +8,7 @@ export interface IProviderConfig {
 }
 
 export interface IBackendConfig {
-    type: 'local' | 's3' | 'azurerm';
+    type: 'local' | 's3' | 'azurerm' | 'gcs' | 'github' | 'oci';
     config: Record<string, any>;
 }
 
@@ -56,7 +56,7 @@ export interface ITest {
 export interface IConfig {
     version?: string;
     provider?: IProviderConfig;
-    backend?: IBackendConfig;
+    backend?: IBackendConfig | string | Record<string, any>;
     scopes?: {
         global?: IScopeConfig;
         testcase?: IScopeConfig;

@@ -7,6 +7,7 @@ import { LocalBackend } from '../backends/local';
 import { S3Backend, S3BackendConfig } from '../backends/s3';
 import { AzureRMBackend, AzureRMBackendConfig } from '../backends/azurerm';
 import { GCSBackend, GCSBackendConfig } from '../backends/gcs';
+import { GitHubBackend, GitHubBackendConfig } from '../backends/github';
 import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
@@ -42,12 +43,21 @@ export class State {
             backendConfig.config = { ...backendConfig.config, ...overrides };
         }
 
-        if (backendConfig?.type === 's3') {
+        if (backendConfig?.type === 's3' || backendConfig?.type === 'oci') {
             this.backend = new S3Backend(backendConfig.config as unknown as S3BackendConfig, currentWorkspace);
         } else if (backendConfig?.type === 'azurerm') {
             this.backend = new AzureRMBackend(backendConfig.config as unknown as AzureRMBackendConfig, currentWorkspace);
         } else if (backendConfig?.type === 'gcs') {
             this.backend = new GCSBackend(backendConfig.config as unknown as GCSBackendConfig, currentWorkspace);
+        } else if (backendConfig?.type === 'github') {
+            const gh = config.getGitHub();
+            this.backend = new GitHubBackend(
+                backendConfig.config as unknown as GitHubBackendConfig,
+                currentWorkspace,
+                gh?.owner,
+                gh?.repository,
+                gh?.tokenEnv
+            );
         } else {
             this.backend = new LocalBackend(dir, customStatePath, customBackupPath, currentWorkspace);
         }

@@ -1,0 +1,29 @@
+version: "1.0"
+provider:
+  type: github
+  config:
+    owner: <required>
+    repository: <required>
+    token_env: GITHUB_TOKEN
+backend:
+  oci:
+    bucket: <required_oci_bucket>
+    namespace: <required_namespace>
+    region: us-ashburn-1
+    key: testform.state
+scopes:
+  testcase:
+    match: "*.case.feature::*"
+    scaffold:
+      directory: testcase
+      filename: "{slug}_{YYYYMMDD}.case.feature"
+    fields: []
+  testrun:
+    match: "*.run.feature::*"
+    scaffold:
+      directory: testrun
+      filename: "{slug}_{YYYYMMDD}.run.feature"
+    fields: []
+  testplan:
+    match: "*.plan.feature::*"
+    fields: []

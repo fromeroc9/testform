@@ -27,7 +27,7 @@ export interface CommandContext {
     /** Authenticated provider adapter ready for API calls. */
     adapter: IProviderAdapter;
     github: IProviderAdapter;
-    /** Loaded project configuration (testform.json). */
+    /** Loaded project configuration (testform.yml). */
     config: Config;
     /** Logger configured with the command's verbosity setting. */
     logger: Logger;
@@ -37,7 +37,7 @@ export interface CommandContext {
  * Options for creating a command context.
  */
 interface CommandContextOptions {
-    /** Working directory containing testform.json. Defaults to `'.'`. */
+    /** Working directory containing testform.yml. Defaults to `'.'`. */
     dir?: string;
     /** Enable verbose/debug logging. */
     verbose?: boolean;
@@ -56,7 +56,7 @@ interface CommandContextOptions {
 /**
  * Creates a fully initialized command context.
  *
- * Initializes the state file, acquires the lock, loads the testform.json
+ * Initializes the state file, acquires the lock, loads the testform.yml
  * configuration, and constructs an authenticated GitHubAdapter. Returns `null`
  * (and emits an error notification) if GitHub configuration is missing unless
  * `silent` is set.

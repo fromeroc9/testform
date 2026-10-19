@@ -19,7 +19,7 @@ import { IScope } from '../core/types';
 /**
  * Destroy command: closes all GitHub issues tracked by TestForm in the current scope.
  *
- * @param dir         - Working directory containing `testform.json`.
+ * @param dir         - Working directory containing `testform.yml`.
  * @param verbose     - Enable verbose/debug logging.
  * @param scope       - The scope to destroy (`testcase` | `testrun` | `testplan`).
  * @param lock        - Whether to acquire a state lock during execution.

@@ -65,7 +65,7 @@ provider:
         expect(config.getResolvedPath()).toBe(join(tmpDir, 'testform.yaml'));
     });
 
-    it('should maintain 100% backwards compatibility with testform.json', () => {
+    it('should ignore testform.json since only YAML config files are supported', () => {
         const jsonContent = JSON.stringify({
             version: "1.0",
             provider: {
@@ -75,13 +75,11 @@ provider:
         });
         writeFileSync(join(tmpDir, 'testform.json'), jsonContent, 'utf8');
 
-        const config = new Config(tmpDir);
-        expect(config.getConfig().version).toBe('1.0');
-        expect(config.getGitHub()?.owner).toBe('legacy-owner');
-        expect(config.getResolvedPath()).toBe(join(tmpDir, 'testform.json'));
+        // Should throw because no YAML config exists
+        expect(() => new Config(tmpDir)).toThrow(/No configuration files/);
     });
 
-    it('should prioritize testform.yml over testform.json if both exist', () => {
+    it('should resolve testform.yml even if testform.json exists in directory', () => {
         writeFileSync(join(tmpDir, 'testform.yml'), 'version: "1.0"\nprovider:\n  type: github\n  config:\n    owner: from-yaml\n', 'utf8');
         writeFileSync(join(tmpDir, 'testform.json'), JSON.stringify({ version: "1.0", provider: { config: { owner: "from-json" } } }), 'utf8');
 

@@ -23,7 +23,7 @@ import { IScope } from '../core/types';
  * This function is called both by `refreshCmd` (standalone) and implicitly
  * by `planCmd` / `applyCmd` during implicit refresh operations.
  *
- * @param dir    - Working directory containing `testform.json`.
+ * @param dir    - Working directory containing `testform.yml`.
  * @param scope  - The scope to refresh (`testcase` | `testrun` | `testplan`).
  * @param state  - Pre-initialized, locked `State` instance.
  * @param logger - Logger for output.
@@ -221,7 +221,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 /**
  * Refresh command entry point: standalone `testform refresh` execution.
  *
- * @param dir         - Working directory containing `testform.json`.
+ * @param dir         - Working directory containing `testform.yml`.
  * @param verbose     - Enable verbose/debug logging.
  * @param scope       - The scope to refresh.
  * @param lock        - Whether to acquire a state lock.

@@ -14,7 +14,7 @@ describe('Command reportCmd', () => {
 
     beforeEach(() => {
         tmpDir = mkdtempSync(join(tmpdir(), 'testform-report-test-'));
-        require('fs').writeFileSync(join(tmpDir, 'testform.json'), JSON.stringify({ version: '1.0' }));
+        require('fs').writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0' }));
         mockLog.mockClear();
         (State as jest.Mock).mockClear();
     });

@@ -70,7 +70,7 @@ describe('Command validateCmd', () => {
     });
 
     it('should successfully validate if valid feature files are present (Happy Path)', async () => {
-        // Create testform.json
+        // Create testform.yml
         writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
 
         // Create a dummy feature file

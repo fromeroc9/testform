@@ -80,88 +80,162 @@ Inside `config`:
 
 ## The `backend` Block
 
-Defines where Testform stores its `testform.state` file. The state file maps your local `.feature` scenarios to their corresponding GitHub Issue IDs.
+Defines where Testform stores its `testform.state` file. Just like in Terraform, the backend in Testform is **strictly single and unique**: your state is stored in exactly one source of truth.
 
-- **`type`** (string): Determines the storage mechanism. Supported values are `"local"` and `"s3"`.
-- **`config`** (object): The specific configuration for the chosen backend type.
+Because the backend is unique, Testform uses an **optimized, compact syntax** directly naming the backend type without redundant `type:` and `config:` nesting levels.
 
-### S3 Backend (`"type": "s3"`)
+### Scaffolding Backends with `testform init`
+
+You can initialize your workspace with a pre-configured template for any backend using the `-backend-type` option:
+
+```bash
+# Default (local filesystem state)
+testform init
+
+# GitHub branch backend (Zero-dependency cloud state)
+testform init -backend-type=github
+
+# AWS S3
+testform init -backend-type=s3
+
+# Oracle Cloud Infrastructure (OCI Object Storage)
+testform init -backend-type=oci
+
+# Azure Blob Storage
+testform init -backend-type=azurerm
+
+# Google Cloud Storage
+testform init -backend-type=gcs
+```
+
+> **Automated Driver Installation:** When running `testform init` with a cloud backend, Testform automatically checks if the required driver package is installed. If missing, it downloads it on the fly (just like `terraform init` downloads provider plugins).
+
+### Backend Overview & Required Libraries
+
+| Backend Type | Target Storage | Required Packages | State Locking Mechanism |
+|---|---|---|---|
+| **`local`** | Local filesystem (`testform.state`) | **None** (Built-in) | File-based lock (`.lock`) |
+| **`github`** | GitHub repository branch | **None** (Built-in, uses GitHub API) | Git SHA / Commit lock |
+| **`s3`** | AWS S3 | `@aws-sdk/client-s3`<br>`@aws-sdk/client-dynamodb` | DynamoDB Table lock (`dynamodb_table`) |
+| **`oci`** | Oracle Cloud Object Storage | `@aws-sdk/client-s3` | Native S3-compatible path-style |
+| **`azurerm`** | Azure Blob Storage | `@azure/storage-blob` | Native Blob Lease |
+| **`gcs`** | Google Cloud Storage | `@google-cloud/storage` | GCS generation / `.tflock` |
+
+---
+
+### 1. GitHub Backend (`github:`)
+
+Stores your state directly in a GitHub repository branch. Ideal for GitOps workflows, CI/CD pipelines, and teams that want cloud-backed shared state **without configuring AWS, Azure, or GCP accounts**.
+
+```yaml
+backend:
+  github:
+    branch: testform-state        # Dedicated branch for state (default: testform-state)
+    path: state/testform.state    # Path inside branch (default: state/testform.state)
+    token_env: GITHUB_TOKEN       # Token env var (default: inherits provider GITHUB_TOKEN)
+```
+
+- **Inherits Provider Configuration:** If `owner` and `repository` are omitted, it automatically inherits the same repository and credentials configured in your `provider.config`.
+- **Private State Repository:** You can also point to a separate private repository (e.g. `owner: my-org`, `repository: testform-states`) to keep state isolated from application code.
+- **Atomic Locking & Audit Trail:** Uses GitHub's optimistic concurrency control (Git SHA). Every `apply` creates an audited commit, and concurrent writes automatically trigger conflict protection without needing DynamoDB.
+- **Zero Dependencies:** Uses Node.js native `fetch`—no additional packages required.
+
+---
+
+### 2. S3 Backend (`s3:`)
 
 Stores the state as a file in an Amazon S3 bucket.
 
-```json
-  "backend": {
-    "type": "s3",
-    "config": {
-      "bucket": "my-testform-state",
-      "key": "testform.tfstate",
-      "region": "us-east-1",
-      "profile": "default"
-    }
-  }
+```yaml
+backend:
+  s3:
+    bucket: my-testform-state
+    key: testform.state
+    region: us-east-1
+    profile: default
+    dynamodb_table: testform-locks
 ```
 
+- **Auto-installed Package:** `@aws-sdk/client-s3` (and `@aws-sdk/client-dynamodb` if `dynamodb_table` is configured).
 - **`bucket`** (string): Name of the S3 bucket.
-- **`key`** (string, optional): The path/name of the state file inside the bucket. Defaults to `testform.state` if omitted.
-- **`region`** (string, optional): AWS region. If omitted, it will use `AWS_REGION` from the environment or default to `us-east-1`.
-- **`profile`** (string, optional): The AWS profile to use from your local `~/.aws/credentials` or AWS SSO configuration.
+- **`key`** (string, optional): State file key. Defaults to `testform.state`.
+- **`region`** (string, optional): AWS region. Defaults to `us-east-1` or `AWS_REGION`.
+- **`profile`** (string, optional): AWS profile from `~/.aws/credentials`.
 - **`dynamodb_table`** (string, optional): Name of a DynamoDB table used for state locking to prevent concurrent modifications.
 
-> **💡 Local Emulators Tip (MiniStack / Floci):** 
-> To connect to a local emulator without polluting your config with custom fields, set `"profile": "local"`. When this profile is active, Testform automatically enables path-style URLs and reads the `"region"` field as your local endpoint! 
-> Example: `"profile": "local", "region": "http://localhost:4566"`.
+---
 
-> **Note on Security:** Notice that access keys and secrets are NOT placed directly in this configuration file. Testform utilizes the official AWS SDK, which automatically fetches your credentials from your environment (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`), your SSO login session (`aws sso login`), or your local `~/.aws/credentials` using the specified `profile`.
+### 3. Oracle Cloud Infrastructure (OCI) Backend (`oci:`)
+
+Stores state in an OCI Object Storage bucket using OCI's S3-compatible API.
+
+```yaml
+backend:
+  oci:
+    bucket: my-oci-bucket
+    namespace: my-tenancy-namespace
+    region: us-ashburn-1
+    key: testform.state
+```
+
+- **Option A (Recommended):** Provide `namespace` and `region`. Testform automatically constructs the endpoint:
+  `https://<namespace>.compat.objectstorage.<region>.oraclecloud.com`
+- **Option B (Custom Endpoint):** Provide an explicit `endpoint: "https://..."`.
+- **Automatic Path-Style Addressing:** Testform automatically configures `forcePathStyle: true`, required for OCI compatibility.
+- **Authentication:** Provide OCI Customer Secret Keys via standard environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` or `~/.aws/credentials`.
+
+#### 💡 Local Emulators (MiniStack / LocalStack / Floci):
+To connect to a local emulator, set `profile: "local"`. Testform enables path-style URLs automatically:
+```yaml
+backend:
+  s3:
+    bucket: test-bucket
+    profile: local
+    region: "http://localhost:4566"
+```
 
 ---
 
-### AzureRM Backend (`"type": "azurerm"`)
+### 4. AzureRM Backend (`azurerm:`)
 
-Stores the state as a file in an Azure Blob Storage container.
+Stores the state in an Azure Blob Storage container.
 
-```json
-  "backend": {
-    "type": "azurerm",
-    "config": {
-      "resource_group_name": "my-resource-group",
-      "storage_account_name": "mystorageaccount",
-      "container_name": "demo-bucket",
-      "key": "testform.state"
-    }
-  }
+```yaml
+backend:
+  azurerm:
+    resource_group_name: my-resource-group
+    storage_account_name: mystorageaccount
+    container_name: tfstate
+    key: testform.state
+    connection_string: "DefaultEndpointsProtocol=https;..."
 ```
 
-- **`resource_group_name`** (string): The name of the Azure resource group.
-- **`storage_account_name`** (string): The name of the Azure Storage Account.
-- **`container_name`** (string): The name of the Blob Storage container.
-- **`key`** (string, optional): The name of the state file inside the container. Defaults to `testform.state` if omitted.
-- **`connection_string`** (string, optional): The connection string to authenticate with Azure. If omitted, Testform will use the `AZURE_STORAGE_CONNECTION_STRING` environment variable.
-
-> **💡 Local Emulators Tip (Azurite / Floci):** 
-> To connect to a local emulator like Azurite or Floci, provide the default emulator connection string containing your local endpoint directly in the configuration (or export it to your environment).
-> Example: `"connection_string": "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=...;BlobEndpoint=http://localhost:4577/devstoreaccount1;"`.
+- **Auto-installed Package:** `@azure/storage-blob`
+- **`resource_group_name`** (string): Azure resource group.
+- **`storage_account_name`** (string): Azure Storage Account.
+- **`container_name`** (string): Blob Storage container.
+- **`key`** (string, optional): State file name. Defaults to `testform.state`.
+- **`connection_string`** (string, optional): Azure connection string. If omitted, uses `AZURE_STORAGE_CONNECTION_STRING` env variable.
+- **Native Locking:** AzureRM uses native blob leases—no external database needed.
 
 ---
 
-### GCS Backend (`"type": "gcs"`)
+### 5. GCS Backend (`gcs:`)
 
-Stores the state as a file in a Google Cloud Storage bucket.
+Stores the state in a Google Cloud Storage bucket.
 
-```json
-  "backend": {
-    "type": "gcs",
-    "config": {
-      "bucket": "my-testform-state-bucket",
-      "prefix": "testform/state"
-    }
-  }
+```yaml
+backend:
+  gcs:
+    bucket: my-testform-state-bucket
+    prefix: testform/state
+    credentials: /path/to/service-account.json
 ```
 
-- **`bucket`** (string): The name of the GCS bucket.
-- **`prefix`** (string, optional): GCS prefix inside the bucket. State will be stored as `<prefix>/testform.state`. If omitted, state will be stored at the root of the bucket.
-- **`credentials`** (string, optional): Local path to a Google Cloud service account JSON key file.
-
-> **Note on Security:** If `credentials` is omitted, Testform will automatically use Google Application Default Credentials (ADC) from your environment or `gcloud auth application-default login`.
+- **Auto-installed Package:** `@google-cloud/storage`
+- **`bucket`** (string): GCS bucket name.
+- **`prefix`** (string, optional): Prefix inside bucket. Defaults to root.
+- **`credentials`** (string, optional): Local path to service account JSON. If omitted, uses Google Application Default Credentials (ADC).
 
 ---
 

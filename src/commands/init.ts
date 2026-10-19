@@ -8,6 +8,7 @@ import { Logger } from '../core/logger';
 import { basename, dirname, join } from 'path';
 import { State } from '../core/state';
 import { WorkspaceManager } from '../core/workspace';
+import { ensureDriverInstalled } from '../core/driver-loader';
 
 interface InitPaths {
     configPath: string;
@@ -25,12 +26,63 @@ const ensureWorkingDirectory = (dir: string, logger: Logger): void => {
     logger.info(`Created ${dir} directory`);
 };
 
-const createConfigIfNotExists = (configPath: string, logger: Logger): boolean => {
+const createConfigIfNotExists = (configPath: string, logger: Logger, backendType: string = 'local'): boolean => {
     const dir = dirname(configPath);
     for (const name of CONFIG_FILE_NAMES) {
         if (existsSync(join(dir, name))) {
             return true;
         }
+    }
+
+    let backendBlock: any = 'local';
+    const normalizedType = (backendType || 'local').toLowerCase().trim();
+
+    const VALID_BACKENDS = ['local', 'github', 's3', 'azurerm', 'gcs', 'oci'];
+    if (!VALID_BACKENDS.includes(normalizedType)) {
+        logger.warn(`Unknown backend type "${backendType}". Defaulting to "local". (Supported: ${VALID_BACKENDS.join(', ')})`);
+    }
+
+    if (normalizedType === 'github') {
+        backendBlock = {
+            github: {
+                branch: 'testform-state',
+                path: 'state/testform.state'
+            }
+        };
+    } else if (normalizedType === 's3') {
+        backendBlock = {
+            s3: {
+                bucket: '<required>',
+                region: 'us-east-1',
+                key: 'testform.state',
+                dynamodb_table: '<optional>'
+            }
+        };
+    } else if (normalizedType === 'oci') {
+        backendBlock = {
+            oci: {
+                bucket: '<required_oci_bucket>',
+                namespace: '<required_namespace>',
+                region: 'us-ashburn-1',
+                key: 'testform.state'
+            }
+        };
+    } else if (normalizedType === 'azurerm') {
+        backendBlock = {
+            azurerm: {
+                resource_group_name: '<required>',
+                storage_account_name: '<required>',
+                container_name: '<required>',
+                key: 'testform.state'
+            }
+        };
+    } else if (normalizedType === 'gcs') {
+        backendBlock = {
+            gcs: {
+                bucket: '<required>',
+                prefix: 'testform/state'
+            }
+        };
     }
 
     const initialConfig = {
@@ -43,10 +95,7 @@ const createConfigIfNotExists = (configPath: string, logger: Logger): boolean =>
                 token_env: "GITHUB_TOKEN"
             }
         },
-        backend: {
-            type: "local",
-            config: {}
-        },
+        backend: backendBlock,
         scopes: {
             testcase: {
                 match: "*.case.feature::*",
@@ -54,7 +103,7 @@ const createConfigIfNotExists = (configPath: string, logger: Logger): boolean =>
                     directory: "testcase",
                     filename: "{slug}_{YYYYMMDD}.case.feature"
                 },
-                fields: {}
+                fields: []
             },
             testrun: {
                 match: "*.run.feature::*",
@@ -62,11 +111,11 @@ const createConfigIfNotExists = (configPath: string, logger: Logger): boolean =>
                     directory: "testrun",
                     filename: "{slug}_{YYYYMMDD}.run.feature"
                 },
-                fields: {}
+                fields: []
             },
             testplan: {
                 match: "*.plan.feature::*",
-                fields: {}
+                fields: []
             }
         }
     };
@@ -113,6 +162,7 @@ const printNextSteps = (logger: Logger): void => {
 
 interface InitCmdOptions {
     dir?: string;
+    backendType?: string;
     verbose?: boolean;
     backendConfigRaw?: string | string[];
     lock?: boolean;
@@ -127,6 +177,7 @@ interface InitCmdOptions {
 export const initCmd = async (options: InitCmdOptions = {}) => {
     const {
         dir = '.',
+        backendType = 'local',
         verbose = false,
         backendConfigRaw,
         lock = true,
@@ -141,7 +192,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
     // INPUT
     ensureWorkingDirectory(dir, logger);
-    const wasAlreadyInitialized = createConfigIfNotExists(paths.configPath, logger);
+    const wasAlreadyInitialized = createConfigIfNotExists(paths.configPath, logger, backendType);
 
     // PROCESS
     logger.info('Initializing the backend...', { bold: true });
@@ -152,6 +203,41 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
     if (!backendEnabled) {
         backendConfig = { type: 'local', config: {} };
+    }
+
+    // Auto-install required cloud drivers if missing (just like terraform init plugin download)
+    if (backendEnabled && backendConfig && backendConfig.type !== 'local' && backendConfig.type !== 'github') {
+        if (backendConfig.type === 'azurerm') {
+            ensureDriverInstalled('@azure/storage-blob', logger);
+        } else if (backendConfig.type === 's3' || backendConfig.type === 'oci') {
+            ensureDriverInstalled('@aws-sdk/client-s3', logger);
+            if (backendConfig.config?.dynamodb_table && backendConfig.config.dynamodb_table !== '<optional>') {
+                ensureDriverInstalled('@aws-sdk/client-dynamodb', logger);
+            }
+        } else if (backendConfig.type === 'gcs') {
+            ensureDriverInstalled('@google-cloud/storage', logger);
+        }
+    }
+
+    // Check if new config was generated with placeholders
+    const isPlaceholder = !wasAlreadyInitialized && (
+        backendConfig?.config?.bucket === '<required>' ||
+        backendConfig?.config?.bucket === '<required_oci_bucket>' ||
+        backendConfig?.config?.namespace === '<required_namespace>' ||
+        backendConfig?.config?.resource_group_name === '<required>' ||
+        backendConfig?.config?.storage_account_name === '<required>' ||
+        (backendConfig?.type === 'github' && config.getGitHub()?.owner === '<required>')
+    );
+
+    if (isPlaceholder) {
+        const resolvedConfigName = config.getResolvedPath() ? basename(config.getResolvedPath()!) : FILE_CONFIG;
+        logger.info(`- Configuration: ${resolvedConfigName} (v${config.getConfig().version})`);
+        logger.info(`- State backend: scaffolded (${backendConfig?.type || 'local'})`);
+        logger.blank();
+        logger.info(`Notice: Backend configuration template created with placeholder '<required>' values.`);
+        logger.info(`Please update ${resolvedConfigName} with your cloud/repo details, then rerun:`);
+        logger.info(`  ${TITLE_CLI} init`);
+        return;
     }
 
     const workspaceManager = new WorkspaceManager(dir);

@@ -1,8 +1,9 @@
-import { Storage, Bucket } from '@google-cloud/storage';
+import type { Storage as StorageType, Bucket } from '@google-cloud/storage';
 import { randomUUID } from 'crypto';
 import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
+import { loadDriver } from '../core/driver-loader';
 
 export interface GCSBackendConfig {
     bucket: string;
@@ -11,7 +12,7 @@ export interface GCSBackendConfig {
 }
 
 export class GCSBackend implements IBackend {
-    private storage: Storage;
+    private storage: StorageType;
     private bucketClient: Bucket;
     private stateKey: string;
     private lockKey: string;
@@ -23,6 +24,7 @@ export class GCSBackend implements IBackend {
             storageOptions.keyFilename = config.credentials;
         }
 
+        const { Storage } = loadDriver('@google-cloud/storage');
         this.storage = new Storage(storageOptions);
         this.bucketClient = this.storage.bucket(config.bucket);
 
