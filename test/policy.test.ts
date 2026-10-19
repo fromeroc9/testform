@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 import { policy } from '../src/core/policy';
 import { ParserScenario, PolicyRule } from '../src/core/types';
 

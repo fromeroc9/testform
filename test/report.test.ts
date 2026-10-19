@@ -1,22 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { reportCmd } from '../src/commands/report';
 import { State } from '../src/core/state';
 import { join } from 'path';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
+vi.mock('../src/core/state');
 
 describe('Command reportCmd', () => {
     let tmpDir: string;
 
     beforeEach(() => {
         tmpDir = mkdtempSync(join(tmpdir(), 'testform-report-test-'));
-        require('fs').writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0' }));
         mockLog.mockClear();
-        (State as jest.Mock).mockClear();
+        (State as any).mockClear();
     });
 
     afterEach(() => {
@@ -27,7 +27,7 @@ describe('Command reportCmd', () => {
 
     afterAll(() => {
         mockLog.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     const mockTestCases = [
@@ -52,14 +52,16 @@ describe('Command reportCmd', () => {
     ];
 
     it('should generate testcase-summary markdown', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         await reportCmd({ dir: tmpDir, type: 'testcase-summary', format: 'md', filter: [] });
         
@@ -72,14 +74,16 @@ describe('Command reportCmd', () => {
     });
 
     it('should generate testrun-summary markdown', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         await reportCmd({ dir: tmpDir, type: 'testrun-summary', format: 'md', filter: [] });
         
@@ -89,14 +93,16 @@ describe('Command reportCmd', () => {
     });
 
     it('should filter correctly by label', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         const outPath = join(tmpDir, 'report.json');
         await reportCmd({ dir: tmpDir, type: 'raw', format: 'json', filter: ['labels=@sprint-1'], out: outPath });
@@ -107,14 +113,16 @@ describe('Command reportCmd', () => {
     });
 
     it('should filter correctly by custom field', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         const outPath = join(tmpDir, 'report2.json');
         await reportCmd({ dir: tmpDir, type: 'raw', format: 'json', filter: ['priority=high'], out: outPath });
@@ -125,14 +133,16 @@ describe('Command reportCmd', () => {
     });
 
     it('should output csv format correctly', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         await reportCmd({ dir: tmpDir, type: 'raw', format: 'csv', filter: [] });
         
@@ -142,14 +152,16 @@ describe('Command reportCmd', () => {
     });
 
     it('should generate defects report', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         await reportCmd({ dir: tmpDir, type: 'defects', format: 'md', filter: [] });
         
@@ -160,14 +172,16 @@ describe('Command reportCmd', () => {
     });
 
     it('should handle two-dimensional matrix', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: (type: string) => {
-                if (type === 'github_testcase') return mockTestCases;
-                if (type === 'github_testrun') return mockTestRuns;
-                return [];
-            }
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
 
         await reportCmd({ dir: tmpDir, type: 'two-dimensional', format: 'md', filter: [] });
         

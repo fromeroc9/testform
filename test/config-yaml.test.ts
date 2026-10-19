@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Config } from '../src/core/config';
 import { initCmd } from '../src/commands/init';
 import { join } from 'path';

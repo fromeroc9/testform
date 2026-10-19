@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { ephemeralCmd, getEphemeralBaseDir, getEphemeralSandboxDir, isValidSandboxId } from '../src/commands/ephemeral';
 import { applyCmd } from '../src/commands/apply';
 import { destroyCmd } from '../src/commands/destroy';
@@ -6,15 +6,15 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/commands/apply');
-jest.mock('../src/commands/destroy');
+vi.mock('../src/commands/apply');
+vi.mock('../src/commands/destroy');
 
 describe('Command ephemeralCmd', () => {
     let tmpDir: string;
@@ -24,8 +24,8 @@ describe('Command ephemeralCmd', () => {
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
-        (applyCmd as jest.Mock).mockClear();
-        (destroyCmd as jest.Mock).mockClear();
+        (applyCmd as any).mockClear();
+        (destroyCmd as any).mockClear();
 
         (applyCmd as any).mockResolvedValue(undefined);
         (destroyCmd as any).mockResolvedValue(undefined);
@@ -41,7 +41,7 @@ describe('Command ephemeralCmd', () => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should validate sandbox IDs correctly', () => {

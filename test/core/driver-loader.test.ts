@@ -1,5 +1,5 @@
-import { describe, it, expect } from '@jest/globals';
-import { loadDriver, ALLOWED_DRIVERS } from '../../src/core/driver-loader';
+import { describe, it, expect } from 'vitest';
+import { loadDriver, ALLOWED_DRIVERS, isDriverAvailable, ensureDriverInstalled } from '../../src/core/driver-loader';
 
 describe('Dynamic Driver Loader', () => {
     it('should reject packages not in the whitelist', () => {
@@ -27,13 +27,11 @@ describe('Dynamic Driver Loader', () => {
     });
 
     it('should check if driver is available with isDriverAvailable', () => {
-        const { isDriverAvailable } = require('../../src/core/driver-loader');
         expect(isDriverAvailable('@aws-sdk/client-s3')).toBe(true);
         expect(isDriverAvailable('non-existent-package')).toBe(false);
     });
 
     it('should ensure driver installed returns true if already available', () => {
-        const { ensureDriverInstalled } = require('../../src/core/driver-loader');
         expect(ensureDriverInstalled('@aws-sdk/client-s3')).toBe(true);
     });
 });

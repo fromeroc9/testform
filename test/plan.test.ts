@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { planCmd } from '../src/commands/plan';
 import { State } from '../src/core/state';
 import { Parser } from '../src/core/parser';
@@ -7,13 +7,13 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
-jest.mock('../src/core/parser');
-jest.mock('../src/core/config');
-jest.mock('../src/core/policy');
+vi.mock('../src/core/state');
+vi.mock('../src/core/parser');
+vi.mock('../src/core/config');
+vi.mock('../src/core/policy');
 
 describe('Command planCmd', () => {
     let tmpDir: string;
@@ -22,14 +22,16 @@ describe('Command planCmd', () => {
         tmpDir = mkdtempSync(join(tmpdir(), 'testform-plan-test-'));
         mockLog.mockClear();
         mockError.mockClear();
-        (State as jest.Mock).mockClear();
-        (Parser as jest.Mock).mockClear();
-        (Config as jest.Mock).mockClear();
+        (State as any).mockClear();
+        (Parser as any).mockClear();
+        (Config as any).mockClear();
 
-        (Config as jest.Mock).mockImplementation(() => ({
-            getIdentity: jest.fn().mockReturnValue('testcase.*'),
-            getFields: jest.fn().mockReturnValue([])
-        }));
+        (Config as any).mockImplementation(function() {
+            return {
+                getIdentity: vi.fn().mockReturnValue('testcase.*'),
+                getFields: vi.fn().mockReturnValue([])
+            };
+        });
     });
 
     afterEach(() => {
@@ -41,7 +43,7 @@ describe('Command planCmd', () => {
     afterAll(() => {
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     const mockStateResources = [
@@ -51,17 +53,21 @@ describe('Command planCmd', () => {
     it('should generate a plan successfully', async () => {
         const scenarioNew = { uri: 'file2', custom: { identity: 'tc2' }, steps: [], name: 'tc2' };
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([scenarioNew])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([scenarioNew])
+            };
+        });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockStateResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockStateResources)
+            };
+        });
 
         const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false });
 
@@ -73,17 +79,21 @@ describe('Command planCmd', () => {
     it('should output plan to a file if outPath is specified', async () => {
         const outPath = join(tmpDir, 'plan.out');
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([])
+            };
+        });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
 
         await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, outPath });
 
@@ -94,17 +104,21 @@ describe('Command planCmd', () => {
     });
 
     it('should output JSON when isJson is true', async () => {
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([])
+            };
+        });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
 
         await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, isJson: true });
 
@@ -116,17 +130,21 @@ describe('Command planCmd', () => {
     it('should set exit code to 2 if detailedExitCode is true and there are changes', async () => {
         const scenarioNew = { uri: 'file2', custom: { identity: 'tc2' }, steps: [], name: 'tc2' };
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([scenarioNew])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([scenarioNew])
+            };
+        });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockStateResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockStateResources)
+            };
+        });
 
         await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, detailedExitCode: true });
 
@@ -135,17 +153,21 @@ describe('Command planCmd', () => {
     });
 
     it('should return empty changes when refreshOnly is true', async () => {
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([{ uri: 'file2', custom: { identity: 'tc2' }, steps: [], name: 'tc2' }])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([{ uri: 'file2', custom: { identity: 'tc2' }, steps: [], name: 'tc2' }])
+            };
+        });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockStateResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockStateResources)
+            };
+        });
 
         const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, refreshOnly: true });
 
@@ -156,24 +178,25 @@ describe('Command planCmd', () => {
     it('should force replace resources matching replaceTargets', async () => {
         const scenario = { uri: 'file1', custom: { identity: 'tc1' }, steps: [], name: 'tc1' };
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([scenario])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([scenario])
+            };
+        });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockStateResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockStateResources)
+            };
+        });
 
         const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, replaceTargets: 'file1::tc1' });
 
         expect(result.changes).toHaveLength(1);
-        // Wait, mockStateResources identity is 'file1::tc1'. The scenario identity will be 'file1::tc1'.
-        // So existing is found. shouldForceReplace = true.
-        // It should add a 'replace' action.
         const replaceChange = result.changes.find(c => c.action === 'replace');
         expect(replaceChange).toBeDefined();
     });

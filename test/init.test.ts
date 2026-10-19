@@ -1,19 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { initCmd } from '../src/commands/init';
 import { join } from 'path';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { FILE_CONFIG, FILE_STATE } from '../src/core/const';
 import YAML from 'yaml';
 
 // Mock process.exit to prevent the test runner from exiting
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
 // Mock console.log/error to keep test output clean
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => { });
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => { });
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => { });
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => { });
 
 describe('Comando initCmd', () => {
     let tmpDir: string;

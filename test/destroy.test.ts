@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { destroyCmd } from '../src/commands/destroy';
 import { State } from '../src/core/state';
 import { createCommandContext } from '../src/core/command-context';
@@ -7,15 +7,15 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-jest.mock('../src/core/state');
-jest.mock('../src/core/command-context');
-jest.mock('../src/core/prompt');
+vi.mock('../src/core/state');
+vi.mock('../src/core/command-context');
+vi.mock('../src/core/prompt');
 
 describe('Command destroyCmd', () => {
     let tmpDir: string;
@@ -26,15 +26,15 @@ describe('Command destroyCmd', () => {
         mockLog.mockClear();
         mockError.mockClear();
         mockExit.mockClear();
-        (State as jest.Mock).mockClear();
-        (createCommandContext as jest.Mock).mockClear();
-        (askDestroyApproval as jest.Mock).mockClear();
+        (State as any).mockClear();
+        vi.mocked(createCommandContext).mockClear();
+        vi.mocked(askDestroyApproval).mockClear();
 
         mockGithub = {
-            closeIssue: jest.fn<any>().mockResolvedValue(true)
+            closeIssue: vi.fn<any>().mockResolvedValue(true)
         };
 
-        jest.mocked(createCommandContext).mockResolvedValue({ github: mockGithub } as any);
+        vi.mocked(createCommandContext).mockResolvedValue({ github: mockGithub } as any);
     });
 
     afterEach(() => {
@@ -47,16 +47,18 @@ describe('Command destroyCmd', () => {
         mockLog.mockRestore();
         mockError.mockRestore();
         mockExit.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should exit if state is empty', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
 
         await destroyCmd({ dir: tmpDir, scope: 'testcase' });
 
@@ -66,12 +68,14 @@ describe('Command destroyCmd', () => {
     });
 
     it('should exit if input is disabled and no auto-approve is provided', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([{ identity: 'tc1', attributes: { issueNumber: 123 } }])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([{ identity: 'tc1', attributes: { issueNumber: 123 } }])
+            };
+        });
 
         await expect(destroyCmd({ dir: tmpDir, scope: 'testcase', input: false })).rejects.toThrow(/No input allowed|This command requires manual approval|Process exited with code 1/);
         
@@ -81,14 +85,16 @@ describe('Command destroyCmd', () => {
     });
 
     it('should ask for approval and exit if denied', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([{ identity: 'tc1', attributes: { issueNumber: 123 } }])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([{ identity: 'tc1', attributes: { issueNumber: 123 } }])
+            };
+        });
 
-        jest.mocked(askDestroyApproval).mockResolvedValue(false as any);
+        vi.mocked(askDestroyApproval).mockResolvedValue(false as any);
 
         await destroyCmd({ dir: tmpDir, scope: 'testcase' });
 
@@ -97,22 +103,24 @@ describe('Command destroyCmd', () => {
     });
 
     it('should destroy resources after approval', async () => {
-        const mockRemoveResource = jest.fn();
-        const mockSave = jest.fn();
+        const mockRemoveResource = vi.fn();
+        const mockSave = vi.fn();
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([
-                { identity: 'tc1', type: 'github_testcase', attributes: { issueNumber: 123 } },
-                { identity: 'tc2', type: 'github_testcase', attributes: { issueNumber: 124 } }
-            ]),
-            removeResource: mockRemoveResource,
-            save: mockSave
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([
+                    { identity: 'tc1', type: 'github_testcase', attributes: { issueNumber: 123 } },
+                    { identity: 'tc2', type: 'github_testcase', attributes: { issueNumber: 124 } }
+                ]),
+                removeResource: mockRemoveResource,
+                save: mockSave
+            };
+        });
 
-        jest.mocked(askDestroyApproval).mockResolvedValue(true as any);
+        vi.mocked(askDestroyApproval).mockResolvedValue(true as any);
 
         await destroyCmd({ dir: tmpDir, scope: 'testcase' });
 

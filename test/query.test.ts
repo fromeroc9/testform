@@ -1,20 +1,20 @@
-﻿import { describe, it, expect, beforeEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { queryCmd } from '../src/commands/query';
 import { State } from '../src/core/state';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
+vi.mock('../src/core/state');
 
 describe('Command queryCmd', () => {
     beforeEach(() => {
         mockLog.mockClear();
-        (State as jest.Mock).mockClear();
+        (State as any).mockClear();
     });
 
     afterAll(() => {
         mockLog.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     const mockResources = [
@@ -61,10 +61,12 @@ describe('Command queryCmd', () => {
     ];
 
     it('should query all resources and output table summary', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ dir: '.' });
 
@@ -78,10 +80,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by scope', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ scope: 'testrun' });
 
@@ -92,10 +96,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by status (passed)', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ status: 'passed' });
 
@@ -106,10 +112,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by status (failed)', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ status: 'failed' });
 
@@ -120,10 +128,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by label with leading @', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ label: '@smoke' });
 
@@ -133,10 +143,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by assignee', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ assignee: 'john' });
 
@@ -146,10 +158,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by milestone', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ milestone: 'v1.0' });
 
@@ -159,10 +173,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by custom field (priority=high)', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ custom: 'priority=high' });
 
@@ -172,10 +188,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should filter by free search text', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ search: 'payment' });
 
@@ -185,10 +203,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should output raw count when count=true', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ count: true });
 
@@ -196,10 +216,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should output JSON when json=true', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ json: true, status: 'passed' });
 
@@ -213,10 +235,12 @@ describe('Command queryCmd', () => {
     });
 
     it('should handle zero matches cleanly', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: mockResources })
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: mockResources })
+            };
+        });
 
         await queryCmd({ search: 'nonexistent-query-string' });
 

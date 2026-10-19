@@ -1,18 +1,23 @@
-jest.mock('../src/core/gherkin-editor', () => ({ GherkinEditor: { expandScenarios: jest.fn(), updateScenarioStatus: jest.fn() } }));
-﻿import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { suiteCmd, toolCmd } from '../src/commands/suite';
 import { generateCmd } from '../src/commands/generate';
 import { logger as notify } from '../src/core/logger';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+vi.mock('../src/core/gherkin-editor', () => ({
+    GherkinEditor: {
+        expandScenarios: vi.fn(),
+        updateScenarioStatus: vi.fn()
+    }
+}));
+vi.mock('../src/commands/generate');
+vi.mock('../src/core/logger');
+
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-jest.mock('../src/commands/generate');
-jest.mock('../src/core/logger');
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 describe('Command suiteCmd', () => {
     beforeEach(() => {
@@ -28,7 +33,7 @@ describe('Command suiteCmd', () => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should export toolCmd as an alias for backwards compatibility', () => {

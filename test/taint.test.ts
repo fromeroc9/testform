@@ -1,18 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { taintCmd } from '../src/commands/taint';
 import { State } from '../src/core/state';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
+vi.mock('../src/core/state');
 
 describe('Command taintCmd', () => {
     let tmpDir: string;
@@ -22,7 +22,7 @@ describe('Command taintCmd', () => {
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
-        (State as jest.Mock).mockClear();
+        (State as any).mockClear();
     });
 
     afterEach(() => {
@@ -35,7 +35,7 @@ describe('Command taintCmd', () => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     const mockResources = [
@@ -44,16 +44,18 @@ describe('Command taintCmd', () => {
     ];
 
     it('should taint a resource successfully', async () => {
-        const mockUpsertResource = jest.fn();
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([{ ...mockResources[0] }]),
-            upsertResource: mockUpsertResource,
-            save: mockSave
-        }));
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([{ ...mockResources[0] }]),
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
 
         await taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1' });
 
@@ -65,16 +67,18 @@ describe('Command taintCmd', () => {
     });
 
     it('should do nothing if resource is already tainted', async () => {
-        const mockUpsertResource = jest.fn();
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([{ ...mockResources[1] }]),
-            upsertResource: mockUpsertResource,
-            save: mockSave
-        }));
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([{ ...mockResources[1] }]),
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
 
         await taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc2' });
 
@@ -86,16 +90,18 @@ describe('Command taintCmd', () => {
     });
 
     it('should untaint a resource successfully', async () => {
-        const mockUpsertResource = jest.fn();
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([{ ...mockResources[1] }]),
-            upsertResource: mockUpsertResource,
-            save: mockSave
-        }));
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([{ ...mockResources[1] }]),
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
 
         await taintCmd({ action: 'untaint', identityRaw: 'github_testcase.tc2' });
 
@@ -107,16 +113,18 @@ describe('Command taintCmd', () => {
     });
 
     it('should do nothing if resource is not tainted', async () => {
-        const mockUpsertResource = jest.fn();
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([{ ...mockResources[0] }]),
-            upsertResource: mockUpsertResource,
-            save: mockSave
-        }));
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([{ ...mockResources[0] }]),
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
 
         await taintCmd({ action: 'untaint', identityRaw: 'github_testcase.tc1' });
 
@@ -128,12 +136,14 @@ describe('Command taintCmd', () => {
     });
 
     it('should exit with error if resource not found', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
 
         await expect(taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1' })).rejects.toThrow();
         
@@ -143,12 +153,14 @@ describe('Command taintCmd', () => {
     });
 
     it('should exit successfully if resource not found but allowMissing is true', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
 
         await taintCmd({ action: 'taint', identityRaw: 'github_testcase.tc1', allowMissing: true });
         

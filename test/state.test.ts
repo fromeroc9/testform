@@ -1,23 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { stateCmd } from '../src/commands/state';
 import { State, cleanAttributes } from '../src/core/state';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/core/state', () => {
-    const actual = jest.requireActual('../src/core/state') as any;
+vi.mock('../src/core/state', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../src/core/state')>();
     return {
-        __esModule: true,
         ...actual,
-        State: jest.fn()
+        State: vi.fn()
     };
 });
 
@@ -29,7 +28,7 @@ describe('Command stateCmd', () => {
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
-        (State as jest.Mock).mockClear();
+        (State as any).mockClear();
     });
 
     afterEach(() => {
@@ -42,7 +41,7 @@ describe('Command stateCmd', () => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     const mockResources = [
@@ -51,11 +50,13 @@ describe('Command stateCmd', () => {
     ];
 
     it('should pull state', async () => {
-        const mockGetState = jest.fn().mockReturnValue({ resources: mockResources });
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: mockGetState
-        }));
+        const mockGetState = vi.fn().mockReturnValue({ resources: mockResources });
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: mockGetState
+            };
+        });
 
         await stateCmd({ action: 'pull', args: [] });
 
@@ -68,14 +69,16 @@ describe('Command stateCmd', () => {
         const mockStateFile = join(tmpDir, 'mock-state.json');
         writeFileSync(mockStateFile, JSON.stringify({ resources: mockResources }));
 
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getState: jest.fn().mockReturnValue({ resources: [], serial: 0 }),
-            save: mockSave
-        }));
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getState: vi.fn().mockReturnValue({ resources: [], serial: 0 }),
+                save: mockSave
+            };
+        });
 
         await stateCmd({ action: 'push', args: [mockStateFile] });
 
@@ -86,12 +89,14 @@ describe('Command stateCmd', () => {
     });
 
     it('should list resources', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockResources)
+            };
+        });
 
         await stateCmd({ action: 'list', args: [] });
 
@@ -102,12 +107,14 @@ describe('Command stateCmd', () => {
     });
 
     it('should show identities', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockResources)
+            };
+        });
 
         await stateCmd({ action: 'identities', args: [] });
 
@@ -118,12 +125,14 @@ describe('Command stateCmd', () => {
     });
 
     it('should show a specific resource', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockResources)
+            };
+        });
 
         await stateCmd({ action: 'show', args: ['testcase.tc1'] });
 
@@ -134,16 +143,18 @@ describe('Command stateCmd', () => {
     });
 
     it('should remove a resource', async () => {
-        const mockRemoveResource = jest.fn();
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockResources),
-            removeResource: mockRemoveResource,
-            save: mockSave
-        }));
+        const mockRemoveResource = vi.fn();
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockResources),
+                removeResource: mockRemoveResource,
+                save: mockSave
+            };
+        });
 
         await stateCmd({ action: 'rm', args: ['testcase.tc1'] });
 
@@ -155,18 +166,20 @@ describe('Command stateCmd', () => {
     });
 
     it('should move a resource', async () => {
-        const mockRemoveResource = jest.fn();
-        const mockUpsertResource = jest.fn();
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([ ...mockResources ]), // Shallow copy
-            removeResource: mockRemoveResource,
-            upsertResource: mockUpsertResource,
-            save: mockSave
-        }));
+        const mockRemoveResource = vi.fn();
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([ ...mockResources ]), // Shallow copy
+                removeResource: mockRemoveResource,
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
 
         await stateCmd({ action: 'mv', args: ['testcase.tc1', 'testcase.tc2'] });
 
@@ -179,12 +192,14 @@ describe('Command stateCmd', () => {
     });
 
     it('should exit with error on unknown subcommand', async () => {
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
 
         await expect(stateCmd({ action: 'unknown', args: [] })).rejects.toThrow();
         expect(mockError).toHaveBeenCalled();
@@ -209,16 +224,18 @@ describe('Command stateCmd', () => {
             }
         ];
 
-        const mockSave = jest.fn();
-        const mockGetState = jest.fn().mockReturnValue({ resources: resourcesWithClutter });
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(resourcesWithClutter),
-            getState: mockGetState,
-            save: mockSave
-        }));
+        const mockSave = vi.fn();
+        const mockGetState = vi.fn().mockReturnValue({ resources: resourcesWithClutter });
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(resourcesWithClutter),
+                getState: mockGetState,
+                save: mockSave
+            };
+        });
 
         await stateCmd({ action: 'clean', args: [] });
 
@@ -247,16 +264,18 @@ describe('Command stateCmd', () => {
             }
         ];
 
-        const mockSave = jest.fn();
-        const mockGetState = jest.fn().mockReturnValue({ resources: resourcesWithClutter });
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(resourcesWithClutter),
-            getState: mockGetState,
-            save: mockSave
-        }));
+        const mockSave = vi.fn();
+        const mockGetState = vi.fn().mockReturnValue({ resources: resourcesWithClutter });
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(resourcesWithClutter),
+                getState: mockGetState,
+                save: mockSave
+            };
+        });
 
         await stateCmd({ action: 'clean', args: [], dryRun: true });
 
@@ -336,4 +355,3 @@ describe('Command stateCmd', () => {
         });
     });
 });
-

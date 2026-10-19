@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { validateCmd } from '../src/commands/validate';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
@@ -6,17 +6,17 @@ import { tmpdir } from 'os';
 import { FILE_CONFIG } from '../src/core/const';
 import { policy } from '../src/core/policy';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 // Mock policy scanner to avoid real policy execution which might have unexpected outputs
-jest.mock('../src/core/policy', () => ({
+vi.mock('../src/core/policy', () => ({
     policy: {
-        scanner: jest.fn()
+        scanner: vi.fn()
     }
 }));
 
@@ -28,7 +28,7 @@ describe('Command validateCmd', () => {
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
-        (policy.scanner as jest.Mock).mockClear();
+        (policy.scanner as any).mockClear();
     });
 
     afterEach(() => {
@@ -41,7 +41,7 @@ describe('Command validateCmd', () => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should fail if the target path does not exist or has no feature files', async () => {
@@ -166,7 +166,7 @@ Feature: Dummy Feature
 
         // policy.scanner should be called with filtered scenarios
         expect(policy.scanner).toHaveBeenCalled();
-        const calledScenarios = (policy.scanner as jest.Mock).mock.calls[0][0] as any[];
+        const calledScenarios = (policy.scanner as any).mock.calls[0][0] as any[];
         expect(calledScenarios.length).toBe(1);
         expect(calledScenarios[0].name).toBe('Specific Query Scenario');
     });

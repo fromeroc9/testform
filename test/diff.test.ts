@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { diffCmd } from '../src/commands/diff';
 import { State } from '../src/core/state';
 import { Parser } from '../src/core/parser';
@@ -8,13 +8,13 @@ import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as readline from 'readline';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
-jest.mock('../src/core/parser');
-jest.mock('../src/core/config');
-jest.mock('../src/core/command-context');
-jest.mock('readline');
+vi.mock('../src/core/state');
+vi.mock('../src/core/parser');
+vi.mock('../src/core/config');
+vi.mock('../src/core/command-context');
+vi.mock('readline');
 
 function hashScenario(scenario: any, scope: string = 'testcase'): string {
     const clone = JSON.parse(JSON.stringify(scenario));
@@ -27,20 +27,22 @@ function hashScenario(scenario: any, scope: string = 'testcase'): string {
 describe('Command diffCmd', () => {
     beforeEach(() => {
         mockLog.mockClear();
-        (State as jest.Mock).mockClear();
-        (Parser as jest.Mock).mockClear();
-        (Config as jest.Mock).mockClear();
+        (State as any).mockClear();
+        (Parser as any).mockClear();
+        (Config as any).mockClear();
         (createCommandContext as any).mockClear();
 
-        (Config as jest.Mock).mockImplementation(() => ({
-            getIdentity: jest.fn().mockReturnValue('testcase.*'),
-            getFields: jest.fn().mockReturnValue([])
-        }));
+        (Config as any).mockImplementation(function() {
+            return {
+                getIdentity: vi.fn().mockReturnValue('testcase.*'),
+                getFields: vi.fn().mockReturnValue([])
+            };
+        });
     });
 
     afterAll(() => {
         mockLog.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should detect synced, modified, new, and orphaned resources locally', async () => {
@@ -48,10 +50,12 @@ describe('Command diffCmd', () => {
         const scenarioModified = { uri: 'file1', custom: { identity: 'modified_tc' }, other: 'data2_changed' };
         const scenarioNew = { uri: 'file2', custom: { identity: 'new_tc' }, other: 'data3' };
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([scenarioSynced, scenarioModified, scenarioNew])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([scenarioSynced, scenarioModified, scenarioNew])
+            };
+        });
 
         const mockStateResources = [
             {
@@ -68,10 +72,12 @@ describe('Command diffCmd', () => {
             }
         ];
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue(mockStateResources)
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue(mockStateResources)
+            };
+        });
 
         await diffCmd({ scope: 'testcase', verbose: true });
 
@@ -100,10 +106,12 @@ describe('Command diffCmd', () => {
     it('should detect remote drift when remote issue title and labels differ', async () => {
         const scenario = { uri: 'login.feature', name: 'Login V1', custom: { identity: 'login_tc' } };
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([scenario])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([scenario])
+            };
+        });
 
         const mockStateResource = {
             type: 'github_testcase',
@@ -115,13 +123,15 @@ describe('Command diffCmd', () => {
             }
         };
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([mockStateResource])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([mockStateResource])
+            };
+        });
 
         const mockGithub = {
-            getIssue: jest.fn<any>().mockResolvedValue({
+            getIssue: vi.fn<any>().mockResolvedValue({
                 title: 'Login V2 - Updated in GitHub',
                 labels: ['@smoke', '@regression'],
                 state: 'open'
@@ -146,10 +156,12 @@ describe('Command diffCmd', () => {
     it('should report fully synchronized when remote matches local', async () => {
         const scenario = { uri: 'login.feature', name: 'Login V1', custom: { identity: 'login_tc' } };
 
-        (Parser as jest.Mock).mockImplementation(() => ({
-            content: jest.fn().mockReturnValue([]),
-            filter: jest.fn().mockReturnValue([scenario])
-        }));
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([scenario])
+            };
+        });
 
         const mockStateResource = {
             type: 'github_testcase',
@@ -161,13 +173,15 @@ describe('Command diffCmd', () => {
             }
         };
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([mockStateResource])
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([mockStateResource])
+            };
+        });
 
         const mockGithub = {
-            getIssue: jest.fn<any>().mockResolvedValue({
+            getIssue: vi.fn<any>().mockResolvedValue({
                 title: 'Login V1',
                 labels: ['@smoke'],
                 state: 'open'
@@ -192,13 +206,15 @@ describe('Command diffCmd', () => {
         try {
             const scenario = { uri: tmpFile, name: 'Old Title', custom: { identity: 'login_tc' } };
 
-            (Parser as jest.Mock).mockImplementation(() => ({
-                content: jest.fn().mockReturnValue([]),
-                filter: jest.fn().mockReturnValue([scenario])
-            }));
+            (Parser as any).mockImplementation(function() {
+                return {
+                    content: vi.fn().mockReturnValue([]),
+                    filter: vi.fn().mockReturnValue([scenario])
+                };
+            });
 
-            const mockUpsert = jest.fn();
-            const mockSave = jest.fn();
+            const mockUpsert = vi.fn();
+            const mockSave = vi.fn();
 
             const mockStateResource = {
                 type: 'github_testcase',
@@ -210,15 +226,17 @@ describe('Command diffCmd', () => {
                 }
             };
 
-            (State as jest.Mock).mockImplementation(() => ({
-                init: jest.fn<any>().mockResolvedValue(undefined),
-                getResources: jest.fn().mockReturnValue([mockStateResource]),
-                upsertResource: mockUpsert,
-                save: mockSave
-            }));
+            (State as any).mockImplementation(function() {
+                return {
+                    init: vi.fn<any>().mockResolvedValue(undefined),
+                    getResources: vi.fn().mockReturnValue([mockStateResource]),
+                    upsertResource: mockUpsert,
+                    save: mockSave
+                };
+            });
 
             const mockGithub = {
-                getIssue: jest.fn<any>().mockResolvedValue({
+                getIssue: vi.fn<any>().mockResolvedValue({
                     title: 'New Remote Title',
                     labels: ['@smoke', '@auth'],
                     state: 'open'
@@ -232,7 +250,7 @@ describe('Command diffCmd', () => {
 
             (readline.createInterface as any).mockReturnValue({
                 question: (_q: string, cb: any) => cb('1'),
-                close: jest.fn()
+                close: vi.fn()
             });
 
             await diffCmd({ scope: 'testcase', remote: true, interactive: true });

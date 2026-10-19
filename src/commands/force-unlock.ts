@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { resolve } from 'path';
+import * as readline from 'readline';
 import { bold, red, green } from 'chalk';
 import { State } from '../core/state';
 import { TITLE_APP } from '../core/const';
@@ -45,8 +46,7 @@ export const forceUnlockCmd = async (options: ForceUnlockCmdOptions) => {
     console.log(`  may be still be in use. Only 'yes' will be accepted to confirm.`);
     console.log('');
     
-    const { createInterface } = require('readline');
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
     return new Promise<void>((resolve, reject) => {
         rl.question('  Enter a value: ', async (answer: string) => {

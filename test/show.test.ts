@@ -1,27 +1,27 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { showCmd } from '../src/commands/show';
 import { State } from '../src/core/state';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
+vi.mock('../src/core/state');
 
 describe('Command showCmd', () => {
     beforeEach(() => {
         mockLog.mockClear();
         mockError.mockClear();
-        (State as jest.Mock).mockClear();
+        (State as any).mockClear();
     });
 
     afterAll(() => {
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should output state correctly when type is state', async () => {
-        const mockGetState = jest.fn().mockReturnValue({
+        const mockGetState = vi.fn().mockReturnValue({
             version: '1.0',
             serial: 1,
             lineage: 'test-lineage',
@@ -41,10 +41,12 @@ describe('Command showCmd', () => {
             ]
         });
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            getState: mockGetState
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getState: mockGetState
+            };
+        });
 
         await showCmd({});
 

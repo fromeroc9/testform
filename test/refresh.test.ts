@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { refreshCmd } from '../src/commands/refresh';
 import { State } from '../src/core/state';
 import { GitHubAdapter } from '../src/adapters/github';
@@ -6,10 +6,10 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
-jest.mock('../src/adapters/github');
+vi.mock('../src/core/state');
+vi.mock('../src/adapters/github');
 
 describe('Command refreshCmd', () => {
     let tmpDir: string;
@@ -17,8 +17,8 @@ describe('Command refreshCmd', () => {
     beforeEach(() => {
         tmpDir = mkdtempSync(join(tmpdir(), 'testform-refresh-test-'));
         mockLog.mockClear();
-        (State as jest.Mock).mockClear();
-        (GitHubAdapter as jest.Mock).mockClear();
+        (State as any).mockClear();
+        (GitHubAdapter as any).mockClear();
     });
 
     afterEach(() => {
@@ -29,18 +29,20 @@ describe('Command refreshCmd', () => {
 
     afterAll(() => {
         mockLog.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should report no resources if state is empty', async () => {
-        const mockSave = jest.fn();
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([]),
-            save: mockSave
-        }));
+        const mockSave = vi.fn();
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([]),
+                save: mockSave
+            };
+        });
 
         await refreshCmd({ dir: tmpDir, scope: 'testcase' });
 
@@ -62,24 +64,28 @@ describe('Command refreshCmd', () => {
             }
         };
 
-        const mockUpsertResource = jest.fn();
-        const mockSave = jest.fn();
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([mockResource]),
-            upsertResource: mockUpsertResource,
-            save: mockSave
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([mockResource]),
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
 
-        (GitHubAdapter as jest.Mock).mockImplementation(() => ({
-            getIssue: jest.fn<any>().mockResolvedValue({
-                title: 'New Title',
-                state: 'open'
-            })
-        }));
+        (GitHubAdapter as any).mockImplementation(function() {
+            return {
+                getIssue: vi.fn<any>().mockResolvedValue({
+                    title: 'New Title',
+                    state: 'open'
+                })
+            };
+        });
 
         await refreshCmd({ dir: tmpDir, scope: 'testcase' });
 
@@ -105,24 +111,28 @@ describe('Command refreshCmd', () => {
             }
         };
 
-        const mockRemoveResource = jest.fn();
-        const mockSave = jest.fn();
+        const mockRemoveResource = vi.fn();
+        const mockSave = vi.fn();
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([mockResource]),
-            removeResource: mockRemoveResource,
-            save: mockSave
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([mockResource]),
+                removeResource: mockRemoveResource,
+                save: mockSave
+            };
+        });
 
-        (GitHubAdapter as jest.Mock).mockImplementation(() => ({
-            getIssue: jest.fn<any>().mockResolvedValue({
-                title: 'Some Title',
-                state: 'closed'
-            })
-        }));
+        (GitHubAdapter as any).mockImplementation(function() {
+            return {
+                getIssue: vi.fn<any>().mockResolvedValue({
+                    title: 'Some Title',
+                    state: 'closed'
+                })
+            };
+        });
 
         await refreshCmd({ dir: tmpDir, scope: 'testcase' });
 
@@ -145,17 +155,19 @@ describe('Command refreshCmd', () => {
             }
         };
 
-        const mockRemoveResource = jest.fn();
-        const mockSave = jest.fn();
+        const mockRemoveResource = vi.fn();
+        const mockSave = vi.fn();
 
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
-            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
-            getResources: jest.fn().mockReturnValue([mockResource]),
-            removeResource: mockRemoveResource,
-            save: mockSave
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([mockResource]),
+                removeResource: mockRemoveResource,
+                save: mockSave
+            };
+        });
 
         await refreshCmd({ dir: tmpDir, scope: 'testcase' });
 

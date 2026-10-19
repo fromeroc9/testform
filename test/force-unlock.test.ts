@@ -1,37 +1,48 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { forceUnlockCmd } from '../src/commands/force-unlock';
 import { State } from '../src/core/state';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
+const mockCreateInterface = vi.fn();
+
+vi.mock('../src/core/state');
+vi.mock('readline', () => ({
+    createInterface: (...args: any[]) => mockCreateInterface(...args),
+    default: {
+        createInterface: (...args: any[]) => mockCreateInterface(...args)
+    }
+}));
 
 describe('Command forceUnlockCmd', () => {
     beforeEach(() => {
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
-        (State as jest.Mock).mockClear();
+        mockCreateInterface.mockClear();
+        (State as any).mockClear();
     });
 
     afterAll(() => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should force unlock successfully when force=true', async () => {
-        const mockForceUnlock = jest.fn<any>().mockResolvedValue({ success: true });
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            forceUnlock: mockForceUnlock
-        }));
+        const mockForceUnlock = vi.fn<any>().mockResolvedValue({ success: true });
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                forceUnlock: mockForceUnlock
+            };
+        });
 
         await forceUnlockCmd({ lockId: 'my-lock-id', force: true });
 
@@ -42,23 +53,23 @@ describe('Command forceUnlockCmd', () => {
     });
 
     it('should prompt if force=false and exit if we mock readline (implicitly fails or hangs if not mocked)', async () => {
-        const mockForceUnlock = jest.fn<any>().mockResolvedValue({
+        const mockForceUnlock = vi.fn<any>().mockResolvedValue({
             success: false,
             currentLockId: 'different-lock-id'
         });
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            forceUnlock: mockForceUnlock
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                forceUnlock: mockForceUnlock
+            };
+        });
 
-        const readline = require('readline');
-        const spy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+        mockCreateInterface.mockReturnValue({
             question: (_q: string, cb: any) => cb('yes'),
-            close: jest.fn()
-        } as any);
+            close: vi.fn()
+        });
 
         await expect(forceUnlockCmd({ lockId: 'my-lock-id' })).rejects.toThrow('Process exited with code 1');
-        spy.mockRestore();
 
         expect(mockError).toHaveBeenCalled();
         const errors = mockError.mock.calls.join(' ');
@@ -66,14 +77,16 @@ describe('Command forceUnlockCmd', () => {
     });
 
     it('should exit with error if state forceUnlock fails with error message', async () => {
-        const mockForceUnlock = jest.fn<any>().mockResolvedValue({
+        const mockForceUnlock = vi.fn<any>().mockResolvedValue({
             success: false,
             error: 'Backend error'
         });
-        (State as jest.Mock).mockImplementation(() => ({
-            init: jest.fn<any>().mockResolvedValue(undefined),
-            forceUnlock: mockForceUnlock
-        }));
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                forceUnlock: mockForceUnlock
+            };
+        });
 
         await expect(forceUnlockCmd({ lockId: 'my-lock-id', force: true })).rejects.toThrow('Process exited with code 1');
 

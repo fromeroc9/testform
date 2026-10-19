@@ -16,6 +16,7 @@ import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 import { IScope } from '../core/types';
+import { formatResourceAddress } from '../core/utils';
 
 /**
  * Core refresh logic: updates the state to reflect remote GitHub reality.
@@ -97,7 +98,6 @@ export const refreshState = async (options: RefreshStateOptions) => {
         const batch = resources.slice(i, i + parallelism);
         await Promise.all(batch.map(async (res) => {
             const remoteId = res.attributes.remoteId ?? '';
-            const { formatResourceAddress } = require('../core/utils');
             if (!silent) console.log(`${formatResourceAddress(res.type, res.identity)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
 
             try {

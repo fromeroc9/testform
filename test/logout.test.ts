@@ -1,27 +1,29 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { logoutCmd } from '../src/commands/logout';
 import { Credentials } from '../src/core/credentials';
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-jest.mock('../src/core/credentials');
+vi.mock('../src/core/credentials');
 
 describe('Command logoutCmd', () => {
     beforeEach(() => {
         mockLog.mockClear();
-        (Credentials as jest.Mock).mockClear();
+        (Credentials as any).mockClear();
     });
 
     afterAll(() => {
         mockLog.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should successfully remove credentials if they exist', async () => {
-        const mockRemoveToken = jest.fn().mockReturnValue(true);
-        (Credentials as jest.Mock).mockImplementation(() => ({
-            removeToken: mockRemoveToken
-        }));
+        const mockRemoveToken = vi.fn().mockReturnValue(true);
+        (Credentials as any).mockImplementation(function() {
+            return {
+                removeToken: mockRemoveToken
+            };
+        });
 
         await logoutCmd({ hostname: 'github.com' });
 
@@ -32,10 +34,12 @@ describe('Command logoutCmd', () => {
     });
 
     it('should warn if no credentials found', async () => {
-        const mockRemoveToken = jest.fn().mockReturnValue(false);
-        (Credentials as jest.Mock).mockImplementation(() => ({
-            removeToken: mockRemoveToken
-        }));
+        const mockRemoveToken = vi.fn().mockReturnValue(false);
+        (Credentials as any).mockImplementation(function() {
+            return {
+                removeToken: mockRemoveToken
+            };
+        });
 
         await logoutCmd({ hostname: 'gitlab.com' });
 
@@ -46,10 +50,12 @@ describe('Command logoutCmd', () => {
     });
 
     it('should default to github.com if hostname is app.terraform.io', async () => {
-        const mockRemoveToken = jest.fn().mockReturnValue(true);
-        (Credentials as jest.Mock).mockImplementation(() => ({
-            removeToken: mockRemoveToken
-        }));
+        const mockRemoveToken = vi.fn().mockReturnValue(true);
+        (Credentials as any).mockImplementation(function() {
+            return {
+                removeToken: mockRemoveToken
+            };
+        });
 
         await logoutCmd(); // default args
 

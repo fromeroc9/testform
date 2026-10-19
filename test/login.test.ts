@@ -1,46 +1,48 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { loginCmd } from '../src/commands/login';
 import { Credentials } from '../src/core/credentials';
 import * as readline from 'readline';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-jest.mock('../src/core/credentials');
-jest.mock('readline');
+vi.mock('../src/core/credentials');
+vi.mock('readline');
 
 describe('Command loginCmd', () => {
-    let mockQuestion: jest.Mock;
-    let mockClose: jest.Mock;
+    let mockQuestion: any;
+    let mockClose: any;
 
     beforeEach(() => {
         mockExit.mockClear();
         mockLog.mockClear();
-        (Credentials as jest.Mock).mockClear();
+        (Credentials as any).mockClear();
 
-        mockQuestion = jest.fn();
-        mockClose = jest.fn();
+        mockQuestion = vi.fn();
+        mockClose = vi.fn();
 
-        (readline.createInterface as jest.Mock).mockReturnValue({
+        (readline.createInterface as any).mockReturnValue({
             question: mockQuestion,
             close: mockClose
-        } as any);
+        });
     });
 
     afterAll(() => {
         mockExit.mockRestore();
         mockLog.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should successfully log in when a valid token is provided', async () => {
-        const mockSetAuth = jest.fn();
-        (Credentials as jest.Mock).mockImplementation(() => ({
-            setAuth: mockSetAuth
-        }));
+        const mockSetAuth = vi.fn();
+        (Credentials as any).mockImplementation(function() {
+            return {
+                setAuth: mockSetAuth
+            };
+        });
 
         // Simulate user typing a valid token
         mockQuestion.mockImplementation(((questionText: string, cb: any) => {
@@ -71,10 +73,12 @@ describe('Command loginCmd', () => {
     });
 
     it('should default to github.com if hostname is app.terraform.io', async () => {
-        const mockSetAuth = jest.fn();
-        (Credentials as jest.Mock).mockImplementation(() => ({
-            setAuth: mockSetAuth
-        }));
+        const mockSetAuth = vi.fn();
+        (Credentials as any).mockImplementation(function() {
+            return {
+                setAuth: mockSetAuth
+            };
+        });
 
         mockQuestion.mockImplementation(((questionText: string, cb: any) => {
             cb('token123');

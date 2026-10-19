@@ -1,19 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { importCmd } from '../src/commands/import';
 import { join } from 'path';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { GitHubAdapter } from '../src/adapters/github';
 import { FILE_STATE } from '../src/core/const';
 
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
 });
 
-const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
+const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/adapters/github');
+vi.mock('../src/adapters/github');
 
 describe('Command importCmd', () => {
     let tmpDir: string;
@@ -23,7 +23,7 @@ describe('Command importCmd', () => {
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
-        (GitHubAdapter as jest.Mock).mockClear();
+        (GitHubAdapter as any).mockClear();
     });
 
     afterEach(() => {
@@ -36,7 +36,7 @@ describe('Command importCmd', () => {
         mockExit.mockRestore();
         mockLog.mockRestore();
         mockError.mockRestore();
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('should fail if no configuration file is present', async () => {
@@ -68,9 +68,11 @@ describe('Command importCmd', () => {
 
     it('should fail if issue is not found in github', async () => {
         writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
-        (GitHubAdapter as jest.Mock).mockImplementation(() => ({
-            getIssue: jest.fn<any>().mockResolvedValue(null)
-        }));
+        (GitHubAdapter as any).mockImplementation(function() {
+            return {
+                getIssue: vi.fn<any>().mockResolvedValue(null)
+            };
+        });
 
         await expect(importCmd({
             dir: tmpDir,
@@ -88,17 +90,19 @@ describe('Command importCmd', () => {
         writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
         
         // Mock a successful GitHub response
-        const mockGetIssue = jest.fn<any>().mockResolvedValue({
+        const mockGetIssue = vi.fn<any>().mockResolvedValue({
             title: 'Mock Issue',
             body: 'Mock Body',
             number: 123,
             state: 'open'
         });
         
-        (GitHubAdapter as jest.Mock).mockImplementation(() => ({
-            getIssue: mockGetIssue,
-            formatRemoteId: jest.fn().mockReturnValue('mock-remote-id')
-        }));
+        (GitHubAdapter as any).mockImplementation(function() {
+            return {
+                getIssue: mockGetIssue,
+                formatRemoteId: vi.fn().mockReturnValue('mock-remote-id')
+            };
+        });
 
         await importCmd({
             dir: tmpDir,
@@ -114,21 +118,23 @@ describe('Command importCmd', () => {
         // Check if state file was created and contains the imported resource
         const statePath = join(tmpDir, FILE_STATE);
         expect(existsSync(statePath)).toBe(true);
-        const stateContent = require('fs').readFileSync(statePath, 'utf8');
+        const stateContent = readFileSync(statePath, 'utf8');
         expect(stateContent).toContain('tc1');
         expect(stateContent).toContain('Mock Issue');
     });
 
     it('should warn if issue is closed', async () => {
         writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
-        (GitHubAdapter as jest.Mock).mockImplementation(() => ({
-            getIssue: jest.fn<any>().mockResolvedValue({
-                title: 'Mock Issue',
-                number: 123,
-                state: 'closed'
-            }),
-            formatRemoteId: jest.fn().mockReturnValue('mock-remote-id')
-        }));
+        (GitHubAdapter as any).mockImplementation(function() {
+            return {
+                getIssue: vi.fn<any>().mockResolvedValue({
+                    title: 'Mock Issue',
+                    number: 123,
+                    state: 'closed'
+                }),
+                formatRemoteId: vi.fn().mockReturnValue('mock-remote-id')
+            };
+        });
 
         await importCmd({
             dir: tmpDir,
