@@ -245,7 +245,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
                 body: issue.body || '',
                 labels: issue.labels?.filter((l: any) => l.name).map((l: any) => l.name) ?? [],
                 assignees: issue.assignees || [],
-                milestone: issue.milestone || '',
+                milestone: issue.milestone || undefined,
                 custom_fields: customFields,
                 remoteId,
                 issueNumber: issue.number,

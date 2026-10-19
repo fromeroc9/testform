@@ -1,7 +1,7 @@
 import { bold, red, green } from 'chalk';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { State } from '../core/state';
+import { State, cleanAttributes } from '../core/state';
 import { TITLE_CLI } from '../core/const';
 import { formatHclValue } from '../core/utils';
 
@@ -222,8 +222,60 @@ export const stateCmd = async (options: StateCmdOptions) => {
                 console.log(green(`Move ${source} to ${dest} successfully executed!`));
             }
 
+        } else if (action === 'clean' || action === 'optimize') {
+            const beforeJson = JSON.stringify(state.getState());
+            const beforeBytes = Buffer.byteLength(beforeJson, 'utf8');
+
+            const resources = filterResources(rawResources);
+            if (resources.length === 0 && args.length > 0) {
+                console.error(red(`No instance found for the given address!`));
+                process.exit(1);
+            }
+
+            let resourcesCleaned = 0;
+            for (const res of resources) {
+                if (res.attributes) {
+                    const before = JSON.stringify(res.attributes);
+                    res.attributes = cleanAttributes(res.attributes) as any;
+                    const after = JSON.stringify(res.attributes);
+                    if (before !== after) {
+                        resourcesCleaned++;
+                    }
+                }
+            }
+
+            const afterJson = JSON.stringify(state.getState());
+            const afterBytes = Buffer.byteLength(afterJson, 'utf8');
+            const savedBytes = Math.max(0, beforeBytes - afterBytes);
+            const pctReduction = beforeBytes > 0 ? ((savedBytes / beforeBytes) * 100).toFixed(1) : '0.0';
+
+            const formatSize = (b: number) => {
+                if (b < 1024) return `${b} B`;
+                return `${(b / 1024).toFixed(2)} KB`;
+            };
+
+            if (dryRun) {
+                console.log(bold(`State optimization dry-run preview:`));
+                console.log(`  Resources matching:  ${resources.length}`);
+                console.log(`  Resources to clean:  ${resourcesCleaned}`);
+                console.log(`  Current payload:     ${formatSize(beforeBytes)}`);
+                console.log(`  Estimated payload:   ${formatSize(afterBytes)}`);
+                console.log(`  Potential reduction: -${pctReduction}% (-${formatSize(savedBytes)})`);
+            } else {
+                if (resourcesCleaned > 0) {
+                    await state.save();
+                    console.log(green(bold(`State optimization complete:`)));
+                    console.log(`  Resources evaluated: ${resources.length}`);
+                    console.log(`  Resources cleaned:   ${resourcesCleaned}`);
+                    console.log(`  Payload size:        ${formatSize(beforeBytes)} -> ${formatSize(afterBytes)} (-${pctReduction}%)`);
+                    console.log(`  Saved space:         ${formatSize(savedBytes)}`);
+                } else {
+                    console.log(green(`State is already optimal (no redundant fields found).`));
+                }
+            }
+
         } else {
-            console.error(red(`Usage: ${TITLE_CLI} state <identities|list|mv|pull|push|rm|show> [options] [args]`));
+            console.error(red(`Usage: ${TITLE_CLI} state <clean|identities|list|mv|pull|push|rm|show> [options] [args]`));
             process.exit(1);
         }
     } finally {

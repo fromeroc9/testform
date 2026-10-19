@@ -381,7 +381,7 @@ export function createCli() {
         });
 
     // ─── state ────────────────────────────────────────────────────────────
-    cli.command('state [subcommand] [...args]', 'Advanced state management (list, show, rm, mv, pull, push)')
+    cli.command('state [subcommand] [...args]', 'Advanced state management (clean, list, show, rm, mv, pull, push)')
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
         .option('--json', 'Output in JSON format')

@@ -151,15 +151,20 @@ export interface StateResource {
     updatedAt?: string;
 }
 
-interface StateAttributes {
+export interface StateAttributes {
     localHash: string;
     remoteId: string;
     issueNumber: number;
     title: string;
-    body: string;
-    labels: string[];
+    body?: string;
+    labels?: string[];
+    assignees?: string[];
+    milestone?: string;
+    custom_fields?: Record<string, any>;
     testcaseCommentIds?: Record<string, number | string>;
     testcaseStatuses?: Record<string, string>;
+    createdAt?: string;
+    updatedAt?: string;
     [key: string]: unknown;
 }
 

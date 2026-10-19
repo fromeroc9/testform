@@ -28,14 +28,14 @@ export class State {
         explicitBackendConfig?: any
     ) {
         this.dir = dir;
-        const config = new Config(dir);
+        const config = new Config(dir, false);
         let backendConfig = explicitBackendConfig || config.getBackend();
 
         this.workspaceManager = new WorkspaceManager(dir);
         const currentWorkspace = this.workspaceManager.getCurrentWorkspace();
 
-        // If backend is explicitly disabled via CLI, force local
-        if (disableBackend) {
+        // If backend is explicitly disabled via CLI or a custom state file path is provided, force local
+        if (disableBackend || customStatePath) {
             backendConfig = { type: 'local', config: {} };
         } else if (backendConfig && backendConfig.type !== 'local' && backendConfigRaw) {
             // Apply CLI overrides to the backend config
@@ -104,7 +104,7 @@ export class State {
             });
         }
 
-        const config = new Config(this.dir);
+        const config = new Config(this.dir, false);
 
         this.state = {
             version: parsed.version || VERSION_STATE,
@@ -139,9 +139,41 @@ export class State {
     }
 
     /**
-     * Save state to disk or backend. Increments serial and updates lastSync.
+     * Clean and optimize state payload by removing redundant 'body' and empty fields.
+     */
+    clean(): { beforeBytes: number; afterBytes: number; resourcesCleaned: number } {
+        const beforeJson = JSON.stringify(this.state);
+        const beforeBytes = Buffer.byteLength(beforeJson, 'utf8');
+
+        let resourcesCleaned = 0;
+        if (this.state && Array.isArray(this.state.resources)) {
+            for (const res of this.state.resources) {
+                if (res.attributes) {
+                    const beforeRes = JSON.stringify(res.attributes);
+                    res.attributes = cleanAttributes(res.attributes) as any;
+                    const afterRes = JSON.stringify(res.attributes);
+                    if (beforeRes !== afterRes) {
+                        resourcesCleaned++;
+                    }
+                }
+            }
+        }
+
+        const afterJson = JSON.stringify(this.state);
+        const afterBytes = Buffer.byteLength(afterJson, 'utf8');
+
+        return {
+            beforeBytes,
+            afterBytes,
+            resourcesCleaned
+        };
+    }
+
+    /**
+     * Save state to disk or backend. Cleans redundant fields, increments serial and updates lastSync.
      */
     async save(): Promise<void> {
+        this.clean();
         this.state.serial += 1;
         this.state.lastSync = new Date().toISOString();
         await this.backend.write(this.state);
@@ -204,11 +236,15 @@ export class State {
      * Add or update a resource after a successful apply operation.
      */
     upsertResource(resource: StateResource): void {
-        const idx = this.state.resources.findIndex(r => r.identity === resource.identity);
+        const cleanedResource: StateResource = {
+            ...resource,
+            attributes: cleanAttributes(resource.attributes) as any
+        };
+        const idx = this.state.resources.findIndex(r => r.identity === cleanedResource.identity);
         if (idx >= 0) {
-            this.state.resources[idx] = resource;
+            this.state.resources[idx] = cleanedResource;
         } else {
-            this.state.resources.push(resource);
+            this.state.resources.push(cleanedResource);
         }
     }
 
@@ -225,4 +261,56 @@ export class State {
     clearResources(): void {
         this.state.resources = [];
     }
+}
+
+/**
+ * Recursively cleans a state resource attribute dictionary:
+ * - Omits 'body' (raw scenario markdown is never needed in state; change detection uses localHash)
+ * - Omits null and undefined values
+ * - Omits empty strings ("")
+ * - Omits empty arrays ([])
+ * - Omits empty objects ({}) recursively
+ */
+export function cleanAttributes(attrs: Record<string, any>): Record<string, any> {
+    if (!attrs || typeof attrs !== 'object') return attrs;
+    const cleaned: Record<string, any> = {};
+
+    for (const [key, val] of Object.entries(attrs)) {
+        // 1. Omit null and undefined
+        if (val === null || val === undefined) continue;
+
+        // 3. Omit empty string
+        if (typeof val === 'string') {
+            if (val.trim() === '') continue;
+            cleaned[key] = val;
+            continue;
+        }
+
+        // 4. Omit or clean array
+        if (Array.isArray(val)) {
+            const filtered = val
+                .filter(item => item !== null && item !== undefined && (typeof item !== 'string' || item.trim() !== ''))
+                .map(item => (typeof item === 'object' && item !== null && !Array.isArray(item) ? cleanAttributes(item) : item))
+                .filter(item => typeof item !== 'object' || item === null || Object.keys(item).length > 0);
+
+            if (filtered.length > 0) {
+                cleaned[key] = filtered;
+            }
+            continue;
+        }
+
+        // 5. Omit or clean nested object
+        if (typeof val === 'object') {
+            const nested = cleanAttributes(val as Record<string, any>);
+            if (Object.keys(nested).length > 0) {
+                cleaned[key] = nested;
+            }
+            continue;
+        }
+
+        // 6. Primitive types (numbers, booleans, etc.)
+        cleaned[key] = val;
+    }
+
+    return cleaned;
 }

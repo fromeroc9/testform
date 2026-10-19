@@ -11,9 +11,17 @@ export class Config {
     private resolvedPath: string | null = null;
 
     constructor(
-        private dir: string
+        private dir: string,
+        private requiredConfig: boolean = true
     ) {
-        this.required();
+        if (this.requiredConfig) {
+            this.required();
+        } else {
+            const resolved = this.resolve();
+            if (resolved) {
+                this.load(resolved);
+            }
+        }
     }
 
     private resolve(): string | null {

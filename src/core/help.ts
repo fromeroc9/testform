@@ -456,6 +456,7 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] state [subcommand] [options] [ar
   backup of the state prior to making modifications.
 
 ${bold(`Subcommands:`)}
+    clean               Clean and optimize state payload (strip body and empty values)
     identities          List the identities of resources in the state
     list                List resources in the state
     mv                  Move an item in the state
@@ -463,6 +464,23 @@ ${bold(`Subcommands:`)}
     push                Update remote state from a local state file
     rm                  Remove instances from the state
     show                Show a resource in the state
+`.trim();
+
+export const HELP_STATE_CLEAN = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] state clean [options] [address...]
+
+  Clean and optimize the ${TITLE_APP} state payload by removing redundant
+  scenario bodies and empty fields, reducing file and network transfer size.
+
+  By default, all resources in the state are cleaned and optimized. You can
+  optionally provide one or more resource addresses to target specific resources.
+
+${bold(`Options:`)}
+  -dry-run            If set, prints out the potential space savings without
+                      writing changes to the state.
+  -lock=false         Don't hold a state lock during the operation.
+  -lock-timeout=0s    Duration to retry a state lock.
+  -state=PATH         Path to state file to clean.
 `.trim();
 
 export const HELP_STATE_IDENTITIES = `
@@ -1067,6 +1085,7 @@ export function getCommandHelp(command: string): string | null {
     case 'print': return HELP_PRINT;
     case 'logout': return HELP_LOGOUT;
     case 'state': return HELP_STATE;
+    case 'state clean': return HELP_STATE_CLEAN;
     case 'state identities': return HELP_STATE_IDENTITIES;
     case 'state list': return HELP_STATE_LIST;
     case 'state mv': return HELP_STATE_MV;

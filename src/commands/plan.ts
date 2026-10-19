@@ -247,7 +247,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                     name: res.attributes.title,
                     description: '',
                     steps: [],
-                    tags: res.attributes.labels,
+                    tags: Array.isArray(res.attributes.labels) ? res.attributes.labels : (res.attributes.labels ? String(res.attributes.labels).split(',') : []),
                     custom: { identity: res.identity },
                 },
                 remoteId: res.attributes.remoteId,

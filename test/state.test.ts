@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, jest } from '@jest/globals';
 import { stateCmd } from '../src/commands/state';
-import { State } from '../src/core/state';
+import { State, cleanAttributes } from '../src/core/state';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -12,7 +12,14 @@ const mockExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
 const mockLog = jest.spyOn(console, 'log').mockImplementation(() => {});
 const mockError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-jest.mock('../src/core/state');
+jest.mock('../src/core/state', () => {
+    const actual = jest.requireActual('../src/core/state') as any;
+    return {
+        __esModule: true,
+        ...actual,
+        State: jest.fn()
+    };
+});
 
 describe('Command stateCmd', () => {
     let tmpDir: string;
@@ -182,4 +189,151 @@ describe('Command stateCmd', () => {
         await expect(stateCmd({ action: 'unknown', args: [] })).rejects.toThrow();
         expect(mockError).toHaveBeenCalled();
     });
+
+    it('should clean and optimize state payload with state clean', async () => {
+        const resourcesWithClutter = [
+            {
+                type: 'github_testcase',
+                identity: 'tc1',
+                attributes: {
+                    title: 'Test 1',
+                    body: '```gherkin\nGiven something\nWhen something\nThen something\n```',
+                    milestone: '',
+                    labels: ['testcase'],
+                    assignees: ['user1'],
+                    custom_fields: {
+                        module: '',
+                        functional: ''
+                    }
+                }
+            }
+        ];
+
+        const mockSave = jest.fn();
+        const mockGetState = jest.fn().mockReturnValue({ resources: resourcesWithClutter });
+        (State as jest.Mock).mockImplementation(() => ({
+            init: jest.fn<any>().mockResolvedValue(undefined),
+            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
+            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
+            getResources: jest.fn().mockReturnValue(resourcesWithClutter),
+            getState: mockGetState,
+            save: mockSave
+        }));
+
+        await stateCmd({ action: 'clean', args: [] });
+
+        expect(mockSave).toHaveBeenCalled();
+        expect(mockLog).toHaveBeenCalled();
+        const logs = mockLog.mock.calls.join(' ');
+        expect(logs).toContain('State optimization complete');
+        // Verify attributes were cleaned
+        expect(resourcesWithClutter[0].attributes.body).toBe('```gherkin\nGiven something\nWhen something\nThen something\n```');
+        expect(resourcesWithClutter[0].attributes).not.toHaveProperty('milestone');
+        expect(resourcesWithClutter[0].attributes).not.toHaveProperty('custom_fields');
+        expect(resourcesWithClutter[0].attributes.title).toBe('Test 1');
+        expect(resourcesWithClutter[0].attributes.labels).toEqual(['testcase']);
+    });
+
+    it('should preview optimization in dry-run mode without calling save', async () => {
+        const resourcesWithClutter = [
+            {
+                type: 'github_testcase',
+                identity: 'tc1',
+                attributes: {
+                    title: 'Test 1',
+                    body: 'Body payload',
+                    milestone: ''
+                }
+            }
+        ];
+
+        const mockSave = jest.fn();
+        const mockGetState = jest.fn().mockReturnValue({ resources: resourcesWithClutter });
+        (State as jest.Mock).mockImplementation(() => ({
+            init: jest.fn<any>().mockResolvedValue(undefined),
+            acquireLock: jest.fn<any>().mockResolvedValue(undefined),
+            releaseLock: jest.fn<any>().mockResolvedValue(undefined),
+            getResources: jest.fn().mockReturnValue(resourcesWithClutter),
+            getState: mockGetState,
+            save: mockSave
+        }));
+
+        await stateCmd({ action: 'clean', args: [], dryRun: true });
+
+        expect(mockSave).not.toHaveBeenCalled();
+        expect(mockLog).toHaveBeenCalled();
+        const logs = mockLog.mock.calls.join(' ');
+        expect(logs).toContain('dry-run preview');
+    });
+
+    describe('cleanAttributes helper', () => {
+        it('should preserve non-empty body while stripping nulls, empty strings, and empty objects', () => {
+            const raw = {
+                localHash: 'hash123',
+                remoteId: 'ID-1',
+                issueNumber: 42,
+                title: 'Clean Test',
+                body: 'Full scenario body text that is preserved',
+                milestone: '',
+                emptyField: null,
+                undefField: undefined,
+                emptyArray: [],
+                labels: ['tag1', 'tag2'],
+                custom_fields: {
+                    module: '',
+                    project: '',
+                    sprint: ''
+                }
+            };
+
+            const cleaned = cleanAttributes(raw);
+
+            expect(cleaned).toEqual({
+                localHash: 'hash123',
+                remoteId: 'ID-1',
+                issueNumber: 42,
+                title: 'Clean Test',
+                body: 'Full scenario body text that is preserved',
+                labels: ['tag1', 'tag2']
+            });
+            expect(cleaned).not.toHaveProperty('milestone');
+            expect(cleaned).not.toHaveProperty('custom_fields');
+            expect(cleaned).not.toHaveProperty('emptyField');
+            expect(cleaned).not.toHaveProperty('emptyArray');
+        });
+
+        it('should strip empty body string ("")', () => {
+            const raw = {
+                title: 'No Body',
+                body: '   ',
+                milestone: ''
+            };
+
+            const cleaned = cleanAttributes(raw);
+            expect(cleaned).toEqual({
+                title: 'No Body'
+            });
+            expect(cleaned).not.toHaveProperty('body');
+        });
+
+        it('should preserve non-empty custom_fields and non-empty values', () => {
+            const raw = {
+                title: 'Test',
+                custom_fields: {
+                    module: 'Core',
+                    sprint: ''
+                }
+            };
+
+            const cleaned = cleanAttributes(raw);
+
+            expect(cleaned).toEqual({
+                title: 'Test',
+                custom_fields: {
+                    module: 'Core'
+                }
+            });
+        });
+    });
 });
+

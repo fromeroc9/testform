@@ -15,7 +15,11 @@ export class LocalBackend implements IBackend {
 
     private getWorkspaceStatePath(): string {
         if (this.customStatePath) {
-            return resolve(this.dir, this.customStatePath);
+            const dirResolved = resolve(this.dir, this.customStatePath);
+            if (existsSync(dirResolved)) return dirResolved;
+            const cwdResolved = resolve(process.cwd(), this.customStatePath);
+            if (existsSync(cwdResolved)) return cwdResolved;
+            return dirResolved;
         }
         if (this.workspace !== 'default') {
             return resolve(this.dir, `${FILE_STATE}.d`, this.workspace, FILE_STATE);
