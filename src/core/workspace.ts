@@ -2,16 +2,20 @@ import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'fs';
 
 export class WorkspaceManager {
+    private testformDir: string;
     private envPath: string;
     private statePath: string;
 
     constructor(dir: string) {
-        const testformDir = join(dir, '.testform');
-        if (!existsSync(testformDir)) {
-            mkdirSync(testformDir, { recursive: true });
+        this.testformDir = join(dir, '.testform');
+        this.envPath = join(this.testformDir, 'environment');
+        this.statePath = join(this.testformDir, 'testform.state');
+    }
+
+    private ensureDir(): void {
+        if (!existsSync(this.testformDir)) {
+            mkdirSync(this.testformDir, { recursive: true });
         }
-        this.envPath = join(testformDir, 'environment');
-        this.statePath = join(testformDir, 'testform.state');
     }
 
     getCurrentWorkspace(): string {
@@ -25,6 +29,7 @@ export class WorkspaceManager {
     }
 
     setCurrentWorkspace(name: string): void {
+        this.ensureDir();
         writeFileSync(this.envPath, name, 'utf8');
     }
 
@@ -42,6 +47,7 @@ export class WorkspaceManager {
     }
 
     setActiveBackend(backend: any): void {
+        this.ensureDir();
         let stateObj: any = { version: 3 };
         if (existsSync(this.statePath) && statSync(this.statePath).isFile()) {
             try {
