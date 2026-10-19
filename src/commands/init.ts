@@ -1,9 +1,11 @@
-import { FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
+import YAML from 'yaml';
+
 import { askMigrationApproval } from '../core/prompt';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { Config } from '../core/config';
 import { Logger } from '../core/logger';
-import { join } from 'path';
+import { basename, dirname, join } from 'path';
 import { State } from '../core/state';
 import { WorkspaceManager } from '../core/workspace';
 
@@ -24,8 +26,11 @@ const ensureWorkingDirectory = (dir: string, logger: Logger): void => {
 };
 
 const createConfigIfNotExists = (configPath: string, logger: Logger): boolean => {
-    if (existsSync(configPath)) {
-        return true;
+    const dir = dirname(configPath);
+    for (const name of CONFIG_FILE_NAMES) {
+        if (existsSync(join(dir, name))) {
+            return true;
+        }
     }
 
     const initialConfig = {
@@ -34,21 +39,39 @@ const createConfigIfNotExists = (configPath: string, logger: Logger): boolean =>
             type: "github",
             config: {
                 owner: "<required>",
-                repository: "<required>"
+                repository: "<required>",
+                token_env: "GITHUB_TOKEN"
             }
         },
         backend: {
             type: "local",
             config: {}
         },
-        scope: {
-            testcase: { fields: [] },
-            testrun: { fields: [] },
-            testplan: { fields: [] }
+        scopes: {
+            testcase: {
+                match: "*.case.feature::*",
+                scaffold: {
+                    directory: "testcase",
+                    filename: "{slug}_{YYYYMMDD}.case.feature"
+                },
+                fields: {}
+            },
+            testrun: {
+                match: "*.run.feature::*",
+                scaffold: {
+                    directory: "testrun",
+                    filename: "{slug}_{YYYYMMDD}.run.feature"
+                },
+                fields: {}
+            },
+            testplan: {
+                match: "*.plan.feature::*",
+                fields: {}
+            }
         }
     };
 
-    writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), 'utf-8');
+    writeFileSync(configPath, YAML.stringify(initialConfig), 'utf-8');
     return false;
 };
 
@@ -72,7 +95,8 @@ const loadValidatedConfig = (dir: string): Config => {
 };
 
 const printInitSummary = (logger: Logger, config: Config): void => {
-    logger.info(`- Configuration: ${FILE_CONFIG} (v${config.getConfig().version})`);
+    const resolvedConfigName = config.getResolvedPath() ? basename(config.getResolvedPath()!) : FILE_CONFIG;
+    logger.info(`- Configuration: ${resolvedConfigName} (v${config.getConfig().version})`);
     logger.info(`- State backend: ready`);
     logger.blank();
 };

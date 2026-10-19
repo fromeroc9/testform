@@ -1,0 +1,300 @@
+{
+  "version": "1.0",
+  "serial": 158,
+  "lineage": "abf40d99-03fe-41d1-a96b-c4e56863468e",
+  "lastSync": "2026-06-06T00:14:47.291Z",
+  "resources": [
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-2",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:44",
+        "issueNumber": 44,
+        "title": "Validar la búsqueda de una agencia por coincidencia de texto",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nWhen el administrador ingresa texto en el campo \"Buscar\"\nThen la tabla debe actualizarse automáticamente para mostrar las agencias que coincidan con la búsqueda\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.572Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-5",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:42",
+        "issueNumber": 42,
+        "title": "Validar que se muestren todas las agencias sin filtro de estado",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nWhen el administrador selecciona la etiqueta de filtro \"Todos\"\nThen la tabla debe mostrar todas las agencias registradas independientemente de su estado actual\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.351Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-6",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:46",
+        "issueNumber": 46,
+        "title": "Validar el acceso a la creación de una nueva agencia",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nWhen el administrador hace clic en el botón \"+ Nueva Agencia\"\nThen el sistema debe presentar el formulario correspondiente para registrar una nueva agencia\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.787Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-1",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:43",
+        "issueNumber": 43,
+        "title": "Validar el listado inicial de agencias",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nWhen el sistema carga la pantalla principal de \"Maestro de Agencias\"\nThen se debe mostrar una tabla con las columnas de información de la agencia, como \"NOMBRE\", \"ESTADO\", \"FECHA DE CREACIÓN\" y \"OPCIONES\"\nAnd se debe mostrar la paginación de los registros en la parte inferior de la tabla\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.663Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-8",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:45",
+        "issueNumber": 45,
+        "title": "Validar la eliminación de una agencia existente",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nGiven que existe al menos una agencia registrada en el listado\nWhen el administrador hace clic en el botón de eliminar (ícono de papelera) de una agencia\nThen el sistema debe solicitar confirmación para la eliminación del registro\nWhen el administrador aprueba la eliminación\nThen la agencia debe ser removida del listado principal\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.625Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-7",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:40",
+        "issueNumber": 40,
+        "title": "Validar el acceso a la edición de una agencia",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nGiven que existe al menos una agencia registrada en el listado\nWhen el administrador hace clic en el botón \"Editar\" en la columna de opciones de una agencia\nThen el sistema debe abrir la vista de edición con los datos actuales de la agencia seleccionada\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.504Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-3",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:47",
+        "issueNumber": 47,
+        "title": "Validar el filtrado de agencias por estado Activo",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nWhen el administrador selecciona la etiqueta de filtro \"Activos\"\nThen la tabla debe mostrar únicamente las agencias que posean el estado \"Activo\" en color verde\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.589Z"
+    },
+    {
+      "type": "github_testcase",
+      "identity": "testcase/maestros/agencias.feature::@tc-4",
+      "attributes": {
+        "localHash": "drift_detected",
+        "remoteId": "CA-HT360:41",
+        "issueNumber": 41,
+        "title": "Validar el filtrado de agencias por estado Inactivo",
+        "body": "```gherkin\nGiven que el administrador ha iniciado sesión en la plataforma Hiring Talent 360\nAnd se encuentra en el menú lateral de \"Maestros\"\nAnd hace clic en la subsección \"Agencias\"\nWhen el administrador selecciona la etiqueta de filtro \"Inactivos\"\nThen la tabla debe mostrar únicamente las agencias que posean el estado \"Inactivo\" en color gris\n```",
+        "labels": [
+          "testcase"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "module": "",
+          "functional": "",
+          "project": "",
+          "priority": "",
+          "Status": "",
+          "quarter": "",
+          "sprint": ""
+        },
+        "createdAt": "2026-06-04T17:46:01Z",
+        "updatedAt": "2026-06-04T18:43:38Z"
+      },
+      "lastApplied": "2026-06-04T18:43:43.601Z"
+    },
+    {
+      "type": "github_testrun",
+      "identity": "testrun/20260604_162734_1f0aba.run.feature::@tr-1",
+      "attributes": {
+        "localHash": "46b7474c3fdae887ea0fc888a7b27e2c668683ea5680a73c99cced95c3bf09fb",
+        "remoteId": "CA-HT360:55",
+        "issueNumber": 55,
+        "title": "20260604_162734_1f0aba.run.feature",
+        "body": "### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- Execution results for each test case will be recorded dynamically as comments on this issue.\n- Click on individual test case links to view their details or attach evidence.\n\n**Origin:** agencias.feature\n- [x] tc-1: #43\n- [x] tc-2: #44\n- [x] tc-3: #47\n- [x] tc-4: #41\n- [x] tc-5: #42\n- [x] tc-6: #46\n- [x] tc-7: #40\n- [x] tc-8: #45",
+        "labels": [
+          "testrun"
+        ],
+        "assignees": [
+          "fromeroc9"
+        ],
+        "milestone": "",
+        "custom_fields": {
+          "Status": "passed",
+          "module": "Maestros",
+          "quarter": "Q1",
+          "sprint": "Sprint 2",
+          "startDate": "2026-06-04",
+          "endDate": "2026-06-05",
+          "status": "passed",
+          "project": "Hirent Talent 360",
+          "priority": "@medium"
+        },
+        "createdAt": "2026-06-05T21:29:50Z",
+        "updatedAt": "2026-06-05T22:09:55Z",
+        "testcaseCommentIds": {
+          "testcase/maestros/agencias.feature::@tc-1": 4635671211,
+          "testcase/maestros/agencias.feature::@tc-2": 4635671252,
+          "testcase/maestros/agencias.feature::@tc-3": 4635671287,
+          "testcase/maestros/agencias.feature::@tc-4": 4635671333,
+          "testcase/maestros/agencias.feature::@tc-5": 4635671404,
+          "testcase/maestros/agencias.feature::@tc-6": 4635671449,
+          "testcase/maestros/agencias.feature::@tc-7": 4635671503,
+          "testcase/maestros/agencias.feature::@tc-8": 4635671543
+        },
+        "testcaseStatuses": {
+          "testcase/maestros/agencias.feature::@tc-1": "passed",
+          "testcase/maestros/agencias.feature::@tc-2": "passed",
+          "testcase/maestros/agencias.feature::@tc-3": "passed",
+          "testcase/maestros/agencias.feature::@tc-4": "passed",
+          "testcase/maestros/agencias.feature::@tc-5": "passed",
+          "testcase/maestros/agencias.feature::@tc-6": "passed",
+          "testcase/maestros/agencias.feature::@tc-7": "passed",
+          "testcase/maestros/agencias.feature::@tc-8": "passed"
+        }
+      },
+      "lastApplied": "2026-06-05T22:10:01.388Z"
+    }
+  ]
+}

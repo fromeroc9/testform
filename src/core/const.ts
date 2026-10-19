@@ -25,8 +25,18 @@ export const VERSION_STATE = "1.0";
 
 // ─── File Names ───────────────────────────────────────────────────────────────
 
+/** Supported configuration file names in resolution priority order. */
+export const CONFIG_FILE_NAMES = [
+    "testform.yml",
+    "testform.yaml",
+    "testform.config.yml",
+    "testform.config.yaml",
+    "testform.json",
+    "testform.config.json"
+];
+
 /** Default configuration file name. */
-export const FILE_CONFIG = "testform.json";
+export const FILE_CONFIG = "testform.yml";
 
 /** Default state file name. */
 export const FILE_STATE = "testform.state";

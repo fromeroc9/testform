@@ -23,9 +23,11 @@ import { loginCmd } from './commands/login';
 import { logoutCmd } from './commands/logout';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
+import { suiteCmd } from './commands/suite';
 import { toolCmd } from './commands/tool';
 import { printCmd } from './commands/print';
 import { queryCmd } from './commands/query';
+import { ephemeralCmd } from './commands/ephemeral';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
 import chalk from 'chalk';
@@ -275,6 +277,7 @@ export function createCli() {
 
             await destroyCmd({
                 dir: workDir,
+                autoApprove: Boolean(options.autoApprove),
                 verbose: Boolean(options.verbose),
                 scope,
                 lock: options.lock ?? true,
@@ -448,6 +451,29 @@ export function createCli() {
             await workspaceCmd({ dir: workDir, verbose: Boolean(options.verbose), args });
         });
 
+    // ─── ephemeral ────────────────────────────────────────────────────────
+    cli.command('ephemeral [subcommand] [id]', 'Manage temporary CI/CD QA sandboxes (up, down, list, show)')
+        .option('-a, --auto-approve', 'Skip interactive approval')
+        .option('--force', 'Force destruction even if state is missing')
+        .option('--test-directory <dir>', 'Subdirectory containing test files')
+        .option('--json', 'Output results formatted as JSON')
+        .action(async (subcommand, id, options) => {
+            const workDir = getWorkDir(options);
+            const { scope } = getScope(options);
+
+            await ephemeralCmd({
+                subcommand,
+                id,
+                dir: workDir,
+                testDirectory: options.testDirectory,
+                scope,
+                autoApprove: Boolean(options.autoApprove),
+                force: Boolean(options.force),
+                json: Boolean(options.json),
+                verbose: Boolean(options.verbose)
+            });
+        });
+
     // ─── force-unlock ─────────────────────────────────────────────────────
     cli.command('force-unlock <lockId>', 'Release a stuck state lock')
         .option('--force', 'Do not ask for confirmation')
@@ -483,6 +509,36 @@ export function createCli() {
                 apply: options.apply,
                 out: options.out,
                 statePath: options.state
+            });
+        });
+
+    // ─── suite ───────────────────────────────────────────────────────────
+    cli.command('suite <subcommand> [...args]', 'Manage test suites and execution files (init, fill, mark)')
+        .option('--title <title>', 'Suite title')
+        .option('--rule <rule>', 'Rule definitions')
+        .option('--target <target>', 'Target feature file')
+        .option('--test-directory <dir>', 'Directory containing test files')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (subcommand, subArgs, options) => {
+            const workDir = getWorkDir(options);
+            const { singleScope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
+            const ruleArr = options.rule ? (Array.isArray(options.rule) ? options.rule : [options.rule]) : [];
+
+            await suiteCmd({
+                dir: workDir,
+                subCommand: subcommand,
+                subArgs: subArgs || [],
+                scope: singleScope,
+                title: options.title,
+                rules: ruleArr,
+                target: options.target,
+                testDirectory: options.testDirectory,
+                statePath: options.state,
+                backupPath: options.backup,
+                variables: variableParser,
+                verbose: Boolean(options.verbose)
             });
         });
 
@@ -643,7 +699,16 @@ export const main = async () => {
 
     // Help flag check with specific command
     if (rawArgs.includes('--help') || rawArgs.includes('-help') || rawArgs.includes('-h')) {
-        const cmdName = rawArgs.find(a => !a.startsWith('-'));
+        const nonFlagArgs = rawArgs.filter(a => !a.startsWith('-'));
+        const subCmdName = nonFlagArgs.slice(0, 2).join(' ');
+        const cmdName = nonFlagArgs[0];
+        if (subCmdName) {
+            const subHelp = getCommandHelp(subCmdName);
+            if (subHelp) {
+                console.log(subHelp);
+                process.exit(0);
+            }
+        }
         if (cmdName) {
             const helpText = getCommandHelp(cmdName);
             if (helpText) {

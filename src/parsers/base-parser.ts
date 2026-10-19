@@ -15,6 +15,7 @@ import {
     ParserFeature, ParserScenario, ParserStep, ParserBackground, ParserRule
 } from '../core/types';
 import { VariableParser } from '../core/variables';
+import { CONFIG_FILE_NAMES } from '../core/const';
 
 export const FIELD_PATTERN = /^(?:field)\s+([A-Za-z0-9_.\- ]+?)\s*=\s*(.+)$/i;
 
@@ -181,9 +182,11 @@ export abstract class BaseParser {
         const rootDir = resolve('/');
 
         while (currentDir !== rootDir) {
-            const configPath = resolve(currentDir, 'testform.json');
-            if (existsSync(configPath)) {
-                return currentDir;
+            for (const name of CONFIG_FILE_NAMES) {
+                const configPath = resolve(currentDir, name);
+                if (existsSync(configPath)) {
+                    return currentDir;
+                }
             }
             const parentDir = dirname(currentDir);
             if (parentDir === currentDir) break;

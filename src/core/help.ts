@@ -17,19 +17,21 @@ ${bold(`Main commands:`)}
 
 ${bold(`All other commands:`)}
   diff          Show drift between local configuration and state
-  print         Parse a feature file and print the JSON AST
+  ephemeral     Manage temporary CI/CD QA sandboxes (up, down, list, show)
   fmt           Reformat your configuration in the standard style
   force-unlock  Release a stuck lock on the current workspace
   graph         Generate a Graphviz graph of the steps in an operation
   import        Associate existing infrastructure with a ${TITLE_APP} resource
   login         Obtain and save credentials for a remote host
   logout        Remove locally-stored credentials for a remote host
+  print         Parse a feature file and print the JSON AST
+  query         Query and filter managed test resources in state
   refresh       Update the state to match remote systems
   report        Generate multi-dimensional test execution reports
   show          Show the current state or a saved plan
   state         Advanced state management
   taint         Mark a resource instance as not fully functional
-  tool          Manage test files locally (add, autocomplete, state)
+  suite         Manage test suites and execution files (init, fill, mark)
   untaint       Remove the 'tainted' state from a resource instance
   version       Show the current ${TITLE_APP} version
   workspace     Workspace management
@@ -757,6 +759,27 @@ ${bold(`Options:`)}
   -test-directory=dir     Subdirectory containing test files.
 `.trim();
 
+export const HELP_EPHEMERAL = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] ephemeral <subcommand> [id] [options]
+
+  Manage isolated, temporary QA sandboxes for CI/CD pipelines (Pull Requests).
+  Ensures remote issues are cleanly created and 100% destroyed without leaving orphans.
+
+${bold(`Subcommands:`)}
+
+  up <id>             Deploy an isolated ephemeral QA sandbox (e.g., pr-42).
+  down <id>           Close all remote issues created by the sandbox and delete its state.
+  list                List all active ephemeral sandboxes on this machine.
+  show <id>           Inspect tracked resources in an ephemeral sandbox.
+
+${bold(`Options:`)}
+
+  -auto-approve       Skip interactive confirmation prompts.
+  -force              Force destruction even if state is incomplete.
+  -test-directory=dir Subdirectory containing test files.
+  -json               Output as JSON (useful in scripts and CI/CD).
+`.trim();
+
 export const HELP_QUERY = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] query [options]
 
@@ -955,6 +978,70 @@ ${bold(`Options:`)}
                       variables file.
 `.trim();
 
+export const HELP_SUITE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite <subcommand> [options] [args]
+
+  Manage test suites and execution files (.run.feature and .plan.feature).
+
+${bold(`Subcommands:`)}
+  init          Create a new testrun or testplan feature file
+  fill          Fill referenced Rule blocks with testcase scenarios
+  mark          Update execution status of a testcase within the suite
+
+${bold(`Target Resolution (-target flag):`)}
+  All subcommands accept three forms to identify a testrun/testplan:
+    Full path:    tests/testrun/20260607_013738_ef7c0c.run.feature
+    Relative:     20260607_013738_ef7c0c.run.feature  (or fragment)
+    Identity:     @tr-2  (resolved from ${FILE_STATE})
+
+  If a fragment matches more than one file, an error lists all ambiguous
+  matches so you can be more specific.
+`.trim();
+
+export const HELP_SUITE_INIT = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite init [options]
+
+  Create a new testrun or testplan feature file based on your project conventions.
+  Applies timestamp, hash, and slug naming defined in your config.
+
+${bold(`Options:`)}
+
+  -scope=scope        Required. Must be 'testrun' or 'testplan'.
+  -title=title        An optional title for the suite file.
+  -rule=rule          Include a Rule block (Rule: <rule>) in the generated file.
+                      Can be specified multiple times.
+`.trim();
+
+export const HELP_SUITE_FILL = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite fill -target=<resource>
+
+  [testrun only] Reads each Rule block in the target testrun feature file,
+  finds the referenced .case.feature on disk, and fills its scenarios into
+  the testrun file with status = pending.
+
+${bold(`Options:`)}
+
+  -target=resource    Required. Identifies the suite file (path, relative, or @tr-N).
+  -test-directory=dir Optional. Limits the search scope for .case.feature files.
+`.trim();
+
+export const HELP_SUITE_MARK = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite mark "featureFile@tc-N=status" -target=<resource>
+
+  [testrun only] Update the execution status of a specific testcase within
+  a suite. Simultaneously updates:
+    - The local testrun feature file (checkbox and status)
+    - The GitHub issue body checklist
+    - The GitHub comment table for that testcase
+
+${bold(`Argument:`)} "featureFile@tc-N=status"
+  Available statuses: passed, failed, pending, skipped
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
+  ${TITLE_CLI} suite mark "login.feature::@tc-3=failed" -target="20260607.run.feature"
+`.trim();
+
 export function getCommandHelp(command: string): string | null {
   switch (command) {
     case 'init': return HELP_INIT;
@@ -971,6 +1058,7 @@ export function getCommandHelp(command: string): string | null {
     case 'force-unlock': return HELP_FORCE_UNLOCK;
     case 'login': return HELP_LOGIN;
     case 'workspace': return HELP_WORKSPACE;
+    case 'ephemeral': return HELP_EPHEMERAL;
     case 'report': return HELP_REPORT;
     case 'print': return HELP_PRINT;
     case 'logout': return HELP_LOGOUT;
@@ -985,10 +1073,14 @@ export function getCommandHelp(command: string): string | null {
     case 'taint': return HELP_TAINT;
     case 'untaint': return HELP_UNTAINT;
     case 'version': return HELP_VERSION;
-    case 'tool': return HELP_TEST;
-    case 'tool feature': return HELP_TEST_FEATURE;
-    case 'tool autocomplete': return HELP_TEST_AUTOCOMPLETE;
-    case 'tool state': return HELP_TEST_STATE;
+    case 'suite': return HELP_SUITE;
+    case 'suite init': return HELP_SUITE_INIT;
+    case 'suite fill': return HELP_SUITE_FILL;
+    case 'suite mark': return HELP_SUITE_MARK;
+    case 'tool': return HELP_SUITE;
+    case 'tool feature': return HELP_SUITE_INIT;
+    case 'tool autocomplete': return HELP_SUITE_FILL;
+    case 'tool state': return HELP_SUITE_MARK;
     default: return null;
   }
 }

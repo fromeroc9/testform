@@ -47,20 +47,9 @@ export const importCmd = async (options: ImportCmdOptions) => {
         const state = stateObj;
 
         const basePath = resolve(dir);
-        const configPath = normalize(join(basePath, FILE_CONFIG));
-        
-        if (!configPath.startsWith(basePath)) {
-            console.error(red(`Invalid configuration path.`));
-            process.exit(1);
-        }
-
-        if (!fs.existsSync(configPath)) {
-            console.error(red(`Configuration file ${FILE_CONFIG} not found in directory.`));
-            process.exit(1);
-        }
-        const config: IConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        let github: IProviderAdapter;
         const configClass = new Config(dir);
+        const config: IConfig = configClass.getConfig();
+        let github: IProviderAdapter;
         if (configClass.getAdapterType() === 'local') {
             github = new LocalAdapter(dir);
         } else {

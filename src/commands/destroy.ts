@@ -28,8 +28,9 @@ import { IScope } from '../core/types';
  * @param statePath   - Custom path to the state file.
  * @param backupPath  - Custom path to the state backup file.
  */
-interface DestroyCmdOptions {
+export interface DestroyCmdOptions {
     dir?: string;
+    autoApprove?: boolean;
     verbose?: boolean;
     scope: IScope | 'all';
     lock?: boolean;
@@ -42,6 +43,7 @@ interface DestroyCmdOptions {
 export const destroyCmd = async (options: DestroyCmdOptions) => {
     const {
         dir = '.',
+        autoApprove = false,
         verbose = false,
         scope,
         lock = true,
@@ -64,7 +66,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             return;
         }
 
-        if (!input) {
+        if (!autoApprove && !input) {
             const error = new Error('This command requires manual approval, but input is disabled. Use the\n-auto-approve flag to bypass approval.');
             error.name = 'No input allowed';
             console.error(error.name + ': ' + error.message);
@@ -93,7 +95,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
 
             // Prompt for approval
-            if (input) {
+            if (!autoApprove && input) {
                 const approved = await askDestroyApproval(resources.length);
                 if (!approved) {
                     notify.push({

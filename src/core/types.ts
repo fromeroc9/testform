@@ -7,22 +7,9 @@ export interface IProviderConfig {
     config?: any;
 }
 
-export interface IConfig {
-    version?: string;
-    provider?: IProviderConfig;
-    backend?: IBackendConfig;
-    scope?: {
-        global?: ITest;
-        testcase?: ITest;
-        testrun?: ITest;
-        testplan?: ITest;
-    };
-    report_mapping?: Record<string, string>;
-}
-
-interface IBackendConfig {
+export interface IBackendConfig {
     type: 'local' | 's3' | 'azurerm';
-    config: Record<string, string>;
+    config: Record<string, any>;
 }
 
 export interface IGitHubConfig {
@@ -32,23 +19,63 @@ export interface IGitHubConfig {
     tokenEnv: string;
 }
 
-interface IConvention {
+export interface IScaffold {
     directory?: string;
     filename?: string;
+    pattern?: string;
 }
 
-export interface ITest {
-    identity?: string;
-    fields?: IField[];
-    convention?: IConvention;
-}
+export type IConvention = IScaffold;
 
 export interface IField {
     name: string;
     type: 'keywords' | 'tags';
+    source?: 'step' | 'tag' | 'tags' | 'keywords';
     values?: string | string[];
+    enum?: string | string[];
     required?: boolean;
     default?: string | string[];
+}
+
+export interface IScopeConfig {
+    match?: string;
+    identity?: string;
+    fields?: IField[] | Record<string, any>;
+    scaffold?: IScaffold;
+    convention?: IConvention;
+}
+
+export interface ITest {
+    match?: string;
+    identity?: string;
+    fields?: IField[];
+    scaffold?: IScaffold;
+    convention?: IConvention;
+}
+
+export interface IConfig {
+    version?: string;
+    provider?: IProviderConfig;
+    backend?: IBackendConfig;
+    scopes?: {
+        global?: IScopeConfig;
+        testcase?: IScopeConfig;
+        testrun?: IScopeConfig;
+        testplan?: IScopeConfig;
+    };
+    scope?: {
+        global?: IScopeConfig;
+        testcase?: IScopeConfig;
+        testrun?: IScopeConfig;
+        testplan?: IScopeConfig;
+    };
+    fields?: {
+        global?: IField[] | Record<string, any>;
+        testcase?: IField[] | Record<string, any>;
+        testrun?: IField[] | Record<string, any>;
+        testplan?: IField[] | Record<string, any>;
+    };
+    report_mapping?: Record<string, string>;
 }
 
 // ─── Parser ──────────────────────────────────────────────────────────────────
