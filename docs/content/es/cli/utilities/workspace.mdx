@@ -1,0 +1,68 @@
+# `testform workspace`
+
+```bash
+testform workspace <subcomando> [opciones] [argumentos]
+```
+
+El comando `testform workspace` gestiona estados de trabajo aislados (workspaces) dentro del mismo directorio de configuración.
+
+Los workspaces permiten administrar múltiples entornos diferenciados (como `staging`, `production`, `qa-env-1` o `release-2.0`) utilizando los **mismos archivos de prueba `.feature`**, pero con archivos de estado e incidencias remotas totalmente independientes.
+
+---
+
+## Subcomandos
+
+### 1. `testform workspace list`
+Enumera todos los workspaces existentes. Un asterisco `*` indica el workspace activo:
+```bash
+$ testform workspace list
+  default
+* staging
+  production
+```
+
+### 2. `testform workspace new <nombre>`
+Crea un nuevo workspace vacío y cambia a él:
+```bash
+$ testform workspace new release-2.0
+Created and switched to workspace "release-2.0"!
+
+You're now on a new, empty workspace. Workspaces isolate their state,
+so if you run "testform plan", Testform will not see any existing "default" resources.
+```
+
+### 3. `testform workspace select <nombre>`
+Cambia hacia un workspace existente:
+```bash
+$ testform workspace select production
+Switched to workspace "production".
+```
+
+### 4. `testform workspace show`
+Muestra el nombre del workspace actualmente activo:
+```bash
+$ testform workspace show
+production
+```
+
+### 5. `testform workspace delete <nombre>`
+Elimina un workspace. Debe encontrarse totalmente vacío (todos los recursos destruidos previamente) antes de poder borrarse:
+```bash
+testform workspace delete sprint-38-antiguo
+```
+
+---
+
+## Aislamiento de Estado en Backends Remotos
+
+Al utilizar un backend remoto (como AWS S3), Testform organiza los estados de los workspaces bajo prefijos separados:
+- Workspace `default`: `mi-bucket/testform.state`
+- Workspace `staging`: `mi-bucket/env:/staging/testform.state`
+- Workspace `production`: `mi-bucket/env:/production/testform.state`
+
+---
+
+## Códigos de Salida
+
+- `0`: Comando de workspace ejecutado exitosamente.
+- `1`: El workspace ya existe, no existe o no pudo ser eliminado.

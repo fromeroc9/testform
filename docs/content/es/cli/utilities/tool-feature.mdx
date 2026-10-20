@@ -1,0 +1,48 @@
+# `testform tool feature`
+
+```bash
+testform tool feature [opciones]
+```
+
+El comando `testform tool feature` genera nuevos archivos de especificación `testrun` o `testplan` respetando las convenciones automáticas de nomenclatura configuradas en `testform.yml`.
+
+Resuelve el directorio de destino, calcula marcas temporales, genera hashes resistentes a colisiones y precarga los encabezados y reglas del archivo de forma desasistida.
+
+---
+
+## Opciones del Comando
+
+| Opción | Por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `-scope=<scope>` | `testrun` | Alcance de destino (`testrun` o `testplan`). |
+| `-title="Título"` | — | Título legible del feature. |
+| `-rule="archivo.feature"` | — | Precarga el archivo con referencias a reglas iniciales. Admite múltiples declaraciones. |
+
+---
+
+## Marcadores de Convención de Nombres (Placeholders)
+
+Testform evalúa los marcadores configurados bajo `scopes` en `testform.yml`:
+- `{YYYYMMDD}`: Año, mes y día actuales (por ejemplo: `20261019`).
+- `{HHmmss}`: Hora actual (por ejemplo: `153022`).
+- `{timestamp}`: Marca temporal Unix en milisegundos.
+- `{slug}`: Versión sanitizada en formato URL del flag `-title`.
+- `{hash}`: Hash hexadecimal aleatorio de 6 caracteres para garantizar unicidad.
+
+---
+
+## Ejemplo de Ejecución Real
+
+```bash
+$ testform tool feature -scope=testrun -title="Payment Smoke Test" -rule="payment.case.feature"
+
+Created new testrun feature:
+  Path: tests/runs/20261019_payment-smoke-test_a3f89d.run.feature
+```
+
+---
+
+## Códigos de Salida
+
+- `0`: Archivo feature creado exitosamente.
+- `1`: Alcance no válido o error al resolver la plantilla.

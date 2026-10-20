@@ -1,0 +1,67 @@
+# Documentación de Testform
+
+Bienvenido a la documentación oficial de **Testform**. Testform introduce el paradigma de **Test-as-Code (TaC)** a la ingeniería de software moderna, trasladando los principios arquitectónicos consolidados de HashiCorp Terraform al aseguramiento de la calidad (QA) y la gestión de pruebas.
+
+Al codificar casos de prueba, ejecuciones de prueba (test runs) y planes de prueba (test plans) en configuraciones declarativas Gherkin (`.feature`), tus procesos de testing pueden versionarse en Git, revisarse en Pull Requests y sincronizarse automáticamente con tus gestores de incidencias y tableros de proyecto.
+
+---
+
+## ¿Por qué Testform?
+
+Las herramientas tradicionales de gestión de pruebas desacoplan la ingeniería de calidad del flujo diario de desarrollo. Con frecuencia, los **Quality Engineers** se ven obligados a crear y mantener casos de prueba en portales web externos aislados (como Jira, Zephyr o QMetry), mientras que los desarrolladores escriben código en sus IDEs. Esta fragmentación introduce graves desafíos:
+
+- **Desviación de Especificación (Specification Drift)**: Los casos de prueba quedan desactualizados rápidamente a medida que el código de la aplicación evoluciona.
+- **Sobrecarga en la Trazabilidad**: Vincular ejecuciones de prueba automatizadas con la aprobación de releases requiere un registro manual y tedioso.
+- **Conflictos y Pruebas Frágiles**: Sin una fuente única de verdad, los equipos duplican esfuerzos y pierden contexto histórico.
+
+**Testform resuelve esto tratando los casos de prueba como infraestructura.**
+
+Escribes archivos BDD Gherkin estándar y ejecutables localmente. El motor de Testform calcula planes, detecta desviaciones (drift) y concilia el estado deseado contra tu plataforma con precisión atómica e idempotente.
+
+---
+
+## Platform Providers
+
+Testform no te ata a una sola herramienta:
+
+- **Ecosistema Git como Base**: El código de pruebas reside en Git (GitHub hoy, con soporte para GitLab a futuro).
+- **Tableros de Proyecto**: Aprovecha los tableros de proyectos (Projects en GitHub, Boards en GitLab) como un tablero ágil e interactivo de gestión de casos de prueba.
+- **Conector Estándar**: GitHub es el Provider activo por defecto, pero la arquitectura define una interfaz estándar para conectores. Esto permite extender Testform fácilmente hacia tus herramientas empresariales favoritas como **Zephyr**, **QMetry**, **Jira** o backends propios.
+- **Políticas y Validaciones Abiertas**: Define tus propios esquemas de campos (`fields`), tipos de datos obligatorios, enums y reglas de convención automatizadas.
+
+---
+
+## Beneficios Clave
+
+1. **GitOps para Quality Engineers**: Las pruebas residen en Git junto al código fuente de producción. Los Pull Requests permiten revisar simultáneamente el código de las funcionalidades, las definiciones de pasos automatizados y las especificaciones de pruebas.
+2. **Estado Declarativo Puro**: Declara el estado deseado en Gherkin. Testform determina la secuencia exacta de operaciones de creación, actualización o cierre sin interacción manual en navegadores web.
+3. **Idempotencia y Detección de Desviación**: Gracias al seguimiento de estado y a las huellas criptográficas SHA-256 (`localHash`), Testform detecta cambios externos fuera de banda y previene la duplicación de tickets.
+4. **Integración con Tableros y Gestores de Casos**: Convierte los tableros de tu plataforma en paneles visuales de casos de prueba, manteniendo a todo el equipo de desarrollo y Quality Engineers alineados en un solo flujo.
+5. **Bloqueo de Estado Multi-Cloud**: Previene condiciones de carrera en ejecuciones concurrentes de CI/CD utilizando AWS S3 con DynamoDB, Azure Blob Leases o Google Cloud Storage.
+
+---
+
+## Estructura de la Documentación
+
+Explora las distintas secciones para dominar Testform:
+
+### 🚀 [Primeros Pasos](./getting-started)
+Sigue nuestra guía práctica de 5 minutos para inicializar Testform, configurar las credenciales del provider y aplicar tu primer caso de prueba declarativo en GitHub.
+
+### 📐 [El Modelo Terraform](./model)
+Comparativa arquitectónica que muestra cómo el lenguaje HCL de Terraform, su motor de estado y su bucle de reconciliación se traducen 1:1 a los archivos Gherkin y mecanismos de estado de Testform.
+
+### 🥒 [Especificación Gherkin y Archivos Feature](./gherkin)
+Guía exhaustiva para redactar BDD como código declarativo: anatomía del feature, pasos y reglas, scenario outlines, tablas de datos, estrategia de etiquetas (tags) y variables de paso del DSL (`* clave = valor`).
+
+### 📝 [Recursos Declarativos y Configuración](./resources)
+Desglose detallado de los tres niveles de recursos gestionados: `testcase`, `testrun` y `testplan`, así como el esquema maestro del archivo de configuración `testform.yml`.
+
+### 💻 [Referencia de la CLI](./cli)
+Referencia completa de cada comando, opción, flag, indicador de diff y código de salida para el Flujo Principal, Inspección, Operaciones de Estado y Utilidades.
+
+### 🗄️ [Gestión del Estado y Backends](./state)
+Análisis en profundidad de `testform.state`, números de serie, linajes UUID, backends remotos en la nube (S3, Azure Blob, GCS) y migración automatizada de estado.
+
+### 🔌 [Providers y CI/CD](./providers)
+Aprende cómo funcionan los plugins de Providers, cómo configurar el Provider oficial de GitHub, desarrollar providers personalizados e integrar Testform en flujos de trabajo de GitHub Actions.

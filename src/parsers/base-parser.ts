@@ -16,6 +16,7 @@ import {
 } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { CONFIG_FILE_NAMES } from '../core/const';
+import { parseModuleTargets, parseModuleTag, resolveModulePath, loadModuleSteps } from '../core/module';
 
 export const FIELD_PATTERN = /^(?:field)\s+([A-Za-z0-9_.\- ]+?)\s*=\s*(.+)$/i;
 
@@ -50,9 +51,10 @@ export abstract class BaseParser {
         }
     }
 
-    protected format(document: GherkinDocument): ParserScenario[] {
+    protected format(document: GherkinDocument, fileAbs?: string): ParserScenario[] {
         const feature = document.feature;
         const uri = document.uri ?? "(unknown)";
+        const currentFile = fileAbs || uri;
 
         const toStep = (s: Step): ParserStep => ({
             keyword: s.keyword,
@@ -95,6 +97,20 @@ export abstract class BaseParser {
                         location: feature?.location.line ?? 0
                     };
 
+                    // Handle Scenario-level @module composition (inheriting steps)
+                    const moduleSteps: ParserStep[] = [];
+                    for (const t of tags) {
+                        const moduleTargets = parseModuleTargets(t);
+                        if (moduleTargets) {
+                            for (const target of moduleTargets) {
+                                const resolved = resolveModulePath(currentFile, target.source, this.dir);
+                                if (resolved) {
+                                    moduleSteps.push(...loadModuleSteps(resolved, target.scenario));
+                                }
+                            }
+                        }
+                    }
+
                     if (isUnique && hasTemplate && (s.examples ?? []).length > 0) {
                         for (const example of s.examples) {
                             const headers: string[] = (example.tableHeader?.cells ?? []).map((c: TableCell) => c.value);
@@ -108,11 +124,14 @@ export abstract class BaseParser {
                                     name: interpolate(s.name, headers, values),
                                     description: s.description,
                                     tags: tags.map((t) => interpolate(t, headers, values)),
-                                    steps: (s.steps ?? []).map((step) => ({
-                                        keyword: step.keyword,
-                                        keywordType: step.keywordType,
-                                        text: interpolate(step.text, headers, values),
-                                    })),
+                                    steps: [
+                                        ...moduleSteps,
+                                        ...(s.steps ?? []).map((step) => ({
+                                            keyword: step.keyword,
+                                            keywordType: step.keywordType,
+                                            text: interpolate(step.text, headers, values),
+                                        }))
+                                    ],
                                     ...(localBg ? { background: JSON.parse(JSON.stringify(localBg)) } : {}),
                                     ...(rule ? { rule } : {}),
                                 });
@@ -127,7 +146,7 @@ export abstract class BaseParser {
                             name: s.name,
                             description: s.description,
                             tags,
-                            steps: (s.steps ?? []).map(toStep),
+                            steps: [...moduleSteps, ...(s.steps ?? []).map(toStep)],
                             ...(localBg ? { background: JSON.parse(JSON.stringify(localBg)) } : {}),
                             ...(rule ? { rule } : {}),
                         });
@@ -201,6 +220,7 @@ export abstract class BaseParser {
         const scenarios: ParserScenario[] = [];
         const projectRoot = this.findProjectRoot(this.dir);
 
+        const loadedModules = new Set<string>();
         for (const file of featureFiles) {
             let content = readFileSync(file, "utf-8");
             if (this.variables) {
@@ -210,7 +230,29 @@ export abstract class BaseParser {
             const rawDoc = parser.parse(content);
             rawDoc.uri = relative(projectRoot, file);
 
-            scenarios.push(...this.format(rawDoc));
+            // Check for Feature-level @module tags to accumulate module scenarios
+            const featureTags = (rawDoc.feature?.tags ?? []).map((t: any) => t.name);
+            for (const tag of featureTags) {
+                const sources = parseModuleTag(tag);
+                if (sources) {
+                    for (const src of sources) {
+                        const resolvedMod = resolveModulePath(file, src, projectRoot);
+                        if (resolvedMod && !featureFiles.includes(resolvedMod) && !loadedModules.has(resolvedMod)) {
+                            loadedModules.add(resolvedMod);
+                            try {
+                                const modContent = readFileSync(resolvedMod, "utf-8");
+                                const modDoc = parser.parse(modContent);
+                                modDoc.uri = relative(projectRoot, resolvedMod);
+                                scenarios.push(...this.format(modDoc, resolvedMod));
+                            } catch {
+                                // Ignore non-parseable module
+                            }
+                        }
+                    }
+                }
+            }
+
+            scenarios.push(...this.format(rawDoc, file));
         }
 
         return scenarios;

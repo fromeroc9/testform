@@ -1,0 +1,81 @@
+# El Modelo Terraform en Testform
+
+Testform traslada los principios comprobados de **Infraestructura como Código (IaC)**—popularizados por HashiCorp Terraform—hacia el paradigma de **Test-as-Code (TaC)**.
+
+En lugar de aprovisionar máquinas virtuales, VPCs o bases de datos, Testform aprovisiona y orquesta de forma declarativa **Casos de Prueba (Test Cases), Ejecuciones de Prueba (Test Runs) y Planes de Prueba (Test Plans)** en plataformas de Git y herramientas de gestión de pruebas (usando tableros de proyecto en GitHub o GitLab como tableros de pruebas, o conectándose a herramientas como Zephyr, QMetry o Jira).
+
+---
+
+## Mapeo Conceptual: Terraform vs. Testform
+
+Si comprendes Terraform, ya comprendes Testform:
+
+| Concepto en Terraform | Equivalente en Testform | Descripción |
+| :--- | :--- | :--- |
+| **Archivos de Configuración (`.tf`)** | **Archivos Gherkin (`.feature`)** | Especificación declarativa del estado deseado. |
+| **`terraform.tfstate`** | **`testform.state`** | Fuente única de verdad que vincula declaraciones locales con IDs remotos. |
+| **Providers (`aws`, `azurerm`, `google`)** | **Providers / Conectores (`github`, `gitlab`, `zephyr`, `qmetry`, `jira`)** | Plugins adaptadores que interactúan con APIs externas. |
+| **Bloques de Recursos (`resource "..."`)** | **Escenarios y Reglas (`Scenario:`, `Rule:`)** | Unidades de infraestructura gestionada. |
+| **Atributos y Argumentos** | **Pasos Gherkin y Variables DSL** | Propiedades como título, pasos, asignados, milestones. |
+| **`terraform plan`** | **`testform plan`** | Diferencial especulativo que compara especificaciones locales con la realidad remota. |
+| **`terraform apply`** | **`testform apply`** | Reconciliación idempotente que ejecuta las mutaciones planificadas. |
+| **`terraform destroy`** | **`testform destroy`** | Cierre o eliminación ordenada de recursos de prueba gestionados. |
+| **`terraform refresh`** | **`testform refresh`** | Actualiza el estado local desde las APIs remotas sin aplicar cambios. |
+| **`terraform taint`** | **`testform taint`** | Marca un recurso para su recreación completa en el siguiente apply. |
+| **`terraform import`** | **`testform import`** | Incorpora issues remotos preexistentes al archivo de estado. |
+| **`terraform workspace`** | **`testform workspace`** | Aísla entornos (por ejemplo: `staging`, `production`, `release-1.2`). |
+| **Bloqueo de Estado (State Locking)** | **Bloqueos de Estado Distribuidos** | Previene ejecuciones simultáneas (DynamoDB, Azure Blob leases, S3, GCS). |
+
+---
+
+## 1. Lenguaje de Configuración Declarativo
+
+### De HCL a Gherkin Puro
+
+En Terraform convencional escribes HashiCorp Configuration Language (HCL). En Testform escribes **Gherkin estándar**, manteniendo 100% de compatibilidad con ejecutores BDD (Cucumber, Behave, Playwright, Cypress) mientras actúa a la vez como configuración declarativa de infraestructura de pruebas.
+
+#### Enfoque Hipotético con HCL de Terraform
+```hcl
+provider "testform" {
+  organization = "mi-organizacion"
+  repository   = "aplicacion-web"
+}
+
+resource "testform_testcase" "login_valido" {
+  title       = "Login exitoso con credenciales correctas"
+  tags        = ["login", "smoke", "high"]
+  steps       = [
+    "Given el usuario navega a la página de inicio de sesión",
+    "When ingresa credenciales válidas",
+    "Then el sistema muestra el panel principal"
+  ]
+  milestone   = "Sprint 42"
+  assignees   = ["qa-lead"]
+}
+```
+
+#### Enfoque Real con Gherkin Declarativo de Testform
+```gherkin
+@testcase @login @smoke
+Feature: Autenticación de Usuarios
+
+  Background:
+    * milestone = "Sprint 42"
+    * assignees = "qa-lead"
+
+  @high @tc-1
+  Scenario: Login exitoso con credenciales correctas
+    Given el usuario navega a la página de inicio de sesión
+    When ingresa credenciales válidas
+    Then el sistema muestra el panel principal
+```
+
+El compilador de Testform procesa el AST de este archivo Gherkin y genera internamente un recurso idéntico a `testform_testcase.login_valido`.
+
+---
+
+## 2. Siguientes Pasos
+
+Conoce los mecanismos internos del modelo Terraform:
+- [El Bucle de Reconciliación](./reconciliation): Cómo Testform calcula diferencias y previene condiciones de carrera.
+- [Jerarquía de Recursos](./hierarchy): La pirámide que conecta Planes, Ejecuciones y Casos de prueba.

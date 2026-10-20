@@ -1,0 +1,67 @@
+# `testform apply`
+
+```bash
+testform [global options] apply [options] [plan-file]
+```
+
+The `testform apply` command executes the actions proposed in a Testform plan. It synchronizes your desired state with the active Provider (creating, updating, or closing issues in GitHub, Jira, etc.) and updates `testform.state` upon completion.
+
+---
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-auto-approve` | `false` | Skips interactive approval prompt before applying (essential for CI/CD). |
+| `-destroy` | `false` | Destroys all managed resources in the active scope. |
+| `-target=address` | — | Limits execution to a single resource identity. |
+| `-lock=false` | `true` | Disables state locking during execution. |
+| `-lock-timeout=0s` | `0s` | Duration to retry acquiring a state lock. |
+| `-json` | `false` | Emits execution events and progress as JSON. |
+
+---
+
+## Interactive Workflow (Default)
+
+When run without a saved plan file, `testform apply` first calculates a plan, displays the diff, and prompts for explicit confirmation:
+
+```bash
+$ testform apply
+
+Plan: 1 to add, 1 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Testform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+testcase.checkout_coupon: Creating...
+testcase.checkout_coupon: Creation complete after 1s [id=105]
+testcase.login_valid: Modifying... [id=104]
+testcase.login_valid: Modifications complete after 1s [id=104]
+
+Apply complete! Resources: 1 added, 1 changed, 0 destroyed.
+```
+
+---
+
+## Non-Interactive CI/CD Workflow
+
+For automated pipelines, use a pre-saved plan file or the `-auto-approve` flag:
+
+```bash
+# Using pre-saved plan:
+testform apply -auto-approve tfplan.bin
+
+# Direct apply:
+testform apply -auto-approve
+```
+
+---
+
+## Exit Codes
+
+- `0`: Apply succeeded with zero errors.
+- `1`: One or more mutations failed, or state locking failed.
+

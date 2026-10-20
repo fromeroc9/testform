@@ -1,0 +1,24 @@
+# Providers Architecture
+
+Just as Terraform relies on providers to interface with cloud APIs like AWS, Azure, and Cloudflare, **Testform relies on Providers** to interface with issue trackers, project management boards, and test execution platforms.
+
+---
+
+## What a Provider Does
+
+A Provider is an adapter plugin that implements the Testform Provider Interface:
+1. **Authentication**: Manages API tokens, OAuth sessions, or credentials.
+2. **Resource CRUD**: Translates Testform resource operations into remote API calls:
+   - `create`: Calls issue creation endpoints (REST / GraphQL).
+   - `read`: Fetches the live state of issues, labels, and project cards for drift detection.
+   - `update`: Performs minimal in-place field updates.
+   - `delete`: Closes or removes remote tickets.
+3. **Field Mapping**: Maps Gherkin DSL step variables (`* milestone`, `* assignees`) to internal remote entity IDs.
+
+---
+
+## Available Providers
+
+- **[Official GitHub Provider](./providers/github)**: Native integration with GitHub Issues, Milestones, and Projects V2.
+- **[Custom Providers](./providers/custom)**: Extensibility framework to build integrations for Jira, GitLab, TestRail, or Azure DevOps.
+- **[CI/CD Automation](./providers/ci-cd)**: Running Testform automatically inside GitHub Actions.

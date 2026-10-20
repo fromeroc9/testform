@@ -1,0 +1,59 @@
+# Arquitectura y Conceptos del Estado
+
+Testform registra información sobre la infraestructura que crea dentro de un archivo de estado. Por defecto, al ejecutarse en local, este estado se almacena en un archivo llamado `testform.state`.
+
+Este archivo constituye la única fuente de verdad que conecta tus archivos locales `.feature` con las incidencias reales, listas de verificación e ítems de proyectos en GitHub o Jira.
+
+---
+
+## Anatomía del Archivo de Estado
+
+El archivo `testform.state` utiliza una estructura JSON versionada de forma idéntica a Terraform:
+
+```json
+{
+  "version": 4,
+  "testform_version": "1.0.17",
+  "serial": 18,
+  "lineage": "9b6c085b-8664-4bf8-b805-4c07a3c3328e",
+  "resources": [
+    {
+      "scope": "testcase",
+      "type": "github_testcase",
+      "name": "login_valid",
+      "identity": "login.case.feature::@tc-1",
+      "provider": "provider.github",
+      "instances": [
+        {
+          "attributes": {
+            "id": 104,
+            "number": 104,
+            "title": "Valid credentials allow login",
+            "url": "https://github.com/mi-org/web-app/issues/104",
+            "localHash": "a3f5c71d8e20b3...",
+            "tainted": false
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Campos del Estado Explicados
+- **`version`**: Versión del esquema del estado (`4`).
+- **`serial`**: Contador monótonamente creciente que se incrementa en cada mutación exitosa del estado. Impide que capturas de estado desactualizadas sobrescriban versiones más recientes.
+- **`lineage`**: Identificador único UUID asignado al inicializar el estado por primera vez. Garantiza que dos proyectos independientes nunca sobrescriban accidentalmente el estado del otro.
+- **`identity`**: Clave única que vincula el código local con el estado (`[archivo]::@tc-1` o según el patrón de identidad configurado en `testform.yml`).
+- **`localHash`**: Hash SHA-256 del contenido del escenario local utilizado para omitir actualizaciones innecesarias ante las APIs remotas.
+
+---
+
+## Bloqueo de Estado y Concurrencia
+
+Cuando múltiples desarrolladores o pipelines de CI/CD ejecutan `testform apply` simultáneamente sobre el mismo repositorio, se exponen a condiciones de carrera que podrían duplicar incidencias o corromper el estado.
+
+Testform previene esto mediante **Bloqueo Distribuido del Estado (State Locking)**:
+- Adquiere un bloqueo de exclusión mutua antes de realizar lecturas o planificaciones.
+- Si otro proceso retiene el bloqueo, Testform reporta el ID del propietario del bloqueo y detiene la ejecución.
+- Libera el bloqueo de forma atómica una vez que todas las mutaciones han sido registradas.

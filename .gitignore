@@ -2,3 +2,6 @@ node_modules
 scripts
 bin
 **/testform.json
+.next
+docs/.next
+docs/out

@@ -1,0 +1,37 @@
+# Providers Personalizados (Zephyr, QMetry, Jira, GitLab)
+
+Testform ha sido diseñado como una plataforma con una interfaz abierta y estandarizada de conectores (Providers). Aunque GitHub es el provider activo por defecto, puedes utilizar o desarrollar plugins de providers personalizados para sincronizar tus casos de prueba con **Zephyr**, **QMetry**, **Jira**, **GitLab** o herramientas internas propietarias.
+
+---
+
+## La Interfaz de Provider
+
+Un provider personalizado es un paquete de npm o un módulo local de TypeScript que implementa la interfaz `IProvider`:
+
+```typescript
+export interface IProvider {
+  name: string;
+  init(config: Record<string, any>): Promise<void>;
+  
+  create(resource: ResourceDefinition): Promise<RemoteResourceResult>;
+  read(identity: string, remoteId: string | number): Promise<RemoteResourceResult | null>;
+  update(identity: string, remoteId: string | number, diff: ResourceDiff): Promise<RemoteResourceResult>;
+  delete(identity: string, remoteId: string | number): Promise<void>;
+}
+```
+
+---
+
+## Configuración de un Provider Personalizado en `testform.yml`
+
+```yaml
+provider:
+  type: "testform-provider-jira"  # Nombre del paquete npm o ruta local
+  config:
+    host: "https://mi-empresa.atlassian.net"
+    emailEnv: "JIRA_EMAIL"
+    apiTokenEnv: "JIRA_API_TOKEN"
+    projectKey: "QA"
+```
+
+Al ejecutar `testform init`, Testform resuelve y carga el provider personalizado de forma dinámica desde los `node_modules` del proyecto.

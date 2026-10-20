@@ -1,0 +1,42 @@
+# Backend: Azure Blob Storage
+
+El backend `azurerm` almacena el estado de Testform en Microsoft Azure Blob Storage. Utiliza de forma nativa los **arrendamientos de blobs (Blob Leases)** de Azure para ofrecer bloqueo distribuido del estado sin requerir bases de datos adicionales.
+
+---
+
+## Configuración
+
+En `testform.yml`:
+
+```yaml
+backend:
+  type: azurerm
+  config:
+    resource_group_name: "rg-testform-compartido"
+    storage_account_name: "satestformcompartido"
+    container_name: "testform-estados"
+    key: "web-app/produccion.testform.state"
+```
+
+---
+
+## Autenticación
+
+Testform soporta todos los mecanismos estándar de autenticación de Azure:
+1. **Azure CLI**: Inicio de sesión automático mediante `az login`.
+2. **Variables de Entorno**:
+   - `ARM_CLIENT_ID`
+   - `ARM_CLIENT_SECRET`
+   - `ARM_TENANT_ID`
+   - `ARM_SUBSCRIPTION_ID`
+3. **Managed Service Identity (MSI)**: Al ejecutarse dentro de agentes de Azure DevOps o máquinas virtuales de Azure.
+4. **Token SAS**: Suministrado dinámicamente al inicializar:
+   ```bash
+   testform init -backend-config="sas_token=?sv=2024-01-01&..."
+   ```
+
+---
+
+## Arrendamientos Nativos de Blob (Blob Leases)
+
+A diferencia de AWS (que requiere una tabla DynamoDB dedicada), Azure Blob Storage proporciona arrendamientos renovables de 60 segundos sobre el blob. Testform adquiere un lease exclusivo de escritura en cada ejecución de `apply` o de comandos de `state`.

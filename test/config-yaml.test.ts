@@ -208,4 +208,37 @@ fields:
         expect(fields.find(f => f.name === 'env')?.type).toBe('keywords');
         expect(fields.find(f => f.name === 'testcases')?.type).toBe('keywords');
     });
+
+    it('should parse dictionary format for providers directly without type or env wrapper', () => {
+        const yamlContent = `
+version: "1.0"
+provider:
+  github:
+    owner: enterprise-corp
+    repository: core-payments
+    projectId: 77
+    tokenEnv: GITHUB_TOKEN
+`;
+        writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
+
+        const config = new Config(tmpDir);
+        expect(config.getProviderType()).toBe('github');
+        const gh = config.getGitHub();
+        expect(gh?.owner).toBe('enterprise-corp');
+        expect(gh?.repository).toBe('core-payments');
+        expect(gh?.projectId).toBe(77);
+    });
+
+    it('should parse provider: local as direct scalar string', () => {
+        const yamlContent = `
+version: "1.0"
+provider: local
+`;
+        writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
+
+        const config = new Config(tmpDir);
+        expect(config.getProviderType()).toBe('local');
+        expect(config.getAdapterType()).toBe('local');
+    });
 });
+

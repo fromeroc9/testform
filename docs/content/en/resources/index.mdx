@@ -1,0 +1,39 @@
+# Declarative Resources Overview
+
+In Testform, you do not write imperative scripts that call REST APIs to create tickets. Instead, your `.feature` files represent **declarative resources**.
+
+When you execute commands like `testform plan` and `testform apply`, Testform compiles these files into managed resources, calculates differences, and orchestrates calls to the active Provider.
+
+---
+
+## Managed Resource Types
+
+Testform natively manages three core resource types:
+
+| Resource Type | Scope Flag | Input Files | Remote Target |
+| :--- | :--- | :--- | :--- |
+| **`testcase`** | `-scope=testcase` | `*.case.feature` or `@testcase` | Atomic Test Case Issue in GitHub/Jira |
+| **`testrun`** | `-scope=testrun` | `*.run.feature` or `@testrun` | Execution Run Issue with Checklists |
+| **`testplan`** | `-scope=testplan` | `*.plan.feature` or `@testplan` | Umbrella Milestone / Release Epic |
+
+---
+
+## How Scopes Control Compilation
+
+The `-scope` flag tells Testform which layer of the resource hierarchy to evaluate:
+
+```bash
+# Evaluate only test cases
+testform plan -scope=testcase
+
+# You can also use the scope-first shorthand:
+testform testcase plan
+testform testrun apply
+```
+
+Explore each resource type in detail:
+- [Resource: testcase](./resources/testcase): The atomic unit of specification.
+- [Resource: testrun](./resources/testrun): Managing execution cycles, checklists, and pass/fail states.
+- [Resource: testplan](./resources/testplan): High-level release tracking and multi-run aggregation.
+- [Resource Lifecycle](./resources/lifecycle): How resources are created, updated, destroyed, and tainted.
+- [Configuration (testform.yml)](./resources/configuration): Global project settings, provider declarations, and policies.

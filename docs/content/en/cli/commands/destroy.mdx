@@ -1,0 +1,65 @@
+# `testform destroy`
+
+```bash
+testform [global options] destroy [options]
+```
+
+The `testform destroy` command is a convenient shorthand for `testform apply -destroy`. It destroys (closes or purges) all remote resources currently tracked in the state file for the given scope, without deleting your local `.feature` files.
+
+---
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-auto-approve` | `false` | Skips interactive confirmation before destroying resources. |
+| `-target=address` | — | Limits destruction to a single resource instance (e.g. `login.case.feature::@tc-1`). |
+| `-lock=false` | `true` | Disables holding a state lock during destruction. |
+| `-no-color` | `false` | Disables color output. |
+| `-json` | `false` | Emits destruction events as JSON. |
+
+---
+
+## Real Execution Example
+
+```bash
+$ testform destroy -scope=testcase
+
+Testform will perform the following actions:
+
+  # login.case.feature::@tc-1 will be destroyed
+  - resource "testcase" "login_valid" {
+      - id        = 104
+      - title     = "Valid credentials allow login"
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Do you really want to destroy all resources?
+  Testform will destroy all your managed infrastructure, as shown above.
+  There is no undo. Only 'yes' will be accepted to confirm.
+
+  Enter a value: yes
+
+testcase.login_valid: Destroying... [id=104]
+testcase.login_valid: Destruction complete after 1s
+
+Destroy complete! Resources: 1 destroyed.
+```
+
+---
+
+## Targeting Specific Resources
+
+To destroy an isolated scenario without affecting the rest of your test suite:
+
+```bash
+testform destroy -target="auth.case.feature::@tc-2"
+```
+
+---
+
+## Exit Codes
+
+- `0`: All targeted resources were successfully destroyed.
+- `1`: An error occurred during destruction.

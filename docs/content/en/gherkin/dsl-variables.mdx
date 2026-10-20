@@ -1,0 +1,90 @@
+# DSL Step Variables & Custom Fields
+
+Testform includes a powerful Domain Specific Language (DSL) step variable parser that allows you to configure structured attributes directly inside your Gherkin scenarios and background blocks.
+
+---
+
+## Syntax
+
+DSL variables use the asterisk `*` step prefix followed by an assignment:
+
+```gherkin
+* <field_name> = <value>
+```
+
+### Supported Data Types
+
+```gherkin
+# String
+* milestone = "Sprint 42"
+* priority = "High"
+
+# List / Array of strings
+* assignees = ["qa-lead", "senior-dev"]
+* labels = ["frontend", "v2-ui"]
+
+# Boolean
+* automated = true
+* flakiness = false
+
+# Numeric / Floating Point
+* estimate_hours = 3.5
+* retry_count = 2
+
+# Status Keyword
+* link status = passed
+```
+
+---
+
+## Global vs. Local Variable Scopes
+
+### 1. Global / File Scope (`Background`)
+Variables declared inside a `Background` block apply to **every Scenario** in the file:
+
+```gherkin
+Feature: Inventory Management
+
+  Background:
+    * milestone = "Sprint 42"
+    * assignees = "inventory-qa"
+    * module = "Warehouse"
+```
+
+All scenarios created from this file will automatically be assigned to `inventory-qa` and grouped under the `Sprint 42` milestone in GitHub.
+
+### 2. Local / Scenario Override
+You can override or augment background variables within a specific Scenario:
+
+```gherkin
+  @tc-3
+  Scenario: Emergency stock adjustment
+    * priority = "Critical"
+    * assignees = "lead-dev"  # Overrides background assignees
+    Given an out-of-stock item
+    When an emergency restock is confirmed
+    Then inventory count is updated immediately
+```
+
+---
+
+## Execution Status Variables (`testrun`)
+
+In `testrun` files, the special DSL step `* link status = <value>` records the test execution outcome:
+
+| Status Value | Meaning in GitHub | Checklist Icon |
+| :--- | :--- | :--- |
+| `passed` | Test passed successfully | `[x]` Checked |
+| `failed` | Test failed during execution | `[ ]` Unchecked (marked in comments) |
+| `blocked` | Test blocked by dependency or defect | `[-]` Blocked |
+| `skipped` | Test skipped intentionally | `[~]` Skipped |
+| `pending` | Not yet executed | `[ ]` Unchecked |
+
+```gherkin
+  Rule: checkout.case.feature
+    Scenario: @tc-1
+      * link status = passed
+      * execution_time = "1.4s"
+      * runner = "playwright-worker-01"
+```
+Testform translates this into a Markdown execution summary table and updates the tracking checklist in the parent GitHub Issue!

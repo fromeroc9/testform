@@ -1,0 +1,53 @@
+# Recurso: testplan
+
+El recurso `testplan` constituye el nivel arquitectónico superior en Testform. Agrupa y orquesta múltiples ejecuciones `testrun` realizadas a través de navegadores, dispositivos móviles, entornos de preproducción o microservicios en un único tablero de control para la aprobación de lanzamientos.
+
+---
+
+## Reglas de Coincidencia de Archivos
+
+1. Archivos con terminación `.plan.feature` (por ejemplo: `release-v2.0.plan.feature`).
+2. Cualquier archivo `.feature` que contenga la etiqueta `@testplan` a nivel de `Feature:`.
+
+---
+
+## Ejemplo de Definición de Recurso
+
+```gherkin
+@testplan
+Feature: Plan de Certificación de Release 2.0
+  Plan integral de verificación para el despliegue de la versión 2.0 en todas las plataformas.
+
+  Background:
+    * milestone = "Release 2.0"
+    * assignees = ["qa-director", "lead-devops"]
+
+  Rule: web-regression.run.feature
+  Rule: mobile-ios.run.feature
+  Rule: mobile-android.run.feature
+  Rule: performance-benchmarks.run.feature
+```
+
+---
+
+## Mapeo hacia el Provider (Ejemplo con GitHub)
+
+Al aplicarse, el recurso `testplan` genera:
+1. **Un Issue Principal de Seguimiento (Épica)**: Titulado `"Plan de Certificación de Release 2.0"`.
+2. **Consolidación de Métricas de Progreso**: Enlaces a cada Testrun vinculado con barras de avance porcentual y estado global.
+3. **Alineación con el Milestone**: Asocia automáticamente todas las corridas al milestone de release correspondiente.
+
+---
+
+## Comandos para Planes de Prueba
+
+```bash
+# Previsualizar modificaciones del plan
+testform plan -scope=testplan
+
+# Aplicar el plan de pruebas en GitHub
+testform apply -scope=testplan
+
+# Cerrar o archivar el plan de pruebas
+testform destroy -scope=testplan
+```

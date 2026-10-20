@@ -1,0 +1,71 @@
+# `testform validate`
+
+```bash
+testform [opciones globales] validate [opciones]
+```
+
+El comando `testform validate` comprueba la sintaxis y coherencia de tus archivos de configuración (tanto los archivos `.feature` como `testform.yml`). Valida que los pasos cumplan con la gramática de Gherkin, que los campos personalizados coincidan con los esquemas declarados y que no existan transgresiones de políticas.
+
+La validación se realiza a nivel estrictamente local y **no** realiza peticiones a APIs remotas ni valida credenciales externas.
+
+---
+
+## Opciones del Comando
+
+| Opción | Por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `-json` | `false` | Emite diagnósticos en formato de objeto JSON, idóneo para linters de CI y Checks de GitHub. |
+| `-no-color` | `false` | Desactiva colores en la salida de consola. |
+
+---
+
+## Ejemplos de Ejecución Real
+
+### Validación Exitosa
+```bash
+$ testform validate
+
+Success! The configuration is valid.
+```
+
+### Advertencias de Esquema (Warnings)
+```bash
+$ testform validate
+╷
+│ Warning: Undeclared field 'tipo_prueba'
+│ 
+│   in tests/cart.case.feature:
+│ The field 'tipo_prueba' is used but not declared in testform.yml schema.
+╵
+Success! The configuration is valid, but there were some warnings.
+```
+
+### Fallo por Error Sintáctico o de Política
+```bash
+$ testform validate
+╷
+│ Error: Every scenario must have an identity tag matching the configured identity pattern.
+│ 
+│   in tests/login.case.feature:14
+│ Add the identity tag (e.g. @tc-1) to each scenario.
+╵
+Error: The configuration contains errors.
+```
+
+---
+
+## Integración en Pre-Commit y Verificaciones de PR en CI/CD
+
+Incorpora `testform validate -json` en tu flujo de trabajo de Pull Requests en GitHub Actions para prevenir el merge de sintaxis Gherkin defectuosa en las ramas principales:
+
+```yaml
+- name: Validar Configuración Test-as-Code
+  run: testform validate -json
+```
+
+---
+
+## Códigos de Salida
+
+- `0`: Configuración válida (pueden existir advertencias).
+- `1`: La configuración contiene errores de validación.

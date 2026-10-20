@@ -1,0 +1,68 @@
+# `testform workspace`
+
+```bash
+testform workspace <subcommand> [options] [args]
+```
+
+The `testform workspace` command manages separate working states (workspaces) within the same configuration directory.
+
+Workspaces allow you to manage multiple distinct environments (such as `staging`, `production`, `qa-env-1`, or `release-2.0`) using the **exact same `.feature` test files**, with completely isolated state files and remote issues.
+
+---
+
+## Subcommands
+
+### 1. `testform workspace list`
+Lists all existing workspaces. An asterisk `*` indicates the active workspace:
+```bash
+$ testform workspace list
+  default
+* staging
+  production
+```
+
+### 2. `testform workspace new <name>`
+Creates a new, empty workspace and selects it:
+```bash
+$ testform workspace new release-2.0
+Created and switched to workspace "release-2.0"!
+
+You're now on a new, empty workspace. Workspaces isolate their state,
+so if you run "testform plan", Testform will not see any existing "default" resources.
+```
+
+### 3. `testform workspace select <name>`
+Switches to an existing workspace:
+```bash
+$ testform workspace select production
+Switched to workspace "production".
+```
+
+### 4. `testform workspace show`
+Displays the name of the currently active workspace:
+```bash
+$ testform workspace show
+production
+```
+
+### 5. `testform workspace delete <name>`
+Deletes a workspace. The workspace must be completely empty (all resources destroyed) before it can be deleted:
+```bash
+testform workspace delete old-sprint-38
+```
+
+---
+
+## State Isolation in Remote Backends
+
+When using a remote backend (such as S3), Testform stores workspace states under isolated prefixes:
+- `default` workspace: `my-bucket/testform.state`
+- `staging` workspace: `my-bucket/env:/staging/testform.state`
+- `production` workspace: `my-bucket/env:/production/testform.state`
+
+---
+
+## Exit Codes
+
+- `0`: Workspace command succeeded.
+- `1`: Workspace already exists, does not exist, or could not be deleted.

@@ -1,0 +1,77 @@
+# Steps, Scenarios & Rules
+
+Gherkin steps describe the interaction flow and expected behavior of a test. Testform extracts steps directly into formatted Markdown checklists and issue bodies.
+
+---
+
+## Step Keywords
+
+### `Given`: Preconditions
+Establishes the initial state before actions occur.
+```gherkin
+Given the shopping cart contains 2 items
+And the user is on the checkout page
+```
+
+### `When`: Actions
+Describes the user action or event triggered.
+```gherkin
+When the user applies discount coupon "PROMO2026"
+```
+
+### `Then`: Assertions & Expected Outcomes
+Verifies the observable results.
+```gherkin
+Then the cart subtotal is reduced by 20%
+And the order summary displays the discounted total
+```
+
+### `And` / `But`: Step Conjunctions
+Chains multiple preconditions, actions, or assertions while keeping sentences natural.
+```gherkin
+Given the user is logged in
+And has an active subscription
+But has no payment method saved
+```
+
+---
+
+## The `*` (Asterisk) Keyword: DSL Step Variables
+
+In standard Gherkin, the asterisk `*` can replace any keyword. Testform reserves the asterisk for **Domain Specific Language (DSL) variable assignments**:
+
+```gherkin
+@tc-1
+Scenario: Payment processing
+  * priority = "Critical"
+  * automated = true
+  * estimate = "4h"
+  Given the payment gateway is reachable
+  When the user submits payment
+  Then the transaction is approved
+```
+
+Testform's parser recognizes `* <variable> = <value>` and routes these values directly into Provider custom fields (such as GitHub Projects V2 custom fields or Jira custom attributes).
+
+---
+
+## The `Rule:` Keyword in Test Runs
+
+In Testform, `Rule` blocks have a powerful architectural function within `testrun` files: they declare **source file bindings**:
+
+```gherkin
+@testrun @tr-42
+Feature: Sprint 42 Regression Suite
+
+  # Explicit Scenario inclusion
+  Rule: authentication.case.feature
+    Scenario: @tc-1
+      * link status = passed
+    
+    Scenario: @tc-2
+      * link status = failed
+      * notes = "Known bug #418 - session token expires too quickly"
+
+  # Implicit inclusion: Testform automatically imports ALL scenarios from this file
+  Rule: checkout.case.feature
+```

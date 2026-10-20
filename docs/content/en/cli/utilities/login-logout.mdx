@@ -1,0 +1,45 @@
+# `testform login` & `logout`
+
+```bash
+testform login [hostname]
+testform logout [hostname]
+```
+
+The `testform login` and `testform logout` commands manage authentication tokens with remote Providers and state hosts on the local developer machine.
+
+---
+
+## `testform login`
+
+Prompts for an API token (e.g. GitHub Personal Access Token) and stores it securely in the user credentials configuration (`~/.testform.d/credentials.json`):
+
+```bash
+$ testform login github.com
+
+Testform must obtain an API token to interact with github.com.
+If you don't have a token, generate one at https://github.com/settings/tokens.
+
+Enter a value: ghp_xxxxxxxxxxxxxxxxxxxx
+
+Success! API token saved in ~/.testform.d/credentials.json.
+```
+
+Once saved, Testform automatically uses this token for Provider operations without needing `GITHUB_TOKEN` exported in your environment.
+
+---
+
+## `testform logout`
+
+Removes stored credentials for the specified host:
+
+```bash
+$ testform logout github.com
+Success! Stored token for github.com removed.
+```
+
+---
+
+## Exit Codes
+
+- `0`: Operation succeeded.
+- `1`: Invalid credentials or storage permission failure.

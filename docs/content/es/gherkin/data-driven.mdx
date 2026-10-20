@@ -1,0 +1,70 @@
+# Pruebas Basadas en Datos (Examples y Data Tables)
+
+Testform soporta de manera nativa pruebas parametrizadas guiadas por datos mediante las cláusulas `Scenario Outline` y `Data Tables` de Gherkin.
+
+---
+
+## `Scenario Outline` con Tablas `Examples:`
+
+Cuando requieras validar un mismo flujo contra múltiples conjuntos de datos, utiliza `Scenario Outline`:
+
+```gherkin
+@testcase @validation
+Feature: Validación de Entradas de Usuario
+
+  Scenario Outline: Validación de correos electrónicos con distintos formatos
+    Given el usuario está en la página de registro
+    When el usuario escribe el correo "<email>"
+    Then el campo de texto debe marcarse como "<status>"
+
+    Examples:
+      | email              | status  |
+      | valid@test.com     | valid   |
+      | missing-at.com     | invalid |
+      | user@domain..com   | invalid |
+      | test+label@co.org  | valid   |
+```
+
+### Cómo Procesa Testform los Scenario Outlines:
+El compilador de Testform evalúa la tabla y genera las variantes correspondientes:
+1. Renderiza la tabla de `Examples:` con formato limpio de Markdown en la descripción del Issue.
+2. Mantiene el escenario parametrizado como una unidad atómica rastreable, preservando la matriz de datos para ejecuciones automáticas.
+
+---
+
+## Tablas de Datos en Pasos (Data Tables)
+
+Las tablas de datos permiten suministrar colecciones estructuradas de información dentro de un único paso:
+
+```gherkin
+Scenario: Creación por lotes de cuentas de usuario
+  Given el administrador registra a los siguientes usuarios:
+    | username | role       | department  |
+    | alice    | admin      | DevOps      |
+    | bob      | developer  | Engineering |
+    | carol    | auditor    | Security    |
+  Then las 3 cuentas quedan activas en el directorio
+```
+
+Testform alinea y presenta estas tablas con tipografía monoespaciada dentro del cuerpo del Issue resultante.
+
+---
+
+## Bloques de Texto Multilínea (Doc Strings `"""`)
+
+Para cargas útiles de texto extenso, configuraciones JSON o consultas SQL, utiliza Doc Strings:
+
+```gherkin
+Scenario: Verificación de la carga del webhook
+  When el servicio recibe una petición POST con el payload:
+    """json
+    {
+      "event": "order.completed",
+      "order_id": "ORD-9912",
+      "currency": "USD",
+      "amount": 149.99
+    }
+    """
+  Then el código de estado de respuesta es 200
+```
+Testform preserva la etiqueta de resaltado sintáctico (como `"""json`) al publicar la incidencia en GitHub.

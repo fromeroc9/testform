@@ -1,0 +1,67 @@
+# Anatomy of a Feature File
+
+Every Gherkin file managed by Testform consists of standard structural elements. Understanding how each element maps to the Provider is essential for writing clean tests.
+
+---
+
+## Complete Example
+
+```gherkin
+@testcase @authentication @regression
+Feature: User Login & Session Management
+  As a registered user
+  I want to authenticate securely
+  So that I can access my account dashboard
+
+  Background:
+    * milestone = "Sprint 42"
+    * assignees = "qa-lead"
+    Given the authentication service is healthy
+    And the user database contains active credentials
+
+  @critical @tc-1
+  Scenario: Login successful with valid email and password
+    Given the user navigates to "/login"
+    When the user enters email "user@example.com"
+    And the user enters password "Secret123!"
+    And the user clicks the "Sign In" button
+    Then the system redirects to "/dashboard"
+    And the header displays "Welcome, John!"
+
+  @medium @tc-2
+  Scenario: Login fails with invalid password
+    Given the user navigates to "/login"
+    When the user enters email "user@example.com"
+    And the user enters password "WrongPassword"
+    And the user clicks the "Sign In" button
+    Then the system displays error "Invalid credentials"
+```
+
+---
+
+## Breakdown of Key Elements
+
+### 1. The `Feature:` Keyword
+The top-level declaration of the file.
+- **Tags**: Any tags above `Feature:` (e.g. `@authentication @regression`) are inherited by **all** scenarios in the file.
+- **Scope Identifier**: `@testcase`, `@testrun`, or `@testplan` declares which resource type this file represents.
+- **Description**: The multi-line text under the feature title is extracted as documentation and contextual summary.
+
+### 2. The `Background:` Block
+Runs before every Scenario in the file.
+- **Preconditions**: Standard `Given` steps that establish a baseline state.
+- **DSL Variables**: `* key = value` steps declare shared custom field values (e.g. `* milestone = "Sprint 42"`).
+
+### 3. The `Scenario:` Block
+An individual, executable test case.
+- **Title**: Becomes the title of the managed remote resource (e.g., GitHub Issue title).
+- **Identity Tag (`@tc-1`, `@tc-2`)**: Testform's permanent identity anchor (equivalent to a resource's logical name in Terraform). Enforced by the `identity-required` policy, ensuring that even if you rename the scenario title, Testform updates the existing remote issue in-place rather than creating a duplicate, and enabling `testruns` to accurately reference the testcase.
+- **Steps**: Sequence of `Given`, `When`, `Then`, `And`, `But` statements.
+
+### 4. The `Rule:` Keyword
+Used heavily in `testrun` files to group testcases by business rules or link external `.case.feature` files:
+```gherkin
+  Rule: checkout.case.feature
+    Scenario: @tc-1
+      * link status = passed
+```

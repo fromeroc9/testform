@@ -1,0 +1,60 @@
+# `testform state`
+
+```bash
+testform state <subcommand> [options] [args]
+```
+
+The `testform state` command provides advanced state inspection and mutation subcommands. It is used for manual state modifications, disaster recovery, and resource refactoring.
+
+---
+
+## Subcommands
+
+### 1. `testform state list`
+Lists all resources currently tracked in the state file:
+```bash
+$ testform state list
+github_testcase.login_case_feature__1
+github_testcase.checkout_case_feature__2
+github_testrun.sprint_42_regression
+```
+
+### 2. `testform state show <address>`
+Shows the detailed attributes of a single resource in state:
+```bash
+$ testform state show github_testcase.login_case_feature__1
+# github_testcase.login_case_feature__1:
+resource "github_testcase" "login_case_feature__1" {
+    id        = 104
+    title     = "Valid credentials allow login"
+    labels    = ["auth", "smoke"]
+    milestone = "Sprint 42"
+    url       = "https://github.com/my-org/web-app/issues/104"
+}
+```
+
+### 3. `testform state rm <address>`
+Removes one or more resource instances from the state file **without deleting the remote issue**. 
+This tells Testform to forget tracking the resource.
+```bash
+testform state rm github_testcase.old_deprecated_test
+```
+
+### 4. `testform state mv <source> <destination>`
+Moves or renames a resource address inside the state file, preserving its remote binding:
+```bash
+testform state mv "auth.case.feature::@tc-1" "login.case.feature::@tc-1"
+```
+
+---
+
+## State Locking
+
+All state modification commands automatically acquire and release the backend lock unless `-lock=false` is provided.
+
+---
+
+## Exit Codes
+
+- `0`: Subcommand completed successfully.
+- `1`: Resource address not found or state lock failure.

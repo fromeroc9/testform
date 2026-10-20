@@ -1,0 +1,47 @@
+# `testform refresh`
+
+```bash
+testform [opciones globales] refresh [opciones]
+```
+
+El comando `testform refresh` consulta la realidad actual en las APIs remotas de los Providers y actualiza `testform.state` para reflejarla con precisión.
+
+**No** modifica la infraestructura remota ni altera tus archivos locales `.feature`. Su objetivo es reconciliar discrepancias originadas fuera de banda (por ejemplo: issues cerrados manualmente en la web o etiquetas cambiadas fuera de Testform).
+
+---
+
+## Opciones del Comando
+
+| Opción | Por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `-target=address` | — | Limita la operación de refresh a una dirección de recurso específica. |
+| `-lock=false` | `true` | Desactiva el bloqueo de estado durante el refresh. |
+| `-no-color` | `false` | Desactiva colores en la consola. |
+
+---
+
+## Ejemplo de Ejecución Real
+
+```bash
+$ testform refresh
+
+github_testcase.login_valid: Refreshing state... [id=104]
+github_testcase.checkout_coupon: Refreshing state... [id=105]
+
+State refreshed successfully.
+```
+
+Si una incidencia se cerró manualmente en GitHub, `testform refresh` almacena `state: "closed"` en `testform.state`. La siguiente ejecución de `testform plan` reflejará el cambio:
+
+```bash
+~ resource "testcase" "login_valid" {
+    ~ state = "closed" -> "open"
+  }
+```
+
+---
+
+## Códigos de Salida
+
+- `0`: Estado actualizado exitosamente.
+- `1`: Error de red o credenciales al conectar con la API del Provider.

@@ -1,0 +1,77 @@
+# Pasos, Escenarios y Reglas
+
+Los pasos de Gherkin describen el flujo de interacción y el comportamiento esperado de una prueba. Testform transforma estos pasos directamente en listas de verificación formateadas en Markdown y cuerpos de incidencias.
+
+---
+
+## Palabras Clave de Pasos
+
+### `Given`: Precondiciones
+Establece el estado inicial previo a cualquier acción.
+```gherkin
+Given el carrito de compras contiene 2 artículos
+And el usuario se encuentra en la pantalla de pago
+```
+
+### `When`: Acciones
+Describe la acción del usuario o el evento disparado.
+```gherkin
+When el usuario aplica el cupón de descuento "PROMO2026"
+```
+
+### `Then`: Aserciones y Resultados Esperados
+Verifica los resultados observables en el sistema.
+```gherkin
+Then el subtotal del carrito se reduce en un 20%
+And el resumen del pedido muestra el importe con descuento
+```
+
+### `And` / `But`: Conjunciones
+Encadenan múltiples precondiciones, acciones o aserciones manteniendo una redacción natural.
+```gherkin
+Given el usuario ha iniciado sesión
+And cuenta con una suscripción activa
+But no tiene ningún método de pago registrado
+```
+
+---
+
+## El Operador `*` (Asterisco): Variables de Paso del DSL
+
+En Gherkin convencional, el asterisco `*` puede sustituir a cualquier palabra clave. Testform reserva el asterisco para **asignaciones de variables del DSL (Domain Specific Language)**:
+
+```gherkin
+@tc-1
+Scenario: Procesamiento del pago
+  * priority = "Critical"
+  * automated = true
+  * estimate = "4h"
+  Given la pasarela de pagos se encuentra disponible
+  When el usuario envía el pago
+  Then la transacción es aprobada exitosamente
+```
+
+El analizador sintáctico de Testform identifica `* <variable> = <valor>` y asigna estos valores directamente a campos personalizados del Provider (tales como campos personalizados de GitHub Projects V2 o atributos propios de Jira).
+
+---
+
+## El Bloque `Rule:` en Ciclos de Ejecución (Test Runs)
+
+En Testform, los bloques `Rule` desempeñan un rol arquitectónico determinante en archivos `testrun`: declaran **enlaces hacia archivos fuente**:
+
+```gherkin
+@testrun @tr-42
+Feature: Suite de Regresión del Sprint 42
+
+  # Inclusión explícita de Escenarios
+  Rule: authentication.case.feature
+    Scenario: @tc-1
+      * link status = passed
+    
+    Scenario: @tc-2
+      * link status = failed
+      * notes = "Bug conocido #418 - el token de sesión expira prematuramente"
+
+  # Inclusión implícita: Testform importa automáticamente TODOS los escenarios del archivo
+  Rule: checkout.case.feature
+```

@@ -65,29 +65,92 @@ export class Config {
         return this.config;
     }
 
-    getAdapterType(): 'github' | 'local' {
-        if (this.config.provider?.type) {
-            return this.config.provider.type;
+    getProviderType(): string {
+        const raw = this.config.provider;
+        if (!raw) {
+            if ((this.config as any).github) return 'github';
+            return 'local';
         }
-        if ((this.config as any).github) {
-            return 'github';
+
+        // 1. String scalar, e.g. "provider: local"
+        if (typeof raw === 'string') {
+            return raw.trim().toLowerCase();
         }
+
+        // 2. Dictionary format:
+        // provider:
+        //   github:
+        //     owner: ...
+        const KNOWN_PROVIDERS = ['github', 'gitlab', 'custom', 'local'];
+        for (const p of KNOWN_PROVIDERS) {
+            if ((raw as any)[p] !== undefined && typeof (raw as any)[p] === 'object') {
+                return p;
+            }
+        }
+
+        // 3. Legacy type-based format:
+        // provider:
+        //   type: github
+        if ((raw as any).type) {
+            return (raw as any).type.toLowerCase();
+        }
+
+        const keys = Object.keys(raw);
+        if (keys.length > 0 && typeof (raw as any)[keys[0]] === 'object') {
+            return keys[0].toLowerCase();
+        }
+
         return 'local';
     }
 
-    getGitHub(): IGitHubConfig | undefined {
-        let github: any = undefined;
-        if (this.config.provider?.type === 'github' && this.config.provider.config) {
-            github = this.config.provider.config;
-        } else if ((this.config as any).github) {
-            github = (this.config as any).github;
+    getAdapterType(): 'github' | 'local' | string {
+        return this.getProviderType();
+    }
+
+    getProviderConfig(type?: string): Record<string, any> {
+        const targetType = type || this.getProviderType();
+        const raw = this.config.provider;
+
+        if (!raw || typeof raw === 'string') {
+            if (targetType === 'github' && (this.config as any).github) {
+                return (this.config as any).github;
+            }
+            return {};
         }
-        if (!github) return undefined;
+
+        // Dictionary format: raw[targetType]
+        if ((raw as any)[targetType] !== undefined && typeof (raw as any)[targetType] === 'object') {
+            return (raw as any)[targetType] || {};
+        }
+
+        // Legacy format: raw.config
+        if ((raw as any).config && typeof (raw as any).config === 'object') {
+            return (raw as any).config;
+        }
+
+        // Flat format: { type: 'github', owner: '...' }
+        if ((raw as any).type) {
+            const { type: _t, ...rest } = raw as any;
+            return rest;
+        }
+
+        if (targetType === 'github' && (this.config as any).github) {
+            return (this.config as any).github;
+        }
+
+        return raw as Record<string, any>;
+    }
+
+    getGitHub(): IGitHubConfig | undefined {
+        const type = this.getProviderType();
+        const hasGithub = type === 'github' || (this.config as any).github !== undefined || (this.config.provider as any)?.github !== undefined;
+        if (!hasGithub) return undefined;
+        const gh = this.getProviderConfig('github') || {};
         return {
-            owner: github.owner,
-            repository: github.repository,
-            projectId: github.projectId || github.project_id,
-            tokenEnv: github.tokenEnv || github.token_env || 'GITHUB_TOKEN'
+            owner: gh.owner,
+            repository: gh.repository,
+            projectId: gh.projectId || gh.project_id,
+            tokenEnv: gh.tokenEnv || gh.token_env || 'GITHUB_TOKEN'
         };
     }
 

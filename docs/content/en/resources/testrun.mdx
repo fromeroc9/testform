@@ -1,0 +1,76 @@
+# Resource: testrun
+
+A `testrun` resource represents an **execution cycle** (such as a nightly regression, release qualification, or smoke test).
+
+Unlike a `testcase` (where each scenario is an issue), a `testrun` compiles the **entire `.feature` file into a single parent Issue** containing real-time execution checklists and pass/fail summary tables.
+
+---
+
+## File Matching Rules
+
+1. Files ending with `.run.feature` (e.g. `sprint42.run.feature`).
+2. Any `.feature` file that contains the `@testrun` tag at the `Feature:` level.
+
+---
+
+## Example Resource Definition
+
+```gherkin
+@testrun @tr-42
+Feature: Sprint 42 Regression Execution
+
+  Background:
+    * milestone = "Sprint 42"
+    * assignees = "qa-lead"
+
+  # Explicit Scenario selection
+  Rule: authentication.case.feature
+    Scenario: @tc-1
+      * link status = passed
+
+    Scenario: @tc-2
+      * link status = failed
+      * notes = "Fails on Safari with timeout error"
+
+  # Implicit inclusion: imports ALL test cases found in checkout.case.feature
+  Rule: checkout.case.feature
+```
+
+---
+
+## How Testform Renders Test Runs
+
+When Testform applies a `testrun`:
+1. **Parent Issue Created**: Creates an issue named `"Sprint 42 Regression Execution"`.
+2. **Dynamic Checklists**: Testform injects a Markdown checklist referencing the live GitHub Issue IDs of the linked testcases:
+   ```markdown
+   ### Test Cases Executed
+   - [x] #101 Authentication Scenarios: Valid credentials allow login
+   - [ ] #102 Authentication Scenarios: Invalid credentials show error
+   - [ ] #103 Checkout: Empty cart notification
+   ```
+3. **Execution Comments**: Testform writes structured comment tables reporting runtime metadata (`execution_time`, `runner`, `status`, error logs).
+
+---
+
+## Automation and Execution Tooling (`suite`)
+
+To maintain the **Single Source of Truth (SSOT)** principle in local code without drifting remote state out-of-band, status autocompletion and marking operations are performed via the specialized `testform suite` command:
+
+### 1. Expanding Rules with `suite fill`
+If you imported an entire file using `Rule: checkout.case.feature` without detailing individual scenarios, you can automatically expand them into explicit scenarios in your local file by running:
+
+```bash
+testform suite fill -target="@tr-42"
+```
+This inspects the referenced `.case.feature` file and appends each scenario explicitly into your `.run.feature` with `* link status = pending`, allowing test runners to report individual results.
+
+### 2. Programmatic Marking with `suite mark`
+To update testrun results from CI/CD pipelines or test runners (Playwright, Cypress, Vitest, Jest) while keeping the local `.run.feature` file and the remote provider synchronized:
+
+```bash
+testform suite mark "checkout.case.feature@tc-1=passed" -target="@tr-42"
+```
+
+> [!NOTE]
+> `testform apply` is strictly reserved for idempotent **declarative reconciliation** between your local feature files and remote providers. It does not perform out-of-band imperative mutations, preserving Git traceability.

@@ -89,12 +89,12 @@ export async function createCommandContext(
     const logger = new Logger(verbose);
     const config = new Config(dir);
     const ghConfig = config.getGitHub();
-    const adapterType = config.getAdapterType();
+    const providerType = config.getProviderType();
     let adapter: IProviderAdapter;
 
-    if (adapterType === 'local') {
+    if (providerType === 'local') {
         adapter = new LocalAdapter(dir);
-    } else {
+    } else if (providerType === 'github') {
         if (!ghConfig) {
             if (!silent) {
                 notify.push({
@@ -107,6 +107,9 @@ export async function createCommandContext(
             return null;
         }
         adapter = new GitHubAdapter(ghConfig);
+    } else {
+        const { createProvider } = await import('../providers/loader');
+        adapter = await createProvider(config, dir);
     }
 
     const state = new State(dir, statePath, backupPath);

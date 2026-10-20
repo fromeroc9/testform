@@ -1,0 +1,54 @@
+# `testform import`
+
+```bash
+testform [opciones globales] import [opciones] <direccion> <id-remoto>
+```
+
+El comando `testform import` incorpora recursos remotos preexistentes (por ejemplo: Issues de GitHub creados manualmente en la interfaz web antes de adoptar Testform) bajo la gestión declarativa de Testform **sin borrarlos ni recrearlos**.
+
+---
+
+## Opciones del Comando
+
+| Opción | Por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `-scope=<scope>` | `testcase` | Alcance de destino (`testcase`, `testrun` o `testplan`). |
+| `-lock=false` | `true` | Desactiva el bloqueo de estado durante la importación. |
+| `-no-color` | `false` | Desactiva colores en la consola. |
+
+---
+
+## Reconstrucción Inteligente de Código (Smart Diffing)
+
+Al importar un issue existente:
+1. Testform consulta la API del Provider y extrae el título completo, cuerpo, etiquetas, asignados y milestone.
+2. Registra la vinculación en `testform.state`.
+3. **Si el escenario NO existe aún en tu archivo local `.feature`**, Testform reconstruirá automáticamente el escenario Gherkin y lo añadirá a tu archivo local.
+4. Compara el issue contra los valores por defecto de `testform.yml` y `Background:` para mantener tu código DRY y sin redundancias.
+
+---
+
+## Ejemplo de Ejecución Real
+
+```bash
+$ testform import -scope=testcase "auth.case.feature::@tc-5" 104
+
+github_testcase.auth_case_feature__tc_5: Importing from ID "104"...
+github_testcase.auth_case_feature__tc_5: Import prepared!
+  Prepared github_testcase for import on auth.case.feature::@tc-5
+github_testcase.auth_case_feature__tc_5: Refreshing state... [id=104]
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Testform state and will henceforth be managed by Testform.
+```
+
+Tras importar, ejecuta `testform plan` para verificar que el código local coincide con el estado importado con cero diferencias.
+
+---
+
+## Códigos de Salida
+
+- `0`: Recurso importado exitosamente.
+- `1`: Issue remoto no encontrado o recurso ya gestionado previamente en el estado.

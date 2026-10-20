@@ -1,0 +1,36 @@
+# `testform suite`
+
+```bash
+testform suite <subcomando> [opciones] [argumentos]
+```
+
+El comando `testform suite` automatiza el ciclo de vida de las suites de prueba, permitiendo a los líderes de QA estructurar, poblar y ejecutar colecciones de pruebas con rapidez.
+
+---
+
+## Subcomandos
+
+### 1. `testform suite init`
+Genera la plantilla inicial para un nuevo archivo de suite de ejecución (`*.run.feature`):
+```bash
+testform suite init -title="Regresión Sprint 42" -milestone="Sprint 42"
+```
+
+### 2. `testform suite fill`
+Expande los bloques `Rule:` de un archivo `testrun` con sus escenarios concretos en estado `pending`:
+```bash
+testform suite fill -target="sprint42.run.feature"
+```
+
+### 3. `testform suite mark`
+Actualiza el estado de ejecución de un testcase y lo sincroniza local y remotamente:
+```bash
+testform suite mark "authentication.case.feature@tc-1=passed" -target="sprint42.run.feature"
+```
+
+---
+
+## Códigos de Salida
+
+- `0`: Operación de suite completada exitosamente.
+- `1`: Argumentos incorrectos o error de archivo.

@@ -1,0 +1,39 @@
+# Resumen de Recursos Declarativos
+
+En Testform no se redactan scripts imperativos que invoquen APIs REST de forma manual para generar tickets. En su lugar, tus archivos `.feature` actúan como **recursos declarativos**.
+
+Al ejecutar comandos como `testform plan` y `testform apply`, Testform compila estos archivos en recursos gestionados, calcula las diferencias y orquesta las llamadas al Provider activo.
+
+---
+
+## Tipos de Recursos Gestionados
+
+Testform gestiona de forma nativa tres tipos fundamentales de recursos:
+
+| Tipo de Recurso | Flag de Alcance | Archivos de Entrada | Destino Remoto |
+| :--- | :--- | :--- | :--- |
+| **`testcase`** | `-scope=testcase` | `*.case.feature` o `@testcase` | Issue de Caso de Prueba Atómico en GitHub/Jira |
+| **`testrun`** | `-scope=testrun` | `*.run.feature` o `@testrun` | Issue de Ciclo de Ejecución con Checklists |
+| **`testplan`** | `-scope=testplan` | `*.plan.feature` o `@testplan` | Hito (Milestone) o Épica de Lanzamiento |
+
+---
+
+## Cómo Controlan la Compilación los Scopes
+
+El flag `-scope` instruye a Testform sobre qué capa de la jerarquía de recursos debe procesar:
+
+```bash
+# Evaluar únicamente los casos de prueba
+testform plan -scope=testcase
+
+# También es posible utilizar la sintaxis abreviada con el scope al inicio:
+testform testcase plan
+testform testrun apply
+```
+
+Explora cada tipo de recurso en detalle:
+- [Recurso: testcase](./testcase): La unidad atómica de especificación.
+- [Recurso: testrun](./testrun): Gestión de ciclos de ejecución, checklists y estados de aprobación.
+- [Recurso: testplan](./testplan): Seguimiento global de lanzamientos y agregación de múltiples corridas.
+- [Ciclo de Vida de los Recursos](./lifecycle): Cómo se crean, actualizan, destruyen y marcan (taint) los recursos.
+- [Configuración (testform.yml)](./configuration): Ajustes globales del proyecto, declaración de providers y políticas.

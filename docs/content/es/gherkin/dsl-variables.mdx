@@ -1,0 +1,90 @@
+# Variables de Paso del DSL y Campos Personalizados
+
+Testform integra un analizador de variables de paso basado en un Lenguaje Específico de Dominio (DSL) que permite configurar atributos estructurados directamente dentro de tus escenarios y bloques Background en Gherkin.
+
+---
+
+## Sintaxis
+
+Las variables DSL utilizan el prefijo de paso con asterisco `*` seguido de una asignación:
+
+```gherkin
+* <nombre_del_campo> = <valor>
+```
+
+### Tipos de Datos Soportados
+
+```gherkin
+# Texto (String)
+* milestone = "Sprint 42"
+* priority = "High"
+
+# Listas / Arreglos de texto
+* assignees = ["qa-lead", "senior-dev"]
+* labels = ["frontend", "v2-ui"]
+
+# Booleanos
+* automated = true
+* flakiness = false
+
+# Valores Numéricos / Punto Flotante
+* estimate_hours = 3.5
+* retry_count = 2
+
+# Estado de Ejecución
+* link status = passed
+```
+
+---
+
+## Alcance Global vs. Alcance Local
+
+### 1. Alcance Global de Archivo (`Background`)
+Las variables definidas dentro de un bloque `Background` se aplican a **todos los Escenarios** del archivo:
+
+```gherkin
+Feature: Gestión de Inventario
+
+  Background:
+    * milestone = "Sprint 42"
+    * assignees = "qa-inventario"
+    * module = "Almacén"
+```
+
+Todos los escenarios generados a partir de este archivo se asignarán automáticamente a `qa-inventario` y quedarán vinculados al hito `Sprint 42` en GitHub.
+
+### 2. Sobrescritura Local por Escenario
+Es posible sobrescribir o añadir variables dentro de un Escenario particular:
+
+```gherkin
+  @tc-3
+  Scenario: Ajuste de stock de emergencia
+    * priority = "Critical"
+    * assignees = "lead-dev"  # Sobrescribe el assignee del background
+    Given un producto agotado
+    When se autoriza un reabastecimiento urgente
+    Then el conteo de inventario se actualiza de inmediato
+```
+
+---
+
+## Variables de Estado de Ejecución (`testrun`)
+
+En archivos `testrun`, la directiva especial del DSL `* link status = <valor>` registra el resultado de la prueba:
+
+| Valor de Estado | Significado en GitHub | Ícono en Lista |
+| :--- | :--- | :--- |
+| `passed` | Prueba superada exitosamente | `[x]` Marcado |
+| `failed` | Prueba fallida durante la ejecución | `[ ]` Desmarcado (notificado en comentarios) |
+| `blocked` | Bloqueado por dependencia o defecto | `[-]` Bloqueado |
+| `skipped` | Omitido intencionalmente | `[~]` Omitido |
+| `pending` | Pendiente de ejecución | `[ ]` Desmarcado |
+
+```gherkin
+  Rule: checkout.case.feature
+    Scenario: @tc-1
+      * link status = passed
+      * execution_time = "1.4s"
+      * runner = "playwright-worker-01"
+```
+Testform procesa esta información y la publica en una tabla resumen de ejecución en Markdown, actualizando simultáneamente la lista de control del Issue principal en GitHub.

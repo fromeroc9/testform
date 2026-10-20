@@ -1,0 +1,77 @@
+# Guía de Migración del Estado
+
+A medida que el equipo evoluciona de prototipos individuales a pipelines de producción colaborativos, se hace necesario migrar el estado desde el backend `local` hacia un backend remoto en la nube (AWS S3, Azure Blob o Google Cloud Storage).
+
+Testform incorpora un asistente automatizado de migración de estado con validación de seguridad.
+
+---
+
+## Flujo Paso a Paso para la Migración
+
+### Paso 1: Actualizar `testform.yml`
+Modifica `testform.yml` e introduce la configuración del backend remoto deseado:
+
+```yaml
+# Antes:
+# backend:
+#   type: local
+
+# Después:
+backend:
+  type: s3
+  config:
+    bucket: "estados-testform-produccion"
+    key: "app/testform.state"
+    region: "us-east-1"
+    dynamodb_table: "testform-locks"
+```
+
+---
+
+## Paso 2: Ejecutar `testform init -migrate-state`
+
+Ejecuta el comando `init` incorporando el flag `-migrate-state`:
+
+```bash
+$ testform init -migrate-state
+
+Initializing the backend...
+
+Backend configuration changed!
+
+Testform has detected you're changing your backend configuration from "local" to "s3".
+
+Do you want to copy existing state to the new backend?
+  Pre-existing state was found while migrating the previous "local" configuration to the
+  new "s3" configuration. No existing state was found in the newly configured "s3" backend.
+  Do you want to copy this state to the new "s3" backend? Enter "yes" to confirm and "no"
+  to start with an empty state.
+
+  Enter a value: yes
+
+Copying state from "local" to "s3"...
+State copied successfully!
+
+Successfully configured the backend "s3"! Testform will automatically
+use this backend unless the backend configuration changes.
+```
+
+---
+
+## Paso 3: Verificar la Migración con `testform state list`
+
+Ejecuta `testform state list` para comprobar que todos los recursos se leen adecuadamente desde el nuevo backend remoto:
+
+```bash
+testform state list
+```
+
+---
+
+## Paso 4: Archivar el Archivo de Estado Local
+
+Una vez confirmada la migración, puedes eliminar de forma segura el archivo local `./testform.state` o añadirlo a tu `.gitignore` para evitar lecturas de copias desactualizadas:
+
+```bash
+rm testform.state
+```

@@ -1,0 +1,36 @@
+# `testform suite`
+
+```bash
+testform suite <subcommand> [options] [args]
+```
+
+The `testform suite` command automates test suite lifecycle operations, helping QA leads assemble, populate, and execute test suites rapidly.
+
+---
+
+## Subcommands
+
+### 1. `testform suite init`
+Scaffolds a new execution suite file (`*.run.feature`):
+```bash
+testform suite init -title="Sprint 42 Regression" -milestone="Sprint 42"
+```
+
+### 2. `testform suite fill`
+Expands empty `Rule:` blocks in a `testrun` file with explicit scenarios in `pending` status:
+```bash
+testform suite fill -target="sprint42.run.feature"
+```
+
+### 3. `testform suite mark`
+Updates the execution status of a testcase and synchronizes it locally and remotely:
+```bash
+testform suite mark "authentication.case.feature@tc-1=passed" -target="sprint42.run.feature"
+```
+
+---
+
+## Exit Codes
+
+- `0`: Suite operation succeeded.
+- `1`: Invalid arguments or file error.

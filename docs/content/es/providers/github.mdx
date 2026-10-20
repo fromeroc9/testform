@@ -1,0 +1,39 @@
+# Provider Oficial de GitHub
+
+El Provider de GitHub es el provider de referencia integrado en Testform. Conecta tus escenarios locales de Gherkin con GitHub Issues, Milestones y tableros de Projects V2.
+
+---
+
+## Configuración en `testform.yml`
+
+```yaml
+version: "1.0"
+
+provider:
+  type: github
+  config:
+    owner: "mi-organizacion"
+    repository: "aplicacion-web"
+    tokenEnv: "GITHUB_TOKEN"    # Variable de entorno que contiene tu Personal Access Token
+    projectId: "PVT_kwDOB12345" # Opcional: Node ID de GitHub Projects V2
+```
+
+---
+
+## Permisos Requeridos para el Token (Scopes)
+
+Tu Personal Access Token de GitHub (o `secrets.GITHUB_TOKEN` en GitHub Actions) requiere los siguientes permisos:
+
+| Permiso | Nivel de Acceso | Justificación |
+| :--- | :--- | :--- |
+| `repo` (o `issues: write`) | Lectura y Escritura | Creación, actualización y cierre de issues, etiquetas y comentarios. |
+| `project` (o `project: write`) | Lectura y Escritura | *(Opcional)* Incorporación de issues a tableros Projects V2 y actualización de campos personalizados. |
+
+---
+
+## Capacidades Soportadas
+
+- **Listas de Verificación en Incidencias**: Formatea automáticamente escenarios de `testrun` en Task Lists interactivas de GitHub.
+- **Sincronización con Projects V2**: Configura campos personalizados, iteraciones y estados de selección única en los proyectos modernos de GitHub.
+- **Resolución de Milestones**: Asocia automáticamente nombres de hitos en Gherkin (`* milestone = "Sprint 42"`) con los IDs existentes en GitHub.
+- **Tablas Markdown**: Renderiza matrices de datos y metadatos de ejecución en tablas Markdown legibles dentro de los cuerpos de las incidencias.

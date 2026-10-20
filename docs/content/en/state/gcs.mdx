@@ -1,0 +1,34 @@
+# Backend: Google Cloud Storage (GCS)
+
+The `gcs` backend stores state in a Google Cloud Storage bucket. It leverages Google Cloud Storage's object generation preconditions for atomic concurrency control and state locking.
+
+---
+
+## Configuration
+
+In `testform.yml`:
+
+```yaml
+backend:
+  type: gcs
+  config:
+    bucket: "my-gcp-testform-states"
+    prefix: "environments/staging"
+```
+
+---
+
+## Authentication
+
+Testform uses Google Cloud's standard **Application Default Credentials (ADC)**:
+- Running `gcloud auth application-default login` locally.
+- Setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of a service account JSON key file.
+- Automatic workload identity when running in Google Kubernetes Engine (GKE) or Cloud Build.
+
+---
+
+## State Locking via Generation Matching
+
+GCS provides native atomic preconditions:
+- Whenever Testform writes to the state bucket, it asserts that the object's `generation` matches the version it read.
+- If another process wrote a new version in between, GCS rejects the write with a Precondition Failed error, guaranteeing zero state overwrites without requiring a separate lock database.

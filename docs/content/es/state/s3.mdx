@@ -1,0 +1,64 @@
+# Backend: AWS S3 + DynamoDB
+
+El backend `s3` almacena el archivo de estado en un bucket de Amazon Simple Storage Service (S3) y utiliza opcionalmente una tabla de Amazon DynamoDB para el bloqueo distribuido del estado.
+
+Es el backend recomendado para equipos que operan sobre la infraestructura de Amazon Web Services.
+
+---
+
+## Configuración
+
+En `testform.yml`:
+
+```yaml
+backend:
+  type: s3
+  config:
+    bucket: "mis-estados-testform-empresa"
+    key: "equipos/core/testform.state"
+    region: "us-east-1"
+    dynamodb_table: "testform-locks"
+    encrypt: true
+```
+
+---
+
+## Permisos Requeridos (IAM)
+
+Tus credenciales de AWS (desde `AWS_ACCESS_KEY_ID` o roles IAM de instancia) requieren las siguientes políticas de IAM:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::mis-estados-testform-empresa",
+        "arn:aws:s3:::mis-estados-testform-empresa/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:*:*:table/testform-locks"
+    }
+  ]
+}
+```
+
+---
+
+## Requisitos de la Tabla de Bloqueo en DynamoDB
+
+La tabla de DynamoDB debe configurarse con una clave de partición primaria llamada `LockID` de tipo `String`.

@@ -1,0 +1,48 @@
+# `testform tool feature`
+
+```bash
+testform tool feature [options]
+```
+
+The `testform tool feature` command generates new `testrun` or `testplan` feature files based on the automated naming conventions configured in `testform.yml`.
+
+It resolves the destination directory, calculates timestamps, generates collision-resistant hashes, and pre-populates file headers and rules automatically.
+
+---
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-scope=<scope>` | `testrun` | Target scope (`testrun` or `testplan`). |
+| `-title="Title"` | — | Human-readable title of the feature. |
+| `-rule="file.feature"` | — | Pre-populates the file with initial rule references. May be specified multiple times. |
+
+---
+
+## Naming Convention Placeholders
+
+Testform evaluates placeholders declared under `scopes` in `testform.yml`:
+- `{YYYYMMDD}`: Current year, month, and day (e.g. `20261019`).
+- `{HHmmss}`: Current time (e.g. `153022`).
+- `{timestamp}`: Unix epoch timestamp in milliseconds.
+- `{slug}`: Sanitized URL-friendly version of the `-title` flag.
+- `{hash}`: Random 6-character hex hash to guarantee uniqueness.
+
+---
+
+## Real Execution Example
+
+```bash
+$ testform tool feature -scope=testrun -title="Payment Smoke Test" -rule="payment.case.feature"
+
+Created new testrun feature:
+  Path: tests/runs/20261019_payment-smoke-test_a3f89d.run.feature
+```
+
+---
+
+## Exit Codes
+
+- `0`: Feature file created successfully.
+- `1`: Invalid scope or template resolution error.

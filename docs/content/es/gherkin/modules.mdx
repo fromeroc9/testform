@@ -1,0 +1,74 @@
+# Módulos Reutilizables (`@module`)
+
+> [!WARNING]
+> **Característica Experimental (Tech Preview):** La directiva `@module` es una funcionalidad experimental en desarrollo activo. La sintaxis de importación, composición de pasos y resolución de escenarios puede evolucionar en versiones futuras sin previo aviso.
+
+En proyectos empresariales con múltiples flujos de prueba (E2E, integración y regresión), es habitual necesitar reutilizar secuencias de pasos o escenarios completos de autenticación y preparación de datos.
+
+La directiva `@module` permite importar e incrustar pasos de archivos `.case.feature` externos directamente en tus especificaciones BDD sin duplicar código.
+
+---
+
+## 1. Alcance de Uso
+
+La directiva `@module` se puede aplicar en dos niveles:
+1. **A nivel de Escenario (`Scenario`)**: Para incorporar los pasos de un escenario reutilizable antes o dentro de una prueba concreta.
+2. **A nivel de Funcionalidad (`Feature`)**: Para componer suites acumulativas o importar flujos completos.
+
+---
+
+## 2. Invocación de Escenarios Específicos
+
+Cuando el archivo de origen contiene múltiples escenarios, puedes seleccionar exactamente qué escenario importar indicando su identificador mediante dos sintaxis compatibles:
+
+### Sintaxis A: Selector con dos puntos dobles (`::`)
+```gherkin
+@testcase
+Feature: Proceso de Checkout y Pago
+
+  @smoke @tc-checkout-1
+  @module(source="./auth.case.feature::tc-login")
+  Scenario: Pago exitoso con tarjeta de crédito
+    # Los pasos del escenario @tc-login de auth.case.feature se ejecutan primero
+    When el usuario selecciona "Tarjeta de Crédito"
+    And completa los datos del formulario de pago
+    Then la orden se procesa satisfactoriamente
+```
+
+### Sintaxis B: Parámetro explícito `id="..."`
+```gherkin
+@testcase
+Feature: Gestión de Perfil de Usuario
+
+  @tc-perfil-1
+  @module(source="../comunes/auth.case.feature", id="tc-login")
+  Scenario: Modificación de contraseña de usuario
+    When el usuario actualiza su contraseña
+    Then recibe un correo de confirmación
+```
+
+---
+
+## 3. Importación Completa de Módulo
+
+Si omites el identificador de escenario, Testform importa todos los pasos del archivo módulo indicado:
+
+```gherkin
+@testcase
+Feature: Flujo Integral de Compra
+
+  @tc-compra-completa
+  @module(source="../modulos/preparacion-carrito.case.feature")
+  Scenario: Confirmación de pedido en línea
+    When el usuario confirma la compra
+    Then el pedido pasa a estado "Completado"
+```
+
+---
+
+## 4. Resolución de Rutas
+
+Testform resuelve las rutas de los módulos de manera relativa al archivo `.feature` donde se declara la directiva, o de forma relativa a la raíz del proyecto configurada en `testform.yml`.
+
+> [!TIP]
+> **Buenas Prácticas:** Mantén los casos atómicos reutilizables en una carpeta dedicada (por ejemplo, `testcases/common/`) con sus respectivas etiquetas de identidad `@tc-*` claramente definidas.

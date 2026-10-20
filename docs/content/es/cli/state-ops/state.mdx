@@ -1,0 +1,60 @@
+# `testform state`
+
+```bash
+testform state <subcomando> [opciones] [argumentos]
+```
+
+El comando `testform state` agrupa subcomandos avanzados para la inspección y alteración directa del archivo de estado. Se utiliza en operaciones manuales de mantenimiento, recuperación ante desastres y refactorización de identificadores.
+
+---
+
+## Subcomandos
+
+### 1. `testform state list`
+Muestra todos los recursos actualmente registrados bajo control en el archivo de estado:
+```bash
+$ testform state list
+github_testcase.login_case_feature__1
+github_testcase.checkout_case_feature__2
+github_testrun.sprint_42_regression
+```
+
+### 2. `testform state show <direccion>`
+Despliega los atributos detallados de un recurso específico registrado en el estado:
+```bash
+$ testform state show github_testcase.login_case_feature__1
+# github_testcase.login_case_feature__1:
+resource "github_testcase" "login_case_feature__1" {
+    id        = 104
+    title     = "Valid credentials allow login"
+    labels    = ["auth", "smoke"]
+    milestone = "Sprint 42"
+    url       = "https://github.com/mi-org/web-app/issues/104"
+}
+```
+
+### 3. `testform state rm <direccion>`
+Elimina una o más instancias de recursos del archivo de estado **sin borrar el issue remoto**. 
+Instruye a Testform a desvincular el seguimiento del recurso.
+```bash
+testform state rm github_testcase.test_obsoleto_anterior
+```
+
+### 4. `testform state mv <origen> <destino>`
+Mueve o renombra la dirección de un recurso dentro del archivo de estado, preservando su vinculación remota:
+```bash
+testform state mv "auth.case.feature::@tc-1" "login.case.feature::@tc-1"
+```
+
+---
+
+## Bloqueo de Estado (State Locking)
+
+Todos los comandos que modifican el estado adquieren y liberan automáticamente el bloqueo en el backend, a menos que se invoque explícitamente `-lock=false`.
+
+---
+
+## Códigos de Salida
+
+- `0`: Subcomando ejecutado exitosamente.
+- `1`: Dirección del recurso no encontrada o fallo al adquirir el bloqueo de estado.

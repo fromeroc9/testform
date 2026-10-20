@@ -30,6 +30,8 @@
 		"typecheck": "tsc --noEmit",
 		"build": "ncc build src/index.ts -m -e @aws-sdk/client-s3 -e @aws-sdk/client-dynamodb -e @azure/storage-blob -e @google-cloud/storage -o dist",
 		"dev": "tsx src/index.ts",
+		"docs:dev": "npm --prefix docs run dev",
+		"docs:build": "npm --prefix docs run build",
 		"format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
 		"publish": "npm run build && npm version patch && npm publish"
 	},

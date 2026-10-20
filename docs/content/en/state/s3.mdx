@@ -1,0 +1,64 @@
+# Backend: AWS S3 + DynamoDB
+
+The `s3` backend stores the state file in an Amazon Simple Storage Service (S3) bucket and optionally uses an Amazon DynamoDB table for distributed state locking.
+
+This is the recommended backend for teams operating within Amazon Web Services.
+
+---
+
+## Configuration
+
+In `testform.yml`:
+
+```yaml
+backend:
+  type: s3
+  config:
+    bucket: "my-company-testform-states"
+    key: "teams/core/testform.state"
+    region: "us-east-1"
+    dynamodb_table: "testform-locks"
+    encrypt: true
+```
+
+---
+
+## Required Permissions (IAM)
+
+Your AWS credentials (from `AWS_ACCESS_KEY_ID` or IAM instance profiles) require the following IAM policies:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::my-company-testform-states",
+        "arn:aws:s3:::my-company-testform-states/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:*:*:table/testform-locks"
+    }
+  ]
+}
+```
+
+---
+
+## DynamoDB Lock Table Requirements
+
+The DynamoDB table must have a primary partition key named `LockID` of type `String`.

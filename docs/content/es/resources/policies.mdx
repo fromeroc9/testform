@@ -1,0 +1,127 @@
+# Motor de Políticas y Validación (Policies)
+
+Testform incorpora un motor de análisis estático y gobierno declarativo similar a herramientas como Open Policy Agent (OPA) o HashiCorp Sentinel en el ecosistema IaC.
+
+Antes de ejecutar cualquier cambio remoto en `testform plan` o `testform apply`, el comando `testform validate` escanea todos los archivos de prueba para certificar que cumplen con las políticas del proyecto.
+
+---
+
+## 1. Las 7 Políticas del Sistema (Built-in)
+
+Testform incluye 7 políticas internas registradas de forma predeterminada:
+
+| ID de la Política | Alcance (Scope) | Severidad | Propósito y Regla de Negocio |
+| :--- | :--- | :--- | :--- |
+| **`identity-required`** | `testcase`, `testrun`, `testplan` | `error` (Bloqueante) | **Activa por defecto.** Exige una etiqueta de identidad válida (`@tc-1` en escenarios de `testcase`, `@tr-1`/`@tp-1` a nivel de `Feature:` en `testrun` y `testplan`). Es indispensable para que los `testruns` puedan referenciar los casos vía `Rule: archivo.case.feature -> Scenario: @tc-id`. |
+| **`identity-unique`** | `testcase`, `testrun`, `testplan` | `error` (Bloqueante) | Garantiza que las identidades no colisionen. En `testcase` deben ser únicas dentro de cada archivo; en `testrun` y `testplan` deben ser globalmente únicas en todo el workspace. Recomienda automáticamente el siguiente índice disponible (ej. `@tc-4`). |
+| **`required-gherkin`** | `testcase` | `error` (Bloqueante) | Exige que cada Feature tenga nombre, cada Escenario tenga nombre, y que se incluyan los tres tipos de pasos BDD obligatorios (`Given`, `When`, `Then`). |
+| **`no-feature-tags`** | `testcase`, `testrun`, `testplan` | `error` (Bloqueante) | Prohíbe etiquetas arbitrarias a nivel de `Feature:`. Solo se permiten la etiqueta de alcance (`@testcase`, `@testrun`, `@testplan`) y la etiqueta de identidad correspondiente. Las demás etiquetas deben colocarse a nivel de `Scenario:`. |
+| **`required-fields`** | `testcase`, `testrun`, `testplan` | `error` (Bloqueante) | Verifica que cualquier campo marcado con `required: true` en `testform.yml` esté presente en el escenario mediante pasos DSL (ej. `* priority = "High"`). |
+| **`undeclared-fields`** | `testcase` | `warning` (Informativo) | Advierte cuando un escenario asigna un campo DSL que no está declarado en la sección `fields` de `testform.yml`. |
+| **`duplicate-testruns-in-testplan`** | `testplan` | `error` (Bloqueante) | Evita que un mismo archivo `testrun` sea incluido múltiples veces dentro de un mismo `testplan` o en planes concurrentes distintos. |
+
+---
+
+## 2. Detalle de la Política `identity-required`
+
+La política `identity-required` protege la integridad del ciclo de vida de los casos de prueba:
+
+```gherkin
+# ❌ Violación de política: Escenario sin etiqueta de identidad
+@testcase
+Feature: Autenticación de Usuarios
+  Scenario: Login con credenciales válidas
+    Given el usuario está en "/login"
+    When ingresa credenciales
+    Then accede al panel principal
+
+# Salida de error:
+# ╷ Error: Every scenario must have an identity tag matching the configured identity pattern.
+# │ Add the identity tag (e.g. @tc-1) to each scenario.
+```
+
+```gherkin
+# ✅ Correcto: Identidad explícita asignada
+@testcase
+Feature: Autenticación de Usuarios
+  @tc-1
+  Scenario: Login con credenciales válidas
+    Given el usuario está en "/login"
+    When ingresa credenciales
+    Then accede al panel principal
+```
+
+### ¿Por qué es obligatoria para los `testruns`?
+En Testform, los ciclos de ejecución (`*.run.feature`) vinculan casos de prueba importándolos por su regla y su identidad:
+
+```gherkin
+@testrun @tr-smoke-1
+Feature: Ciclo de Pruebas de Humo
+
+  Rule: auth.case.feature
+    Scenario: @tc-1
+      * link status = passed
+```
+
+Sin la etiqueta `@tc-1` en el archivo origen, el motor de ejecución no puede resolver a qué Issue remoto pertenece el resultado, haciendo imposible generar comentarios y tablas de ejecución en GitHub o GitLab.
+
+---
+
+## 3. Extensibilidad de Políticas (Custom Policies)
+
+Los equipos de ingeniería de calidad pueden registrar políticas personalizadas usando archivos TypeScript.
+
+### Registro mediante `registerPolicy`:
+
+```typescript
+import { registerPolicy } from '@fromeroc9/testform';
+
+registerPolicy({
+    id: "max-steps-limit",
+    scope: ["testcase"],
+    action: (scenarios, rules, scope) => {
+        for (const scenario of scenarios) {
+            if (scenario.steps.length > 10) {
+                rules.push({
+                    id: "max-steps-limit",
+                    type: "warning",
+                    title: `Escenario "${scenario.name}" excede el límite de 10 pasos.`,
+                    detail: "Considera refactorizar el escenario o dividirlo en pasos de alto nivel.",
+                    uri: scenario.uri,
+                    scenario: scenario.name,
+                    line: scenario.location
+                });
+            }
+        }
+    }
+});
+```
+
+---
+
+## 4. Extensibilidad de Recursos (Resource Registry)
+
+Testform permite personalizar o registrar nuevos tipos de recursos declarativos modificando cómo se mapean los campos y comentarios hacia los proveedores remotos:
+
+```typescript
+import { resource } from '@fromeroc9/testform';
+
+resource.registry({
+    type: 'custom_testcase',
+    fields: [
+        { name: 'title', value: (s) => s.name },
+        { name: 'body', value: (s) => s.description || '' },
+        {
+            name: 'labels',
+            value: (s) => s.tags?.map(t => t.replace('@', '')) || []
+        }
+    ],
+    comments: (s, context) => {
+        return [{
+            identity: s.custom?.identity,
+            status: 'pending',
+            body: 'Caso de prueba inicializado vía recurso personalizado'
+        }];
+    }
+});
+```
