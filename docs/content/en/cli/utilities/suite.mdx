@@ -22,11 +22,43 @@ Expands empty `Rule:` blocks in a `testrun` file with explicit scenarios in `pen
 testform suite fill -target="sprint42.run.feature"
 ```
 
-### 3. `testform suite mark`
+### 3. `testform suite link` (alias: `mark`)
 Updates the execution status of a testcase and synchronizes it locally and remotely:
 ```bash
-testform suite mark "authentication.case.feature@tc-1=passed" -target="sprint42.run.feature"
+testform suite link "@tc-1=passed" -target="sprint42.run.feature"
 ```
+
+The subcommand is named `link` in direct alignment with the Gherkin step convention injected into `.run.feature` files:
+```gherkin
+Rule: authentication.case.feature
+  Scenario: @tc-1
+    * link status = passed
+```
+
+It supports three flexible strategies to reference the testcase identity:
+1. **Identity Tag Only:** `"@tc-1=passed"` (or `"tc-1=passed"`): Finds and updates the case within the testrun specified in `-target` if the tag is unique.
+2. **File + Tag (or Name):** `"authentication.case.feature::@tc-1=passed"` (or `"authentication.case.feature@tc-1=passed"`): Disambiguates cases when multiple files share the same tag conventions.
+3. **Scenario Name/Title Only:** `"Successful user login=passed"`: Resolves directly against the Gherkin scenario name or title.
+
+---
+
+## Target Resolution (`-target`)
+
+The `fill` and `link` subcommands require specifying **which test suite or execution run to operate on** via the `-target` option.
+
+### Why does `-target` exist?
+A test case (`@tc-1`) is a specification executed across multiple different runs over time (Sprint 41, Sprint 42, Nightly Regression). To link or mark the result of `@tc-1`, the system needs to know **which specific execution run is being updated**.
+- **`-target` identifies the container** (the Test Run / Suite, e.g. `@tr-42` or `sprint42.run.feature`).
+- **The positional argument identifies the inner item and its outcome** (the Test Case, e.g. `"@tc-1=passed"`).
+
+### Accepted formats for `-target`
+You can reference the target suite using any of these 3 forms:
+1. **Identity Tag (`@tr-*`):** `-target="@tr-42"` (resolved automatically from the state file).
+2. **File name or fragment:** `-target="sprint42.run.feature"` or `-target="sprint42"`.
+3. **Relative or absolute path:** `-target="tests/testrun/sprint42.run.feature"`.
+
+> [!TIP]
+> If a fragment matches multiple suite files, the CLI displays an ambiguous matches list so you can provide an exact path or tag.
 
 ---
 

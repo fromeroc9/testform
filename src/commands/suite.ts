@@ -197,35 +197,32 @@ async function runAutocomplete(options: {
 }
 
 // ---------------------------------------------------------------------------
-// suite mark  (replaces apply -set-status)
+// ---------------------------------------------------------------------------
+// suite link / mark  (replaces apply -set-status)
 // ---------------------------------------------------------------------------
 
 /**
- * Parse testcase argument.
- * Accepted formats:
- *   "cuenta/inicio-sesion.feature@tc-1=passed"
- *   "github_testcase.cuenta/inicio-sesion.feature::@tc-1=passed"
- *   "cuenta/inicio-sesion.feature::@tc-1=passed"
+ * Parse testcase argument for `suite link` (and `suite mark`).
  *
- * The feature part can be either the filename or the identity (full path).
- * Returns: { featurePart, tcIdentity, newStatus }
+ * Supported identity strategies:
+ *   1. Only tag:       "@tc-1=passed" or "tc-1=passed"
+ *   2. File + tag:     "checkout.case.feature::@tc-1=passed" or "checkout.case.feature@tc-1=passed"
+ *   3. Scenario name:  "Pago con tarjeta=passed"
+ *
+ * Returns: { featurePart, casePart, newStatus, rawIdentifier }
  */
-function parseTcArg(tcArg: string): { featurePart: string; tcIdentity: string; newStatus: string } {
-    // Strip type prefix (e.g. github_testcase., local_testcase., testcase.)
-    const stripped = tcArg.replace(/^([a-zA-Z0-9_-]+_)?testcase\./, '');
-    // Normalize :: to @
-    const normalized = stripped.replace('::', '@');
-
-    const eqIdx = normalized.lastIndexOf('=');
+function parseTcArg(tcArg: string, subCommand: string = 'link'): { featurePart: string; casePart: string; newStatus: string; rawIdentifier: string } {
+    const eqIdx = tcArg.lastIndexOf('=');
     if (eqIdx === -1) {
         notify.push({
             type: 'error',
             title: `Invalid format: '${tcArg}'`,
             detail: [
-                `Expected: 'featureFile@tc-N=status'`,
+                `Expected format: '<identifier>=<status>'`,
                 `Examples:`,
-                `  cuenta/inicio-sesion.feature@tc-1=passed`,
-                `  github_testcase.agencia/cuenta.feature::@tc-3=failed`,
+                `  ${TITLE_CLI} suite ${subCommand} "@tc-1=passed" -target="@tr-2"`,
+                `  ${TITLE_CLI} suite ${subCommand} "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
+                `  ${TITLE_CLI} suite ${subCommand} "Validar login exitoso=passed" -target="@tr-2"`,
                 ``,
                 `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
             ],
@@ -233,31 +230,62 @@ function parseTcArg(tcArg: string): { featurePart: string; tcIdentity: string; n
         process.exit(1);
     }
 
-    const newStatus = normalized.slice(eqIdx + 1).trim();
-    const beforeEq = normalized.slice(0, eqIdx);
-    const atIdx = beforeEq.lastIndexOf('@');
+    const newStatus = tcArg.slice(eqIdx + 1).trim();
+    const rawIdentifier = tcArg.slice(0, eqIdx).trim();
 
-    if (atIdx === -1) {
+    if (!TESTCASE_STATUSES.includes(newStatus as any)) {
         notify.push({
             type: 'error',
-            title: `Could not find scenario identity in '${tcArg}'.`,
+            title: `Invalid status '${newStatus}' in '${tcArg}'.`,
             detail: [
-                `Expected format: 'featureFile@tc-N=status' or 'featureFile::@tc-N=status'`,
                 `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
             ],
         });
         process.exit(1);
     }
 
-    const featurePart = beforeEq.slice(0, atIdx);
-    const tcIdentity = '@' + beforeEq.slice(atIdx + 1);
+    if (!rawIdentifier) {
+        notify.push({
+            type: 'error',
+            title: `Could not find scenario identity in '${tcArg}'.`,
+            detail: [
+                `Expected format: '<identifier>=<status>'`,
+                `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
+            ],
+        });
+        process.exit(1);
+    }
 
-    return { featurePart, tcIdentity, newStatus };
+    // Strip type prefix (e.g. github_testcase., local_testcase., testcase.)
+    const stripped = rawIdentifier.replace(/^([a-zA-Z0-9_-]+_)?testcase\./, '');
+
+    let featurePart = '';
+    let casePart = '';
+
+    if (stripped.includes('::')) {
+        const doubleColonIdx = stripped.indexOf('::');
+        featurePart = stripped.slice(0, doubleColonIdx).trim();
+        casePart = stripped.slice(doubleColonIdx + 2).trim();
+    } else {
+        const atIdx = stripped.lastIndexOf('@');
+        if (atIdx > 0) {
+            // e.g. "cuenta/inicio-sesion.feature@tc-1"
+            featurePart = stripped.slice(0, atIdx).trim();
+            casePart = stripped.slice(atIdx).trim();
+        } else {
+            // e.g. "@tc-1", "tc-1", or scenario title "Validar login exitoso"
+            featurePart = '';
+            casePart = stripped.trim();
+        }
+    }
+
+    return { featurePart, casePart, newStatus, rawIdentifier };
 }
 
 async function runState(options: {
     dir: string;
     target: string;
+    subCommand?: string;
     tcArg?: string;
     statePath?: string;
     backupPath?: string;
@@ -265,7 +293,7 @@ async function runState(options: {
     variables?: VariableParser;
     verbose?: boolean;
 }) {
-    const { dir, target, tcArg, statePath, backupPath, testDirectory, variables, verbose = false } = options;
+    const { dir, target, subCommand = 'link', tcArg, statePath, backupPath, testDirectory, variables, verbose = false } = options;
 
     const stateObj = new State(dir, statePath, backupPath);
     await stateObj.init();
@@ -300,11 +328,14 @@ async function runState(options: {
 
     // Resolve tc argument or prompt interactively
     let featurePart: string;
-    let tcIdentity: string;
+    let casePart: string;
     let newStatus: string;
+    let rawIdentifier: string;
+
+    const allTestcases = stateObj.getResources('testcase');
 
     if (tcArg) {
-        ({ featurePart, tcIdentity, newStatus } = parseTcArg(tcArg));
+        ({ featurePart, casePart, newStatus, rawIdentifier } = parseTcArg(tcArg, subCommand));
     } else {
         // Interactive: list available testcases and prompt
         const commentIds: Record<string, any> = foundRun.attributes?.testcaseCommentIds || {};
@@ -316,48 +347,105 @@ async function runState(options: {
         console.log(bold(`\nAvailable testcases in '${foundRun.identity}':`));
         keys.forEach((k, i) => {
             const status = foundRun.attributes?.testcaseStatuses?.[k] || 'pending';
-            console.log(`  ${i + 1}. ${k} [${status}]`);
+            const tcRes = allTestcases.find((r: any) => r.identity === k);
+            const titlePart = tcRes?.attributes?.title ? ` - "${tcRes.attributes.title}"` : '';
+            console.log(`  ${i + 1}. ${k}${titlePart} [${status}]`);
         });
         console.log(`\n${bold('Available statuses:')} ${TESTCASE_STATUSES.join(', ')}\n`);
-        notify.push({ type: 'error', title: `Please provide the testcase argument.`, detail: [`Usage: testform suite mark "featureFile@tc-N=status" -target="${target}"`] });
+        notify.push({
+            type: 'error',
+            title: `Please provide the testcase argument.`,
+            detail: [
+                `Usage: ${TITLE_CLI} suite ${subCommand} "<identifier>=<status>" -target="${target}"`,
+                `Strategies:`,
+                `  1. Only tag:       "@tc-1=passed"`,
+                `  2. File + tag:     "checkout.case.feature::@tc-1=passed"`,
+                `  3. Scenario name:  "Pago con tarjeta=passed"`,
+            ]
+        });
         process.exit(1);
     }
 
-    // Find the matching comment ID key in state
+    // Find the matching comment ID key in state using the 3 identity strategies
     const commentIds: Record<string, any> = foundRun.attributes?.testcaseCommentIds || {};
-    const normalizedFeature = featurePart.replace(/\.feature$/i, '');
 
-    const matchingKey = Object.keys(commentIds).find(k => {
+    const matchingKeys = Object.keys(commentIds).filter(k => {
         const [kFile = '', kId = ''] = k.split('::');
         const kFileNorm = kFile.replace(/\.feature$/i, '');
-        return (
-            kId === tcIdentity &&
-            (
+        const tcRes = allTestcases.find((r: any) => r.identity === k);
+        const tcTitle = tcRes?.attributes?.title || '';
+
+        // If featurePart was specified, enforce file match
+        if (featurePart) {
+            const normalizedFeature = featurePart.replace(/\.feature$/i, '');
+            const fileMatches = (
                 kFile === featurePart ||
                 kFileNorm === normalizedFeature ||
                 kFile.endsWith(featurePart) ||
-                kFile.endsWith(featurePart + '.feature') ||
+                kFile.endsWith('/' + featurePart) ||
+                kFile.endsWith('/' + featurePart + '.feature') ||
                 basename(kFileNorm) === basename(normalizedFeature)
-            )
-        );
+            );
+            if (!fileMatches) return false;
+        }
+
+        const normCase = casePart.trim().toLowerCase();
+        const normId = kId.trim().toLowerCase();
+        const normTitle = tcTitle.trim().toLowerCase();
+
+        // 1. Exact ID/Tag match (with or without '@')
+        if (normId === normCase || normId.replace(/^@/, '') === normCase.replace(/^@/, '')) {
+            return true;
+        }
+
+        // 2. Exact Title match
+        if (normTitle && normTitle === normCase) {
+            return true;
+        }
+
+        // 3. Fallback: Full identity match
+        if (k.toLowerCase() === rawIdentifier.toLowerCase()) {
+            return true;
+        }
+
+        return false;
     });
 
-    if (!matchingKey) {
+    if (matchingKeys.length === 0) {
         const available = Object.keys(commentIds).slice(0, 10).map(k => `  - ${k}`);
         notify.push({
             type: 'error',
-            title: `Testcase '${featurePart}@${tcIdentity}' not found in testrun '${target}'.`,
+            title: `Testcase '${rawIdentifier}' not found in testrun '${target}'.`,
             detail: [
-                `Available testcases (up to 10):`,
+                `Available testcases in this run (up to 10):`,
                 ...available,
                 ``,
-                `Hint: The feature part can be a filename ('inicio-sesion.feature') or full identity path.`,
+                `Accepted identity strategies:`,
+                `  1. Only tag:       "@tc-1=passed"`,
+                `  2. File + tag:     "checkout.case.feature::@tc-1=passed"`,
+                `  3. Scenario name:  "Pago con tarjeta=passed"`,
             ],
         });
         process.exit(1);
     }
 
-    const targetId = matchingKey;
+    if (matchingKeys.length > 1) {
+        const ambiguous = matchingKeys.map(k => `  - ${k}`);
+        notify.push({
+            type: 'error',
+            title: `Multiple testcases matched '${casePart}' in testrun '${target}'.`,
+            detail: [
+                `Matches:`,
+                ...ambiguous,
+                ``,
+                `Please specify the feature file to disambiguate:`,
+                `  e.g. ${TITLE_CLI} suite ${subCommand} "<file>::${casePart}=${newStatus}" -target="${target}"`,
+            ],
+        });
+        process.exit(1);
+    }
+
+    const targetId = matchingKeys[0];
     const commentId = commentIds[targetId];
     const oldStatus = foundRun.attributes?.testcaseStatuses?.[targetId] || 'pending';
 
@@ -466,17 +554,23 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         return;
     }
 
-    if (cmd === 'mark' || cmd === 'state') {
+    if (cmd === 'link' || cmd === 'mark' || cmd === 'state') {
         if (!target) {
             notify.push({
                 type: 'error',
-                title: `Usage: ${TITLE_CLI} suite mark "featureFile@tc-N=status" -target=<path|relative|@tr-N>`,
+                title: `Usage: ${TITLE_CLI} suite ${cmd} "<identifier>=<status>" -target=<path|relative|@tr-N>`,
                 detail: [
                     `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
                     ``,
+                    `Identity strategies:`,
+                    `  1. Only tag:       "@tc-1=passed"`,
+                    `  2. File + tag:     "cuenta/inicio-sesion.feature@tc-1=passed"`,
+                    `  3. Scenario name:  "Pago con tarjeta=passed"`,
+                    ``,
                     `Examples:`,
-                    `  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
-                    `  ${TITLE_CLI} suite mark "github_testcase.agencia/cuenta.feature::@tc-3=failed" -target="20260607.run.feature"`,
+                    `  ${TITLE_CLI} suite ${cmd} "@tc-1=passed" -target="@tr-2"`,
+                    `  ${TITLE_CLI} suite ${cmd} "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
+                    `  ${TITLE_CLI} suite ${cmd} "github_testcase.agencia/cuenta.feature::@tc-3=failed" -target="20260607.run.feature"`,
                 ],
             });
             process.exit(1);
@@ -484,6 +578,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         await runState({
             dir,
             target,
+            subCommand: cmd,
             tcArg: subArgs.length > 0 ? subArgs[0] : undefined,
             statePath,
             backupPath,
@@ -497,7 +592,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
     notify.push({
         type: 'error',
         title: `Unknown suite subcommand: '${subCommand}'`,
-        detail: [`Available subcommands: init, fill, mark`],
+        detail: [`Available subcommands: init, fill, link (or mark)`],
     });
     process.exit(1);
 };

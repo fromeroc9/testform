@@ -101,8 +101,21 @@ describe('Command suiteCmd', () => {
         });
     });
 
-    describe('suite mark', () => {
-        it('should fail if target is not provided', async () => {
+    describe('suite link / mark', () => {
+        it('should fail if target is not provided for suite link', async () => {
+            await expect(suiteCmd({
+                dir: '.',
+                subCommand: 'link',
+                subArgs: ['@tc-1=passed']
+            })).rejects.toThrow();
+
+            expect(notify.push).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'error',
+                title: expect.stringContaining('suite link "<identifier>=<status>" -target=<path|relative|@tr-N>')
+            }));
+        });
+
+        it('should fail if target is not provided for suite mark', async () => {
             await expect(suiteCmd({
                 dir: '.',
                 subCommand: 'mark',
@@ -111,7 +124,7 @@ describe('Command suiteCmd', () => {
 
             expect(notify.push).toHaveBeenCalledWith(expect.objectContaining({
                 type: 'error',
-                title: expect.stringContaining('suite mark "featureFile@tc-N=status" -target=<path|relative|@tr-N>')
+                title: expect.stringContaining('suite mark "<identifier>=<status>" -target=<path|relative|@tr-N>')
             }));
         });
     });

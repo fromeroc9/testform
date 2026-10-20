@@ -22,11 +22,43 @@ Expande los bloques `Rule:` de un archivo `testrun` con sus escenarios concretos
 testform suite fill -target="sprint42.run.feature"
 ```
 
-### 3. `testform suite mark`
+### 3. `testform suite link` (alias: `mark`)
 Actualiza el estado de ejecución de un testcase y lo sincroniza local y remotamente:
 ```bash
-testform suite mark "authentication.case.feature@tc-1=passed" -target="sprint42.run.feature"
+testform suite link "@tc-1=passed" -target="sprint42.run.feature"
 ```
+
+El subcomando se denomina `link` en correspondencia directa con la convención de pasos Gherkin inyectada en el archivo `.run.feature`:
+```gherkin
+Rule: authentication.case.feature
+  Scenario: @tc-1
+    * link status = passed
+```
+
+Soporta tres estrategias flexibles para referenciar la identidad del testcase:
+1. **Solo Tag de Identidad:** `"@tc-1=passed"` (o `"tc-1=passed"`): Busca y actualiza el caso dentro del testrun especificado en `-target` si el tag es único.
+2. **Archivo + Tag (o Nombre):** `"authentication.case.feature::@tc-1=passed"` (o `"authentication.case.feature@tc-1=passed"`): Desambigua casos cuando múltiples archivos comparten la misma convención de tags.
+3. **Solo Nombre/Título de Escenario:** `"Inicio de sesión con credenciales válidas=passed"`: Resuelve directamente por el título o nombre del escenario Gherkin.
+
+---
+
+## Resolución de Objetivos (`-target`)
+
+Los subcomandos `fill` y `link` requieren indicar **en qué suite o corrida de pruebas se debe operar** mediante la opción `-target`.
+
+### ¿Por qué existe `-target`?
+Un caso de prueba (`@tc-1`) es una definición que se ejecuta en múltiples corridas distintas a lo largo del tiempo (Sprint 41, Sprint 42, Regresión Nocturna). Para enlazar o marcar el resultado de `@tc-1`, el sistema necesita saber **a qué corrida pertenece esa ejecución específica**.
+- **`-target` identifica el contenedor** (el Test Run / Suite, ej. `@tr-42` o `sprint42.run.feature`).
+- **El argumento posicional identifica el elemento interno y su resultado** (el Test Case, ej. `"@tc-1=passed"`).
+
+### Formatos aceptados para `-target`
+Puedes apuntar a la suite utilizando cualquiera de estas 3 formas:
+1. **Tag de Identidad (`@tr-*`):** `-target="@tr-42"` (resuelto automáticamente desde el archivo de estado).
+2. **Nombre de archivo o fragmento:** `-target="sprint42.run.feature"` o `-target="sprint42"`.
+3. **Ruta relativa o absoluta:** `-target="tests/testrun/sprint42.run.feature"`.
+
+> [!TIP]
+> Si un fragmento coincide con múltiples suites, el CLI mostrará un listado detallando todas las coincidencias ambiguas para que especifiques la ruta o el tag exacto.
 
 ---
 

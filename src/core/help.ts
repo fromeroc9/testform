@@ -1002,7 +1002,8 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] suite <subcommand> [options] [ar
 ${bold(`Subcommands:`)}
   init          Create a new testrun or testplan feature file
   fill          Fill referenced Rule blocks with testcase scenarios
-  mark          Update execution status of a testcase within the suite
+  link          Update execution status of a testcase within the suite (alias: mark)
+  mark          Alias for 'suite link'
 
 ${bold(`Target Resolution (-target flag):`)}
   All subcommands accept three forms to identify a testrun/testplan:
@@ -1041,22 +1042,29 @@ ${bold(`Options:`)}
   -test-directory=dir Optional. Limits the search scope for .case.feature files.
 `.trim();
 
-export const HELP_SUITE_MARK = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite mark "featureFile@tc-N=status" -target=<resource>
+export const HELP_SUITE_LINK = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite link "<identifier>=status" -target=<resource>
 
   [testrun only] Update the execution status of a specific testcase within
-  a suite. Simultaneously updates:
-    - The local testrun feature file (checkbox and status)
+  a suite using the Gherkin 'link status = <status>' convention. Simultaneously updates:
+    - The local testrun feature file (* link status = <status>)
     - The GitHub issue body checklist
     - The GitHub comment table for that testcase
 
-${bold(`Argument:`)} "featureFile@tc-N=status"
-  Available statuses: passed, failed, pending, skipped
+${bold(`Identity Strategies:`)}
+  1. Only tag:       "@tc-1=passed" (resolves within the testrun if tag is unique)
+  2. File + tag:     "checkout.case.feature::@tc-1=passed" (or "@tc-1")
+  3. Scenario name:  "Pago con tarjeta=passed" (matches scenario title or name)
+
+${bold(`Available statuses:`)} passed, failed, pending, skipped
 
 ${bold(`Examples:`)}
-  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
-  ${TITLE_CLI} suite mark "login.feature::@tc-3=failed" -target="20260607.run.feature"
+  ${TITLE_CLI} suite link "@tc-1=passed" -target="@tr-2"
+  ${TITLE_CLI} suite link "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
+  ${TITLE_CLI} suite link "Validar login exitoso=passed" -target="20260607.run.feature"
 `.trim();
+
+export const HELP_SUITE_MARK = HELP_SUITE_LINK;
 
 export function getCommandHelp(command: string): string | null {
   switch (command) {
@@ -1093,10 +1101,12 @@ export function getCommandHelp(command: string): string | null {
     case 'suite': return HELP_SUITE;
     case 'suite init': return HELP_SUITE_INIT;
     case 'suite fill': return HELP_SUITE_FILL;
+    case 'suite link': return HELP_SUITE_LINK;
     case 'suite mark': return HELP_SUITE_MARK;
     case 'tool': return HELP_SUITE;
     case 'tool feature': return HELP_SUITE_INIT;
     case 'tool autocomplete': return HELP_SUITE_FILL;
+    case 'tool link': return HELP_SUITE_LINK;
     case 'tool state': return HELP_SUITE_MARK;
     default: return null;
   }

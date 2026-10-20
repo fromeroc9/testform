@@ -65,11 +65,18 @@ testform suite fill -target="@tr-42"
 ```
 Esto inspecciona el archivo `.case.feature` referenciado y añade cada escenario explícitamente a tu `.run.feature` con el estado `* link status = pending`, permitiendo a los ejecutores de pruebas registrar resultados específicos.
 
-### 2. Marcado Programático con `suite mark`
-Para actualizar resultados desde pipelines de CI/CD o ejecutores automáticos (Playwright, Cypress, Vitest, Jest) sincronizando el archivo `.run.feature` local y el proveedor remoto de forma coherente:
+### 2. Enlace y Marcado Programático con `suite link` (alias: `mark`)
+Para actualizar resultados desde pipelines de CI/CD o ejecutores automáticos (Playwright, Cypress, Vitest, Jest) sincronizando el archivo `.run.feature` local y el proveedor remoto de forma coherente, usa `testform suite link` (alineado con la sentencia `* link status = <status>` de Gherkin):
 
 ```bash
-testform suite mark "checkout.case.feature@tc-1=passed" -target="@tr-42"
+# Estrategia 1: Solo Tag (resuelve automáticamente dentro del testrun si es único)
+testform suite link "@tc-1=passed" -target="@tr-42"
+
+# Estrategia 2: Archivo + Tag (desambigua cuando varios archivos comparten el mismo número de caso)
+testform suite link "checkout.case.feature::@tc-1=passed" -target="@tr-42"
+
+# Estrategia 3: Nombre o Título de Escenario
+testform suite link "Pago con tarjeta de crédito exitoso=passed" -target="@tr-42"
 ```
 
 > [!NOTE]

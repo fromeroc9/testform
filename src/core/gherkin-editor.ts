@@ -58,9 +58,14 @@ export class GherkinEditor {
         
         // Find existing scenario
         for (const element of rule.elements) {
-            if (element instanceof Scenario && element.name === scenarioName) {
-                targetScenario = element;
-                break;
+            if (element instanceof Scenario) {
+                if (
+                    element.name === scenarioName ||
+                    element.name.replace(/^@/, '') === scenarioName.replace(/^@/, '')
+                ) {
+                    targetScenario = element;
+                    break;
+                }
             }
         }
 

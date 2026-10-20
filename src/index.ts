@@ -518,7 +518,7 @@ export function createCli() {
         });
 
     // ─── suite ───────────────────────────────────────────────────────────
-    cli.command('suite <subcommand> [...args]', 'Manage test suites and execution files (init, fill, mark)')
+    cli.command('suite <subcommand> [...args]', 'Manage test suites and execution files (init, fill, link)')
         .option('--title <title>', 'Suite title')
         .option('--rule <rule>', 'Rule definitions')
         .option('--target <target>', 'Target feature file')
