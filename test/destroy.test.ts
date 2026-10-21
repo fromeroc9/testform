@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { destroyCmd } from '../src/commands/destroy';
 import { State } from '../src/core/state';
-import { createCommandContext } from '../src/core/command-context';
+import { createCommandContext } from '../src/core/context';
 import { askDestroyApproval } from '../src/core/prompt';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync } from 'fs';
@@ -14,7 +14,7 @@ const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
 });
 
 vi.mock('../src/core/state');
-vi.mock('../src/core/command-context');
+vi.mock('../src/core/context');
 vi.mock('../src/core/prompt');
 
 describe('Command destroyCmd', () => {

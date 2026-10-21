@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { refreshCmd } from '../src/commands/refresh';
 import { State } from '../src/core/state';
-import { GitHubAdapter } from '../src/adapters/github';
+import { GitHubAdapter } from '../src/providers/github';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -9,7 +9,7 @@ import { tmpdir } from 'os';
 const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
 vi.mock('../src/core/state');
-vi.mock('../src/adapters/github');
+vi.mock('../src/providers/github');
 
 describe('Command refreshCmd', () => {
     let tmpDir: string;

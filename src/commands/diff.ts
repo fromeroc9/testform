@@ -1,4 +1,4 @@
-﻿import { createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { bold, green, yellow, red, cyan, dim, gray } from 'chalk';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve, join } from 'path';
@@ -9,7 +9,9 @@ import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { IScope, DiffEntry, DiffStatus, ParserScenario, StateResource } from '../core/types';
 import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
-import { createCommandContext } from '../core/command-context';
+import { createCommandContext } from '../core/context';
+import { resolveScopes } from '../core/cli';
+import { updateFeatureScenario } from '../core/editor';
 
 export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
@@ -76,49 +78,6 @@ function promptUser(rl: readline.Interface, question: string): Promise<string> {
     });
 }
 
-function updateFeatureScenario(
-    filePath: string,
-    oldTitle: string,
-    newTitle: string,
-    newLabels?: string[]
-): boolean {
-    if (!existsSync(filePath)) return false;
-    let content = readFileSync(filePath, 'utf8');
-
-    // 1. Update Scenario title if changed
-    if (oldTitle && newTitle && oldTitle !== newTitle) {
-        const escapedOld = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const scenarioRegex = new RegExp(`(Scenario(?: Outline)?:\\s*)${escapedOld}`, 'g');
-        if (scenarioRegex.test(content)) {
-            content = content.replace(scenarioRegex, `$1${newTitle}`);
-        }
-    }
-
-    // 2. Update labels if provided
-    if (newLabels && newLabels.length > 0) {
-        const searchTitle = newTitle || oldTitle;
-        const scenarioIdx = content.indexOf(`Scenario: ${searchTitle}`);
-        if (scenarioIdx !== -1) {
-            const beforeScenario = content.slice(0, scenarioIdx);
-            const lines = beforeScenario.split('\n');
-            const prevLine = lines[lines.length - 2]?.trim();
-            const formattedTags = newLabels.map(l => l.startsWith('@') ? l : `@${l}`).join(' ');
-
-            if (prevLine && prevLine.startsWith('@')) {
-                // Replace previous tag line
-                lines[lines.length - 2] = `  ${formattedTags}`;
-                content = lines.join('\n') + content.slice(scenarioIdx);
-            } else {
-                // Insert tags line before scenario
-                content = content.slice(0, scenarioIdx) + `  ${formattedTags}\n` + content.slice(scenarioIdx);
-            }
-        }
-    }
-
-    writeFileSync(filePath, content, 'utf8');
-    return true;
-}
-
 export const diffCmd = async (options: DiffCmdOptions) => {
     const {
         dir = '.',
@@ -152,7 +111,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
 
     // ── Local vs State Diff Mode ──
     const entries: DiffEntry[] = [];
-    const scopesToRun: IScope[] = effectiveScope === 'all' ? ['testcase', 'testrun', 'testplan'] : [effectiveScope];
+    const scopesToRun = resolveScopes(effectiveScope);
 
     for (const s of scopesToRun) {
         const data = {
@@ -274,7 +233,7 @@ async function executeRemoteDrift(
     }
     const github = ctx.adapter || (ctx as any).github;
 
-    const scopesToRun: IScope[] = scope === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope];
+    const scopesToRun = resolveScopes(scope as any);
     const driftedItems: RemoteDriftItem[] = [];
 
     for (const s of scopesToRun) {

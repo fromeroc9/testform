@@ -17,6 +17,7 @@ import {
 import { VariableParser } from '../core/variables';
 import { CONFIG_FILE_NAMES } from '../core/const';
 import { parseModuleTargets, parseModuleTag, resolveModulePath, loadModuleSteps } from '../core/module';
+import { findFeatureFiles } from '../core/editor';
 
 export const FIELD_PATTERN = /^(?:field)\s+([A-Za-z0-9_.\- ]+?)\s*=\s*(.+)$/i;
 
@@ -27,28 +28,7 @@ export abstract class BaseParser {
     ) { }
 
     protected find(targetPath: string): string[] {
-        try {
-            const stat = statSync(targetPath);
-            if (stat.isFile() && targetPath.endsWith('.feature')) {
-                return [targetPath];
-            }
-            if (stat.isDirectory()) {
-                const entries = readdirSync(targetPath, { withFileTypes: true });
-                const result: string[] = [];
-                for (const entry of entries) {
-                    const filePath = join(targetPath, entry.name);
-                    if (entry.isDirectory()) {
-                        result.push(...this.find(filePath));
-                    } else if (entry.name.endsWith('.feature')) {
-                        result.push(filePath);
-                    }
-                }
-                return result;
-            }
-            return [];
-        } catch (e) {
-            return [];
-        }
+        return findFeatureFiles(targetPath, true);
     }
 
     protected format(document: GherkinDocument, fileAbs?: string): ParserScenario[] {

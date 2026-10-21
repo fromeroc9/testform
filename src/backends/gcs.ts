@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
-import { loadDriver } from '../core/driver-loader';
+import { loadDriver } from '../core/driver';
 
 export interface GCSBackendConfig {
     bucket: string;

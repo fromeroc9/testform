@@ -26,6 +26,7 @@
 		"testform": "dist/index.js"
 	},
 	"scripts": {
+		"prebuild": "node -e \"const fs = require('fs'); if (fs.existsSync('dist')) fs.rmSync('dist', { recursive: true, force: true });\"",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit",
 		"build": "ncc build src/index.ts -m -e @aws-sdk/client-s3 -e @aws-sdk/client-dynamodb -e @azure/storage-blob -e @google-cloud/storage -o dist",

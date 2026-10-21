@@ -2,9 +2,9 @@ import { IConfig, IScope } from '../core/types';
 import { resolve, normalize, join } from 'path';
 import { Config } from '../core/config';
 import { State } from '../core/state';
-import { GitHubAdapter } from '../adapters/github';
-import { LocalAdapter } from '../adapters/local';
-import { IProviderAdapter } from '../adapters/interface';
+import { GitHubProvider, GitHubAdapter } from '../providers/github';
+import { LocalProvider, LocalAdapter } from '../providers/local';
+import { IProvider, IProviderAdapter } from '../providers/interface';
 import { Parser } from '../core/parser';
 import { resource } from '../core/resources';
 import { bold, green, red, yellow } from "chalk";
@@ -13,6 +13,7 @@ import fs from "fs";
 import { Logger } from '../core/logger';
 
 import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP } from '../core/const';
+import { matchesScope } from '../core/selector';
 
 interface ImportCmdOptions {
     dir?: string;
@@ -70,12 +71,6 @@ export const importCmd = async (options: ImportCmdOptions) => {
         const data = {
             identity: conf.getIdentity(scope),
             fields: conf.getFields(scope),
-        };
-
-        const matchesScope = (s: any, scopeName: IScope) => {
-            if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scopeName)) return false;
-            const cfg = SCOPE_CONFIG[scopeName as keyof typeof SCOPE_CONFIG];
-            return s.feature?.tags?.includes(cfg.tag) || s.uri.endsWith(cfg.ext);
         };
 
         // Read all scenarios using parser

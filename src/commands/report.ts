@@ -3,9 +3,7 @@ import { bold, green, red, yellow } from "chalk";
 import fs from "fs";
 import { StateResource } from '../core/types';
 import { Config } from '../core/config';
-import { GitHubAdapter } from '../adapters/github';
-import { LocalAdapter } from '../adapters/local';
-import { IProviderAdapter } from '../adapters/interface';
+import { GitHubProvider as GitHubAdapter, LocalProvider as LocalAdapter, IProvider as IProviderAdapter } from '../providers';
 import { VariableParser } from '../core/variables';
 
 interface ReportCmdOptions {

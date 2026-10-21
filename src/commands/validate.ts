@@ -6,6 +6,7 @@ import { VariableParser } from '../core/variables';
 import { policy } from '../core/policy';
 import { Logger } from '../core/logger';
 import { IScope } from '../core/types';
+import { matchesScope } from '../core/selector';
 
 interface ValidateCmdOptions {
     targetPath?: string;
@@ -76,18 +77,6 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
     logger.debug(`Found ${documents.length} scenarios across feature files`);
 
     // Filter by scope (only process files matching the requested scope)
-    const SCOPE_CONFIG = {
-        testcase: { tag: '@testcase', ext: '.case.feature' },
-        testrun: { tag: '@testrun', ext: '.run.feature' },
-        testplan: { tag: '@testplan', ext: '.plan.feature' },
-    } as const;
-
-    const matchesScope = (s: any, scopeName: IScope) => {
-        if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scopeName)) return false;
-        const cfg = SCOPE_CONFIG[scopeName as keyof typeof SCOPE_CONFIG];
-        return s.feature?.tags?.includes(cfg.tag) || s.uri.endsWith(cfg.ext);
-    };
-
     const rawScenarios = documents.filter(s => matchesScope(s, scope));
 
     if (rawScenarios.length === 0) {

@@ -2,114 +2,26 @@ import { join, resolve, basename, relative } from 'path';
 import { readFileSync } from 'fs';
 import { bold, green, yellow, red } from 'chalk';
 import { generateCmd } from './generate';
-import { GherkinEditor } from '../core/gherkin-editor';
+import { GherkinEditor } from '../core/editor';
 import { Parser } from '../core/parser';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { logger as notify } from '../core/logger';
-import { createCommandContext } from '../core/command-context';
+import { Diag } from '../core/diagnostics';
+import { createCommandContext } from '../core/context';
 import { resource } from '../core/resources';
 import { VariableParser } from '../core/variables';
 import { IScope } from '../core/types';
 import { TITLE_CLI, SCOPE_CONFIG, TESTCASE_STATUSES } from '../core/const';
 import { askStatus, askSelect, askInput, isInteractive } from '../core/prompt';
-import { Parser as GherkinRawParser, AstBuilder, GherkinClassicTokenMatcher } from '@cucumber/gherkin';
-import { IdGenerator } from '@cucumber/messages';
-
-function matchesScope(s: any, scopeName: IScope): boolean {
-    if (!s) return false;
-    if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scopeName)) return false;
-    const cfg = SCOPE_CONFIG[scopeName as keyof typeof SCOPE_CONFIG];
-    return s.feature?.tags?.includes(cfg.tag) || (typeof s.uri === 'string' && s.uri.endsWith(cfg.ext));
-}
-
-async function resolveTargetScenario(target: string, dir: string, scopeKey: IScope, testDirectory?: string, variables?: VariableParser) {
-    const searchDir = testDirectory ? join(dir, testDirectory) : dir;
-    const parser = new Parser(searchDir, variables);
-    const config = new Config(dir);
-
-    const data = {
-        identity: config.getIdentity(scopeKey),
-        fields: config.getFields(scopeKey),
-    };
-
-    const documents = parser.content() || [];
-
-    const rawScenarios = documents.filter(s => matchesScope(s, scopeKey));
-    const filtered = parser.filter(rawScenarios, data, scopeKey) || [];
-
-    const matches = filtered.filter(s => {
-        const id = s.custom?.identity ? `${s.uri}::${s.custom.identity}` : s.uri;
-        return id === target || id.startsWith(`${target}::`) || id.endsWith(`/${target}`) || id.endsWith(target) ||
-            s.uri === target || s.uri.endsWith(`/${target}`) || s.uri.endsWith(target);
-    });
-
-    if (matches.length === 1) {
-        return {
-            absolutePath: resolve(searchDir, matches[0].uri),
-            scenario: matches[0]
-        };
-    }
-
-    if (matches.length === 0) {
-        notify.push({
-            type: 'error',
-            title: `No ${scopeKey} matched target '${target}'.`,
-            detail: [`Run \`${TITLE_CLI} state list\` to list available resources.`],
-        });
-        process.exit(1);
-    }
-
-    // Ambiguity
-    const relPaths = Array.from(new Set(matches.map(m => `  - ${m.uri}`)));
-    notify.push({
-        type: 'error',
-        title: `Multiple ${scopeKey} files matched '${target}'. Please specify a full path or identity tag.`,
-        detail: relPaths,
-    });
-    process.exit(1);
-}
-
-async function promptTargetSuite(
-    dir: string,
-    allowedScopes: IScope[] = ['testrun', 'testplan'],
-    testDirectory?: string,
-    variables?: VariableParser
-): Promise<string> {
-    const searchDir = testDirectory ? join(dir, testDirectory) : dir;
-    const parser = new Parser(searchDir, variables);
-    const documents = parser.content() || [];
-
-    const choices: { label: string; value: string }[] = [];
-
-    for (const scope of allowedScopes) {
-        const raw = documents.filter(s => matchesScope(s, scope));
-        const config = new Config(dir);
-        const data = { identity: config.getIdentity(scope), fields: config.getFields(scope) };
-        const filtered = parser.filter(raw, data, scope) || [];
-
-        for (const s of filtered) {
-            const tag = s.custom?.identity || '';
-            const tagPart = tag ? ` (${tag})` : '';
-            const titlePart = s.feature?.name ? ` - "${s.feature.name}"` : '';
-            choices.push({
-                label: `[${scope}] ${s.uri}${tagPart}${titlePart}`,
-                value: tag || s.uri,
-            });
-        }
-    }
-
-    if (choices.length === 0) {
-        notify.push({
-            type: 'error',
-            title: `No ${allowedScopes.join(' or ')} files found in workspace.`,
-            detail: [`Use \`testform suite init\` to create one first.`],
-        });
-        process.exit(1);
-    }
-
-    return askSelect('Selecciona la suite de destino (-target):', choices);
-}
+import {
+    matchesScope,
+    resolveTargetScenario,
+    promptTargetSuite,
+    parseSpec,
+    matchesScenarioSpec,
+    matchesStateKey,
+} from '../core/selector';
 
 // ---------------------------------------------------------------------------
 // test add  (formerly "generate", testrun and testplan only)
@@ -124,12 +36,10 @@ async function runAdd(options: {
     const { dir, scope, title, rules } = options;
 
     if (scope === 'testcase') {
-        notify.push({
-            type: 'error',
+        Diag.error({
             title: `\`testform suite init\` does not support scope 'testcase'.`,
             detail: [`Use \`${TITLE_CLI} generate\` for testcase files, or specify -scope=testrun or -scope=testplan.`],
-        });
-        process.exit(1);
+        }).abort();
     }
 
     await generateCmd({ dir, scope, title, rules });
@@ -151,21 +61,17 @@ async function runAutocomplete(options: {
     const { absolutePath: absoluteRunPath } = await resolveTargetScenario(target, dir, 'testrun', testDirectory, variables);
 
     // Parse the testrun feature file to find Rule blocks
-    const rawContent = readFileSync(absoluteRunPath, 'utf-8');
-    const builder = new AstBuilder(IdGenerator.uuid());
-    const gherkinParser = new GherkinRawParser(builder, new GherkinClassicTokenMatcher());
-    const doc = gherkinParser.parse(rawContent);
+    const doc = GherkinEditor.parseRawDocument(absoluteRunPath);
 
     if (!doc.feature) {
-        notify.push({ type: 'error', title: `No Feature block found in '${target}'.`, detail: [] });
-        process.exit(1);
+        Diag.structureError({ file: target, message: `No Feature block found in '${target}'.` }).abort();
+        return;
     }
 
     const ruleChildren = (doc.feature.children || []).filter((c: any) => c.rule);
 
     if (ruleChildren.length === 0) {
-        notify.push({ type: 'error', title: `No Rule blocks found in '${target}'.`, detail: [] });
-        process.exit(1);
+        Diag.structureError({ file: target, message: `No Rule blocks found in '${target}'.` }).abort();
     }
 
     // Get all testcases from the parser to match rules
@@ -241,88 +147,7 @@ async function runAutocomplete(options: {
 // suite link / mark  (replaces apply -set-status)
 // ---------------------------------------------------------------------------
 
-/**
- * Parse testcase argument for `suite link` (and `suite mark`).
- *
- * Supported identity strategies:
- *   1. Only tag:       "@tc-1=passed" or "tc-1=passed"
- *   2. File + tag:     "checkout.case.feature::@tc-1=passed" or "checkout.case.feature@tc-1=passed"
- *   3. Scenario name:  "Pago con tarjeta=passed"
- *
- * Returns: { featurePart, casePart, newStatus, rawIdentifier }
- */
-function parseTcArg(tcArg: string, subCommand: string = 'link'): { featurePart: string; casePart: string; newStatus: string; rawIdentifier: string } {
-    const eqIdx = tcArg.lastIndexOf('=');
-    let newStatus = 'pending';
-    let rawIdentifier = tcArg.trim();
 
-    if (eqIdx !== -1) {
-        newStatus = tcArg.slice(eqIdx + 1).trim();
-        rawIdentifier = tcArg.slice(0, eqIdx).trim();
-
-        if (!TESTCASE_STATUSES.includes(newStatus as any)) {
-            notify.push({
-                type: 'error',
-                title: `Invalid status '${newStatus}' in '${tcArg}'.`,
-                detail: [
-                    `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
-                ],
-            });
-            process.exit(1);
-        }
-    } else if (subCommand === 'mark') {
-        notify.push({
-            type: 'error',
-            title: `Invalid format: '${tcArg}'`,
-            detail: [
-                `Expected format: '<identifier>=<status>'`,
-                `Examples:`,
-                `  ${TITLE_CLI} suite mark "@tc-1=passed" -target="@tr-2"`,
-                `  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
-                ``,
-                `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
-            ],
-        });
-        process.exit(1);
-    }
-
-    if (!rawIdentifier) {
-        notify.push({
-            type: 'error',
-            title: `Could not find scenario identity in '${tcArg}'.`,
-            detail: [
-                `Expected format: '<identifier>=<status>'`,
-                `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
-            ],
-        });
-        process.exit(1);
-    }
-
-    // Strip type prefix (e.g. github_testcase., local_testcase., testcase.)
-    const stripped = rawIdentifier.replace(/^([a-zA-Z0-9_-]+_)?testcase\./, '');
-
-    let featurePart = '';
-    let casePart = '';
-
-    if (stripped.includes('::')) {
-        const doubleColonIdx = stripped.indexOf('::');
-        featurePart = stripped.slice(0, doubleColonIdx).trim();
-        casePart = stripped.slice(doubleColonIdx + 2).trim();
-    } else {
-        const atIdx = stripped.lastIndexOf('@');
-        if (atIdx > 0) {
-            // e.g. "cuenta/inicio-sesion.feature@tc-1"
-            featurePart = stripped.slice(0, atIdx).trim();
-            casePart = stripped.slice(atIdx).trim();
-        } else {
-            // e.g. "@tc-1", "tc-1", or scenario title "Validar login exitoso"
-            featurePart = '';
-            casePart = stripped.trim();
-        }
-    }
-
-    return { featurePart, casePart, newStatus, rawIdentifier };
-}
 
 // ---------------------------------------------------------------------------
 // suite link  (implicit & explicit linking for testrun & testplan)
@@ -345,9 +170,8 @@ async function runLink(options: {
         if (isInteractive()) {
             target = await promptTargetSuite(dir, ['testrun', 'testplan'], testDirectory, variables);
         } else {
-            notify.push({
-                type: 'error',
-                title: `Usage: ${TITLE_CLI} suite link "<identifier>=<status>" -target=<path|relative|@tr-N>`,
+            Diag.usage({
+                syntax: `${TITLE_CLI} suite link "<identifier>=<status>" -target=<path|relative|@tr-N>`,
                 detail: [
                     `Specify -target to indicate which suite to link into.`,
                     `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
@@ -366,10 +190,11 @@ async function runLink(options: {
                     `  # Link into testplan:`,
                     `  ${TITLE_CLI} suite link "sprint42.run.feature" -target="@tp-1"`,
                 ],
-            });
-            process.exit(1);
+            }).abort();
+            return;
         }
     }
+    if (!target) return;
 
     const searchDir = testDirectory ? join(dir, testDirectory) : dir;
     const parser = new Parser(searchDir, variables);
@@ -397,16 +222,14 @@ async function runLink(options: {
         let runToLink = options.linkArg;
 
         if (runToLink && (runToLink.includes('::') || runToLink.includes('=') || runToLink.startsWith('@tc'))) {
-            notify.push({
-                type: 'error',
+            Diag.error({
                 title: `Cannot link explicit testcase scenarios into a testplan.`,
                 detail: [
                     `Testplans only link entire testrun suites (Rule: <file.run.feature>).`,
                     `Example: ${TITLE_CLI} suite link "sprint42.run.feature" -target="${target}"`,
                     `         ${TITLE_CLI} suite link "@tr-1" -target="${target}"`,
                 ],
-            });
-            process.exit(1);
+            }).abort();
         }
 
         if (!runToLink) {
@@ -422,27 +245,26 @@ async function runLink(options: {
                 }));
 
                 if (choices.length === 0) {
-                    notify.push({
-                        type: 'error',
+                    Diag.error({
                         title: `No testrun files found to link into testplan '${target}'.`,
                         detail: [`Create a testrun first with \`${TITLE_CLI} suite init -scope=testrun\`.`],
-                    });
-                    process.exit(1);
+                    }).abort();
                 }
 
                 runToLink = await askSelect(`Selecciona el testrun para enlazar en '${basename(suitePath)}':`, choices);
             } else {
-                notify.push({
-                    type: 'error',
-                    title: `Please specify the testrun to link into testplan '${target}'.`,
+                Diag.usage({
+                    syntax: `${TITLE_CLI} suite link "<testrunFile|@tr-N>" -target="${target}"`,
                     detail: [
-                        `Usage: ${TITLE_CLI} suite link "<testrunFile|@tr-N>" -target="${target}"`,
+                        `Please specify the testrun to link into testplan '${target}'.`,
                         `Example: ${TITLE_CLI} suite link "sprint42.run.feature" -target="${target}"`,
                     ],
-                });
-                process.exit(1);
+                }).abort();
+                return;
             }
         }
+
+        if (!runToLink) return;
 
         let resolvedRunRule = runToLink;
         if (runToLink.startsWith('@') || !runToLink.includes('.feature')) {
@@ -505,20 +327,22 @@ async function runLink(options: {
                 tcArg = `${chosenCase}=${chosenStatus}`;
             }
         } else {
-            notify.push({
-                type: 'error',
-                title: `Please provide the testcase or rule argument to link into '${target}'.`,
+            Diag.usage({
+                syntax: `${TITLE_CLI} suite link "<identifier>=<status>" -target="${target}"`,
                 detail: [
+                    `Please provide the testcase or rule argument to link into '${target}'.`,
                     `Usage:`,
                     `  Implicit link:  ${TITLE_CLI} suite link "checkout.case.feature" -target="${target}"`,
                     `  Explicit link:  ${TITLE_CLI} suite link "checkout.case.feature::@tc-1" -target="${target}"`,
                     `                  ${TITLE_CLI} suite link "@tc-1" -target="${target}"`,
                     `                  ${TITLE_CLI} suite link "@tc-1=passed" -target="${target}"`,
                 ],
-            });
-            process.exit(1);
+            }).abort();
+            return;
         }
     }
+
+    if (!tcArg) return;
 
     // Determine if implicit (whole file) or explicit (scenario)
     const stripped = tcArg.replace(/^([a-zA-Z0-9_-]+_)?testcase\./, '');
@@ -547,52 +371,28 @@ async function runLink(options: {
     }
 
     // EXPLICIT LINK
-    const { featurePart, casePart, newStatus } = parseTcArg(tcArg, 'link');
+    const { featurePart, casePart, newStatus } = parseSpec(tcArg, { command: 'link' });
 
     const config = new Config(dir);
     const caseData = { identity: config.getIdentity('testcase'), fields: config.getFields('testcase') };
     const allFiltered = parser.filter(caseDocs, caseData, 'testcase') || [];
 
-    const matches = allFiltered.filter(s => {
-        if (featurePart) {
-            const normF = featurePart.replace(/\.feature$/i, '');
-            const matchFile = (
-                s.uri === featurePart ||
-                s.uri.endsWith(featurePart) ||
-                basename(s.uri).replace(/\.feature$/i, '') === normF
-            );
-            if (!matchFile) return false;
-        }
-
-        const normCase = casePart.trim().toLowerCase();
-        const sId = (s.custom?.identity || '').trim().toLowerCase();
-        const sName = (s.name || '').trim().toLowerCase();
-
-        if (sId === normCase || sId.replace(/^@/, '') === normCase.replace(/^@/, '')) return true;
-        if (sName === normCase) return true;
-        return false;
-    });
+    const matches = allFiltered.filter(s => matchesScenarioSpec(s, { featurePart, casePart }));
 
     if (matches.length === 0) {
-        notify.push({
-            type: 'error',
+        Diag.error({
             title: `Testcase '${casePart}' not found in workspace to link.`,
             detail: [`Make sure the .case.feature file and scenario exist in your test directory.`],
-        });
-        process.exit(1);
+        }).abort();
     }
 
     if (matches.length > 1) {
-        const amb = matches.map(m => `  - ${basename(m.uri)}::${m.custom?.identity || m.name}`);
-        notify.push({
-            type: 'error',
-            title: `Multiple testcases matched '${casePart}'.`,
-            detail: [
-                `Please specify the file name to disambiguate:`,
-                ...amb
-            ],
-        });
-        process.exit(1);
+        const amb = matches.map(m => `${basename(m.uri)}::${m.custom?.identity || m.name}`);
+        Diag.ambiguousTestcase({
+            identifier: casePart,
+            target: 'workspace',
+            matches: amb,
+        }).abort();
     }
 
     const matchedTc = matches[0];
@@ -651,19 +451,18 @@ async function runState(options: {
     const foundRun = runs.find((r: any) => r.identity === identity);
 
     if (!foundRun) {
-        notify.push({
-            type: 'error',
+        Diag.error({
             title: `Testrun not found in state for target '${target}' (Identity: ${identity}).`,
             detail: [`Try running \`${TITLE_CLI} refresh -scope testrun\` to sync state.`],
-        });
-        process.exit(1);
+        }).abort();
+        return;
     }
 
     // Resolve tc argument or prompt interactively
-    let featurePart: string;
-    let casePart: string;
-    let newStatus: string;
-    let rawIdentifier: string;
+    let featurePart: string = '';
+    let casePart: string = '';
+    let newStatus: string = '';
+    let rawIdentifier: string = '';
 
     const allTestcases = stateObj.getResources('testcase');
 
@@ -671,20 +470,20 @@ async function runState(options: {
         if (!tcArg.includes('=') && (subCommand === 'mark' || subCommand === 'state')) {
             if (isInteractive()) {
                 const promptedStatus = await askStatus();
-                ({ featurePart, casePart, newStatus, rawIdentifier } = parseTcArg(`${tcArg}=${promptedStatus}`, subCommand));
+                ({ featurePart, casePart, newStatus, rawIdentifier } = parseSpec(`${tcArg}=${promptedStatus}`, { command: 'mark' }));
             } else {
-                ({ featurePart, casePart, newStatus, rawIdentifier } = parseTcArg(tcArg, subCommand));
+                ({ featurePart, casePart, newStatus, rawIdentifier } = parseSpec(tcArg, { command: 'mark' }));
             }
         } else {
-            ({ featurePart, casePart, newStatus, rawIdentifier } = parseTcArg(tcArg, subCommand));
+            ({ featurePart, casePart, newStatus, rawIdentifier } = parseSpec(tcArg, { command: 'mark' }));
         }
     } else {
         // Interactive: list available testcases and prompt
         const commentIds: Record<string, any> = foundRun.attributes?.testcaseCommentIds || {};
         const keys = Object.keys(commentIds);
         if (keys.length === 0) {
-            notify.push({ type: 'error', title: `No testcases found in testrun '${target}'. Run \`testform apply\` first.`, detail: [] });
-            process.exit(1);
+            Diag.error({ title: `No testcases found in testrun '${target}'. Run \`testform apply\` first.`, detail: [] }).abort();
+            return;
         }
 
         if (isInteractive()) {
@@ -715,18 +514,17 @@ async function runState(options: {
                 console.log(`  ${i + 1}. ${k}${titlePart} [${status}]`);
             });
             console.log(`\n${bold('Available statuses:')} ${TESTCASE_STATUSES.join(', ')}\n`);
-            notify.push({
-                type: 'error',
-                title: `Please provide the testcase argument.`,
+            Diag.usage({
+                syntax: `${TITLE_CLI} suite ${subCommand} "<identifier>=<status>" -target="${target}"`,
                 detail: [
-                    `Usage: ${TITLE_CLI} suite ${subCommand} "<identifier>=<status>" -target="${target}"`,
+                    `Please provide the testcase argument.`,
                     `Strategies:`,
                     `  1. Only tag:       "@tc-1=passed"`,
                     `  2. File + tag:     "checkout.case.feature::@tc-1=passed"`,
                     `  3. Scenario name:  "Pago con tarjeta=passed"`,
-                ]
-            });
-            process.exit(1);
+                ],
+            }).abort();
+            return;
         }
     }
 
@@ -734,79 +532,26 @@ async function runState(options: {
     const commentIds: Record<string, any> = foundRun.attributes?.testcaseCommentIds || {};
 
     const matchingKeys = Object.keys(commentIds).filter(k => {
-        const [kFile = '', kId = ''] = k.split('::');
-        const kFileNorm = kFile.replace(/\.feature$/i, '');
         const tcRes = allTestcases.find((r: any) => r.identity === k);
-        const tcTitle = tcRes?.attributes?.title || '';
-
-        // If featurePart was specified, enforce file match
-        if (featurePart) {
-            const normalizedFeature = featurePart.replace(/\.feature$/i, '');
-            const fileMatches = (
-                kFile === featurePart ||
-                kFileNorm === normalizedFeature ||
-                kFile.endsWith(featurePart) ||
-                kFile.endsWith('/' + featurePart) ||
-                kFile.endsWith('/' + featurePart + '.feature') ||
-                basename(kFileNorm) === basename(normalizedFeature)
-            );
-            if (!fileMatches) return false;
-        }
-
-        const normCase = casePart.trim().toLowerCase();
-        const normId = kId.trim().toLowerCase();
-        const normTitle = tcTitle.trim().toLowerCase();
-
-        // 1. Exact ID/Tag match (with or without '@')
-        if (normId === normCase || normId.replace(/^@/, '') === normCase.replace(/^@/, '')) {
-            return true;
-        }
-
-        // 2. Exact Title match
-        if (normTitle && normTitle === normCase) {
-            return true;
-        }
-
-        // 3. Fallback: Full identity match
-        if (k.toLowerCase() === rawIdentifier.toLowerCase()) {
-            return true;
-        }
-
-        return false;
+        return matchesStateKey(k, tcRes?.attributes?.title, { featurePart, casePart, rawIdentifier });
     });
 
     if (matchingKeys.length === 0) {
-        const available = Object.keys(commentIds).slice(0, 10).map(k => `  - ${k}`);
-        notify.push({
-            type: 'error',
-            title: `Testcase '${rawIdentifier}' not found in testrun '${target}'.`,
-            detail: [
-                `Available testcases in this run (up to 10):`,
-                ...available,
-                ``,
-                `Accepted identity strategies:`,
-                `  1. Only tag:       "@tc-1=passed"`,
-                `  2. File + tag:     "checkout.case.feature::@tc-1=passed"`,
-                `  3. Scenario name:  "Pago con tarjeta=passed"`,
-            ],
-        });
-        process.exit(1);
+        Diag.testcaseNotFound({
+            identifier: rawIdentifier,
+            target,
+            available: Object.keys(commentIds),
+        }).abort();
     }
 
     if (matchingKeys.length > 1) {
-        const ambiguous = matchingKeys.map(k => `  - ${k}`);
-        notify.push({
-            type: 'error',
-            title: `Multiple testcases matched '${casePart}' in testrun '${target}'.`,
-            detail: [
-                `Matches:`,
-                ...ambiguous,
-                ``,
-                `Please specify the feature file to disambiguate:`,
-                `  e.g. ${TITLE_CLI} suite ${subCommand} "<file>::${casePart}=${newStatus}" -target="${target}"`,
-            ],
-        });
-        process.exit(1);
+        Diag.ambiguousTestcase({
+            identifier: casePart,
+            target,
+            matches: matchingKeys,
+            command: subCommand,
+            status: newStatus,
+        }).abort();
     }
 
     const targetId = matchingKeys[0];
@@ -817,10 +562,7 @@ async function runState(options: {
     // Verify that the scenario is actually expanded in the local .run.feature file.
     // If the rule is implicit, require the user to run `suite fill` first.
     if (runScenario?.uri) {
-        const localContent = readFileSync(absoluteRunPath, 'utf-8');
-        const builder = new AstBuilder(IdGenerator.uuid());
-        const gherkinParser = new GherkinRawParser(builder, new GherkinClassicTokenMatcher());
-        const localDoc = gherkinParser.parse(localContent);
+        const localDoc = GherkinEditor.parseRawDocument(absoluteRunPath);
         const ruleChildren = (localDoc.feature?.children || []).filter((c: any) => c.rule);
 
         const normBase = baseRule.replace(/\.feature$/i, '');
@@ -840,28 +582,14 @@ async function runState(options: {
         if (!isExpanded) {
             const ruleLine = matchedRuleNode?.rule?.location?.line;
             const relFile = relative(dir, absoluteRunPath) || basename(absoluteRunPath);
-            const locationStr = ruleLine
-                ? `on ${relFile} line ${ruleLine}, in rule "${baseRule}":`
-                : `on ${relFile}, in rule "${baseRule}":`;
-            const snippetLine = ruleLine
-                ? `${String(ruleLine).padStart(4, ' ')}:   Rule: ${matchedRuleNode?.rule?.name || baseRule}`
-                : '';
 
-            notify.push({
-                type: 'error',
-                title: 'Cannot mark status on implicit rule',
-                detail: [
-                    locationStr,
-                    snippetLine,
-                    '',
-                    `Scenario "${scenarioName}" belongs to the implicit Rule "${baseRule}".`,
-                    `Testform requires explicit Scenario blocks in order to track and record execution outcomes.`,
-                    '',
-                    `To expand this rule into explicit scenarios with initial pending status, run:`,
-                    `  ${TITLE_CLI} suite fill -target="${target}"`,
-                ].filter((l): l is string => l !== undefined),
-            });
-            process.exit(1);
+            Diag.implicitRule({
+                file: relFile,
+                line: ruleLine,
+                rule: baseRule,
+                scenario: scenarioName,
+                target,
+            }).abort();
         }
     }
 
@@ -952,12 +680,10 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                 { label: 'mark  - Registrar estado de ejecución de un testcase y sincronizar', value: 'mark' },
             ]);
         } else {
-            notify.push({
-                type: 'error',
-                title: `Usage: ${TITLE_CLI} suite <init|fill|link|mark> [args...]`,
+            Diag.usage({
+                syntax: `${TITLE_CLI} suite <init|fill|link|mark> [args...]`,
                 detail: [`Available subcommands: init, fill, link, mark`],
-            });
-            process.exit(1);
+            }).abort();
         }
     }
 
@@ -972,14 +698,14 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                     currentTitle = await askInput('Ingresa el título de la suite');
                 }
             } else {
-                notify.push({
-                    type: 'error',
-                    title: `Usage: ${TITLE_CLI} suite init -scope=<testrun|testplan> [-title=<title>] [-rule=<rule>]`,
+                Diag.usage({
+                    syntax: `${TITLE_CLI} suite init -scope=<testrun|testplan> [-title=<title>] [-rule=<rule>]`,
                     detail: [`Note: 'suite init' applies to testrun or testplan scope.`],
-                });
-                process.exit(1);
+                }).abort();
+                return;
             }
         }
+        if (!currentScope) return;
         await runAdd({ dir, scope: currentScope, title: currentTitle, rules });
         return;
     }
@@ -989,17 +715,17 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
             if (isInteractive()) {
                 currentTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
             } else {
-                notify.push({
-                    type: 'error',
-                    title: `Usage: ${TITLE_CLI} suite fill -target=<path|relative|@tr-N>`,
+                Diag.usage({
+                    syntax: `${TITLE_CLI} suite fill -target=<path|relative|@tr-N>`,
                     detail: [
                         `This command is exclusive to testrun scope.`,
                         `It expands empty Rule blocks using the source .case.feature file.`,
                     ],
-                });
-                process.exit(1);
+                }).abort();
+                return;
             }
         }
+        if (!currentTarget) return;
         await runAutocomplete({ dir, target: currentTarget, testDirectory, variables });
         return;
     }
@@ -1007,6 +733,13 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
     if (cmd === 'link') {
         if (!currentTarget && isInteractive()) {
             currentTarget = await promptTargetSuite(dir, ['testrun', 'testplan'], testDirectory, variables);
+        }
+        if (!currentTarget) {
+            Diag.usage({
+                syntax: `${TITLE_CLI} suite link "<identifier>=<status>" -target=<path|relative|@tr-N>`,
+                detail: [`Specify -target to indicate which suite to link into.`],
+            }).abort();
+            return;
         }
         await runLink({
             dir,
@@ -1026,9 +759,8 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
             if (isInteractive()) {
                 currentTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
             } else {
-                notify.push({
-                    type: 'error',
-                    title: `Usage: ${TITLE_CLI} suite mark "<identifier>=<status>" -target=<path|relative|@tr-N>`,
+                Diag.usage({
+                    syntax: `${TITLE_CLI} suite mark "<identifier>=<status>" -target=<path|relative|@tr-N>`,
                     detail: [
                         `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
                         ``,
@@ -1042,10 +774,11 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                         `  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
                         `  ${TITLE_CLI} suite mark "github_testcase.agencia/cuenta.feature::@tc-3=failed" -target="20260607.run.feature"`,
                     ],
-                });
-                process.exit(1);
+                }).abort();
+                return;
             }
         }
+        if (!currentTarget) return;
         await runState({
             dir,
             target: currentTarget,
@@ -1060,12 +793,11 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         return;
     }
 
-    notify.push({
-        type: 'error',
-        title: `Unknown suite subcommand: '${subCommand}'`,
-        detail: [`Available subcommands: init, fill, link, mark`],
-    });
-    process.exit(1);
+    Diag.unknownSubcommand({
+        command: 'suite',
+        subcommand: subCommand,
+        available: ['init', 'fill', 'link', 'mark'],
+    }).abort();
 };
 
 // Backwards-compatible aliases

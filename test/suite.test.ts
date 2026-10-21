@@ -3,7 +3,7 @@ import { suiteCmd, toolCmd } from '../src/commands/suite';
 import { generateCmd } from '../src/commands/generate';
 import { logger as notify } from '../src/core/logger';
 
-vi.mock('../src/core/gherkin-editor', () => ({
+vi.mock('../src/core/editor', () => ({
     GherkinEditor: {
         expandScenarios: vi.fn(),
         updateScenarioStatus: vi.fn(),

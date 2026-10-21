@@ -1,9 +1,9 @@
-import { IGitHubConfig } from '../core/types';
-import { logger as notify } from '../core/logger';
-import { Credentials } from '../core/credentials';
-import { logger } from '../core/logger';
-import { IProviderAdapter, IProviderIssuePayload, IProviderIssueResult } from './interface';
-import { TITLE_CLI, VERSION_CLI } from '../core/const';
+import { IGitHubConfig } from '../../core/types';
+import { logger as notify } from '../../core/logger';
+import { Credentials } from '../../core/credentials';
+import { logger } from '../../core/logger';
+import { IProvider, IProviderAdapter, IProviderIssuePayload, IProviderIssueResult } from '../interface';
+import { TITLE_CLI, VERSION_CLI } from '../../core/const';
 
 class Mutex {
     private mutex = Promise.resolve();
@@ -15,7 +15,7 @@ class Mutex {
 }
 const projectMutex = new Mutex();
 
-export class GitHubAdapter implements IProviderAdapter {
+export class GitHubProvider implements IProvider {
     private token: string;
     private owner: string;
     private repo: string;
@@ -230,7 +230,6 @@ export class GitHubAdapter implements IProviderAdapter {
     async getMilestoneByTitle(title: string): Promise<number | undefined> {
         if (!title) return undefined;
         try {
-            // Note: In a real-world scenario with many milestones, we'd need pagination.
             const milestones = await this.request('GET', `/repos/${this.owner}/${this.repo}/milestones?state=all&per_page=100`);
             const match = milestones.find((m: any) => m.title.toLowerCase() === title.toLowerCase());
             return match ? match.number : undefined;
@@ -275,8 +274,6 @@ export class GitHubAdapter implements IProviderAdapter {
 
         return results;
     }
-
-
 
     private projectNodeId?: string;
     private projectFields?: any[];
@@ -341,7 +338,6 @@ export class GitHubAdapter implements IProviderAdapter {
             // Not an org or project not found
         }
 
-        // If we reach here, neither user nor org query found the project
         const chalk = require('chalk');
         console.warn(chalk.yellow(`\n⚠️ Warning: Could not resolve GitHub Project V2 with ID ${this.projectId} for owner "${this.owner}".`));
         console.warn(chalk.yellow(`   If "${this.owner}" is a User account and you are authenticating via a GitHub App,`));
@@ -351,10 +347,8 @@ export class GitHubAdapter implements IProviderAdapter {
         return undefined;
     }
 
-
     /**
      * Add an issue to a GitHub Project v2 (GraphQL).
-     * Only called if projectId is configured. Returns the Item ID inside the project.
      */
     async addToProject(issueNodeId: string | number): Promise<string | undefined> {
         const meta = await this.resolveProjectMetadata();
@@ -385,7 +379,6 @@ export class GitHubAdapter implements IProviderAdapter {
                     error.name = 'GitHubProjectError';
                     throw error;
                 }
-                // Exponential backoff: 1s, 2s, 4s...
                 await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
             }
         }
@@ -407,9 +400,8 @@ export class GitHubAdapter implements IProviderAdapter {
         let fieldIndex = 0;
 
         for (const [key, val] of Object.entries(customFields)) {
-            // Find field in project by name (case insensitive)
             const field = meta.fields.find(f => f.name && f.name.toLowerCase() === key.toLowerCase());
-            if (!field) continue; // Field not mapped or doesn't exist in project
+            if (!field) continue;
 
             let fieldValue: any = undefined;
 
@@ -426,7 +418,6 @@ export class GitHubAdapter implements IProviderAdapter {
                 }
             } else if (field.dataType === 'DATE') {
                 if (val !== undefined && val !== null) {
-                    // Try to extract YYYY-MM-DD
                     const dateStr = String(val).split('T')[0];
                     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                         fieldValue = { date: dateStr };
@@ -509,7 +500,6 @@ export class GitHubAdapter implements IProviderAdapter {
 
     /**
      * Get fields of a Project V2 item (GraphQL).
-     * Returns a map of field name (lowercase) to its value.
      */
     async getProjectItemFields(issueNodeId: string | number): Promise<Record<string, string>> {
         const meta = await this.resolveProjectMetadata();
@@ -540,7 +530,6 @@ export class GitHubAdapter implements IProviderAdapter {
             `, { id: issueNodeId });
 
             const projectItems = res?.node?.projectItems?.nodes || [];
-            // Find the project item that matches our project ID
             const item = projectItems.find((i: any) => i.project?.id === meta.id);
             if (!item || !item.fieldValues || !item.fieldValues.nodes) return {};
 
@@ -593,10 +582,13 @@ export class GitHubAdapter implements IProviderAdapter {
                 replace_parent: true
             });
         } catch (error: any) {
-            // Ignore if it's already a sub-issue or other non-fatal errors
             if (!error.message.includes('422')) {
                 throw error;
             }
         }
     }
 }
+
+/** Backward-compatibility alias */
+export const GitHubAdapter = GitHubProvider;
+export type GitHubAdapter = GitHubProvider;

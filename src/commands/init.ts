@@ -8,7 +8,7 @@ import { Logger } from '../core/logger';
 import { basename, dirname, join } from 'path';
 import { State } from '../core/state';
 import { WorkspaceManager } from '../core/workspace';
-import { ensureDriverInstalled } from '../core/driver-loader';
+import { ensureDriverInstalled } from '../core/driver';
 
 interface InitPaths {
     configPath: string;

@@ -3,7 +3,7 @@ import { importCmd } from '../src/commands/import';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { GitHubAdapter } from '../src/adapters/github';
+import { GitHubAdapter } from '../src/providers/github';
 import { FILE_STATE } from '../src/core/const';
 
 const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
@@ -13,7 +13,7 @@ const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
 const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-vi.mock('../src/adapters/github');
+vi.mock('../src/providers/github');
 
 describe('Command importCmd', () => {
     let tmpDir: string;

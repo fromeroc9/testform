@@ -3,7 +3,7 @@ import { applyCmd } from '../src/commands/apply';
 import { State } from '../src/core/state';
 import { Parser } from '../src/core/parser';
 import { Config } from '../src/core/config';
-import { createCommandContext } from '../src/core/command-context';
+import { createCommandContext } from '../src/core/context';
 import { askApproval } from '../src/core/prompt';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync } from 'fs';
@@ -18,7 +18,7 @@ const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
 vi.mock('../src/core/state');
 vi.mock('../src/core/parser');
 vi.mock('../src/core/config');
-vi.mock('../src/core/command-context');
+vi.mock('../src/core/context');
 vi.mock('../src/core/prompt');
 vi.mock('../src/core/policy');
 

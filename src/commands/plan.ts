@@ -14,6 +14,8 @@ import { refreshState } from './refresh';
 import { SCOPE_CONFIG, VERSION_CLI } from '../core/const';
 import { formatResourceAddress } from '../core/utils';
 import { join } from 'path';
+import { matchesScope, matchesTarget } from '../core/selector';
+import { resolveScopes } from '../core/cli';
 
 /**
  * Calculate the hash for a scenario (used for idempotency).
@@ -83,12 +85,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     const parser = new Parser(parseDir, variables);
     const documents = parser.content();
 
-    const matchesScope = (s: any, scopeName: IScope) => {
-        if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scopeName)) return false;
-        const cfg = SCOPE_CONFIG[scopeName as keyof typeof SCOPE_CONFIG];
-        return s.feature?.tags?.includes(cfg.tag) || s.uri.endsWith(cfg.ext);
-    };
-
     // Only process scenarios that match the requested scope
     let rawScenarios = documents.filter(s => matchesScope(s, scope));
 
@@ -131,8 +127,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     let resources = state.getResources(RESOURCE_TYPE);
 
     if (target) {
-        const targetArray = Array.isArray(target) ? target : [target];
-        resources = resources.filter(r => targetArray.some(t => r.identity === t || r.identity.startsWith(`${t}::`) || r.identity.endsWith(`/${t}`) || r.identity.endsWith(t)));
+        resources = resources.filter(r => matchesTarget(r.identity, target));
     }
 
     if (refreshOnly) {
@@ -177,11 +172,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         const localHash = hashScenario(scenario, scope);
         const existing = stateMap.get(identity);
 
-        const shouldForceReplace = replaceTargets
-            ? (Array.isArray(replaceTargets)
-                ? replaceTargets.some(t => identity === t || identity.startsWith(`${t}::`) || identity.endsWith(`/${t}`) || identity.endsWith(t))
-                : (identity === replaceTargets || identity.startsWith(`${replaceTargets}::`) || identity.endsWith(`/${replaceTargets}`) || identity.endsWith(replaceTargets)))
-            : false;
+        const shouldForceReplace = replaceTargets ? matchesTarget(identity, replaceTargets) : false;
 
         if (!existing) {
             // New resource — needs to be created
@@ -315,7 +306,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
     let plan: PlanResult = { changes: [], hasChanges: false, state: stateObj };
     try {
-        const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+        const scopesToRun = resolveScopes(scope);
         
         if (refresh && !destroyPlan) {
             if (!isJson) console.log(MSG_ACQUIRING_LOCK);

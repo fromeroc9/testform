@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadDriver, ALLOWED_DRIVERS, isDriverAvailable, ensureDriverInstalled } from '../../src/core/driver-loader';
+import { loadDriver, ALLOWED_DRIVERS, isDriverAvailable, ensureDriverInstalled } from '../../src/core/driver';
 
 describe('Dynamic Driver Loader', () => {
     it('should reject packages not in the whitelist', () => {

@@ -11,10 +11,11 @@ import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { TITLE_APP, SCOPE_RESOURCE_MAP } from '../core/const';
-import { createCommandContext } from '../core/command-context';
+import { createCommandContext } from '../core/context';
 import { askDestroyApproval } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
 import { IScope } from '../core/types';
+import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
 
 /**
  * Destroy command: closes all GitHub issues tracked by TestForm in the current scope.
@@ -53,12 +54,9 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
         backupPath
     } = options;
     const logger = new Logger(verbose);
-    const stateObj = new State(dir, statePath, backupPath);
-    await stateObj.init();
-    await stateObj.acquireLock(lock, lockTimeout);
 
-    try {
-        const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+    return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
+        const scopesToRun = resolveScopes(scope);
 
         const allResources = scopesToRun.flatMap(s => (SCOPE_RESOURCE_MAP as any)[s] ? stateObj.getResources((SCOPE_RESOURCE_MAP as any)[s]) : []);
         if (allResources.length === 0) {
@@ -66,12 +64,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             return;
         }
 
-        if (!autoApprove && !input) {
-            const error = new Error('This command requires manual approval, but input is disabled. Use the\n-auto-approve flag to bypass approval.');
-            error.name = 'No input allowed';
-            console.error(error.name + ': ' + error.message);
-            throw error;
-        }
+        assertApprovalAllowed(autoApprove, input);
 
         let destroyed = 0;
 
@@ -141,7 +134,5 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log('');
             console.log(green(bold(`Destroy complete! ${destroyed} resource(s) destroyed.`)));
         }
-    } finally {
-        await stateObj.releaseLock();
-    }
+    });
 };

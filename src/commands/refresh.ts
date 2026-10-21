@@ -7,9 +7,9 @@
  */
 
 import { bold, green, yellow, red, dim } from 'chalk';
-import { GitHubAdapter } from '../adapters/github';
-import { LocalAdapter } from '../adapters/local';
-import { IProviderAdapter } from '../adapters/interface';
+import { GitHubProvider, GitHubAdapter } from '../providers/github';
+import { LocalProvider, LocalAdapter } from '../providers/local';
+import { IProvider, IProviderAdapter } from '../providers/interface';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
@@ -17,6 +17,8 @@ import { logger as notify } from '../core/logger';
 import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 import { IScope } from '../core/types';
 import { formatResourceAddress } from '../core/utils';
+import { executeInBatches, detectAttributeDrift } from '../core/sync';
+import { withStateLock, resolveScopes } from '../core/cli';
 
 /**
  * Core refresh logic: updates the state to reflect remote GitHub reality.
@@ -94,121 +96,62 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     const parallelism = parallelismRaw ? parseInt(String(parallelismRaw), 10) || 3 : 3;
 
-    for (let i = 0; i < resources.length; i += parallelism) {
-        const batch = resources.slice(i, i + parallelism);
-        await Promise.all(batch.map(async (res) => {
-            const remoteId = res.attributes.remoteId ?? '';
-            if (!silent) console.log(`${formatResourceAddress(res.type, res.identity)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
+    await executeInBatches(resources, parallelism, async (res) => {
+        const remoteId = res.attributes.remoteId ?? '';
+        if (!silent) console.log(`${formatResourceAddress(res.type, res.identity)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
 
-            try {
-                if (!res.attributes.issueNumber) {
-                    if (!silent) console.log(yellow(`  ${res.identity}: No issue number — removing from state`));
-                    state.removeResource(res.identity);
-                    removed++;
-                    return;
-                }
-
-                const issue = await github.getIssue(res.attributes.issueNumber);
-
-                if (!issue) {
-                    if (!silent) console.log(red(`  ${res.identity}: Issue #${res.attributes.issueNumber} not found — removing from state`));
-                    state.removeResource(res.identity);
-                    removed++;
-                } else if (issue.state === 'closed') {
-                    if (!silent) console.log(yellow(`  ${res.identity}: Issue #${res.attributes.issueNumber} is closed — removing from state`));
-                    state.removeResource(res.identity);
-                    removed++;
-                } else {
-                    let driftDetected = false;
-
-                    // Sync title
-                    if (res.attributes.title !== issue.title) {
-
-                        res.attributes.title = issue.title;
-                        driftDetected = true;
-                    }
-
-                    // Helper to compare string arrays case-insensitively
-                    const arraysEqual = (a: string[] = [], b: string[] = []) => {
-                        if (a.length !== b.length) return false;
-                        const sortedA = [...a].sort();
-                        const sortedB = [...b].sort();
-                        return sortedA.every((val, index) => val === sortedB[index]);
-                    };
-
-                    const remoteLabels = issue.labels ?? [];
-                    const localLabels = Array.isArray(res.attributes.labels) ? res.attributes.labels : (res.attributes.labels ? String(res.attributes.labels).split(',') : []);
-                    if (!arraysEqual(localLabels, remoteLabels)) {
-
-                        res.attributes.labels = remoteLabels as any;
-                        driftDetected = true;
-                    }
-
-                    const remoteAssignees = issue.assignees ?? [];
-                    const localAssignees = Array.isArray(res.attributes.assignees) ? res.attributes.assignees : (res.attributes.assignees ? String(res.attributes.assignees).split(',') : []);
-                    if (!arraysEqual(localAssignees, remoteAssignees)) {
-
-                        res.attributes.assignees = remoteAssignees as any;
-                        driftDetected = true;
-                    }
-
-                    const remoteMilestone = issue.milestone ?? '';
-                    const localMilestone = String(res.attributes.milestone ?? '');
-                    if (localMilestone !== remoteMilestone) {
-
-                        res.attributes.milestone = remoteMilestone;
-                        driftDetected = true;
-                    }
-
-                    // Fetch custom fields
-                    if (issue.node_id) {
-                        const remoteCustomFields = github.getProjectItemFields ? await github.getProjectItemFields(issue.node_id) : {};
-                        const localCustomFields: Record<string, string> = (res.attributes.custom_fields as Record<string, string>) || {};
-
-                        // Check all local custom fields to see if they changed or were cleared on remote
-                        for (const localKey of Object.keys(localCustomFields)) {
-                            // Find the remote value (case insensitive match)
-                            const remoteKeyMatch = Object.keys(remoteCustomFields).find(k => k.toLowerCase() === localKey.toLowerCase());
-                            const remoteVal = remoteKeyMatch ? remoteCustomFields[remoteKeyMatch] : '';
-                            
-                            const localVal = String(Object.prototype.hasOwnProperty.call(localCustomFields, localKey) ? localCustomFields[localKey] : '');
-                            
-                            // Clean prefix '@' if present for comparison
-                            const cleanLocalVal = localVal.startsWith('@') ? localVal.substring(1).toLowerCase() : localVal.toLowerCase();
-                            const cleanRemoteVal = remoteVal.toLowerCase();
-
-                            if (cleanLocalVal !== cleanRemoteVal) {
-
-                                Object.assign(localCustomFields, { [localKey]: remoteVal });
-                                driftDetected = true;
-                            }
-                        }
-                        res.attributes.custom_fields = localCustomFields;
-                    }
-
-                    if (driftDetected) {
-                        if (!silent) {
-                            console.log(yellow(`  ! Drift detected on remote for ${res.identity} (Issue #${res.attributes.issueNumber})`));
-                            console.log(dim(`    Run 'testform diff --remote' to inspect differences or interactively pull changes.`));
-                        }
-                        // Invalidate localHash to force a plan diff
-                        res.attributes.localHash = 'drift_detected';
-                        state.upsertResource(res);
-                    }
-
-                    refreshed++;
-                }
-            } catch (error: any) {
-                if (!silent) {
-                    notify.push({
-                        type: 'warning',
-                        title: `Failed to refresh ${res.identity}: ${error.message}`,
-                        detail: [],
-                    });
-                }
+        try {
+            if (!res.attributes.issueNumber) {
+                if (!silent) console.log(yellow(`  ${res.identity}: No issue number — removing from state`));
+                state.removeResource(res.identity);
+                removed++;
+                return;
             }
-        }));
-    }
+
+            const issue = await github.getIssue(res.attributes.issueNumber);
+
+            if (!issue) {
+                if (!silent) console.log(red(`  ${res.identity}: Issue #${res.attributes.issueNumber} not found — removing from state`));
+                state.removeResource(res.identity);
+                removed++;
+            } else if (issue.state === 'closed') {
+                if (!silent) console.log(yellow(`  ${res.identity}: Issue #${res.attributes.issueNumber} is closed — removing from state`));
+                state.removeResource(res.identity);
+                removed++;
+            } else {
+                const remoteCustomFields = (issue.node_id && github.getProjectItemFields)
+                    ? await github.getProjectItemFields(issue.node_id)
+                    : undefined;
+
+                const { hasDrift, newAttributes } = detectAttributeDrift(
+                    res.attributes,
+                    issue,
+                    remoteCustomFields
+                );
+
+                if (hasDrift) {
+                    res.attributes = { ...res.attributes, ...newAttributes };
+                    if (!silent) {
+                        console.log(yellow(`  ! Drift detected on remote for ${res.identity} (Issue #${res.attributes.issueNumber})`));
+                        console.log(dim(`    Run 'testform diff --remote' to inspect differences or interactively pull changes.`));
+                    }
+                    // Invalidate localHash to force a plan diff
+                    res.attributes.localHash = 'drift_detected';
+                    state.upsertResource(res);
+                }
+
+                refreshed++;
+            }
+        } catch (error: any) {
+            if (!silent) {
+                notify.push({
+                    type: 'warning',
+                    title: `Failed to refresh ${res.identity}: ${error.message}`,
+                    detail: [],
+                });
+            }
+        }
+    });
 
     await state.save();
 
@@ -258,16 +201,10 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
         target
     } = options;
     const logger = new Logger(verbose);
-    const stateObj = new State(dir, statePath, backupPath);
-    await stateObj.init();
-    await stateObj.acquireLock(lock, lockTimeout);
-
-    try {
-        const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+    return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
+        const scopesToRun = resolveScopes(scope);
         for (const s of scopesToRun) {
             await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw, target });
         }
-    } finally {
-        await stateObj.releaseLock();
-    }
+    });
 };

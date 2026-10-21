@@ -1,54 +1,15 @@
 import { join, dirname } from 'path';
-import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { Config } from '../core/config';
 import { IScope } from '../core/types';
 import { logger } from '../core/logger';
+import { findFeatureFiles, findNextIdentity } from '../core/editor';
 
 interface GenerateCmdOptions {
     dir: string;
     scope: IScope;
     title?: string;
     rules?: string[];
-}
-
-function findFeatures(dirPath: string): string[] {
-    const result: string[] = [];
-    try {
-        const entries = readdirSync(dirPath, { withFileTypes: true });
-        for (const entry of entries) {
-            const fullPath = join(dirPath, entry.name);
-            if (entry.isDirectory()) {
-                if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-                    result.push(...findFeatures(fullPath));
-                }
-            } else if (entry.name.endsWith('.feature')) {
-                result.push(fullPath);
-            }
-        }
-} catch (e) { }
-    return result;
-}
-
-function findNextIdentity(dirPath: string, pattern: string): string | null {
-    if (!pattern.includes('*')) return null;
-    
-    const prefix = pattern.split('*')[0].replace(/^@/, '');
-    const suffix = pattern.split('*')[1] || '';
-    
-    const regex = new RegExp(`@${prefix}(\\d+)${suffix}\\b`, 'g');
-    let max = 0;
-    
-    const allFeatures = findFeatures(dirPath);
-    for (const file of allFeatures) {
-        const content = require('fs').readFileSync(file, 'utf-8');
-        let match;
-        while ((match = regex.exec(content)) !== null) {
-            const num = parseInt(match[1], 10);
-            if (num > max) max = num;
-        }
-    }
-    
-    return `@${prefix}${max + 1}${suffix}`;
 }
 
 export const generateCmd = async (options: GenerateCmdOptions) => {
@@ -120,7 +81,7 @@ export const generateCmd = async (options: GenerateCmdOptions) => {
     }
 
     if (options.rules && options.rules.length > 0) {
-        const allFeatures = findFeatures(dir);
+        const allFeatures = findFeatureFiles(dir, true);
 
         for (const rule of options.rules) {
             const ruleFile = rule.includes('::') ? rule.split('::')[0] : rule;

@@ -66,7 +66,7 @@ export class Config {
     }
 
     getProviderType(): string {
-        const raw = this.config.provider;
+        const raw: any = this.config.provider;
         if (!raw) {
             if ((this.config as any).github) return 'github';
             return 'local';

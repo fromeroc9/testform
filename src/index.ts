@@ -36,20 +36,13 @@ import { TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE, VERSION_CLI, FILE_
 import { getCommandHelp, HELP_GLOBAL } from './core/help';
 import { TestformError } from './core/errors';
 
-function compareVersions(a: string, b: string): number {
-    const pa = a.split('.').map((v) => Number(v));
-    const pb = b.split('.').map((v) => Number(v));
-    const size = Math.max(pa.length, pb.length);
-
-    for (let i = 0; i < size; i++) {
-        const av = pa.at(i) ?? 0;
-        const bv = pb.at(i) ?? 0;
-        if (av > bv) return 1;
-        if (av < bv) return -1;
-    }
-
-    return 0;
-}
+import {
+    resolveWorkDir as getWorkDir,
+    resolveVariableParser as getVariableParser,
+    normalizeScope as getScope,
+    normalizeCliArgs as normalizeArgv,
+    compareCliVersions as compareVersions
+} from './core/cli';
 
 function printVersion(detailed: boolean = false) {
     const latestVersion = process.env.TESTSTATE_LATEST_VERSION;
@@ -68,49 +61,6 @@ function printVersion(detailed: boolean = false) {
         console.log(`Your version of ${TITLE_APP} is out of date! The latest version`);
         console.log(`is ${latestVersion}. You can update from your release source.`);
     }
-}
-
-/**
- * Normalizes Terraform-style single-dash flags (e.g. -chdir=foo, -auto-approve)
- * to standard double-dash flags (--chdir=foo, --auto-approve) for cac compatibility.
- */
-function normalizeArgv(argv: string[]): string[] {
-    const shortFlags = new Set(['C', 's', 'h', 'v', 'a', 'o']);
-
-    return argv.map((arg) => {
-        // e.g. -chdir, -auto-approve, -var=foo
-        const match = arg.match(/^-([a-zA-Z][a-zA-Z0-9-]*)(=(.*))?$/);
-        if (!match) return arg;
-
-        const flag = match[1];
-        const suffix = match[2] || '';
-
-        // If it's a known single-character short flag, keep it as is
-        if (shortFlags.has(flag)) {
-            return arg;
-        }
-
-        // Convert single dash word flags to double dash
-        return `--${flag}${suffix}`;
-    });
-}
-
-function getWorkDir(options: any): string {
-    const workDirRaw = String(options.chdir || '.');
-    return resolve(process.env.INIT_CWD || process.cwd(), workDirRaw);
-}
-
-function getVariableParser(options: any, workDir: string): VariableParser {
-    const varArr = options.var ? (Array.isArray(options.var) ? options.var : [options.var]) : undefined;
-    const varFileArr = options.varFile ? (Array.isArray(options.varFile) ? options.varFile : [options.varFile]) : undefined;
-    return new VariableParser(varArr, varFileArr, workDir);
-}
-
-function getScope(options: any): { scope: IScope | 'all'; singleScope: IScope } {
-    const scopeVal = options.scope as IScope | 'all' | undefined;
-    const scope: IScope | 'all' = scopeVal || 'all';
-    const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
-    return { scope, singleScope };
 }
 
 export function createCli() {

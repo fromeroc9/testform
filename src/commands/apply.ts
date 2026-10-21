@@ -11,7 +11,9 @@ import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
 import { askApproval } from '../core/prompt';
 import { formatResourceAddress, elapsedSeconds } from '../core/utils';
-import { createCommandContext } from '../core/command-context';
+import { createCommandContext } from '../core/context';
+import { executeInBatches, syncTestrunComments as syncCommentsHelper } from '../core/sync';
+import { resolveScopes, assertApprovalAllowed } from '../core/cli';
 
 interface ApplyCmdOptions {
     dir?: string;
@@ -84,7 +86,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
         } else {
 
-            const scopesToRun: IScope[] = (scope as string) === 'all' ? ['testcase', 'testrun', 'testplan'] : [scope as IScope];
+            const scopesToRun = resolveScopes(scope);
             let allChanges: any[] = [];
             let finalState = stateObj;
 
@@ -114,12 +116,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
             // Ask for approval
             if (!autoApprove) {
-                if (!input) {
-                    const error = new Error(ERR_NO_INPUT_ALLOWED + '\nUse the -auto-approve flag to bypass approval.');
-                    error.name = 'No input allowed';
-                    console.error(error.name + ': ' + error.message);
-                    throw error;
-                }
+                assertApprovalAllowed(autoApprove, input);
                 const approved = await askApproval();
                 if (!approved) {
                     notify.push({
@@ -187,43 +184,23 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         };
 
         // Helper to sync status comments for testruns
-        const syncTestrunComments = async (change: any, issueNumber: number, existingAttributes?: any) => {
-            if (!change.resourceType.endsWith('testrun') || !change.scenario.custom?.testcases) return {};
-
-            const testcaseCommentIds: Record<string, any> = existingAttributes?.testcaseCommentIds || {};
-            const testcaseStatuses: Record<string, string> = existingAttributes?.testcaseStatuses || {};
-            const expandedTestcases: string[] = [];
-
-            const comments = resource.evaluateComments(change.resourceType, change.scenario, { state: stateObj, testDirectory, existingAttributes });
-
-            for (const comment of comments) {
-                const { identity, status, body } = comment;
-                expandedTestcases.push(identity);
-
-                if (!testcaseCommentIds[identity] || testcaseStatuses[identity] !== status) {
-                    if (testcaseCommentIds[identity]) {
-                        await github.updateIssueComment(testcaseCommentIds[identity], body);
-                        console.log(`  -> Updated status comment for ${identity} to '${status}'`);
-                    } else {
-                        const result = await github.createIssueComment(issueNumber, body);
-                        testcaseCommentIds[identity] = result.id;
-                        console.log(`  -> Created status comment for ${identity} as '${status}'`);
-                    }
-                    testcaseStatuses[identity] = status;
-                }
-            }
-
-            return { testcaseCommentIds, testcaseStatuses, expandedTestcases };
-        };
+        const syncTestrunComments = (change: any, issueNumber: number, existingAttributes?: any) =>
+            syncCommentsHelper({
+                change,
+                issueNumber,
+                provider: github,
+                stateObj,
+                testDirectory,
+                existingAttributes,
+                onCommentUpdate: (id, st) => console.log(`  -> Updated status comment for ${id} to '${st}'`),
+                onCommentCreate: (id, st) => console.log(`  -> Created status comment for ${id} as '${st}'`),
+            });
 
         // Execute changes in parallel batches
         const parallelismNum = parallelism ? parseInt(String(parallelism), 10) || 1 : 1;
 
-        for (let i = 0; i < plan.changes.length; i += parallelismNum) {
-            const batch = plan.changes.slice(i, i + parallelismNum);
-
-            await Promise.all(batch.map(async (change) => {
-                try {
+        await executeInBatches(plan.changes, parallelismNum, async (change) => {
+            try {
                     if (change.action === 'add') {
                         const address = formatResourceAddress(change.resourceType, change.identity);
                         console.log(`${address}: Creating...`);
@@ -412,8 +389,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         ],
                     });
                 }
-            }));
-        }
+        });
 
         // Save state once after all operations
         // Final empty line for better UX

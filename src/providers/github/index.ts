@@ -1,2 +1,2 @@
-export { GitHubAdapter, GitHubAdapter as GitHubProvider } from '../../adapters/github';
+export * from './client';
 export * from './templates';

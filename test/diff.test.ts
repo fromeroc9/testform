@@ -3,7 +3,7 @@ import { diffCmd } from '../src/commands/diff';
 import { State } from '../src/core/state';
 import { Parser } from '../src/core/parser';
 import { Config } from '../src/core/config';
-import { createCommandContext } from '../src/core/command-context';
+import { createCommandContext } from '../src/core/context';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as readline from 'readline';
@@ -13,7 +13,7 @@ const mockLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.mock('../src/core/state');
 vi.mock('../src/core/parser');
 vi.mock('../src/core/config');
-vi.mock('../src/core/command-context');
+vi.mock('../src/core/context');
 vi.mock('readline');
 
 function hashScenario(scenario: any, scope: string = 'testcase'): string {

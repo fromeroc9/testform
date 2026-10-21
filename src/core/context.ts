@@ -7,9 +7,8 @@
  * instead of repeating this pattern inline.
  */
 
-import { GitHubAdapter } from '../adapters/github';
-import { LocalAdapter } from '../adapters/local';
-import { IProviderAdapter } from '../adapters/interface';
+import { GitHubProvider as GitHubAdapter, LocalProvider as LocalAdapter, IProvider as IProviderAdapter } from '../providers';
+import { createProvider } from '../providers/loader';
 import { Config } from './config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
@@ -108,7 +107,6 @@ export async function createCommandContext(
         }
         adapter = new GitHubAdapter(ghConfig);
     } else {
-        const { createProvider } = await import('../providers/loader');
         adapter = await createProvider(config, dir);
     }
 
