@@ -93,24 +93,60 @@ export async function askMigrationApproval(newBackendType: string): Promise<bool
     });
 }
 
+export function isInteractive(): boolean {
+    return Boolean(process.stdin.isTTY && !process.env.CI);
+}
+
+export async function askInput(promptText: string, defaultValue?: string): Promise<string> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const label = defaultValue ? `${promptText} [${defaultValue}]: ` : `${promptText}: `;
+    return new Promise((resolve) => {
+        rl.question(`  ${label}`, (answer) => {
+            rl.close();
+            const trimmed = answer.trim();
+            resolve(trimmed || defaultValue || '');
+        });
+    });
+}
+
+export async function askSelect(
+    titleText: string,
+    choices: { label: string; value: string }[]
+): Promise<string> {
+    console.log(`\n${bold(titleText)}`);
+    choices.forEach((c, idx) => {
+        console.log(`  ${bold(`${idx + 1}.`)} ${c.label}`);
+    });
+    console.log('');
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    return new Promise((resolve) => {
+        const ask = () => {
+            rl.question(`  Select an option (1-${choices.length}): `, (answer) => {
+                const num = parseInt(answer.trim(), 10);
+                if (num >= 1 && num <= choices.length) {
+                    rl.close();
+                    resolve(choices[num - 1].value);
+                } else {
+                    console.log(`  Invalid option. Please enter a number between 1 and ${choices.length}.`);
+                    ask();
+                }
+            });
+        };
+        ask();
+    });
+}
+
 /**
  * Interactive prompt for selecting a status.
  *
  * @returns The selected status string.
  */
-export async function askStatus(): Promise<string> {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-
-    return new Promise((resolve) => {
-        console.log('');
-        console.log(bold('Select the new status for this testcase:'));
-        console.log('  Available options: passed, failed, pending, skipped, blocked, etc.');
-        console.log('');
-
-        rl.question('  Enter the new status: ', (answer) => {
-            rl.close();
-            console.log('');
-            resolve(answer.trim().toLowerCase());
-        });
-    });
+export async function askStatus(defaultStatus: string = 'passed'): Promise<string> {
+    return askSelect('Select the status:', [
+        { label: 'passed - Prueba ejecutada con éxito', value: 'passed' },
+        { label: 'failed - Prueba fallida', value: 'failed' },
+        { label: 'pending - Pendiente de ejecución', value: 'pending' },
+        { label: 'skipped - Prueba omitida', value: 'skipped' },
+    ]);
 }

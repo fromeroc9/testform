@@ -152,7 +152,7 @@ export class Logger {
 
         if (options.detail) {
             for (const line of options.detail) {
-                console.log(`${lineColor('│')}   ${line}`);
+                console.log(line ? `${lineColor('│')}   ${line}` : lineColor('│'));
             }
         }
 

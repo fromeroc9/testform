@@ -34,7 +34,8 @@ export class GherkinEditor {
         return feature.elements.find(element => {
             if (element instanceof Rule) {
                 const ruleText = element.name.replace(/\.feature$/i, '');
-                return normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText);
+                return normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText) ||
+                       ruleText.endsWith(normalizedBaseRule) || ruleText.includes(normalizedBaseRule);
             }
             return false;
         }) as Rule | undefined;
@@ -69,27 +70,88 @@ export class GherkinEditor {
             }
         }
 
-        if (targetScenario) {
-            // Update existing status step
-            let statusStep = targetScenario.steps.find(step => 
-                step.keyword.trim() === '*' && step.text.startsWith('link status =')
-            );
+        if (!targetScenario) {
+            throw new Error(`Scenario '${scenarioName}' is not expanded in Rule '${baseRule}'. Run 'testform suite fill' first to expand the rule's scenarios before marking status.`);
+        }
 
-            if (statusStep) {
-                statusStep.text = `link status = ${newStatus}`;
-            } else {
-                // Insert status step at the beginning
-                const newStep = new Step('*', `link status = ${newStatus}`);
-                targetScenario.steps.unshift(newStep);
-            }
+        // Update existing status step
+        let statusStep = targetScenario.steps.find(step => 
+            step.keyword.trim() === '*' && step.text.startsWith('mark status =')
+        );
+
+        if (statusStep) {
+            statusStep.text = `mark status = ${newStatus}`;
         } else {
-            // Create new scenario
-            const newScenario = new Scenario('Scenario', scenarioName, '');
-            newScenario.steps.push(new Step('*', `link status = ${newStatus}`));
-            rule.elements.push(newScenario);
+            // Insert status step at the beginning
+            const newStep = new Step('*', `mark status = ${newStatus}`);
+            targetScenario.steps.unshift(newStep);
         }
 
         this.saveDocument(filePath, document);
+    }
+
+    /**
+     * Adds or links a Rule or Scenario into a .run.feature or .plan.feature file.
+     * Supports both testrun and testplan scopes:
+     * - Implicit link: Adds Rule: <ruleName>
+     * - Explicit link: Adds Rule: <ruleName> + Scenario: <scenarioName> (* link status = <status>)
+     */
+    public static linkRuleOrScenario(
+        filePath: string,
+        ruleName: string,
+        scenarioName?: string,
+        status: string = 'pending'
+    ): { addedRule: boolean; addedScenario: boolean; updatedScenario: boolean } {
+        const document = this.parseDocument(filePath);
+        if (!document.feature) {
+            throw new Error(`File ${filePath} has no feature definition.`);
+        }
+
+        let rule = this.findRule(document.feature, ruleName);
+        let addedRule = false;
+        let addedScenario = false;
+        let updatedScenario = false;
+
+        if (!rule) {
+            rule = new Rule('Rule', ruleName, '');
+            document.feature.elements.push(rule);
+            addedRule = true;
+        }
+
+        if (scenarioName) {
+            let targetScenario: Scenario | undefined;
+            for (const element of rule.elements) {
+                if (element instanceof Scenario) {
+                    if (
+                        element.name === scenarioName ||
+                        element.name.replace(/^@/, '') === scenarioName.replace(/^@/, '')
+                    ) {
+                        targetScenario = element;
+                        break;
+                    }
+                }
+            }
+
+            if (targetScenario) {
+                let statusStep = targetScenario.steps.find(step =>
+                    step.keyword.trim() === '*' && step.text.startsWith('mark status =')
+                );
+                if (statusStep) {
+                    statusStep.text = `mark status = ${status}`;
+                } else {
+                    targetScenario.steps.unshift(new Step('*', `mark status = ${status}`));
+                }
+                updatedScenario = true;
+            } else {
+                const newScenario = new Scenario('Scenario', scenarioName, '');
+                newScenario.steps.push(new Step('*', `mark status = ${status}`));
+                rule.elements.push(newScenario);
+                addedScenario = true;
+            }
+        }
+
+        this.saveDocument(filePath, document);
+        return { addedRule, addedScenario, updatedScenario };
     }
 
     /**
@@ -129,7 +191,7 @@ export class GherkinEditor {
                 
                 if (!scenarioExists) {
                     const newScenario = new Scenario('Scenario', scenarioName, '');
-                    newScenario.steps.push(new Step('*', `link status = ${defaultStatus}`));
+                    newScenario.steps.push(new Step('*', `mark status = ${defaultStatus}`));
                     rule.elements.push(newScenario);
                 }
             }

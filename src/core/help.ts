@@ -918,7 +918,7 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] test autocomplete -target=<resou
 
   [testrun only] Reads each Rule block in the target testrun feature file,
   finds the referenced .case.feature on disk, and expands its scenarios into
-  the testrun file with 'link status = pending'.
+  the testrun file with 'mark status = pending'.
 
   Files are matched by @testrun tag OR the .run.feature extension.
 
@@ -998,21 +998,21 @@ export const HELP_SUITE = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] suite <subcommand> [options] [args]
 
   Manage test suites and execution files (.run.feature and .plan.feature).
+  All subcommands feature interactive self-help if options or arguments are omitted.
 
 ${bold(`Subcommands:`)}
   init          Create a new testrun or testplan feature file
-  fill          Fill referenced Rule blocks with testcase scenarios
-  link          Update execution status of a testcase within the suite (alias: mark)
-  mark          Alias for 'suite link'
+  fill          Fill empty Rule blocks with testcase scenarios (testrun only)
+  link          Directly write Gherkin to link testcases or testruns (implicit or explicit)
+  mark          Record/update testcase execution status and sync remote issue comments
 
 ${bold(`Target Resolution (-target flag):`)}
   All subcommands accept three forms to identify a testrun/testplan:
     Full path:    tests/testrun/20260607_013738_ef7c0c.run.feature
     Relative:     20260607_013738_ef7c0c.run.feature  (or fragment)
-    Identity:     @tr-2  (resolved from ${FILE_STATE})
+    Identity:     @tr-2 / @tp-1  (resolved from ${FILE_STATE})
 
-  If a fragment matches more than one file, an error lists all ambiguous
-  matches so you can be more specific.
+  If -target is omitted, an interactive selection menu will guide you.
 `.trim();
 
 export const HELP_SUITE_INIT = `
@@ -1034,7 +1034,8 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] suite fill -target=<resource>
 
   [testrun only] Reads each Rule block in the target testrun feature file,
   finds the referenced .case.feature on disk, and fills its scenarios into
-  the testrun file with status = pending.
+  the testrun file with 'mark status = pending'.
+  (Alias: 'suite expand')
 
 ${bold(`Options:`)}
 
@@ -1043,28 +1044,47 @@ ${bold(`Options:`)}
 `.trim();
 
 export const HELP_SUITE_LINK = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite link "<identifier>=status" -target=<resource>
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite link "<identifier>[=status]" -target=<resource>
 
-  [testrun only] Update the execution status of a specific testcase within
-  a suite using the Gherkin 'link status = <status>' convention. Simultaneously updates:
-    - The local testrun feature file (* link status = <status>)
-    - The GitHub issue body checklist
-    - The GitHub comment table for that testcase
+  Directly writes Gherkin into the suite file (.run.feature or .plan.feature)
+  without needing to hand-craft Gherkin syntax.
+
+${bold(`Scopes & Modes:`)}
+  1. Scope testrun:
+     - Implicit: ${TITLE_CLI} suite link "checkout.case.feature" -target="@tr-42"
+       Injects:   Rule: checkout.case.feature
+     - Explicit: ${TITLE_CLI} suite link "@tc-1" -target="@tr-42"
+       Injects:   Rule: checkout.case.feature
+                    Scenario: @tc-1
+                      * mark status = pending
+     - Status:   ${TITLE_CLI} suite link "@tc-1=passed" -target="@tr-42"
+
+  2. Scope testplan:
+     - Link run: ${TITLE_CLI} suite link "sprint42.run.feature" -target="@tp-1"
+       Injects:   Rule: sprint42.run.feature
 
 ${bold(`Identity Strategies:`)}
-  1. Only tag:       "@tc-1=passed" (resolves within the testrun if tag is unique)
+  1. Only tag:       "@tc-1" or "@tc-1=passed"
   2. File + tag:     "checkout.case.feature::@tc-1=passed" (or "@tc-1")
-  3. Scenario name:  "Pago con tarjeta=passed" (matches scenario title or name)
+  3. Scenario name:  "Pago con tarjeta=passed" (matches scenario title)
+`.trim();
+
+export const HELP_SUITE_MARK = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite mark "<identifier>=status" -target=<resource>
+
+  Record or update the execution status of an existing testcase within a testrun,
+  synchronizing both the local .run.feature file and the remote issue comments.
+
+  Note: If the testcase belongs to an implicit Rule, you must expand it first
+  using '${TITLE_CLI} suite fill -target=<resource>' before marking its status.
 
 ${bold(`Available statuses:`)} passed, failed, pending, skipped
 
 ${bold(`Examples:`)}
-  ${TITLE_CLI} suite link "@tc-1=passed" -target="@tr-2"
-  ${TITLE_CLI} suite link "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
-  ${TITLE_CLI} suite link "Validar login exitoso=passed" -target="20260607.run.feature"
+  ${TITLE_CLI} suite mark "@tc-1=passed" -target="@tr-2"
+  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=failed" -target="@tr-2"
+  ${TITLE_CLI} suite mark "Validar login exitoso=passed" -target="20260607.run.feature"
 `.trim();
-
-export const HELP_SUITE_MARK = HELP_SUITE_LINK;
 
 export function getCommandHelp(command: string): string | null {
   switch (command) {

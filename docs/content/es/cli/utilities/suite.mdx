@@ -4,65 +4,141 @@
 testform suite <subcomando> [opciones] [argumentos]
 ```
 
-El comando `testform suite` automatiza el ciclo de vida de las suites de prueba, permitiendo a los líderes de QA estructurar, poblar y ejecutar colecciones de pruebas con rapidez.
+El comando `testform suite` automatiza el ciclo de vida de las suites de prueba (`testrun` y `testplan`), permitiendo a los líderes y analistas de QA estructurar, poblar, enlazar y marcar colecciones de pruebas con rapidez, sin necesidad de redactar sintaxis Gherkin manualmente.
+
+---
+
+## Auto-ayuda Interactiva
+
+Todos los comandos de `testform suite` cuentan con **auto-ayuda interactiva**:
+
+- Si ejecutas simplemente `testform suite` sin ningún subcomando, se desplegará un menú interactivo para seleccionar la operación (`init`, `fill`, `link`, `mark`).
+- Si omites `-target` en `fill`, `link` o `mark`, el CLI listará automáticamente las suites disponibles en el espacio de trabajo con sus tags de identidad y nombres de feature para que elijas una mediante un menú numérico.
+- Si omites el scope o título en `init`, el CLI te guiará paso a paso para crearlo.
+- Si omites el caso a enlazar o marcar, el CLI te permitirá seleccionar entre enlace implícito o explícito y elegir el archivo y escenario de forma interactiva.
 
 ---
 
 ## Subcomandos
 
 ### 1. `testform suite init`
-Genera la plantilla inicial para un nuevo archivo de suite de ejecución (`*.run.feature`):
+Crea una nueva suite de ejecución (`testrun`) o de planificación (`testplan`):
 ```bash
-testform suite init -title="Regresión Sprint 42" -milestone="Sprint 42"
+testform suite init -scope=testrun -title="Regresión Sprint 42"
+testform suite init -scope=testplan -title="Plan de Lanzamiento Q3"
 ```
+Si se ejecuta `testform suite init` sin `-scope`, el asistente interactivo solicitará el tipo de suite y su título.
 
-### 2. `testform suite fill`
-Expande los bloques `Rule:` de un archivo `testrun` con sus escenarios concretos en estado `pending`:
+---
+
+### 2. `testform suite fill` (alias: `expand`)
+Expande los bloques `Rule:` vacíos o implícitos de un archivo `testrun` con sus escenarios concretos en estado inicial `pending`:
 ```bash
 testform suite fill -target="sprint42.run.feature"
+testform suite fill -target="@tr-42"
 ```
+> [!NOTE]
+> Este subcomando es exclusivo del scope `testrun`. Cada escenario expandido se genera con el paso:
+> `* mark status = pending`
 
-### 3. `testform suite link` (alias: `mark`)
-Actualiza el estado de ejecución de un testcase y lo sincroniza local y remotamente:
+---
+
+### 3. `testform suite link`
+Escribe directamente la estructura Gherkin en el archivo de la suite correspondiente (`testrun` o `testplan`), soportando tanto enlaces **implícitos** como **explícitos**.
+
+#### En Scope `testrun`
+- **Enlace Implícito (archivo completo):** Vincula un archivo de casos completo agregando `Rule: <archivo.case.feature>`.
+  ```bash
+  testform suite link "checkout.case.feature" -target="@tr-42"
+  ```
+  Produce en el archivo `.run.feature`:
+  ```gherkin
+  Rule: checkout.case.feature
+  ```
+
+- **Enlace Explícito (escenario específico):** Vincula un escenario específico bajo su regla correspondiente, inyectando el paso `* mark status = <status>` (si no se proporciona estado, utiliza `pending` por defecto):
+  ```bash
+  # Con estado por defecto (pending)
+  testform suite link "@tc-1" -target="@tr-42"
+
+  # Con estado explícito
+  testform suite link "@tc-1=passed" -target="@tr-42"
+  testform suite link "checkout.case.feature::@tc-1=failed" -target="@tr-42"
+  ```
+  Produce en el archivo `.run.feature`:
+  ```gherkin
+  Rule: checkout.case.feature
+    Scenario: @tc-1
+      * mark status = passed
+  ```
+
+#### En Scope `testplan`
+Vincula suites de ejecución (`testrun`) dentro del plan agregando `Rule: <archivo.run.feature>`:
 ```bash
-testform suite link "@tc-1=passed" -target="sprint42.run.feature"
+testform suite link "sprint42.run.feature" -target="@tp-1"
+testform suite link "@tr-42" -target="@tp-1"
 ```
-
-El subcomando se denomina `link` en correspondencia directa con la convención de pasos Gherkin inyectada en el archivo `.run.feature`:
+Produce en el archivo `.plan.feature`:
 ```gherkin
-Rule: authentication.case.feature
-  Scenario: @tc-1
-    * link status = passed
+@testplan
+Feature: Plan de Lanzamiento Q3
+
+  Rule: sprint42.run.feature
+```
+> [!IMPORTANT]
+> Los planes de prueba (`testplan`) solo enlazan suites de ejecución (`testrun`) completas. Por especificación y política de Testform, los archivos `.plan.feature` **no deben contener bloques de escenario explícitos**.
+
+---
+
+### 4. `testform suite mark`
+Registra o actualiza el estado de ejecución (`passed`, `failed`, `pending`, `skipped`) de un caso de prueba en una corrida de pruebas (`testrun`), sincronizando el archivo Gherkin local (`* mark status = <status>`) y el comentario del issue remoto:
+```bash
+testform suite mark "@tc-1=passed" -target="@tr-42"
+testform suite mark "checkout.case.feature::@tc-1=failed" -target="@tr-42"
+testform suite mark "Pago con tarjeta=passed" -target="@tr-42"
 ```
 
-Soporta tres estrategias flexibles para referenciar la identidad del testcase:
-1. **Solo Tag de Identidad:** `"@tc-1=passed"` (o `"tc-1=passed"`): Busca y actualiza el caso dentro del testrun especificado en `-target` si el tag es único.
-2. **Archivo + Tag (o Nombre):** `"authentication.case.feature::@tc-1=passed"` (o `"authentication.case.feature@tc-1=passed"`): Desambigua casos cuando múltiples archivos comparten la misma convención de tags.
-3. **Solo Nombre/Título de Escenario:** `"Inicio de sesión con credenciales válidas=passed"`: Resuelve directamente por el título o nombre del escenario Gherkin.
+> [!WARNING]
+> **Requisito para Reglas Implícitas:**
+> Si un testcase pertenece a una regla que aún está implícita (`Rule: archivo.case.feature`) y no ha sido expandida en el archivo de la suite, `suite mark` no modificará el estado y arrojará un error requiriendo ejecutar primero:
+> ```bash
+> testform suite fill -target="@tr-42"
+> ```
+> De esta forma se garantiza que todos los escenarios existan de forma explícita antes de asignarles resultados de ejecución.
+
+---
+
+## Estrategias de Identidad para Testcases
+
+Tanto `link` como `mark` soportan tres estrategias flexibles para identificar los casos de prueba:
+
+1. **Solo Tag de Identidad:** `"@tc-1=passed"` (o `"tc-1=passed"`): Busca el caso en el espacio de trabajo o testrun por su tag único.
+2. **Archivo + Tag (o Nombre):** `"checkout.case.feature::@tc-1=passed"` (o `"checkout.case.feature@tc-1=passed"`): Desambigua casos cuando múltiples archivos comparten la misma convención de tags.
+3. **Nombre/Título de Escenario:** `"Inicio de sesión con credenciales válidas=passed"`: Resuelve directamente contra el nombre del escenario en Gherkin.
 
 ---
 
 ## Resolución de Objetivos (`-target`)
 
-Los subcomandos `fill` y `link` requieren indicar **en qué suite o corrida de pruebas se debe operar** mediante la opción `-target`.
+Los subcomandos `fill`, `link` y `mark` operan sobre una suite o corrida de pruebas específica indicada en `-target`.
 
 ### ¿Por qué existe `-target`?
-Un caso de prueba (`@tc-1`) es una definición que se ejecuta en múltiples corridas distintas a lo largo del tiempo (Sprint 41, Sprint 42, Regresión Nocturna). Para enlazar o marcar el resultado de `@tc-1`, el sistema necesita saber **a qué corrida pertenece esa ejecución específica**.
-- **`-target` identifica el contenedor** (el Test Run / Suite, ej. `@tr-42` o `sprint42.run.feature`).
-- **El argumento posicional identifica el elemento interno y su resultado** (el Test Case, ej. `"@tc-1=passed"`).
+Un caso de prueba (`@tc-1`) es una especificación que se ejecuta en múltiples corridas distintas a lo largo del tiempo (Sprint 41, Sprint 42, Regresión Nocturna). Para enlazar o marcar el resultado de `@tc-1`, el sistema necesita saber **a qué corrida o suite pertenece esa acción**.
+- **`-target` identifica el contenedor** (el Test Run o Test Plan, ej. `@tr-42`, `@tp-1` o `sprint42.run.feature`).
+- **El argumento posicional identifica el elemento interno y su resultado** (el Test Case o Test Run a enlazar).
 
 ### Formatos aceptados para `-target`
 Puedes apuntar a la suite utilizando cualquiera de estas 3 formas:
-1. **Tag de Identidad (`@tr-*`):** `-target="@tr-42"` (resuelto automáticamente desde el archivo de estado).
+1. **Tag de Identidad (`@tr-*` / `@tp-*`):** `-target="@tr-42"` o `-target="@tp-1"` (resuelto automáticamente desde el estado).
 2. **Nombre de archivo o fragmento:** `-target="sprint42.run.feature"` o `-target="sprint42"`.
 3. **Ruta relativa o absoluta:** `-target="tests/testrun/sprint42.run.feature"`.
 
 > [!TIP]
-> Si un fragmento coincide con múltiples suites, el CLI mostrará un listado detallando todas las coincidencias ambiguas para que especifiques la ruta o el tag exacto.
+> Si no indicas `-target`, Testform no fallará de inmediato: iniciará la auto-ayuda interactiva mostrándote las suites disponibles para que elijas una.
 
 ---
 
 ## Códigos de Salida
 
 - `0`: Operación de suite completada exitosamente.
-- `1`: Argumentos incorrectos o error de archivo.
+- `1`: Argumentos incorrectos, error de archivo o recurso no encontrado.

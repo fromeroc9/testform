@@ -6,7 +6,8 @@ import { logger as notify } from '../src/core/logger';
 vi.mock('../src/core/gherkin-editor', () => ({
     GherkinEditor: {
         expandScenarios: vi.fn(),
-        updateScenarioStatus: vi.fn()
+        updateScenarioStatus: vi.fn(),
+        linkRuleOrScenario: vi.fn().mockReturnValue({ addedRule: true, addedScenario: true, updatedScenario: false }),
     }
 }));
 vi.mock('../src/commands/generate');
@@ -38,6 +39,19 @@ describe('Command suiteCmd', () => {
 
     it('should export toolCmd as an alias for backwards compatibility', () => {
         expect(toolCmd).toBe(suiteCmd);
+    });
+
+    it('should fail if no subcommand is passed in non-interactive mode', async () => {
+        await expect(suiteCmd({
+            dir: '.',
+            subCommand: '',
+            subArgs: []
+        })).rejects.toThrow();
+
+        expect(notify.push).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'error',
+            title: expect.stringContaining('suite <init|fill|link|mark>')
+        }));
     });
 
     it('should fail if unknown subcommand is passed', async () => {
@@ -91,6 +105,19 @@ describe('Command suiteCmd', () => {
             await expect(suiteCmd({
                 dir: '.',
                 subCommand: 'fill',
+                subArgs: []
+            })).rejects.toThrow();
+
+            expect(notify.push).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'error',
+                title: expect.stringContaining('suite fill -target=<path|relative|@tr-N>')
+            }));
+        });
+
+        it('should fail if target is not provided for suite expand (alias for fill)', async () => {
+            await expect(suiteCmd({
+                dir: '.',
+                subCommand: 'expand',
                 subArgs: []
             })).rejects.toThrow();
 

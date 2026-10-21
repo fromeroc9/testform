@@ -37,7 +37,7 @@ export class TestcaseParser extends BaseParser {
             }
 
             if (s.description) {
-                const descMatch = s.description.match(/^\s*\*\s*link\s+status\s*=\s*(.*)$/im);
+                const descMatch = s.description.match(/^\s*\*\s*mark\s+status\s*=\s*(.*)$/im);
                 if (descMatch) {
                     customFields['status'] = descMatch[1]?.trim();
                 }
@@ -45,9 +45,9 @@ export class TestcaseParser extends BaseParser {
 
             if (s.background) {
                 s.background.steps = s.background.steps.filter((step: any) => {
-                    const linkMatch = step.text.match(/^\s*(?:\*\s*)?link\s+status\s*=\s*(.*)$/i);
-                    if (linkMatch) {
-                        customFields['status'] = linkMatch[1]?.trim();
+                    const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+status\s*=\s*(.*)$/i);
+                    if (markMatch) {
+                        customFields['status'] = markMatch[1]?.trim();
                         return false;
                     }
 
@@ -74,9 +74,9 @@ export class TestcaseParser extends BaseParser {
             }
 
             s.steps = s.steps.filter((step: any) => {
-                const linkMatch = step.text.match(/^\s*(?:\*\s*)?link\s+status\s*=\s*(.*)$/i);
-                if (linkMatch) {
-                    customFields['status'] = linkMatch[1]?.trim();
+                const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+status\s*=\s*(.*)$/i);
+                if (markMatch) {
+                    customFields['status'] = markMatch[1]?.trim();
                     return false;
                 }
 
