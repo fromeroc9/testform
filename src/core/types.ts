@@ -15,7 +15,7 @@ export interface IBackendConfig {
 export interface IGitHubConfig {
     owner: string;
     repository: string;
-    projectId?: number;
+    projectId?: number | string;
     tokenEnv: string;
 }
 

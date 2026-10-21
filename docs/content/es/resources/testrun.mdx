@@ -53,9 +53,9 @@ Al aplicar un `testrun`, Testform realiza las siguientes operaciones:
 
 ---
 
-## Automatización y Herramientas de Ejecución (`suite`)
+## Automatización de Ejecución con testform suite
 
-Para mantener el principio de **Única Fuente de la Verdad (SSOT)** en el código local sin desfasar el estado remoto, las operaciones de autocompletado y marcado de resultados se realizan mediante el comando especializado `testform suite`:
+Para mantener el principio de **Única Fuente de la Verdad (SSOT)** en el código local sin desfasar el estado remoto, las operaciones de autocompletado, enlace y marcado de resultados se realizan mediante el comando especializado `testform suite`:
 
 ### 1. Expansión de Reglas con `suite fill`
 Si importaste un archivo completo mediante `Rule: checkout.case.feature` sin detallar escenarios individuales, puedes expandirlos automáticamente a escenarios explícitos en tu archivo local ejecutando:
@@ -63,21 +63,33 @@ Si importaste un archivo completo mediante `Rule: checkout.case.feature` sin det
 ```bash
 testform suite fill -target="@tr-42"
 ```
-Esto inspecciona el archivo `.case.feature` referenciado y añade cada escenario explícitamente a tu `.run.feature` con el estado `* link status = pending`, permitiendo a los ejecutores de pruebas registrar resultados específicos.
+Esto inspecciona el archivo `.case.feature` referenciado y añade cada escenario explícitamente a tu `.run.feature` con el estado inicial `* link status = pending`, permitiendo a los ejecutores de pruebas registrar resultados específicos.
 
-### 2. Enlace y Marcado Programático con `suite link` (alias: `mark`)
-Para actualizar resultados desde pipelines de CI/CD o ejecutores automáticos (Playwright, Cypress, Vitest, Jest) sincronizando el archivo `.run.feature` local y el proveedor remoto de forma coherente, usa `testform suite link` (alineado con la sentencia `* link status = <status>` de Gherkin):
+### 2. Enlace de Casos con `suite link`
+Para vincular casos de prueba dentro de tu testrun (ya sea de forma implícita o explícita):
+
+```bash
+# Enlace implícito: Vincula todo el archivo de casos
+testform suite link "checkout.case.feature" -target="@tr-42"
+
+# Enlace explícito: Vincula un caso puntual
+testform suite link "@tc-1" -target="@tr-42"
+```
+
+### 3. Marcado de Resultados con `suite mark`
+Para actualizar resultados desde pipelines de CI/CD o ejecutores de pruebas automáticos (Playwright, Cypress, Vitest, Jest) sincronizando el archivo `.run.feature` local y el issue del proveedor remoto de forma coherente, utiliza `testform suite mark`:
 
 ```bash
 # Estrategia 1: Solo Tag (resuelve automáticamente dentro del testrun si es único)
-testform suite link "@tc-1=passed" -target="@tr-42"
+testform suite mark "@tc-1=passed" -target="@tr-42"
 
 # Estrategia 2: Archivo + Tag (desambigua cuando varios archivos comparten el mismo número de caso)
-testform suite link "checkout.case.feature::@tc-1=passed" -target="@tr-42"
+testform suite mark "checkout.case.feature::@tc-1=failed" -target="@tr-42"
 
-# Estrategia 3: Nombre o Título de Escenario
-testform suite link "Pago con tarjeta de crédito exitoso=passed" -target="@tr-42"
+# Estrategia 3: Nombre o Título del Escenario
+testform suite mark "Pago con tarjeta de crédito exitoso=passed" -target="@tr-42"
 ```
 
 > [!NOTE]
 > `testform apply` se reserva estrictamente para la **conciliación declarativa** idempotente entre tus archivos locales y el proveedor remoto. No muta estados imperativamente fuera de banda, preservando la trazabilidad de Git.
+

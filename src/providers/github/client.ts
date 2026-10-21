@@ -19,7 +19,7 @@ export class GitHubProvider implements IProvider {
     private token: string;
     private owner: string;
     private repo: string;
-    private projectId?: number;
+    private projectId?: number | string;
     private config: IGitHubConfig;
 
     constructor(config: IGitHubConfig) {
@@ -296,46 +296,76 @@ export class GitHubProvider implements IProvider {
             }
         `;
 
-        try {
-            // Try as a user first
-            const userResult = await this.graphql(`
-                query($login: String!, $number: Int!) {
-                    user(login: $login) {
-                        projectV2(number: $number) {
-                            ${fieldsQuery}
+        // 1. Direct Node ID resolution (e.g. PVT_kwDOB12345)
+        if (typeof this.projectId === 'string' && this.projectId.startsWith('PVT_')) {
+            try {
+                const nodeResult = await this.graphql(`
+                    query($id: ID!) {
+                        node(id: $id) {
+                            ... on ProjectV2 {
+                                ${fieldsQuery}
+                            }
                         }
                     }
-                }
-            `, { login: this.owner, number: this.projectId });
+                `, { id: this.projectId });
 
-            if (userResult?.user?.projectV2?.id) {
-                this.projectNodeId = userResult.user.projectV2.id;
-                this.projectFields = userResult.user.projectV2.fields.nodes;
-                return { id: this.projectNodeId!, fields: this.projectFields! };
+                if (nodeResult?.node?.id) {
+                    this.projectNodeId = nodeResult.node.id;
+                    this.projectFields = nodeResult.node.fields?.nodes || [];
+                    return { id: this.projectNodeId!, fields: this.projectFields! };
+                }
+            } catch (error) {
+                // Not a valid node ID or inaccessible
             }
-        } catch (error) {
-            // Not a user or project not found
         }
 
-        try {
-            // Fallback to organization
-            const orgResult = await this.graphql(`
-                query($login: String!, $number: Int!) {
-                    organization(login: $login) {
-                        projectV2(number: $number) {
-                            ${fieldsQuery}
+        // 2. Simple human-readable web project number (e.g. 1, 2, "1")
+        const projectNumber = typeof this.projectId === 'number'
+            ? this.projectId
+            : parseInt(String(this.projectId), 10);
+
+        if (!isNaN(projectNumber)) {
+            try {
+                // Try as a user first
+                const userResult = await this.graphql(`
+                    query($login: String!, $number: Int!) {
+                        user(login: $login) {
+                            projectV2(number: $number) {
+                                ${fieldsQuery}
+                            }
                         }
                     }
-                }
-            `, { login: this.owner, number: this.projectId });
+                `, { login: this.owner, number: projectNumber });
 
-            if (orgResult?.organization?.projectV2?.id) {
-                this.projectNodeId = orgResult.organization.projectV2.id;
-                this.projectFields = orgResult.organization.projectV2.fields.nodes;
-                return { id: this.projectNodeId!, fields: this.projectFields! };
+                if (userResult?.user?.projectV2?.id) {
+                    this.projectNodeId = userResult.user.projectV2.id;
+                    this.projectFields = userResult.user.projectV2.fields.nodes;
+                    return { id: this.projectNodeId!, fields: this.projectFields! };
+                }
+            } catch (error) {
+                // Not a user or project not found
             }
-        } catch (error: any) {
-            // Not an org or project not found
+
+            try {
+                // Fallback to organization
+                const orgResult = await this.graphql(`
+                    query($login: String!, $number: Int!) {
+                        organization(login: $login) {
+                            projectV2(number: $number) {
+                                ${fieldsQuery}
+                            }
+                        }
+                    }
+                `, { login: this.owner, number: projectNumber });
+
+                if (orgResult?.organization?.projectV2?.id) {
+                    this.projectNodeId = orgResult.organization.projectV2.id;
+                    this.projectFields = orgResult.organization.projectV2.fields.nodes;
+                    return { id: this.projectNodeId!, fields: this.projectFields! };
+                }
+            } catch (error: any) {
+                // Not an org or project not found
+            }
         }
 
         const chalk = require('chalk');
