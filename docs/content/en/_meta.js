@@ -1,40 +1,19 @@
-export default {
-  index: 'Overview',
-  'getting-started': 'Getting Started',
-
-  '--_model': {
-    type: 'separator',
-    title: 'The Terraform Model'
+﻿export default {
+  index: {
+    type: 'page',
+    display: 'hidden',
+    theme: {
+      layout: 'full',
+      sidebar: false,
+      toc: false
+    }
   },
-  model: 'Terraform vs. Testform',
-
-  '--_gherkin': {
-    type: 'separator',
-    title: 'Gherkin Specification'
+  docs: {
+    type: 'page',
+    title: 'Docs'
   },
-  gherkin: 'Gherkin & Feature Files',
-
-  '--_resources': {
-    type: 'separator',
-    title: 'Declarative Resources'
-  },
-  resources: 'Resources & Config',
-
-  '--_cli': {
-    type: 'separator',
-    title: 'CLI Reference'
-  },
-  cli: 'CLI Reference',
-
-  '--_state': {
-    type: 'separator',
-    title: 'State & Backends'
-  },
-  state: 'State Management',
-
-  '--_providers': {
-    type: 'separator',
-    title: 'Providers & CI/CD'
-  },
-  providers: 'Providers & CI/CD'
-}
+  cli: {
+    type: 'page',
+    title: 'CLI'
+  }
+};

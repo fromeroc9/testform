@@ -18,17 +18,22 @@ export const ALL_SCOPES: IScope[] = ['testcase', 'testrun', 'testplan'];
 /**
  * Resolves a scope option (e.g. 'all', undefined, or a single scope) into an array of IScope.
  */
-export function resolveScopes(scope?: IScope | 'all' | string): IScope[] {
-    if (!scope || (scope as string) === 'all') {
+export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string }): IScope[] {
+    const raw = typeof scope === 'object' && scope !== null ? (scope as any).scope : scope;
+    if (!raw || (raw as string) === 'all') {
         return [...ALL_SCOPES];
     }
-    return [scope as IScope];
+    return [raw as IScope];
 }
 
 /**
  * Normalizes scope input for CLI commands that support both 'all' and single-scope execution.
+ * Accepts either a raw scope string (e.g. 'testcase', 'all') or the CLI options object ({ scope?: string }).
  */
-export function normalizeScope(scopeVal?: string): { scope: IScope | 'all'; singleScope: IScope } {
+export function normalizeScope(scopeInput?: string | { scope?: string }): { scope: IScope | 'all'; singleScope: IScope } {
+    const scopeVal = typeof scopeInput === 'object' && scopeInput !== null
+        ? scopeInput.scope
+        : scopeInput;
     const scope: IScope | 'all' = (scopeVal as IScope | 'all') || 'all';
     const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
     return { scope, singleScope };

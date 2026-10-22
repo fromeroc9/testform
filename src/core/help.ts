@@ -57,6 +57,10 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] init [options]
 
 ${bold(`Options:`)}
 
+  -provider=<type>        Provider type to scaffold when creating a new
+                          configuration (local | github | gitlab | custom).
+                          (default: github)
+
   -backend-type=<type>    Backend type to scaffold when creating a new
                           configuration (local | github | s3 | azurerm | gcs | oci).
                           (default: local)

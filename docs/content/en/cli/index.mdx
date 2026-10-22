@@ -2,15 +2,11 @@
 
 The Testform Command Line Interface (CLI) is the central operational tool for managing your testing infrastructure. Designed following the conventions of HashiCorp's Terraform, it provides an intuitive, predictable workflow.
 
----
-
 ## Command Syntax
 
 ```bash
 testform [global options] <subcommand> [options] [arguments]
 ```
-
----
 
 ## Global Options
 
@@ -26,8 +22,6 @@ Global options can be provided before any subcommand:
 | `-help` | `-h` | Displays detailed usage and help text for any command. |
 | `-version` | `-v` | Prints the installed Testform version. |
 
----
-
 ## Scope-First Syntax
 
 Testform allows placing the scope identifier before the command for a more natural CLI syntax:
@@ -41,8 +35,6 @@ testform testcase plan
 testform testrun apply
 testform testplan destroy
 ```
-
----
 
 ## Subcommand Categories
 

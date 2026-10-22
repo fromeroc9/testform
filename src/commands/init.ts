@@ -1,13 +1,11 @@
 import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
 import YAML from 'yaml';
 
-import { askMigrationApproval } from '../core/prompt';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { Config } from '../core/config';
 import { Logger } from '../core/logger';
 import { basename, dirname, join } from 'path';
 import { State } from '../core/state';
-import { WorkspaceManager } from '../core/workspace';
 import { ensureDriverInstalled } from '../core/driver';
 
 interface InitPaths {
@@ -26,7 +24,12 @@ const ensureWorkingDirectory = (dir: string, logger: Logger): void => {
     logger.info(`Created ${dir} directory`);
 };
 
-const createConfigIfNotExists = (configPath: string, logger: Logger, backendType: string = 'local'): boolean => {
+const createConfigIfNotExists = (
+    configPath: string,
+    logger: Logger,
+    backendType: string = 'local',
+    providerType: string = 'github'
+): boolean => {
     const dir = dirname(configPath);
     for (const name of CONFIG_FILE_NAMES) {
         if (existsSync(join(dir, name))) {
@@ -85,20 +88,32 @@ const createConfigIfNotExists = (configPath: string, logger: Logger, backendType
         };
     }
 
+    let providerBlock: any = {
+        github: {
+            owner: "<required>",
+            repository: "<required>",
+            token_env: "GITHUB_TOKEN"
+        }
+    };
+    const normalizedProviderType = (providerType || 'github').toLowerCase().trim();
+    if (normalizedProviderType === 'local') {
+        providerBlock = 'local';
+    } else if (normalizedProviderType === 'gitlab') {
+        providerBlock = {
+            gitlab: {
+                projectId: "<required>",
+                token_env: "GITLAB_TOKEN"
+            }
+        };
+    }
+
     const initialConfig = {
         version: VERSION_CONFIG,
-        provider: {
-            type: "github",
-            config: {
-                owner: "<required>",
-                repository: "<required>",
-                token_env: "GITHUB_TOKEN"
-            }
-        },
+        provider: providerBlock,
         backend: backendBlock,
         scopes: {
             testcase: {
-                match: "*.case.feature::*",
+                match: "*.case.feature",
                 scaffold: {
                     directory: "testcase",
                     filename: "{slug}_{YYYYMMDD}.case.feature"
@@ -106,7 +121,7 @@ const createConfigIfNotExists = (configPath: string, logger: Logger, backendType
                 fields: []
             },
             testrun: {
-                match: "*.run.feature::*",
+                match: "*.run.feature",
                 scaffold: {
                     directory: "testrun",
                     filename: "{slug}_{YYYYMMDD}.run.feature"
@@ -114,7 +129,11 @@ const createConfigIfNotExists = (configPath: string, logger: Logger, backendType
                 fields: []
             },
             testplan: {
-                match: "*.plan.feature::*",
+                match: "*.plan.feature",
+                scaffold: {
+                    directory: "testplan",
+                    filename: "{slug}_{YYYYMMDD}.plan.feature"
+                },
                 fields: []
             }
         }
@@ -122,20 +141,6 @@ const createConfigIfNotExists = (configPath: string, logger: Logger, backendType
 
     writeFileSync(configPath, YAML.stringify(initialConfig), 'utf-8');
     return false;
-};
-
-const ensureStateExists = (statePath: string, logger: Logger): void => {
-    if (existsSync(statePath)) return;
-
-    const state = {
-        version: VERSION_STATE,
-        lastSync: new Date().toISOString(),
-        testcase: [],
-        testrun: [],
-        testplan: [],
-    };
-
-    writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
 };
 
 const loadValidatedConfig = (dir: string): Config => {
@@ -163,6 +168,7 @@ const printNextSteps = (logger: Logger): void => {
 interface InitCmdOptions {
     dir?: string;
     backendType?: string;
+    providerType?: string;
     verbose?: boolean;
     backendConfigRaw?: string | string[];
     lock?: boolean;
@@ -178,6 +184,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     const {
         dir = '.',
         backendType = 'local',
+        providerType = 'github',
         verbose = false,
         backendConfigRaw,
         lock = true,
@@ -192,7 +199,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
     // INPUT
     ensureWorkingDirectory(dir, logger);
-    const wasAlreadyInitialized = createConfigIfNotExists(paths.configPath, logger, backendType);
+    const wasAlreadyInitialized = createConfigIfNotExists(paths.configPath, logger, backendType, providerType);
 
     // PROCESS
     logger.info('Initializing the backend...', { bold: true });
@@ -240,14 +247,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         return;
     }
 
-    const workspaceManager = new WorkspaceManager(dir);
-    const activeBackend = workspaceManager.getActiveBackend();
-
-    // Check if backend changed
-    let wantsMigration = false;
-    const isBackendChanged = activeBackend && backendConfig && JSON.stringify(activeBackend) !== JSON.stringify(backendConfig);
-
-    if (wasAlreadyInitialized && !isBackendChanged && !reconfigure) {
+    if (wasAlreadyInitialized && !reconfigure) {
         logger.info([
             `${TITLE_APP} initialized in not empty directory!`,
             `The directory has ${TITLE_APP} configuration files. You may begin working`,
@@ -255,45 +255,18 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         ]);
     }
 
-    if (isBackendChanged && backendConfig) {
-        if (reconfigure) {
-            logger.warn('Backend configuration changed. -reconfigure passed, skipping migration.');
-        } else {
-            const inputEnabled = options.inputEnabled ?? true;
-            if (!inputEnabled && options.migrateState === undefined) {
-                logger.error('Backend configuration changed.\nError: input is disabled and -migrate-state was not passed.');
-                return;
-            }
-
-            let doMigrate = options.migrateState;
-            if (doMigrate === undefined && inputEnabled) {
-                doMigrate = await askMigrationApproval(backendConfig.type);
-            }
-
-            if (doMigrate) {
-                wantsMigration = true;
-            }
-        }
-    }
-
-    if (!backendConfig || backendConfig.type === 'local') {
-        ensureStateExists(paths.statePath, logger);
-    }
+    
 
     const stateObj = new State(dir, undefined, undefined, !backendEnabled, backendConfigRaw);
     try {
         await stateObj.acquireLock(lock, lockTimeout);
 
-        if (wantsMigration && activeBackend && backendConfig) {
-            logger.info(`Migrating state from ${activeBackend.type} to ${backendConfig.type}...`);
-            const oldStateObj = new State(dir, undefined, undefined, false, undefined, activeBackend);
-            
+        if (options.migrateState && backendConfig && backendConfig.type !== 'local' && existsSync(paths.statePath)) {
+            logger.info(`Migrating state from local to ${backendConfig.type}...`);
+            const oldStateObj = new State(dir, paths.statePath, undefined, true);
             try {
-                // Initialize old backend and grab its state
                 await oldStateObj.init();
                 const oldData = oldStateObj.getState();
-                
-                // Initialize new backend and replace its state
                 await stateObj.init();
                 stateObj.replaceState(oldData);
                 await stateObj.save();
@@ -304,14 +277,9 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
             }
         } else {
             await stateObj.init();
-            // If it's empty/new, save the initial state structure
-            if (stateObj.getState().serial === 0) {
-                await stateObj.save();
-            }
+            // Option A: Do not save empty state on init.
+            // testform.state will be created when the first 'apply' executes.
         }
-
-        // Save active backend in local tracking file
-        workspaceManager.setActiveBackend(backendConfig);
     } catch (err: any) {
         logger.error(`Failed to initialize remote backend: ${err.message}`);
         return;

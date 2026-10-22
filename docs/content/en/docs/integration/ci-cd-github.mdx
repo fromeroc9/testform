@@ -1,0 +1,82 @@
+﻿# GitHub Actions Pipeline
+
+Automate test case validation and state reconciliation on every Pull Request and merge to the main production branch.
+
+## Recommended GitOps Lifecycle
+
+1. **Pull Requests:** Executes `testform validate` and `testform plan`. The generated speculative diff is posted directly as a comment on the PR.
+2. **Merge to Main:** Executes `testform apply -auto-approve` to atomically commit and push approved test specifications to remote platforms.
+
+## Workflow Manifest (.github/workflows/testform.yml)
+
+```yaml
+name: Testform CI/CD
+
+on:
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'testform.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tests/**'
+      - 'testform.yml'
+
+jobs:
+  testform:
+    name: Testform Plan & Apply
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Validate Syntax & Policies
+        run: npx testform validate
+
+      - name: Compute Speculative Plan (Pull Request)
+        if: github.event_name == 'pull_request'
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx testform plan -no-color > plan.txt
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          cat plan.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Post Plan Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const planOutput = process.env.PLAN;
+            const body = `#### Testform Plan Output \n\`\`\`text\n${planOutput}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Apply Approved Changes (Merge to Main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx testform apply -auto-approve
+```

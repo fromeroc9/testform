@@ -1,0 +1,146 @@
+# Especificacion de testform.yml
+
+El archivo `testform.yml` es el manifiesto de configuracion central de tu espacio de trabajo. En el se declaran el backend de almacenamiento de estado, los proveedores externos, los alcances (*scopes*) y el esquema de campos personalizados.
+
+## Estructura General
+
+```yaml
+version: "1.0"
+
+# 1. Configuracion del Backend de Estado
+backend:
+  type: "local"
+  path: "testform.state"
+
+# 2. Configuracion del Proveedor (modo diccionario o local)
+provider:
+  github:
+    owner: "mi-organizacion"
+    repository: "mi-aplicacion"
+    projectId: 12
+    token_env: "GITHUB_TOKEN"
+
+# 3. Alcance Global y por Recurso (scopes)
+scopes:
+  global:
+    directory: "tests"
+  testcase:
+    directory: "tests/features"
+    pattern: "*.case.feature"
+  testrun:
+    directory: "tests/runs"
+    pattern: "*.run.feature"
+  testplan:
+    directory: "tests/plans"
+    pattern: "*.plan.feature"
+
+# 4. Esquema de Campos Personalizados y Politicas
+fields:
+  priority:
+    type: "enum"
+    source: "tag"
+    enum: ["Low", "Medium", "High", "Critical"]
+    default: "Medium"
+  component:
+    type: "string"
+    source: "tag"
+    required: false
+  automated:
+    type: "boolean"
+    source: "step"
+    default: false
+```
+
+## 1. Bloque `backend`
+
+Determina donde se almacena el ledger de estado (`testform.state`) y como se gestiona el bloqueo concurrente:
+
+| Tipo (`type`) | Descripcion | Parametros Requeridos |
+| :--- | :--- | :--- |
+| `local` | Almacenamiento en archivo local (ideal para desarrollo individual). | `path` |
+| `oci` | Oracle Cloud Infrastructure Object Storage con bloqueo condicional de ETag. | `namespace`, `bucket`, `object_name`, `tenancy_id` |
+| `s3` | Amazon S3 con bloqueo distribuido mediante Amazon DynamoDB. | `bucket`, `key`, `dynamodb_table`, `region` |
+| `azure` | Azure Blob Storage con arrendamiento exclusivo de blobs (*leases*). | `storage_account`, `container`, `blob_name` |
+| `gcs` | Google Cloud Storage con generacion condicional de objetos. | `bucket`, `prefix` |
+
+## 2. Bloque `scopes`
+
+El bloque `scopes` organiza los directorios y patrones de busqueda de tus artefactos:
+
+- `scopes.global`: Define configuraciones transversales aplicables a todos los tipos de recursos.
+- `scopes.testcase`: Ubicacion y patrones para los casos de prueba (`*.case.feature`).
+- `scopes.testrun`: Ubicacion para los registros de ejecucion (`*.run.feature`).
+- `scopes.testplan`: Ubicacion para las matrices de certificacion (`*.plan.feature`).
+
+## 3. Bloque `fields`: Entendiendo `type` vs `source`
+
+En el esquema de campos personalizados, es fundamental distinguir la diferencia entre `type` y `source`:
+
+- **`type` (Tipo de Dato):** Define la regla de validacion y el tipo de dato que el valor debe contener:
+  - `string`: Texto libre (ejemplo: `"billing"`).
+  - `enum`: Valor restringido a una lista cerrada (ejemplo: `["Low", "Medium", "High", "Critical"]`).
+  - `boolean`: Valor booleano verdadero o falso (`true`, `false`).
+  - `number`: Valor numerico entero o flotante.
+- **`source` (Origen de Extraccion):** Define de que lugar del archivo Gherkin debe Testform extraer el valor:
+  - `tag`: El valor se extrae de un tag en la cabecera (ejemplo: `@priority-high` -> campo `priority` con valor `"High"`).
+  - `step`: El valor se detecta mediante la presencia de un paso en el escenario (ejemplo: un paso que contiene `"automatizado"` -> campo `automated: true`).
+  - `header`: El valor se extrae de las propiedades del encabezado del Feature.
+
+Ambos son necesarios: `source` indica **de donde** leer la informacion, y `type` indica **como validarla**.
+
+## 4. Configuracion de Proveedores (`provider`)
+
+Testform soporta proveedores remotos (como GitHub y GitLab) asi como un proveedor completamente local y desconectado (`local`).
+
+### Proveedor Local (`provider: local`)
+
+El proveedor local permite gestionar casos, ejecuciones y planes sin depender de ningun servicio en la nube ni requerir credenciales de red. Todas las incidencias, comentarios y campos simulados se registran en el archivo local `testform.data`.
+
+Es ideal para desarrollo individual, pipelines aislados sin acceso a internet o pruebas conceptuales:
+
+```yaml
+# Modo escalar directo
+provider: local
+```
+
+O utilizando la sintaxis de diccionario:
+
+```yaml
+provider:
+  local: {}
+```
+
+Al utilizar `provider: local`, los comandos `testform plan` y `testform apply` crean identificadores locales con el prefijo `local:<numero>` (por ejemplo, `local:1`, `local:2`), garantizando total reproducibilidad offline.
+
+### Proveedor GitHub (`provider.github`)
+
+Permite sincronizar recursos como incidencias y proyectos en GitHub Projects V2. Testform soporta tanto el numero simple visible en la URL del proyecto (`projectId: 12`) como el identificador GraphQL de nodo (`projectId: "PVT_kwDOB12345"`).
+
+```yaml
+provider:
+  github:
+    owner: "mi-organizacion"
+    repository: "mi-aplicacion"
+    projectId: 12
+    token_env: "GITHUB_TOKEN"
+```
+
+| Parametro | Descripcion | Requerido |
+| :--- | :--- | :--- |
+| `owner` | Organizacion o usuario propietario del repositorio en GitHub. | Si |
+| `repository` | Nombre del repositorio de GitHub. | Si |
+| `projectId` | Identificador numerico o GraphQL del proyecto en GitHub Projects V2. | No |
+| `token_env` | Nombre de la variable de entorno con el token de acceso (por defecto `GITHUB_TOKEN`). | No |
+
+El token puede suministrarse de forma segura mediante la variable de entorno `GITHUB_TOKEN` o la variable personalizada indicada en `token_env`.
+
+### Proveedor GitLab (`provider.gitlab`)
+
+Permite sincronizar recursos con incidencias en proyectos de GitLab:
+
+```yaml
+provider:
+  gitlab:
+    projectId: 12345678
+    token_env: "GITLAB_TOKEN"
+```

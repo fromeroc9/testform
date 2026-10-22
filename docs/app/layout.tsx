@@ -1,10 +1,14 @@
-import { Head } from 'nextra/components'
-import 'nextra-theme-docs/style.css'
+﻿import { Head } from 'nextra/components';
+import 'nextra-theme-docs/style.css';
+import './globals.css';
 
 export const metadata = {
-  title: 'Testform Documentation',
-  description: 'Test-as-Code Framework for Git & Testing Platforms',
-}
+  title: 'Testform - Test-as-Code Framework',
+  description: 'Declarative Test-as-Code Framework for Git & Testing Platforms',
+  icons: {
+    icon: '/icon.svg',
+  },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,5 +16,5 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <Head />
       <body>{children}</body>
     </html>
-  )
+  );
 }

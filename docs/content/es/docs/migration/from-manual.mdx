@@ -1,0 +1,45 @@
+﻿# Migracion desde Hojas de Calculo
+
+Convierte inventarios de prueba tradicionales en hojas de calculo (Excel, CSV, Google Sheets) en archivos versionados en Git con Testform.
+
+## Estructura Tradicional vs Declarativa
+
+En hojas de calculo, los casos de prueba suelen organizarse en columnas como:
+- ID Caso (`TC-01`)
+- Titulo / Descripcion
+- Precondiciones
+- Pasos de Ejecucion
+- Resultado Esperado
+
+### Ejemplo de Fila en Hoja de Calculo
+
+| ID | Titulo | Precondicion | Pasos | Resultado Esperado |
+| :--- | :--- | :--- | :--- | :--- |
+| `TC-101` | Reset de Password | Usuario registrado | 1. Ir a /forgot 2. Ingresar email 3. Enviar | Email recibido con token |
+
+## Conversion a Archivo `.feature`
+
+Crea el archivo correspondiente `tests/features/password_reset.case.feature`:
+
+```gherkin
+@tc-password-reset-101
+@priority-medium @component-auth
+Feature: Recuperacion de Contrasenas de Usuario
+  Como usuario registrado que ha olvidado su clave
+  Quiero solicitar un enlace de restablecimiento
+  Para recuperar el acceso seguro a mi cuenta
+
+  Scenario: Envio exitoso del correo de recuperacion
+    Given el usuario navega a la URL "/forgot"
+    When ingresa su correo electronico "registrado@empresa.com"
+    And pulsa el boton "Enviar Enlace de Recuperacion"
+    Then el sistema debe mostrar el mensaje "Revisa tu bandeja de entrada"
+    And debe emitirse un correo con un token de validez de 15 minutos
+```
+
+## Adopcion Progresiva
+
+No necesitas migrar todos tus casos de prueba de una sola vez:
+1. Comienza migrando los casos criticos de la suite `@smoke`.
+2. Ejecuta `testform plan` y `testform apply` para consolidar el ledger de estado.
+3. Incorpora progresivamente los casos de regresion en futuros sprints de desarrollo.

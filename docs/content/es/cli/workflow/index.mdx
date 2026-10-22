@@ -1,0 +1,11 @@
+﻿# Flujo de Trabajo Principal (Core Workflow)
+
+Los comandos del flujo de trabajo principal gestionan el ciclo de vida completo de planificacion, ejecucion y eliminacion de recursos declarativos.
+
+## Comandos del Flujo Principal
+
+- **[`testform init`](./init):** Inicializa el espacio de trabajo, crea los directorios requeridos y configura el backend de estado.
+- **[`testform plan`](./plan):** Genera un plan de ejecucion especulativo comparando el estado local contra el ledger y los proveedores remotos.
+- **[`testform apply`](./apply):** Aplica las acciones planificadas, adquiere el bloqueo de estado y sincroniza los cambios en los sistemas externos.
+- **[`testform refresh`](./refresh):** Consulta las APIs remotas y actualiza el ledger de estado local para reflejar modificaciones fuera de banda.
+- **[`testform destroy`](./destroy):** Destruye de forma segura los recursos gestionados por Testform en los proveedores remotos.

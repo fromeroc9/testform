@@ -97,7 +97,7 @@ provider:
         const content = readFileSync(expectedYmlPath, 'utf8');
         expect(content).toContain('version: "1.0"');
         expect(content).toContain('provider:');
-        expect(content).toContain('type: github');
+        expect(content).toContain('github:');
         expect(content).toContain('scopes:');
     });
 
@@ -146,7 +146,7 @@ scopes:
         const config = new Config(tmpDir);
         expect(config.getGitHub()?.projectId).toBe(42);
         expect(config.getGitHub()?.tokenEnv).toBe('CUSTOM_GH_TOKEN');
-        expect(config.getIdentity('testcase')).toBe('*.case.feature::*');
+        expect(config.getIdentity('testcase')).toBe('tc-*');
         
         const convention = config.getConvention('testcase');
         expect(convention?.directory).toBe('testcases');
@@ -197,7 +197,7 @@ fields:
         writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
 
         const config = new Config(tmpDir);
-        expect(config.getIdentity('testrun')).toBe('*.run.feature::*');
+        expect(config.getIdentity('testrun')).toBe('tr-*');
         
         const convention = config.getConvention('testrun');
         expect(convention?.directory).toBe('runs');
@@ -239,6 +239,38 @@ provider: local
         const config = new Config(tmpDir);
         expect(config.getProviderType()).toBe('local');
         expect(config.getAdapterType()).toBe('local');
+    });
+
+    it('should extract custom identity pattern from match or identity property', () => {
+        const yamlContent = `
+version: "1.0"
+provider: local
+scopes:
+  testcase:
+    match: "*.case.feature::login-*"
+  testrun:
+    match: "*.run.feature"
+    identity: "smoke-*"
+`;
+        writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
+
+        const config = new Config(tmpDir);
+        expect(config.getIdentity('testcase')).toBe('login-*');
+        expect(config.getIdentity('testrun')).toBe('smoke-*');
+    });
+
+    it('should fallback gracefully to standard defaults when match or scopes are not declared', () => {
+        const yamlContent = `
+version: "1.0"
+provider: local
+`;
+        writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
+
+        const config = new Config(tmpDir);
+        expect(config.getMatch('testcase')).toBeUndefined();
+        expect(config.getIdentity('testcase')).toBe('tc-*');
+        expect(config.getIdentity('testrun')).toBe('tr-*');
+        expect(config.getIdentity('testplan')).toBe('tp-*');
     });
 });
 

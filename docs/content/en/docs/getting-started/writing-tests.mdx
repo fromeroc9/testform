@@ -1,0 +1,135 @@
+﻿# Writing Declarative Tests
+
+Learn how `.case.feature` files are structured, where identity tags must be placed, and how test cases differ from test runs and plans in Testform.
+
+## Anatomy of a Test Case (testcase)
+
+In Testform, a `.case.feature` file represents a feature or capability module, and **each individual `Scenario` inside the file represents a test case**.
+
+For this reason:
+- **The testcase identity tag is placed DIRECTLY above the `Scenario:`** (never above the `Feature:`).
+- **The identity tag is unique within that specific `.case.feature` file**.
+- The canonical resource address in the state ledger is the combination of file path and scenario tag: `tests/features/auth.case.feature::@tc-login-001`.
+
+## Complete `.case.feature` Example
+
+A single feature file can contain multiple test cases (scenarios), each declaring its own identity tag and priority level:
+
+```gherkin
+Feature: User Authentication and Access
+  As a registered platform user
+  I want to securely log into the application
+  In order to access management tools
+
+  Background:
+    * field automate = apply
+
+  @high @tc-login-001
+  Scenario: Successful login with valid credentials
+    Given the user is on the login page
+    When the user submits email "admin@company.com" and valid password
+    And clicks the "Sign In" button
+    Then the system redirects to the main dashboard
+    And displays the welcome banner
+
+  @medium @tc-login-002
+  Scenario: Login attempt with invalid password
+    Given the user is on the login page
+    When the user submits email "admin@company.com" and an invalid password
+    And clicks the "Sign In" button
+    Then the user remains on the login page
+    And the system displays error "Invalid credentials"
+```
+
+## Identity Rules: `testcase` vs `testrun` and `testplan`
+
+Testform applies a clear architectural distinction regarding how identities are scoped across resource primitives:
+
+| Resource | File Scope | Identity Tag Placement | Uniqueness Scope |
+| :--- | :--- | :--- | :--- |
+| **`testcase`** | 1 `.case.feature` file contains **multiple test cases** (scenarios). | **Above each `Scenario:`** with `@tc-*` prefix (e.g. `@tc-login-001` or `@tc-login`). | Unique **within that `.feature` file**. Resolved as `<file>::<tag>`. |
+| **`testrun`** | 1 `.run.feature` file models **one entire execution record**. | **Above the `Feature:`** with `@tr-*` prefix at the top of the file. | **Globally unique** across the entire repository. |
+| **`testplan`** | 1 `.plan.feature` file models **one milestone certification matrix**. | **Above the `Feature:`** with `@tp-*` prefix at the top of the file. | **Globally unique** across the entire repository. |
+
+## Referencing Test Cases Inside Test Runs
+
+Because each individual test case lives inside a scenario within a `.case.feature` file, execution run files (`*.run.feature`) reference them using feature rules (`Rule:`) and scenario selectors:
+
+```gherkin
+@tr-smoke-202610 @high
+Feature: Regression Smoke Test
+  Quick validation of critical system flows.
+
+  Rule: auth.case.feature
+
+  Scenario: @tc-login-001
+
+  Rule: checkout.case.feature
+
+  Scenario: @tc-checkout-001
+```
+
+## Metadata and Custom Fields in Test Cases
+
+You can attach metadata to each test case through two mechanisms:
+
+### 1. Via Tags Above the Scenario
+
+```gherkin
+@critical @component-billing @tc-billing-001
+Scenario: Successful corporate card transaction
+```
+
+### 2. Via Declarative `* field` Steps
+
+```gherkin
+@tc-candidate-001
+Scenario: New candidate profile creation
+  * field automate = apply
+  * field module = "candidates"
+  Given the administrator opens the candidate form
+```
+
+## Parameterized Scenarios (Scenario Outline)
+
+To evaluate datasets, Testform supports two execution modes depending on your state ledger tracking requirements:
+
+### Mode 1: Single Test Case with Examples Table
+If you want the entire dataset tracked and reported as a single testcase resource in the state ledger:
+
+```gherkin
+@tc-email-validation
+Scenario Outline: Email address format validation
+  Given the user enters email address "<email>"
+  When attempting to submit registration
+  Then the system responds with result "<result>"
+
+  Examples:
+    | email             | result  |
+    | user@demo.com     | valid   |
+    | user-missing-at   | invalid |
+    | @domain.com       | invalid |
+```
+
+### Mode 2: Dynamic Unique Cases with `@unique` and Template
+If you need **each row of the `Examples` table to generate an independent test case resource in the state ledger**, use the special tag `@unique` alongside a `<column>` placeholder in the identity tag:
+
+```gherkin
+@unique @tc-auth-<role>
+Scenario Outline: Role-based access validation
+  Given the user signs in with "<role>" credentials
+  When navigating to section "<section>"
+  Then the system authorizes access to "<module>"
+
+  Examples:
+    | role        | section     | module     |
+    | admin       | settings    | security   |
+    | auditor     | reports     | finance    |
+    | operator    | operations  | inventory  |
+```
+
+During reconciliation (`testform plan` or `apply`):
+- Testform identifies the `@unique` tag and the presence of `<...>` placeholders.
+- It interpolates each row of the table, generating individual identity tags: `@tc-auth-admin`, `@tc-auth-auditor`, and `@tc-auth-operator`.
+- The `@unique` tag is automatically stripped from the final resource metadata.
+- Each variation is stored as an independent, fully trackable `testcase` resource in the state ledger.

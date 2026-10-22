@@ -1,0 +1,73 @@
+﻿# Getting Started con la CLI
+
+Aprende a instalar el binario de la CLI de Testform, configurar el autocompletado en tu shell y ejecutar tus primeros comandos operativos.
+
+## Instalacion de la CLI
+
+### Mediante Administradores de Paquetes
+
+Puedes instalar la CLI de Testform como dependencia global o local:
+
+```bash
+# Instalacion global con npm
+npm install -g @fromeroc9/testform
+
+# Instalacion global con pnpm
+pnpm add -g @fromeroc9/testform
+
+# O ejecucion bajo demanda con npx
+npx testform --help
+```
+
+## Verificacion de la Instalacion
+
+Ejecuta el comando version para confirmar que el binario este correctamente enlazado en tu `$PATH`:
+
+```bash
+testform -version
+```
+
+Salida esperada:
+
+```text
+Testform v1.0.0
+Plataforma: darwin/arm64
+Compilacion: commit 4f9a12c
+```
+
+## Autocompletado en el Shell
+
+Testform incluye autocompletado nativo para Bash, Zsh y PowerShell.
+
+### Bash
+
+```bash
+testform -install-autocomplete
+# o manualmente:
+eval "$(testform completion bash)"
+```
+
+### Zsh
+
+Agrega la siguiente linea a tu archivo `~/.zshrc`:
+
+```zsh
+eval "$(testform completion zsh)"
+```
+
+### PowerShell (Windows)
+
+Agrega la siguiente linea a tu `$PROFILE`:
+
+```powershell
+Invoke-Expression (&testform completion powershell | Out-String)
+```
+
+## Primeros Comandos
+
+Una vez instalado, el flujo de trabajo basico consta de:
+
+1. `testform init`: Inicializa la configuracion y carpetas.
+2. `testform validate`: Comprueba la sintaxis de tus archivos `.feature`.
+3. `testform plan`: Evalua las diferencias especulativas contra el estado remoto.
+4. `testform apply`: Aplica y concilia las mutaciones con tu proveedor.

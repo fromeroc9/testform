@@ -44,7 +44,7 @@ describe('Comando initCmd', () => {
 
         // Validar que se crearon los archivos de configuración y estado
         expect(existsSync(join(tmpDir, FILE_CONFIG))).toBe(true);
-        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe fallar si el archivo testform.yml no tiene una versión válida', async () => {
@@ -67,14 +67,9 @@ describe('Comando initCmd', () => {
         // Ejecutar initCmd
         await initCmd({ dir: tmpDir });
 
-        // Verificar que se creó el archivo de estado
-        const statePath = join(tmpDir, FILE_STATE);
-        expect(existsSync(statePath)).toBe(true);
-
-        const stateRaw = readFileSync(statePath, 'utf8');
-        const state = JSON.parse(stateRaw);
-        expect(state).toHaveProperty('version');
-        expect(state.resources !== undefined || state.testcase !== undefined).toBe(true);
+        // En la Opción A, init inicializa la configuración pero no crea el state hasta el primer apply
+        expect(existsSync(configPath)).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe imprimir la salida en formato JSON cuando isJson es true', async () => {
@@ -113,7 +108,7 @@ describe('Comando initCmd', () => {
         });
 
         const statePath = join(tmpDir, FILE_STATE);
-        expect(existsSync(statePath)).toBe(true);
+        expect(existsSync(statePath)).toBe(false);
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
         expect(logs.length).toBeGreaterThan(0);
@@ -126,7 +121,7 @@ describe('Comando initCmd', () => {
         await initCmd({ dir: tmpDir, backendConfigRaw: 'path/to/config.json' });
 
         // Verifica que no falló
-        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe aceptar backendConfigRaw como arreglo de strings', async () => {
@@ -135,7 +130,7 @@ describe('Comando initCmd', () => {
 
         await initCmd({ dir: tmpDir, backendConfigRaw: ['key1=value1', 'key2=value2'] });
 
-        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe respetar el parámetro lockTimeout', async () => {
@@ -144,7 +139,7 @@ describe('Comando initCmd', () => {
 
         await initCmd({ dir: tmpDir, lockTimeout: '10s' });
 
-        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe omitir la inicialización del backend si backendEnabled es false (-backend=false)', async () => {
@@ -155,7 +150,7 @@ describe('Comando initCmd', () => {
 
         // Cuando el backend está deshabilitado, Testform omite inicializar backends remotos y vuelve al local.
         // Como el log se imprime antes del switch de estado, verificamos que el archivo state local se generó de igual forma.
-        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe advertir si se usa reconfigure=true (-reconfigure)', async () => {
@@ -164,7 +159,7 @@ describe('Comando initCmd', () => {
 
         await initCmd({ dir: tmpDir, reconfigure: true });
 
-        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(true);
+        expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
     it('debe crear plantilla para backend github cuando se pasa backendType="github"', async () => {

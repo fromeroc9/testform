@@ -86,7 +86,8 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     const documents = parser.content();
 
     // Only process scenarios that match the requested scope
-    let rawScenarios = documents.filter(s => matchesScope(s, scope));
+    const matchPattern = config.getMatch?.(scope);
+    let rawScenarios = documents.filter(s => matchesScope(s, scope, matchPattern));
 
     const data = {
         identity: config.getIdentity(scope),

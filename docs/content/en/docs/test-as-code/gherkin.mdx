@@ -1,0 +1,77 @@
+﻿# Gherkin DSL and Step Bindings
+
+Testform implements a strict parser based on the standard Cucumber/Gherkin v6+ specification, enabling your feature files to serve simultaneously as human-readable documentation and machine-executable test code.
+
+## Core Keywords
+
+Testform supports standard Gherkin keywords in English and Spanish:
+
+| Keyword | Purpose |
+| :--- | :--- |
+| `Feature` | Defines the module or feature boundary under evaluation. |
+| `Rule` | Groups scenarios under an explicit business requirement. |
+| `Background` | Common steps executed prior to each scenario in the feature. |
+| `Scenario` | An isolated, concrete test workflow. |
+| `Scenario Outline` | Parameterized scenario executed across rows of an `Examples` table. |
+| `Examples` | Dataset table feeding a `Scenario Outline`. |
+| `Given` | Establishes the initial precondition or environment state. |
+| `When` | Describes the user action or system event triggering behavior. |
+| `Then` | Defines the observable assertion or expected side effect. |
+| `And`, `But` | Logical step continuations avoiding repetitive keywords. |
+
+## Parameter Expressions in Steps
+
+Testform steps support strongly typed parameter expressions:
+
+```gherkin
+Given the account has a balance of {int} dollars
+When the user transfers {float} to account "{string}"
+Then the API responds with HTTP status {int}
+```
+
+- `{int}`: Positive or negative integers (e.g., `42`, `-5`).
+- `{float}`: Floating point numbers (e.g., `19.99`).
+- `{string}`: Quoted strings (e.g., `"admin@company.com"`).
+- `{word}`: Single unquoted word without whitespace (e.g., `active`).
+
+## Data Tables
+
+When a step requires structured data, attach a data table directly below the step line:
+
+```gherkin
+Scenario: Batch catalog product ingestion
+  Given the administrator holds catalog management privileges
+  When the administrator creates the following products:
+    | sku       | name                 | price  | inventory |
+    | PROD-001  | Mechanical Keyboard  | 89.90  | 50        |
+    | PROD-002  | Ergonomic Mouse      | 45.00  | 120       |
+    | PROD-003  | UltraWide Monitor    | 349.00 | 15        |
+  Then all 3 products must appear in the active inventory
+```
+
+## Multiline Docstrings
+
+For JSON payloads, XML snippets, or extensive text blocks, wrap content in triple quotes:
+
+```gherkin
+Scenario: Webhook notification with JSON payload
+  When the payment gateway dispatches a POST to "/api/webhooks" with payload:
+    """json
+    {
+      "event": "payment_completed",
+      "transaction_id": "tx_99812",
+      "amount": 149.99,
+      "currency": "USD"
+    }
+    """
+  Then the endpoint responds with HTTP 200
+```
+
+## Testform Directives
+
+Testform extends standard Gherkin with tags controlling engine behavior:
+
+- `@ignore`: Excludes scenario or feature from planning and reconciliation.
+- `@flaky`: Flags scenario as unstable for suite reporting and isolation.
+- `@manual`: Marks test case as human-executed only.
+- `@module(path)`: Imports a shared library of reusable Gherkin steps.

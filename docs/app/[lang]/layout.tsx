@@ -1,27 +1,28 @@
-import { Footer, Layout, Navbar } from 'nextra-theme-docs'
-import { getPageMap } from 'nextra/page-map'
+﻿import { Footer, Layout, Navbar } from 'nextra-theme-docs';
+import { getPageMap } from 'nextra/page-map';
+import { TestformLogo } from '../components/Logo';
 
 const navbar = (
   <Navbar
-    logo={<b>Testform</b>}
+    logo={<TestformLogo />}
     projectLink="https://github.com/fromeroc9/testform"
   />
-)
-const footer = <Footer>MIT {new Date().getFullYear()} © Testform.</Footer>
+);
+const footer = <Footer>MIT {new Date().getFullYear()} © Testform. Built for modern quality engineering.</Footer>;
 
 export async function generateStaticParams() {
-  return [{ lang: 'es' }, { lang: 'en' }]
+  return [{ lang: 'es' }, { lang: 'en' }];
 }
 
 export default async function LocaleLayout({
   children,
   params,
 }: {
-  children: React.ReactNode
-  params: Promise<{ lang: string }>
+  children: React.ReactNode;
+  params: Promise<{ lang: string }>;
 }) {
-  const { lang } = await params
-  const pageMap = await getPageMap(`/${lang}`)
+  const { lang } = await params;
+  const pageMap = await getPageMap(`/${lang}`);
 
   return (
     <Layout
@@ -37,5 +38,5 @@ export default async function LocaleLayout({
     >
       {children}
     </Layout>
-  )
+  );
 }

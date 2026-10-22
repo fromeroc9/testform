@@ -1,0 +1,35 @@
+# `testform report`
+
+```bash
+testform [global options] report [options]
+```
+
+The `testform report` command generates comprehensive, multi-dimensional quality reports and execution analytics by analyzing state history and Provider outcomes.
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-format=<format>` | `console` | Output format (`console`, `html`, `json`, `markdown`). |
+| `-out=path` | — | Writes the report to a specified file. |
+| `-scope=<scope>` | `all` | Filters metrics to `testrun`, `testcase`, or `testplan`. |
+| `-milestone=<name>` | — | Filters analytics to a specific milestone. |
+
+## Metrics Provided
+
+- **Pass / Fail / Blocked Rates**: Percentage distribution across execution runs.
+- **Flakiness Detection**: Scenarios that alternate between passed and failed across consecutive runs without code changes.
+- **Execution Duration**: Historical trends and slow-test identification.
+- **Test Coverage**: Breakdown of test cases by functional area and tags.
+
+## Generating an HTML Dashboard
+
+```bash
+testform report -format=html -out=qa-report.html
+```
+Generates a standalone, interactive HTML report with charts and breakdown tables suitable for stakeholders.
+
+## Exit Codes
+
+- `0`: Report generated successfully.
+- `1`: Error processing state records or generating output.

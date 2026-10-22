@@ -27,6 +27,12 @@ describe('cli module', () => {
             expect(resolveScopes('testrun')).toEqual(['testrun']);
             expect(resolveScopes('testplan')).toEqual(['testplan']);
         });
+
+        it('should accept options object with scope property', () => {
+            expect(resolveScopes({})).toEqual(ALL_SCOPES);
+            expect(resolveScopes({ scope: 'all' })).toEqual(ALL_SCOPES);
+            expect(resolveScopes({ scope: 'testcase' })).toEqual(['testcase']);
+        });
     });
 
     describe('normalizeScope', () => {
@@ -37,6 +43,11 @@ describe('cli module', () => {
 
         it('should preserve specific scope as singleScope', () => {
             expect(normalizeScope('testrun')).toEqual({ scope: 'testrun', singleScope: 'testrun' });
+        });
+
+        it('should accept options object with scope property', () => {
+            expect(normalizeScope({})).toEqual({ scope: 'all', singleScope: 'testcase' });
+            expect(normalizeScope({ scope: 'testrun' })).toEqual({ scope: 'testrun', singleScope: 'testrun' });
         });
     });
 

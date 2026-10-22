@@ -1,0 +1,62 @@
+﻿# Policies and Quality Gates
+
+Enforce governance and organizational quality standards before changes are reconciled into external testing systems.
+
+## Why Policies as Code?
+
+In scaling engineering teams, test specifications often lack critical metadata (such as priority ratings, module owners, or component tags), degrading test analytics and coverage metrics.
+
+Testform enables you to establish automated quality gates that validate Gherkin specifications locally and in CI/CD using `testform validate`.
+
+## Validation Rules in testform.yml
+
+Declare strict policy constraints in the `fields` block of `testform.yml`:
+
+```yaml
+fields:
+  priority:
+    type: "enum"
+    source: "tag"
+    enum: ["Low", "Medium", "High", "Critical"]
+    required: true
+
+  component:
+    type: "string"
+    source: "tag"
+    required: true
+    regex: "^(auth|billing|search|settings|reporting)$"
+
+  automated:
+    type: "boolean"
+    source: "step"
+    default: false
+```
+
+- **`required: true`:** The test case is rejected if the field is missing.
+- **`enum`:** The value must match one of the predefined options.
+- **`regex`:** The extracted value must conform to the regular expression pattern.
+
+## Command Line Validation
+
+Execute validation on your machine or inside a pre-commit hook:
+
+```bash
+npx testform validate
+```
+
+If an authored test case violates a rule, Testform reports the exact file, line number, and violation:
+
+```text
+Validating test cases against organizational policies...
+
+[ERROR] tests/features/cart.case.feature:1:1
+  Test case "@tc-cart-004" violates field validation policy:
+  - Field "priority" is required but was not declared via tag (@priority-*).
+  - Field "component" does not match regex "^(auth|billing|search|settings|reporting)$". Found: "checkout_v2".
+
+Validation failed: 2 policy violations detected. Exit code 1.
+```
+
+## Pull Request Enforcement
+
+By executing `testform validate` inside your pull request checks, team members cannot merge non-compliant test cases into production branches.

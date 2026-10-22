@@ -13,13 +13,27 @@ import { askSelect } from './prompt';
  * Checks whether a given scenario document belongs to a specific scope,
  * based on feature tags or filename conventions.
  */
-export function matchesScope(s: any, scopeName: IScope): boolean {
+export function matchesScope(s: any, scopeName: IScope, filePattern?: string): boolean {
     if (!s) return false;
     if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scopeName)) return false;
     const cfg = SCOPE_CONFIG[scopeName as keyof typeof SCOPE_CONFIG];
     const tags = s.feature?.tags || [];
     const uri = typeof s.uri === 'string' ? s.uri : '';
-    return tags.includes(cfg.tag) || uri.endsWith(cfg.ext);
+    if (tags.includes(cfg.tag) || uri.endsWith(cfg.ext)) {
+        return true;
+    }
+    if (filePattern) {
+        const clean = filePattern.split('::')[0].trim();
+        if (clean && clean !== '*') {
+            if (clean.startsWith('*') && uri.endsWith(clean.slice(1))) {
+                return true;
+            }
+            if (uri === clean || uri.endsWith(`/${clean}`)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**

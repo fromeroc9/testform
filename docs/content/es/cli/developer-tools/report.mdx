@@ -1,0 +1,35 @@
+# `testform report`
+
+```bash
+testform [opciones globales] report [opciones]
+```
+
+El comando `testform report` compila informes multidimensionales de calidad y análisis de ejecución procesando el histórico del estado y las respuestas registradas por los Providers.
+
+## Opciones del Comando
+
+| Opción | Por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `-format=<formato>` | `console` | Formato del reporte (`console`, `html`, `json`, `markdown`). |
+| `-out=path` | — | Escribe el reporte en la ruta indicada. |
+| `-scope=<scope>` | `all` | Filtra las métricas por `testrun`, `testcase` o `testplan`. |
+| `-milestone=<nombre>` | — | Filtra la analítica hacia un milestone particular. |
+
+## Métricas Proporcionadas
+
+- **Tasas de Aprobación, Fallo y Bloqueo**: Distribución porcentual en cada ciclo de ejecución.
+- **Detección de Fragilidad (Flakiness)**: Identifica escenarios que alternan entre aprobados y fallidos en ejecuciones consecutivas sin cambios de código.
+- **Tiempos de Ejecución**: Evolución histórica y detección de pruebas con lentitud anómala.
+- **Cobertura de Pruebas**: Distribución de casos de prueba según módulos y etiquetas.
+
+## Generación de un Tablero Interactivo en HTML
+
+```bash
+testform report -format=html -out=reporte-qa.html
+```
+Crea un documento HTML interactivo con gráficos y tablas de resumen apto para presentación ante stakeholders y comités de release.
+
+## Códigos de Salida
+
+- `0`: Reporte generado exitosamente.
+- `1`: Error al procesar los registros de estado o al generar el archivo.

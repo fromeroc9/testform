@@ -2,15 +2,11 @@
 
 La interfaz de línea de comandos (CLI) de Testform es la herramienta operativa central para gestionar tu infraestructura de pruebas. Diseñada bajo las convenciones de HashiCorp Terraform, ofrece un flujo de trabajo intuitivo, predecible y consistente.
 
----
-
 ## Sintaxis de Comandos
 
 ```bash
 testform [opciones globales] <subcomando> [opciones] [argumentos]
 ```
-
----
 
 ## Opciones Globales
 
@@ -26,8 +22,6 @@ Las opciones globales pueden anteponerse a cualquier subcomando:
 | `-help` | `-h` | Muestra la ayuda detallada y opciones para cualquier comando. |
 | `-version` | `-v` | Imprime la versión instalada de Testform. |
 
----
-
 ## Sintaxis con Alcance al Inicio (Scope-First)
 
 Testform permite anteponer el identificador de alcance antes del subcomando para facilitar una escritura más fluida:
@@ -41,8 +35,6 @@ testform testcase plan
 testform testrun apply
 testform testplan destroy
 ```
-
----
 
 ## Categorías de Subcomandos
 

@@ -1,0 +1,57 @@
+# `testform show`
+
+```bash
+testform [global options] show [options] [path]
+```
+
+The `testform show` command displays a human-readable or machine-readable representation of a state file or saved execution plan.
+
+It is a read-only command used to inspect the current state of infrastructure without risking modifications.
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-json` | `false` | Emits the entire state or plan as a structured JSON object. |
+| `-no-color` | `false` | Disables colored output. |
+
+## Real Execution Examples
+
+### Inspecting Current State
+```bash
+$ testform show
+
+# testcase.login_valid:
+resource "testcase" "login_valid" {
+    id        = 104
+    title     = "Valid credentials allow login"
+    labels    = ["auth", "smoke", "regression"]
+    milestone = "Sprint 42"
+    url       = "https://github.com/my-org/web-app/issues/104"
+    state     = "open"
+}
+```
+
+### Inspecting a Saved Plan File
+```bash
+$ testform show tfplan.bin
+
+Testform will perform the following actions:
+
+  # checkout.case.feature::@tc-3 will be created
+  + resource "testcase" "checkout_coupon" {
+      + title = "Apply valid promotional coupon"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+### JSON Inspection (for Scripting)
+```bash
+testform show -json | jq '.resources[].instances[].attributes.title'
+```
+
+## Exit Codes
+
+- `0`: Inspection succeeded.
+- `1`: State or plan file could not be read.

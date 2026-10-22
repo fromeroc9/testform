@@ -1,0 +1,105 @@
+﻿# Automatizacion de Suites de Pruebas
+
+Conecta tus casos de prueba declarativos con ejecutores de pruebas reales como Playwright, Cypress y Vitest mediante el comando `testform suite`.
+
+## Como Funciona
+
+Testform no compite con los ejecutores de pruebas como Playwright o Vitest; actua como el **orquestador de control superior y la capa de persistencia de estado**.
+
+1. **Definicion:** Los casos de prueba se redactan en `.feature` con tags funcionales (`@smoke`, `@auth`, `@billing`).
+2. **Seleccion:** `testform suite` evalua expresiones booleanas de tags para resolver el subconjunto de pruebas exacto.
+3. **Despacho:** Testform invoca el ejecutor de pruebas subyacente (por ejemplo, `npx playwright test`).
+4. **Registro:** El resultado de la ejecucion genera un artefacto de corrida declarativa (`@tr-[id]`) que se concilia con el ledger de estado y la plataforma remota.
+
+```text
++-----------------------+
+|  testform suite       |
+|  -tags="@smoke"       |
++-----------+-----------+
+            |
+            v
++-----------------------+
+|  Filtro y Resolucion  | ===> [auth.case.feature, checkout.case.feature]
++-----------+-----------+
+            |
+            v
++-----------------------+
+|  Runner (Playwright)  | ===> npx playwright test tests/e2e/auth.spec.ts
++-----------+-----------+
+            |
+            v
++-----------------------+
+|  Registro de Corrida  | ===> tests/runs/smoke-20261021.run.feature
+|  (@tr-smoke-run-001)  | ===> testform apply (Sincroniza Jira/GitHub)
++-----------------------+
+```
+
+## Configuracion del Runner en testform.yml
+
+Define el runner y los comandos de ejecucion en tu archivo `testform.yml`:
+
+```yaml
+version: "1.0"
+
+suite:
+  runner: "playwright"
+  command: "npx playwright test"
+  options:
+    reporters: ["json", "list"]
+    timeout: 30000
+    parallel: true
+```
+
+## Ejecutar una Suite
+
+Para ejecutar todos los casos de prueba marcados con la etiqueta `@smoke`:
+
+```bash
+npx testform suite -tags="@smoke"
+```
+
+Salida esperada en consola:
+
+```text
+Testform Suite Orchestrator v1.0.0
+Criterio de seleccion: @smoke
+
+Casos resueltos:
+  - tests/features/auth.case.feature::@tc-auth-001
+  - tests/features/checkout.case.feature::@tc-checkout-001
+
+Ejecutando runner subyacente: npx playwright test...
+
+Running 2 tests using 2 workers
+  [1/2] auth.case.feature:8:3 › Inicio de sesion exitoso (412ms)
+  [2/2] checkout.case.feature:10:3 › Transaccion aprobada con fondos suficientes (890ms)
+
+2 passed (1.4s)
+
+Generando registro de ejecucion declarativo:
+  + Creado: tests/runs/run-20261021-smoke.run.feature (@tr-smoke-20261021)
+  Estado de la corrida: PASSED (2/2 exitosos, 0 fallidos)
+```
+
+## Filtrado Avanzado con Expresiones Booleanas
+
+El parametro `-tags` admite operadores booleanos completos (`and`, `or`, `not`):
+
+```bash
+# Ejecutar pruebas criticas de autenticacion que no sean inestables
+npx testform suite -tags="(@priority-critical or @smoke) and not @flaky"
+
+# Ejecutar pruebas del modulo de facturacion en entorno de staging
+npx testform suite -tags="@component-billing and @staging"
+```
+
+## Integracion en CI/CD
+
+Agrega el comando en tu pipeline de integracion continua para automatizar la ejecucion y la conciliacion en cada pull request:
+
+```yaml
+- name: Ejecutar Suite de Certificacion
+  run: |
+    npx testform suite -tags="@smoke" --ci
+    npx testform apply -auto-approve
+```

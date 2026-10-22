@@ -83,7 +83,7 @@ export class Config {
         //     owner: ...
         const KNOWN_PROVIDERS = ['github', 'gitlab', 'custom', 'local'];
         for (const p of KNOWN_PROVIDERS) {
-            if ((raw as any)[p] !== undefined && typeof (raw as any)[p] === 'object') {
+            if ((raw as any)[p] !== undefined && ((raw as any)[p] === null || typeof (raw as any)[p] === 'object')) {
                 return p;
             }
         }
@@ -96,7 +96,7 @@ export class Config {
         }
 
         const keys = Object.keys(raw);
-        if (keys.length > 0 && typeof (raw as any)[keys[0]] === 'object') {
+        if (keys.length > 0 && ((raw as any)[keys[0]] === null || typeof (raw as any)[keys[0]] === 'object')) {
             return keys[0].toLowerCase();
         }
 
@@ -198,18 +198,35 @@ export class Config {
         return raw as IBackendConfig;
     }
 
-    private getScopeConf(scope: IScope | 'global'): IScopeConfig | undefined {
+    getScopeConf(scope: IScope | 'global'): IScopeConfig | undefined {
         const scopes = this.config.scopes || this.config.scope;
         if (!scopes) return undefined;
         return Object.prototype.hasOwnProperty.call(scopes, scope) ? (scopes as any)[scope] : undefined;
     }
 
-    getIdentity(scope: IScope) {
+    getMatch(scope: IScope): string | undefined {
         const scopeConf = this.getScopeConf(scope);
-        const id = scopeConf?.match ?? scopeConf?.identity;
-        if (scope == "testcase") return id ?? "tc-*"
-        if (scope == "testrun") return id ?? "tr-*"
-        if (scope == "testplan") return id ?? "tp-*"
+        if (!scopeConf?.match) return undefined;
+        return scopeConf.match.split('::')[0].trim();
+    }
+
+    getIdentity(scope: IScope): string {
+        const defaultId = scope === 'testcase' ? 'tc-*' : scope === 'testrun' ? 'tr-*' : scope === 'testplan' ? 'tp-*' : '*';
+        const scopeConf = this.getScopeConf(scope);
+
+        let id = scopeConf?.identity;
+        if (!id && scopeConf?.match && scopeConf.match.includes('::')) {
+            const parts = scopeConf.match.split('::');
+            const candidate = parts.slice(1).join('::').trim();
+            if (candidate && candidate !== '*') {
+                id = candidate;
+            }
+        }
+
+        if (!id || id === '*') {
+            return defaultId;
+        }
+
         return id;
     }
 

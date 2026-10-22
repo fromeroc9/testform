@@ -18,6 +18,7 @@ import { VariableParser } from '../core/variables';
 import { CONFIG_FILE_NAMES } from '../core/const';
 import { parseModuleTargets, parseModuleTag, resolveModulePath, loadModuleSteps } from '../core/module';
 import { findFeatureFiles } from '../core/editor';
+import { Diag } from '../core/diagnostics';
 
 export const FIELD_PATTERN = /^(?:field)\s+([A-Za-z0-9_.\- ]+?)\s*=\s*(.+)$/i;
 
@@ -207,7 +208,33 @@ export abstract class BaseParser {
                 content = this.variables.applyToTemplate(content);
             }
             const parser = new Parse(new AstBuilder(IdGenerator.uuid()), new GherkinClassicTokenMatcher());
-            const rawDoc = parser.parse(content);
+            let rawDoc: GherkinDocument = null as any;
+            try {
+                rawDoc = parser.parse(content);
+            } catch (err: any) {
+                const errMsg: string = err.message || String(err);
+                const match = errMsg.match(/\((\d+):(\d+)\):\s*(.+)/);
+                const lineNum = match ? parseInt(match[1], 10) : undefined;
+                const fileLines = content.split('\n');
+                const snippet = (lineNum && fileLines[lineNum - 1]) ? fileLines[lineNum - 1].trim() : undefined;
+                const displayPath = relative(projectRoot, file) || file;
+
+                const detail = errMsg
+                    .split('\n')
+                    .map((l: string) => l.trim())
+                    .filter((l: string) => l.length > 0 && !l.startsWith('Parser errors:'));
+
+                Diag.structureError({
+                    file: displayPath,
+                    message: "Failed to parse Gherkin feature file",
+                    location: {
+                        file: displayPath,
+                        line: lineNum,
+                        snippet,
+                    },
+                    detail,
+                }).abort();
+            }
             rawDoc.uri = relative(projectRoot, file);
 
             // Check for Feature-level @module tags to accumulate module scenarios

@@ -1,0 +1,65 @@
+# `testform init`
+
+```bash
+testform [opciones globales] init [opciones]
+```
+
+El comando `testform init` inicializa el directorio de trabajo que contiene los archivos de configuración de Testform. Es el primer comando que debe ejecutarse al comenzar en un repositorio nuevo o clonado.
+
+Es completamente seguro ejecutar `testform init` de forma reiterada para resincronizar configuraciones de backends o actualizar plugins de providers.
+
+## Opciones del Comando
+
+| Opción | Por Defecto | Descripción |
+| :--- | :--- | :--- |
+| `-backend-type=<tipo>` | `local` | Tipo de backend a generar al crear una configuración nueva (`local`, `github`, `s3`, `azurerm`, `gcs`). |
+| `-backend=false` | `true` | Desactiva la inicialización del backend en esta ejecución y reutiliza la configuración previa. |
+| `-backend-config=path` | — | Configuración para combinar o sobrescribir el bloque `backend` de `testform.yml`. Puede especificarse como cadena `clave=valor` o como ruta a un archivo. Admite múltiples declaraciones. |
+| `-reconfigure` | `false` | Reconfigura el backend desde cero, ignorando cualquier configuración en caché. |
+| `-migrate-state` | `false` | Reconfigura el backend y migra automáticamente cualquier estado previo a la nueva ubicación. |
+| `-lock=false` | `true` | Desactiva el bloqueo de estado durante la migración (usar con precaución). |
+| `-lock-timeout=0s` | `0s` | Tiempo de reintento para adquirir el bloqueo si otro proceso lo retiene. |
+| `-no-color` | `false` | Desactiva códigos de color ANSI en la salida. |
+| `-json` | `false` | Emite la salida en formato JSON estructurado. |
+
+## Ejemplo de Ejecución Real
+
+```bash
+$ testform init
+
+Initializing the backend...
+Initializing Testform configuration...
+- Configuration: testform.yml (v1.0)
+- State backend: ready
+
+Initializing provider plugins...
+- Finding latest version of provider/github...
+- Installed provider/github v1.0.3 (signed by Testform)
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources.
+```
+
+## Uso Avanzado y Escenarios
+
+### Inyección Dinámica de Backends en CI/CD
+Suministra credenciales sensibles o nombres de buckets de forma dinámica sin exponerlos en `testform.yml`:
+```bash
+testform init \
+  -backend-config="bucket=mis-estados-testform" \
+  -backend-config="region=eu-central-1"
+```
+
+### Migración de Estado hacia el Almacenamiento en la Nube
+Al migrar desde el entorno local (`testform.state`) hacia AWS S3:
+```bash
+testform init -migrate-state
+```
+Testform solicita confirmación interactiva, verifica el bucket de destino, transfiere el archivo de estado y libera los bloqueos ordenadamente.
+
+## Códigos de Salida
+
+- `0`: Inicialización completada exitosamente.
+- `1`: Ocurrió un error (configuración no válida, credenciales ausentes o fallo de red).

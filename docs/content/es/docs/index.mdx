@@ -1,0 +1,44 @@
+﻿# Documentacion de Testform
+
+Bienvenido a la documentacion oficial de **Testform**, el framework de **Test-as-Code (TaC)** para ingenieria de calidad y gestion declarativa de pruebas en Git.
+
+## Estructura de la Documentacion
+
+La documentacion esta organizada en cinco secciones clave:
+
+### 1. [Getting Started](./getting-started)
+Aprende a instalar Testform, inicializar tu espacio de trabajo, redactar tus primeros casos declarativos y ejecutar suites de prueba automatizadas.
+- [Instalacion y Quickstart](./getting-started)
+- [Redaccion de Pruebas Declarativas](./getting-started/writing-tests)
+- [Ejecucion y Conciliacion](./getting-started/running-tests)
+- [Automatizacion de Suites](./getting-started/test-suite-automation)
+
+### 2. [Testform Test (Test-as-Code)](./test-as-code)
+Profundiza en la arquitectura del motor, la declaracion de recursos, el DSL Gherkin, la configuracion de `testform.yml` y las compuertas de calidad.
+- [Arquitectura y Principios](./test-as-code)
+- [Recursos Declarativos](./test-as-code/resources)
+- [Gherkin DSL y Step Bindings](./test-as-code/gherkin)
+- [Configuracion testform.yml](./test-as-code/configuration)
+- [Motor de Conciliacion](./test-as-code/reconciliation)
+- [Politicas y Quality Gates](./test-as-code/policies)
+
+### 3. [Guides](./guides)
+Patrones arquitectonicos para despliegues empresariales, almacenamiento distribuido y mantenimiento continuo.
+- [Backends Multi-Cloud](./guides/multi-cloud-backends)
+- [Bloqueo Distribuido de Estado](./guides/state-locking)
+- [Pruebas Basadas en Datos](./guides/data-driven)
+- [Arquitectura Modular (@module)](./guides/modules)
+- [Deteccion de Deriva (Drift)](./guides/drift-detection)
+
+### 4. [Migration](./migration)
+Rutas paso a paso para migrar casos de prueba desde hojas de calculo tradicionales o plataformas como Jira, Zephyr y QMetry.
+- [Migracion desde Hojas de Calculo](./migration/from-manual)
+- [Migracion desde Jira / Zephyr / QMetry](./migration/from-jira)
+- [Actualizacion de Ledger de Estado](./migration/state-migration)
+
+### 5. [Integration](./integration)
+Automatiza la conciliacion en tus pipelines de entrega continua y conecta ejecutores de prueba modernos.
+- [GitHub Actions Pipeline](./integration/ci-cd-github)
+- [GitLab CI/CD Pipeline](./integration/ci-cd-gitlab)
+- [Integracion con Test Runners](./integration/test-runners)
+- [Proveedores y Webhooks](./integration/custom-providers)

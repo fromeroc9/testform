@@ -1,0 +1,75 @@
+﻿# Arquitectura y Principios de Test-as-Code
+
+Conoce los fundamentos arquitectonicos detras de Testform y el paradigma de Test-as-Code (TaC).
+
+## Por Que Test-as-Code?
+
+Historicamente, la gestion de pruebas de software ha sufrido de aislamiento respecto al ciclo de vida del codigo de produccion:
+
+- **Silos de Informacion:** Los casos de prueba se gestionan en herramientas externas con interfaces web lentas (Jira, Zephyr, TestRail) o en hojas de calculo desactualizadas.
+- **Falta de Trazabilidad:** Los cambios en los requisitos de prueba no se asocian a commits especificos ni se revisan en Pull Requests.
+- **Desincronizacion:** El codigo de la aplicacion avanza mas rapido que los casos de prueba documentados, acumulando deuda tecnica y falsos positivos.
+
+Test-as-Code traslada los mismos principios que revolucionaron la infraestructura (Terraform, Ansible, Kubernetes) al aseguramiento de la calidad:
+
+1. **Versionado en Git:** Los casos de prueba residen en el mismo repositorio de la aplicacion y cambian en los mismos Pull Requests.
+2. **Modelo Declarativo:** El ingeniero declara el estado deseado en archivos Gherkin; el motor calcula que acciones se requieren para alcanzar ese estado.
+3. **Idempotencia:** Ejecutar `testform apply` una o diez veces produce exactamente el mismo resultado final en los sistemas remotos.
+4. **Ledger Criptografico:** Un archivo de estado inmutable registra hashes SHA-256 de cada recurso para detectar derivas (*drift*) y modificaciones fuera de banda.
+
+## El Modelo de Tres Estados
+
+```text
++-------------------------------------------------------------+
+| 1. Estado Deseado (Git)                                     |
+|    tests/features/*.case.feature                             |
+|    Declarado por los ingenieros mediante directivas Gherkin |
++------------------------------+------------------------------+
+                               |
+                               v
++-------------------------------------------------------------+
+| 2. Estado Conocido (Ledger)                                 |
+|    testform.state (Local / OCI / S3 / Azure / GCS)          |
+|    Registro inmutable de identidades, metadatos y hashes    |
++------------------------------+------------------------------+
+                               |
+                               v
++-------------------------------------------------------------+
+| 3. Estado Real (Proveedores)                                |
+|    GitHub Projects V2 / GitLab / Jira API                   |
+|    Entidades vivas consultadas durante el ciclo de diff    |
++-------------------------------------------------------------+
+```
+
+## El Ledger de Estado (testform.state)
+
+El ledger de estado es un documento JSON que funciona como la base de datos de verdad de Testform. Contiene:
+
+```json
+{
+  "version": 4,
+  "testform_version": "1.0.0",
+  "serial": 12,
+  "lineage": "a8b3c4d5-e6f7-4890-bcde-1234567890ab",
+  "resources": [
+    {
+      "scope": "testcase",
+      "id": "@tc-auth-001",
+      "provider": "github",
+      "remote_id": "I_kwDOB12345",
+      "hash": "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+      "attributes": {
+        "title": "Inicio de sesion exitoso con correo y contrasena",
+        "feature": "Autenticacion de Usuarios",
+        "priority": "High",
+        "component": "auth",
+        "status": "draft"
+      }
+    }
+  ]
+}
+```
+
+- **Serial:** Contador incremental que protege contra escrituras concurrentes o aplicaciones fuera de orden.
+- **Lineage:** UUID inmutable que identifica el ciclo de vida unico del proyecto.
+- **Hash SHA-256:** Suma de comprobacion del contenido del recurso. Permite a Testform determinar si un recurso fue modificado localmente sin tener que consultar la API remota.

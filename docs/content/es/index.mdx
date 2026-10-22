@@ -1,67 +1,154 @@
-# Documentación de Testform
+﻿<div className="landing-hero">
+  <div className="landing-hero-bg"></div>
+  <div className="landing-badge">Framework de Test-as-Code • Open Source</div>
+  <h1 className="landing-title">Test-as-Code para Git y Plataformas de Calidad</h1>
+  <div className="landing-subtitle">
+    Aplica los principios arquitectonicos e idempotentes de Terraform al aseguramiento de la calidad (QA).
+    Especifica tus pruebas en Gherkin, controlalas en Git, revisalas en Pull Requests y concilialas automaticamente con GitHub Projects V2, GitLab y Jira.
+  </div>
 
-Bienvenido a la documentación oficial de **Testform**. Testform introduce el paradigma de **Test-as-Code (TaC)** a la ingeniería de software moderna, trasladando los principios arquitectónicos consolidados de HashiCorp Terraform al aseguramiento de la calidad (QA) y la gestión de pruebas.
+  <div className="landing-cta-group">
+    <a href="./docs" className="landing-btn-primary"><span>Comenzar con Docs</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+    <a href="./cli" className="landing-btn-secondary"><span>Referencia de la CLI</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></a>
+  </div>
+</div>
 
-Al codificar casos de prueba, ejecuciones de prueba (test runs) y planes de prueba (test plans) en configuraciones declarativas Gherkin (`.feature`), tus procesos de testing pueden versionarse en Git, revisarse en Pull Requests y sincronizarse automáticamente con tus gestores de incidencias y tableros de proyecto.
+## Flujo de Trabajo Declarativo en Accion
 
----
+Observa como una especificacion Gherkin versionada en Git se traduce en un plan de conciliacion reproducible y de solo lectura.
 
-## ¿Por qué Testform?
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem', margin: '2rem 0' }}>
 
-Las herramientas tradicionales de gestión de pruebas desacoplan la ingeniería de calidad del flujo diario de desarrollo. Con frecuencia, los **Quality Engineers** se ven obligados a crear y mantener casos de prueba en portales web externos aislados (como Jira, Zephyr o QMetry), mientras que los desarrolladores escriben código en sus IDEs. Esta fragmentación introduce graves desafíos:
+<div>
 
-- **Desviación de Especificación (Specification Drift)**: Los casos de prueba quedan desactualizados rápidamente a medida que el código de la aplicación evoluciona.
-- **Sobrecarga en la Trazabilidad**: Vincular ejecuciones de prueba automatizadas con la aprobación de releases requiere un registro manual y tedioso.
-- **Conflictos y Pruebas Frágiles**: Sin una fuente única de verdad, los equipos duplican esfuerzos y pierden contexto histórico.
+### 1. Especificacion Local (Git)
+`tests/features/auth.case.feature`
 
-**Testform resuelve esto tratando los casos de prueba como infraestructura.**
+```gherkin
+Feature: Funcionalidad de Autenticacion y Acceso
+  Como usuario registrado de la aplicacion
+  Quiero autenticarme con credenciales validas
+  Para acceder al panel de control protegido
 
-Escribes archivos BDD Gherkin estándar y ejecutables localmente. El motor de Testform calcula planes, detecta desviaciones (drift) y concilia el estado deseado contra tu plataforma con precisión atómica e idempotente.
+  Background:
+    * field automate = apply
 
----
+  @high @tc-login-001
+  Scenario: Inicio de sesion exitoso con credenciales validas
+    Given el usuario navega a la URL "/login"
+    When introduce el correo "admin@empresa.com"
+    And introduce la contrasena temporal "Secret123!"
+    And pulsa el boton "Iniciar Sesion"
+    Then el sistema debe redirigir a "/dashboard"
+    And el banner muestra "Bienvenido, Administrador"
+```
 
-## Platform Providers
+</div>
 
-Testform no te ata a una sola herramienta:
+<div>
 
-- **Ecosistema Git como Base**: El código de pruebas reside en Git (GitHub hoy, con soporte para GitLab a futuro).
-- **Tableros de Proyecto**: Aprovecha los tableros de proyectos (Projects en GitHub, Boards en GitLab) como un tablero ágil e interactivo de gestión de casos de prueba.
-- **Conector Estándar**: GitHub es el Provider activo por defecto, pero la arquitectura define una interfaz estándar para conectores. Esto permite extender Testform fácilmente hacia tus herramientas empresariales favoritas como **Zephyr**, **QMetry**, **Jira** o backends propios.
-- **Políticas y Validaciones Abiertas**: Define tus propios esquemas de campos (`fields`), tipos de datos obligatorios, enums y reglas de convención automatizadas.
+### 2. Plan de Conciliacion Especulativo
+`testform plan`
 
----
+```text
+Testform v1.0.17
+Backend configurado: local (testform.state)
+Adquiriendo bloqueo de estado... Bloqueo adquirido.
 
-## Beneficios Clave
+Calculando grafo de dependencias y plan de conciliacion:
 
-1. **GitOps para Quality Engineers**: Las pruebas residen en Git junto al código fuente de producción. Los Pull Requests permiten revisar simultáneamente el código de las funcionalidades, las definiciones de pasos automatizados y las especificaciones de pruebas.
-2. **Estado Declarativo Puro**: Declara el estado deseado en Gherkin. Testform determina la secuencia exacta de operaciones de creación, actualización o cierre sin interacción manual en navegadores web.
-3. **Idempotencia y Detección de Desviación**: Gracias al seguimiento de estado y a las huellas criptográficas SHA-256 (`localHash`), Testform detecta cambios externos fuera de banda y previene la duplicación de tickets.
-4. **Integración con Tableros y Gestores de Casos**: Convierte los tableros de tu plataforma en paneles visuales de casos de prueba, manteniendo a todo el equipo de desarrollo y Quality Engineers alineados en un solo flujo.
-5. **Bloqueo de Estado Multi-Cloud**: Previene condiciones de carrera en ejecuciones concurrentes de CI/CD utilizando AWS S3 con DynamoDB, Azure Blob Leases o Google Cloud Storage.
+  + resource "testcase" "tests/features/auth.case.feature::@tc-login-001" {
+      + title       = "Inicio de sesion exitoso con credenciales validas"
+      + feature     = "Funcionalidad de Autenticacion y Acceso"
+      + priority    = "high"
+      + automate    = "apply"
+      + steps_count = 6
+      + status      = "draft"
+    }
 
----
+Plan: 1 para agregar, 0 para cambiar, 0 para destruir.
+Liberando bloqueo de estado... Bloqueo liberado.
+```
 
-## Estructura de la Documentación
+</div>
 
-Explora las distintas secciones para dominar Testform:
+</div>
 
-### 🚀 [Primeros Pasos](./getting-started)
-Sigue nuestra guía práctica de 5 minutos para inicializar Testform, configurar las credenciales del provider y aplicar tu primer caso de prueba declarativo en GitHub.
+## Pilares de Testform
 
-### 📐 [El Modelo Terraform](./model)
-Comparativa arquitectónica que muestra cómo el lenguaje HCL de Terraform, su motor de estado y su bucle de reconciliación se traducen 1:1 a los archivos Gherkin y mecanismos de estado de Testform.
+<div className="landing-grid">
 
-### 🥒 [Especificación Gherkin y Archivos Feature](./gherkin)
-Guía exhaustiva para redactar BDD como código declarativo: anatomía del feature, pasos y reglas, scenario outlines, tablas de datos, estrategia de etiquetas (tags) y variables de paso del DSL (`* clave = valor`).
+  <div className="landing-card">
+    <div className="landing-card-title">Declarativo e Idempotente</div>
+    <div className="landing-card-desc">
+      El repositorio Git es la unica fuente de verdad. El comando apply garantiza el mismo estado final en tus herramientas de gestion sin importar cuantas veces se ejecute.
+    </div>
+  </div>
 
-### 📝 [Recursos Declarativos y Configuración](./resources)
-Desglose detallado de los tres niveles de recursos gestionados: `testcase`, `testrun` y `testplan`, así como el esquema maestro del archivo de configuración `testform.yml`.
+  <div className="landing-card">
+    <div className="landing-card-title">Ledger Multi-Cloud y Locking</div>
+    <div className="landing-card-desc">
+      Persistencia segura con bloqueo distribuido nativo en Oracle Cloud (OCI), AWS S3 con DynamoDB, Azure Blob Storage y Google Cloud Storage.
+    </div>
+  </div>
 
-### 💻 [Referencia de la CLI](./cli)
-Referencia completa de cada comando, opción, flag, indicador de diff y código de salida para el Flujo Principal, Inspección, Operaciones de Estado y Utilidades.
+  <div className="landing-card">
+    <div className="landing-card-title">Orquestador Universal de Runners</div>
+    <div className="landing-card-desc">
+      Conecta casos de prueba declarativos con herramientas de automatizacion como Playwright, Cypress y Vitest mediante el comando testform suite.
+    </div>
+  </div>
 
-### 🗄️ [Gestión del Estado y Backends](./state)
-Análisis en profundidad de `testform.state`, números de serie, linajes UUID, backends remotos en la nube (S3, Azure Blob, GCS) y migración automatizada de estado.
+  <div className="landing-card">
+    <div className="landing-card-title">Deteccion Continua de Deriva (Drift)</div>
+    <div className="landing-card-desc">
+      Monitoreo automatico en pipelines programados para identificar cambios manuales no autorizados en Jira o GitHub y restaurar el estado autoritativo.
+    </div>
+  </div>
 
-### 🔌 [Providers y CI/CD](./providers)
-Aprende cómo funcionan los plugins de Providers, cómo configurar el Provider oficial de GitHub, desarrollar providers personalizados e integrar Testform en flujos de trabajo de GitHub Actions.
+  <div className="landing-card">
+    <div className="landing-card-title">Politicas y Quality Gates</div>
+    <div className="landing-card-desc">
+      Valida esquemas, campos requeridos, expresiones regulares y tags obligatorios en Pull Requests antes de autorizar la fusion a ramas productivas.
+    </div>
+  </div>
+
+  <div className="landing-card">
+    <div className="landing-card-title">Arquitectura Modular (@module)</div>
+    <div className="landing-card-desc">
+      Reutiliza flujos transversales como autenticacion o creacion de carritos en multiples archivos de prueba sin duplicar steps ni codigo.
+    </div>
+  </div>
+
+</div>
+
+## Enfoque Tradicional vs Test-as-Code
+
+| Capacidad | Enfoque Tradicional | Testform (Test-as-Code) |
+| :--- | :--- | :--- |
+| **Almacenamiento** | Hojas de calculo o interfaces web lentas fuera del codigo. | Archivos `.feature` versionados en Git junto al codigo fuente. |
+| **Revision de Cambios** | Sin trazabilidad o mediante comentarios aislados. | Pull Requests, revision por pares y diffs especulativos. |
+| **Trazabilidad** | Desconectada de commits y ramas de funcionalidad. | Vinculacion estricta por SHA de commit y releases. |
+| **Concurrencia** | Conflictos y sobreescrituras silenciosas. | Bloqueo distribuido de estado con mutex y leases criptograficos. |
+| **Automatizacion** | Dispersa en scripts sin conexion con los casos de prueba. | Orquestacion nativa con Playwright, Vitest y Cypress. |
+
+## Comienza en Tres Pasos
+
+### 1. Instalacion Global
+
+```bash
+npm install -g @fromeroc9/testform
+```
+
+### 2. Inicializacion del Espacio de Trabajo
+
+```bash
+testform init
+```
+
+### 3. Planificacion y Conciliacion
+
+```bash
+testform plan
+testform apply -auto-approve
+```

@@ -1,0 +1,43 @@
+﻿# Modular Architecture (@module)
+
+Reuse common test workflows across multiple `.feature` files utilizing declarative modules.
+
+## Eliminating Specification Duplication
+
+Repetitive workflows such as authenticating users, provisioning shopping carts, or configuring workspace permissions frequently recur across dozens of feature files. Duplicating steps creates maintenance overhead when product specifications evolve.
+
+## Authoring a Reusable Module
+
+Create a shared module under `tests/modules/auth_login.module.feature`:
+
+```gherkin
+@module-auth-login
+Feature: Reusable Authentication Module
+
+  Scenario: Standard User Sign In
+    Given the user opens the URL "/login"
+    When the user submits valid test credentials
+    And confirms login
+    Then the main dashboard is loaded
+```
+
+## Consuming Modules with `@module`
+
+Import the shared steps into your target test case using the `@module` directive:
+
+```gherkin
+@tc-checkout-with-auth-001
+@module(tests/modules/auth_login.module.feature)
+@component-billing
+Feature: Checkout with Reusable Authentication Module
+
+  Background:
+    Given the module flow "auth-login" has completed successfully
+
+  Scenario: Complete credit card purchase
+    Given the user has active items in cart
+    When the user clicks "Place Order"
+    Then the transaction is approved
+```
+
+The Testform engine resolves module dependencies during compilation, validating file presence and preventing circular imports.

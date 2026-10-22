@@ -1,26 +1,10 @@
 export default {
-  index: 'CLI Overview & Global Options',
-  '--_core': {
-    type: 'separator',
-    title: 'Core Workflow'
-  },
-  commands: 'Core Commands',
-
-  '--_inspection': {
-    type: 'separator',
-    title: 'Inspection & Analysis'
-  },
-  inspection: 'Inspection Commands',
-
-  '--_state': {
-    type: 'separator',
-    title: 'State & Disaster Recovery'
-  },
-  'state-ops': 'State Operations',
-
-  '--_utilities': {
-    type: 'separator',
-    title: 'Workspaces & Utilities'
-  },
-  utilities: 'Workspaces & Tools'
-}
+  "index": "Introduction",
+  "getting-started": "Getting Started",
+  "core-concepts": "Core Concepts",
+  "workflow": "Core Workflow",
+  "storage": "State & Storage",
+  "developer-tools": "Developer Tools",
+  "workspaces": "Sessions & Workspaces",
+  "configuration": "Configuration"
+};

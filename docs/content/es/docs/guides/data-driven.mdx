@@ -1,0 +1,60 @@
+﻿# Pruebas Basadas en Datos
+
+Aprende a parametrizar casos de prueba declarativos y modelar matrices multidimensionales de evaluacion.
+
+## Uso de Scenario Outline y Examples
+
+El mecanismo estandar de Gherkin para pruebas basadas en datos es `Scenario Outline`:
+
+```gherkin
+@priority-high @component-billing
+Feature: Calculadora de Precios y Descuentos por Volumen
+
+  @tc-pricing-calculator-001
+  Scenario Outline: Aplicacion de tramos de descuento segun cantidad de licencias
+    Given una suscripcion activa con plan "<plan>"
+    When el cliente solicita la compra de <cantidad> licencias
+    Then el sistema debe aplicar una tasa de descuento de "<descuento>"
+    And el precio unitario final debe ser "<precio_unitario>"
+
+    Examples:
+      | plan       | cantidad | descuento | precio_unitario |
+      | Starter    | 1        | 0%        | $29.00          |
+      | Starter    | 5        | 5%        | $27.55          |
+      | Enterprise | 10       | 15%       | $24.65          |
+      | Enterprise | 50       | 25%       | $21.75          |
+      | Enterprise | 100      | 35%       | $18.85          |
+```
+
+## Mapeo en el Ledger de Estado
+
+Por defecto, Testform registra el `Scenario Outline` como un unico caso de prueba declarativo (`@tc-pricing-calculator-001`) y calcula un hash que representa la combinacion del cuerpo del escenario y todos los renglones de la tabla `Examples`.
+
+Si agregas o modificas una fila de la tabla `Examples`:
+- `testform plan` detectara una actualizacion en el lugar (`~ update`).
+- No se generaran casos duplicados en Jira o GitHub; la descripcion remota reflejara los nuevos casos de prueba actualizados.
+
+## Casos Dinamicos con @unique
+
+Si en lugar de consolidar todas las filas en un unico caso de prueba necesitas que **cada renglon de la tabla `Examples` sea un recurso independiente** con su propio ciclo de vida e issue remoto, combina el tag `@unique` con una plantilla `<columna>` en la identidad:
+
+```gherkin
+Feature: Autenticacion por Rol
+
+  @unique @tc-login-<rol>
+  Scenario Outline: Acceso al sistema segun rol <rol>
+    Given el usuario navega a "/login"
+    When introduce credenciales para el rol "<rol>"
+    Then accede a la vista principal correspondiente
+
+    Examples:
+      | rol         |
+      | admin       |
+      | auditor     |
+      | postulante  |
+```
+
+Durante el procesamiento (`testform plan` o `apply`):
+- Testform sustituye dinamicamente el valor de cada fila, generando los casos `@tc-login-admin`, `@tc-login-auditor` y `@tc-login-postulante`.
+- Remueve automaticamente el tag `@unique` de los metadatos finales.
+- Registra cada combinacion como un recurso independiente en el state ledger.

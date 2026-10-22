@@ -1,0 +1,43 @@
+﻿# Arquitectura Modular (@module)
+
+Reutiliza flujos de prueba complejos en multiples archivos `.feature` mediante modulos declarativos.
+
+## El Problema de la Duplicacion
+
+Flujos comunes como el inicio de sesion, la creacion de carritos o la navegacion inicial se repiten con frecuencia en docenas de archivos `.feature`. Duplicar estos pasos manualmente genera fragilidad ante cambios de diseno.
+
+## Declaracion de un Modulo Compartido
+
+Crea un archivo de modulo reutilizable bajo `tests/modules/auth_login.module.feature`:
+
+```gherkin
+@module-auth-login
+Feature: Modulo Reutilizable de Autenticacion
+
+  Scenario: Inicio de sesion estandar
+    Given el usuario navega a la URL "/login"
+    When introduce credenciales validas de prueba
+    And confirma el acceso
+    Then el dashboard principal queda cargado
+```
+
+## Consumo del Modulo con `@module`
+
+Importa el modulo en cualquier caso de prueba utilizando la directiva `@module`:
+
+```gherkin
+@tc-checkout-with-auth-001
+@module(tests/modules/auth_login.module.feature)
+@component-billing
+Feature: Checkout con Modulo de Autenticacion Reutilizado
+
+  Background:
+    Given el flujo de autenticacion del modulo "auth-login" fue completado con exito
+
+  Scenario: Completar compra con tarjeta
+    Given el usuario tiene articulos en el carrito
+    When pulsa "Finalizar Compra"
+    Then la transaccion es exitosa
+```
+
+El motor de Testform resolvera las dependencias del modulo en tiempo de compilacion, validando que el archivo importado exista y no contenga ciclos circulares.

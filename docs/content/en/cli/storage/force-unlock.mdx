@@ -1,0 +1,49 @@
+# `testform force-unlock`
+
+```bash
+testform force-unlock [options] <lock-id>
+```
+
+The `testform force-unlock` command forcefully removes a stuck or orphaned distributed state lock on the current workspace.
+
+## When to Use `force-unlock`
+
+State locking prevents two team members or CI jobs from mutating the state concurrently. However, if a CI runner crashes abruptly, a machine loses power, or a process is killed (`kill -9`), the lock may remain active in DynamoDB, Azure Blob leases, or GCS, blocking subsequent commands:
+
+```
+Error: Error acquiring the state lock
+  Lock Info:
+    ID:        b7c93e41-0f82-498b-9d22-123456789abc
+    Path:      my-bucket/testform.state
+    Owner:     ci-runner-ip-10-0-2-44
+    Created:   2026-10-19 15:20:00 UTC
+```
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-force` | `false` | Skips interactive confirmation before unlocking. |
+
+## Real Execution Example
+
+```bash
+$ testform force-unlock b7c93e41-0f82-498b-9d22-123456789abc
+
+Do you really want to force-unlock?
+  Testform will remove the lock on the current state.
+  Please ensure that no other process is actively running against this state.
+
+  Enter a value: yes
+
+Testform state lock b7c93e41-0f82-498b-9d22-123456789abc successfully released!
+```
+
+## Warning: Concurrency Risks
+
+Only use `force-unlock` after verifying that the process that created the lock is genuinely dead. Unlocking a state while an apply is actively running can cause state corruption.
+
+## Exit Codes
+
+- `0`: Lock successfully removed.
+- `1`: Invalid lock ID or backend communication error.

@@ -1,0 +1,146 @@
+# testform.yml Specification
+
+The `testform.yml` file is the central workspace configuration manifest. It configures the state storage backend, external providers, artifact scopes, and custom metadata fields schema.
+
+## Schema Overview
+
+```yaml
+version: "1.0"
+
+# 1. State Storage Backend
+backend:
+  type: "local"
+  path: "testform.state"
+
+# 2. Provider Configuration (dictionary mode or local)
+provider:
+  github:
+    owner: "my-organization"
+    repository: "my-application"
+    projectId: 12
+    token_env: "GITHUB_TOKEN"
+
+# 3. Global and Resource Scopes
+scopes:
+  global:
+    directory: "tests"
+  testcase:
+    directory: "tests/features"
+    pattern: "*.case.feature"
+  testrun:
+    directory: "tests/runs"
+    pattern: "*.run.feature"
+  testplan:
+    directory: "tests/plans"
+    pattern: "*.plan.feature"
+
+# 4. Custom Metadata Fields and Validation Policies
+fields:
+  priority:
+    type: "enum"
+    source: "tag"
+    enum: ["Low", "Medium", "High", "Critical"]
+    default: "Medium"
+  component:
+    type: "string"
+    source: "tag"
+    required: false
+  automated:
+    type: "boolean"
+    source: "step"
+    default: false
+```
+
+## 1. `backend` Block
+
+Defines where the state ledger (`testform.state`) resides and how distributed mutex locks are acquired:
+
+| Type (`type`) | Description | Required Parameters |
+| :--- | :--- | :--- |
+| `local` | Local file storage (intended for solo development and testing). | `path` |
+| `oci` | Oracle Cloud Infrastructure Object Storage with ETag conditional locking. | `namespace`, `bucket`, `object_name`, `tenancy_id` |
+| `s3` | Amazon S3 with distributed mutex locking via Amazon DynamoDB. | `bucket`, `key`, `dynamodb_table`, `region` |
+| `azure` | Azure Blob Storage with exclusive lease locking. | `storage_account`, `container`, `blob_name` |
+| `gcs` | Google Cloud Storage with object generation preconditions. | `bucket`, `prefix` |
+
+## 2. `scopes` Block
+
+The `scopes` block organizes discovery directories and glob patterns for test artifacts:
+
+- `scopes.global`: Sets workspace-wide fallback configurations shared across all resources.
+- `scopes.testcase`: Target directory and file match patterns for test cases (`*.case.feature`).
+- `scopes.testrun`: Directory for execution run logs (`*.run.feature`).
+- `scopes.testplan`: Directory for certification matrices (`*.plan.feature`).
+
+## 3. `fields` Block: Understanding `type` vs `source`
+
+In the custom fields schema, `type` and `source` serve distinct, complementary purposes:
+
+- **`type` (Data Validation Type):** Specifies the required data structure and validation constraints:
+  - `string`: Arbitrary text (e.g., `"billing"`).
+  - `enum`: Value constrained to an allowed list (e.g., `["Low", "Medium", "High", "Critical"]`).
+  - `boolean`: Boolean flag (`true` or `false`).
+  - `number`: Integer or floating-point number.
+- **`source` (Extraction Origin):** Instructs Testform where in the Gherkin file to look for this value:
+  - `tag`: Extracted from feature or scenario tags (e.g., `@priority-high` -> field `priority` gets `"High"`).
+  - `step`: Inferred based on step presence (e.g., matching a step mentioning `"automated"` -> field `automated: true`).
+  - `header`: Extracted from the Feature metadata header lines.
+
+Both parameters are required: `source` defines **where to read** the value, and `type` defines **how to validate** it.
+
+## 4. Provider Configuration (`provider`)
+
+Testform supports remote issue trackers (such as GitHub and GitLab) as well as a completely offline local provider (`local`).
+
+### Local Provider (`provider: local`)
+
+The local provider allows managing testcases, runs, and plans without relying on any external cloud service or network credentials. All simulated issues, comments, and project fields are saved locally into `testform.data`.
+
+This is ideal for offline development, air-gapped environments, or solo verification:
+
+```yaml
+# Direct scalar mode
+provider: local
+```
+
+Or using dictionary syntax:
+
+```yaml
+provider:
+  local: {}
+```
+
+When using `provider: local`, `testform plan` and `testform apply` assign local IDs prefixed with `local:<number>` (such as `local:1`, `local:2`), guaranteeing complete offline reproducibility.
+
+### GitHub Provider (`provider.github`)
+
+Synchronizes test resources as issues and project items in GitHub Projects V2. Testform supports both human-readable project numbers (`projectId: 12`) and GraphQL node IDs (`projectId: "PVT_kwDOB12345"`).
+
+```yaml
+provider:
+  github:
+    owner: "my-organization"
+    repository: "my-application"
+    projectId: 12
+    token_env: "GITHUB_TOKEN"
+```
+
+| Parameter | Description | Required |
+| :--- | :--- | :--- |
+| `owner` | GitHub organization or username owning the repository. | Yes |
+| `repository` | GitHub repository name. | Yes |
+| `projectId` | Numeric or GraphQL project ID in GitHub Projects V2. | No |
+| `token_env` | Environment variable name providing the personal access token (default `GITHUB_TOKEN`). | No |
+
+Authentication tokens are securely injected via the `GITHUB_TOKEN` environment variable or the custom variable designated in `token_env`.
+
+### GitLab Provider (`provider.gitlab`)
+
+Synchronizes test resources with issues in GitLab projects:
+
+```yaml
+provider:
+  gitlab:
+    projectId: 12345678
+    token_env: "GITLAB_TOKEN"
+```

@@ -1,0 +1,32 @@
+﻿# Conceptos Clave de la CLI
+
+Comprende el modelo mental operativo, la idempotencia y las garantias de seguridad de la CLI de Testform.
+
+## El Modelo Mental Plan y Apply
+
+La CLI de Testform separa estrictamente el **analisis especulativo** de la **mutacion fisica**:
+
+1. **Lectura y Comparacion (`plan`):** La CLI nunca altera recursos en modo plan. Puedes ejecutar `testform plan` de forma segura en cualquier momento para inspeccionar que cambiaria.
+2. **Aplicacion Confirmada (`apply`):** Requiere aprobacion explicita (o la bandera `-auto-approve` en entornos desatendidos) y adquiere un mutex distribuido antes de realizar cualquier llamada a APIs externas.
+
+## El Ledger de Estado como Fuente de Verdad
+
+A diferencia de las herramientas que dependen exclusivamente de consultar APIs remotas, Testform mantiene un ledger criptografico (`testform.state`):
+
+- **Rendimiento:** Permite calcular diffs locales al instante sin saturar los limites de tasa (*rate limits*) de GitHub o Jira.
+- **Deteccion de Deriva:** Almacena la suma SHA-256 de cada recurso para alertar si alguien altero un caso fuera de Git.
+- **Lineage y Serial:** Evita que dos ingenieros o ramas divergentes sobreescriban estados concurrentemente.
+
+## Garantia de Idempotencia
+
+Un comando idempotente puede ejecutarse multiples veces produciendo el mismo resultado que una sola ejecucion:
+
+```bash
+# Primera ejecucion: Crea 3 recursos remotos
+testform apply -auto-approve
+# Salida: Plan: 3 to add, 0 to change, 0 to destroy.
+
+# Segunda ejecucion inmediata: Cero modificaciones
+testform apply -auto-approve
+# Salida: No changes. Your infrastructure matches the configuration.
+```

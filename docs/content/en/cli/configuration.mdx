@@ -1,0 +1,31 @@
+﻿# CLI Configuration
+
+Complete reference for option resolution order, environment variables, and CLI configuration precedence in Testform.
+
+## Precedence Hierarchy
+
+When the same configuration option is defined in multiple sources, Testform resolves values applying the following strict order (highest to lowest priority):
+
+1. **Explicit Command Line Flags:** (e.g., `-scope=testcase`, `-chdir=./custom`)
+2. **System Environment Variables:** (e.g., `TESTFORM_SCOPE=testcase`)
+3. **Workspace Configuration File:** (`testform.yml`)
+4. **Built-in System Defaults**
+
+## Global CLI Environment Variables
+
+| Environment Variable | Equivalent CLI Flag | Description |
+| :--- | :--- | :--- |
+| `TESTFORM_CONFIG` | `-config=PATH` | Path to an alternate configuration file. |
+| `TESTFORM_CHDIR` | `-chdir=DIR` | Working directory base for execution. |
+| `TESTFORM_SCOPE` | `-scope=SCOPE` | Narrows execution to `testcase`, `testrun`, or `testplan`. |
+| `TESTFORM_LOG` | `-log-level=LEVEL` | Logging verbosity (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`). |
+| `TESTFORM_NO_COLOR` | `-no-color` | Disables ANSI terminal color sequences. |
+
+## Provider Credential Variables
+
+| Environment Variable | Target Provider | Description |
+| :--- | :--- | :--- |
+| `GITHUB_TOKEN` | GitHub Projects V2 | Personal access token with `repo` and `project` scopes. |
+| `GITLAB_TOKEN` | GitLab Issues | Personal or CI pipeline token for GitLab integration. |
+| `JIRA_API_TOKEN` | Jira Cloud | Atlassian API token for Jira and Zephyr sync. |
+| `JIRA_USER_EMAIL` | Jira Cloud | User email associated with the Atlassian service token. |

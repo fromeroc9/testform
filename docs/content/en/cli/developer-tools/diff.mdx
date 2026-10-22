@@ -1,0 +1,39 @@
+# `testform diff`
+
+```bash
+testform [global options] diff [options]
+```
+
+The `testform diff` command performs a direct, read-only comparison between your local `.feature` files and the recorded state file (`testform.state`). 
+
+Unlike `testform plan` (which checks remote Provider APIs for drift), `testform diff` runs **100% locally and instantaneously**, making it ideal for fast pre-commit checks and editor plugins.
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-target=address` | — | Limits diffing to a specific resource address. |
+| `-no-color` | `false` | Disables colored console output. |
+| `-json` | `false` | Emits diff results as JSON. |
+
+## Real Execution Example
+
+```bash
+$ testform diff
+
+Local vs. Recorded State:
+
+~ login.case.feature::@tc-1
+  ~ milestone: "Sprint 41" -> "Sprint 42"
+  ~ tags: ["auth", "smoke"] -> ["auth", "smoke", "critical"]
+
++ payment.case.feature::@tc-4 (new scenario detected locally)
+
+Diff summary: 1 scenario modified, 1 scenario added, 0 scenarios removed.
+```
+
+## Exit Codes
+
+- `0`: Diff completed successfully (no differences found).
+- `1`: Error reading files or invalid syntax.
+- `2`: Differences detected between local code and state.

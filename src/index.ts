@@ -44,8 +44,26 @@ import {
     compareCliVersions as compareVersions
 } from './core/cli';
 
-function printVersion(detailed: boolean = false) {
-    const latestVersion = process.env.TESTSTATE_LATEST_VERSION;
+async function fetchLatestNpmVersion(): Promise<string | undefined> {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1500);
+        const res = await fetch('https://registry.npmjs.org/@fromeroc9/testform/latest', {
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+            const data: any = await res.json();
+            return data.version;
+        }
+    } catch {
+        // Silently ignore network timeouts or offline errors
+    }
+    return undefined;
+}
+
+async function printVersion(detailed: boolean = false): Promise<void> {
     const platformArch = `${platform}_${arch}`;
 
     console.log(cyan(`${TITLE_APP} v${VERSION_CLI}`));
@@ -56,10 +74,13 @@ function printVersion(detailed: boolean = false) {
         console.log(`+ State Version: ${VERSION_STATE} (${FILE_STATE})`);
     }
 
+    const latestVersion = process.env.TESTSTATE_LATEST_VERSION || await fetchLatestNpmVersion();
+
     if (latestVersion && compareVersions(VERSION_CLI, latestVersion) < 0) {
         console.log('');
         console.log(`Your version of ${TITLE_APP} is out of date! The latest version`);
-        console.log(`is ${latestVersion}. You can update from your release source.`);
+        console.log(`is ${latestVersion}. You can update by running:`);
+        console.log(`  npm install -g @fromeroc9/testform`);
     }
 }
 
@@ -78,6 +99,8 @@ export function createCli() {
     cli.command('init', 'Initialize a new Testform workspace')
         .option('--backend-type <type>', 'Backend type to initialize (local | github | s3 | azurerm | gcs | oci)')
         .option('--backend-config <config>', 'Backend configuration override')
+        .option('--provider <type>', 'Provider type to initialize (github | local | gitlab)')
+        .option('--provider-type <type>', 'Alias for --provider')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
         .option('--reconfigure', 'Reconfigure backend')
@@ -88,11 +111,13 @@ export function createCli() {
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const resolvedBackendType = options.backendType || (typeof options.backend === 'string' ? options.backend : undefined);
+            const resolvedProviderType = options.provider || options.providerType;
             const backendEnabled = options.backend !== false && options.backend !== 'false';
 
             await initCmd({
                 dir: workDir,
                 backendType: resolvedBackendType,
+                providerType: resolvedProviderType,
                 verbose: Boolean(options.verbose),
                 backendConfigRaw: options.backendConfig,
                 lock: options.lock ?? true,
@@ -627,8 +652,8 @@ export function createCli() {
 
     // ─── version ──────────────────────────────────────────────────────────
     cli.command('version', 'Show detailed version information')
-        .action(() => {
-            printVersion(true);
+        .action(async () => {
+            await printVersion(true);
         });
 
     cli.help();
@@ -648,7 +673,7 @@ export const main = async () => {
 
     // Version flag
     if (rawArgs.includes('--version') || rawArgs.includes('-version') || rawArgs.includes('-v') && rawArgs.length === 1) {
-        printVersion(false);
+        await printVersion(false);
         process.exit(0);
     }
 
@@ -692,9 +717,10 @@ export const main = async () => {
             console.log(`Run '${TITLE_CLI} --help' for usage instructions.`);
             process.exit(1);
         }
-        console.error(chalk.red(`\nFatal Error: ${err.message}\n`));
-        if (process.env.DEBUG && err.stack) {
-            console.error(err.stack);
+        try {
+            logger.error(err.message || String(err));
+        } catch {
+            // TestformError thrown by logger.error
         }
         process.exit(1);
     }
@@ -705,7 +731,11 @@ if (require.main === module || !module.parent) {
         if (err instanceof TestformError) {
             process.exit(err.exitCode);
         }
-        console.error(chalk.red(`\nFatal Error: ${err.message}\n`));
+        try {
+            logger.error(err.message || String(err));
+        } catch {
+            // TestformError thrown by logger.error
+        }
         process.exit(1);
     });
 }

@@ -1,0 +1,65 @@
+# `testform init`
+
+```bash
+testform [global options] init [options]
+```
+
+The `testform init` command initializes a working directory containing Testform configuration files. This is the first command that should be run for any new or cloned repository.
+
+It is always safe to run `testform init` multiple times to re-synchronize backend settings or install updated providers.
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-backend-type=<type>` | `local` | Backend type to scaffold when creating a new configuration (`local`, `github`, `s3`, `azurerm`, `gcs`). |
+| `-backend=false` | `true` | Disables backend initialization for this run and uses the previously initialized configuration. |
+| `-backend-config=path` | — | Configuration to merge with or override the `backend` block in `testform.yml`. Can be a `key=value` string or a file path. May be specified multiple times. |
+| `-reconfigure` | `false` | Reconfigures a backend from scratch, ignoring any cached configuration. |
+| `-migrate-state` | `false` | Reconfigures a backend and automatically migrates any existing state to the new location. |
+| `-lock=false` | `true` | Disables holding a state lock during migration (use with caution). |
+| `-lock-timeout=0s` | `0s` | Duration to retry acquiring a state lock if another process holds it. |
+| `-no-color` | `false` | Disables color escape codes in output. |
+| `-json` | `false` | Emits output in machine-readable JSON format. |
+
+## Real Execution Example
+
+```bash
+$ testform init
+
+Initializing the backend...
+Initializing Testform configuration...
+- Configuration: testform.yml (v1.0)
+- State backend: ready
+
+Initializing provider plugins...
+- Finding latest version of provider/github...
+- Installed provider/github v1.0.3 (signed by Testform)
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources.
+```
+
+## Advanced Usage & Scenarios
+
+### Dynamic CI/CD Backend Injection
+Pass sensitive tokens or bucket names dynamically without hardcoding them in `testform.yml`:
+```bash
+testform init \
+  -backend-config="bucket=my-company-test-states" \
+  -backend-config="region=eu-central-1"
+```
+
+### Migrating State to Cloud Storage
+When moving from local development (`testform.state`) to AWS S3:
+```bash
+testform init -migrate-state
+```
+Testform prompts for confirmation, verifies the destination bucket, uploads the state file, and releases any locks cleanly.
+
+## Exit Codes
+
+- `0`: Initialization succeeded.
+- `1`: An error occurred (invalid configuration, missing backend credentials, or network failure).

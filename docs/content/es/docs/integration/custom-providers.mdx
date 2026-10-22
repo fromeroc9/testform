@@ -1,0 +1,39 @@
+﻿# Proveedores Personalizados y Webhooks
+
+Extiende Testform para emitir eventos de conciliacion y resultados de ejecucion hacia sistemas de terceros mediante webhooks HTTP.
+
+## Configuracion de Webhooks en testform.yml
+
+```yaml
+version: "1.0"
+
+notifications:
+  webhooks:
+    - name: "slack-notifications"
+      url: "https://hooks.slack.com/services/T00/B00/XXXX"
+      events:
+        - "apply.completed"
+        - "drift.detected"
+        - "suite.failed"
+      headers:
+        Authorization: "Bearer ${SLACK_WEBHOOK_TOKEN}"
+```
+
+## Formato del Payload de Notificacion
+
+Cada evento emite una carga util en JSON estructurado:
+
+```json
+{
+  "event": "apply.completed",
+  "timestamp": "2026-10-21T14:35:10Z",
+  "workspace": "production",
+  "summary": {
+    "added": 3,
+    "updated": 1,
+    "destroyed": 0
+  },
+  "commit": "a1b2c3d4",
+  "actor": "flavi"
+}
+```

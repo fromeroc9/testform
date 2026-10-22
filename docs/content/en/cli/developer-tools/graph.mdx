@@ -1,0 +1,45 @@
+# `testform graph`
+
+```bash
+testform [global options] graph [options]
+```
+
+The `testform graph` command generates a visual representation of the dependency graph across your testing infrastructure.
+
+It outputs the graph in standard **DOT format** (compatible with Graphviz, PlantUML, and online viewers like GraphvizOnline).
+
+## What the Graph Shows
+
+1. **Hierarchy**: Relationships between `testplan`, `testrun`, and `testcase` resources.
+2. **Rule Bindings**: Which `.case.feature` files are imported into which `.run.feature` files.
+3. **Execution Order**: The topological order in which Testform will execute and sync resources during `apply`.
+
+## Real Execution Example
+
+```bash
+$ testform graph
+digraph G {
+  rankdir = "RL";
+  node [shape = rect, fontname = "sans-serif"];
+  "testcase.login_valid" -> "testrun.sprint_42";
+  "testcase.checkout_coupon" -> "testrun.sprint_42";
+  "testrun.sprint_42" -> "testplan.release_2_0";
+}
+```
+
+## Rendering to Image (PNG / SVG)
+
+Pipe the output directly into `dot` (Graphviz):
+
+```bash
+# Render to SVG:
+testform graph | dot -Tsvg -o test-graph.svg
+
+# Render to PNG:
+testform graph | dot -Tpng -o test-graph.png
+```
+
+## Exit Codes
+
+- `0`: Graph generated successfully.
+- `1`: Error parsing feature files or resolving cyclic dependencies.

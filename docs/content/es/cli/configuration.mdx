@@ -1,0 +1,31 @@
+﻿# Configuracion de la CLI
+
+Referencia completa de resolucion de opciones, variables de entorno y precedencia de configuracion en la CLI de Testform.
+
+## Orden de Precedencia
+
+Cuando se define la misma opcion en multiples origenes, Testform resuelve el valor final aplicando la siguiente jerarquia estricta (de mayor a menor prioridad):
+
+1. **Banderas de Linea de Comandos:** (ejemplo: `-scope=testcase`, `-chdir=./custom`)
+2. **Variables de Entorno del Sistema:** (ejemplo: `TESTFORM_SCOPE=testcase`)
+3. **Archivo de Configuracion:** (`testform.yml`)
+4. **Valores por Defecto del Sistema**
+
+## Variables de Entorno Globales
+
+| Variable de Entorno | Bandera CLI Equivalente | Descripcion |
+| :--- | :--- | :--- |
+| `TESTFORM_CONFIG` | `-config=PATH` | Ruta al archivo de configuracion alternativo. |
+| `TESTFORM_CHDIR` | `-chdir=DIR` | Directorio de trabajo base para la ejecucion. |
+| `TESTFORM_SCOPE` | `-scope=SCOPE` | Limita el alcance a `testcase`, `testrun` o `testplan`. |
+| `TESTFORM_LOG` | `-log-level=LEVEL` | Nivel de detalle de registros (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`). |
+| `TESTFORM_NO_COLOR` | `-no-color` | Desactiva las secuencias de escape de color ANSI. |
+
+## Variables de Credenciales de Proveedores
+
+| Variable de Entorno | Proveedor | Proposito |
+| :--- | :--- | :--- |
+| `GITHUB_TOKEN` | GitHub Projects V2 | Token de autenticacion personal con permisos `repo` y `project`. |
+| `GITLAB_TOKEN` | GitLab Issues | Token de acceso personal o de pipeline en GitLab CI. |
+| `JIRA_API_TOKEN` | Jira Cloud | Token API de Atlassian para integracion con Jira y Zephyr. |
+| `JIRA_USER_EMAIL` | Jira Cloud | Correo electronico asociado a la cuenta de servicio de Atlassian. |
