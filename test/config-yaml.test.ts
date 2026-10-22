@@ -89,6 +89,7 @@ provider:
     });
 
     it('should generate testform.yml by default on initCmd', async () => {
+        writeFileSync(join(tmpDir, 'sample.case.feature'), '@testcase\nFeature: Test\nScenario: One\nGiven step');
         await initCmd({ dir: tmpDir, lock: false });
 
         const expectedYmlPath = join(tmpDir, 'testform.yml');

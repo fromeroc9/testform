@@ -12,7 +12,8 @@ Es completamente seguro ejecutar `testform init` de forma reiterada para resincr
 
 | Opción | Por Defecto | Descripción |
 | :--- | :--- | :--- |
-| `-backend-type=<tipo>` | `local` | Tipo de backend a generar al crear una configuración nueva (`local`, `github`, `s3`, `azurerm`, `gcs`). |
+| `-provider=<tipo>` | `github` | Tipo de provider a configurar (`github`, `local`, `gitlab`). |
+| `-backend-type=<tipo>` | `local` | Tipo de backend a generar al crear una configuración nueva (`local`, `github`, `s3`, `azurerm`, `gcs`, `oci`). |
 | `-backend=false` | `true` | Desactiva la inicialización del backend en esta ejecución y reutiliza la configuración previa. |
 | `-backend-config=path` | — | Configuración para combinar o sobrescribir el bloque `backend` de `testform.yml`. Puede especificarse como cadena `clave=valor` o como ruta a un archivo. Admite múltiples declaraciones. |
 | `-reconfigure` | `false` | Reconfigura el backend desde cero, ignorando cualquier configuración en caché. |
@@ -24,23 +25,122 @@ Es completamente seguro ejecutar `testform init` de forma reiterada para resincr
 
 ## Ejemplo de Ejecución Real
 
+### Inicialización Estándar
+
 ```bash
 $ testform init
-
 Initializing the backend...
-Initializing Testform configuration...
-- Configuration: testform.yml (v1.0)
-- State backend: ready
+
+Successfully configured the backend "local"! Testform will automatically
+use this backend unless the backend configuration changes.
 
 Initializing provider plugins...
-- Finding latest version of provider/github...
-- Installed provider/github v1.0.3 (signed by Testform)
 
 Testform has been successfully initialized!
 
 You may now begin working with Testform. Try running "testform plan" to see
-any changes that are required for your test management resources.
+any changes that are required for your test management resources. All Testform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Testform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
 ```
+
+### Inicialización sin Backend (`-backend=false`)
+
+```bash
+$ testform init -backend=false
+Initializing provider plugins...
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources. All Testform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Testform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+```
+
+### Inicialización en Directorio Vacío
+
+Al igual que Terraform cuando no existen archivos `.tf`, si Testform se ejecuta en un directorio donde aún no existen archivos `.feature` válidos con el tag reservado obligatorio `@testcase`, el proceso **se detiene inmediatamente y no genera `testform.yml`**, reportando:
+
+```text
+Testform initialized in an empty directory!
+
+The directory has no Testform feature files. You may begin working
+with Testform immediately by creating Gherkin feature files.
+```
+
+Una vez creado tu primer archivo de especificación Gherkin con `@testcase`, las subsecuentes ejecuciones de `testform init` generarán `testform.yml` (si aún no existe), inicializarán el backend y reportarán `Testform has been successfully initialized!`.
+
+## Validación de Argumentos de Backend
+
+Cuando se especifica `-backend-config`, Testform valida de forma estricta los argumentos contra el esquema del backend seleccionado:
+
+- **Argumento no válido:** Si pasas un parámetro inesperado para el tipo de backend (por ejemplo `-backend-config="bucket=..."` cuando el backend es `local`), Testform cancela la inicialización con el error formateado:
+  ```text
+  ╷
+  │ Error: Invalid backend configuration argument
+  │
+  │ The backend configuration argument "bucket" given on the command line is not
+  │ expected for the selected backend type.
+  ╵
+  ```
+- **Sin bloque backend:** Si se invoca `-backend-config` sin un bloque `backend` declarado en `testform.yml`, Testform emite la advertencia `Warning: Missing backend configuration` para recordarte definir explícitamente el backend o agregarlo para limpiar el aviso.
+
+## Cambio en la Configuración del Backend
+
+Testform realiza un seguimiento continuo de la configuración activa del backend en `.testform/backend.json`. Si modificas el bloque `backend` en `testform.yml` o proporcionas un valor distinto mediante `-backend-config`, Testform detecta la discrepancia antes de inicializar y solicita definir cómo proceder:
+
+```text
+╷
+│ Error: Backend configuration changed
+│ 
+│ A change in the backend configuration has been detected, which may require migrating existing
+│ state.
+│ 
+│ If you wish to attempt automatic migration of the state, run "testform init -migrate-state".
+│ If you wish to store the current configuration with no changes to the state, run "testform
+│ init -reconfigure".
+╵
+```
+
+- `-migrate-state`: Lee el estado actual desde el backend previo y lo migra hacia el nuevo destino remoto.
+- `-reconfigure`: Descarta el backend previo y guarda la nueva configuración sin intentar transferir datos de estado existentes.
+
+## Validación de Atributos Obligatorios
+
+Si la configuración del backend carece de campos obligatorios, Testform valida los requerimientos de cada proveedor:
+
+- **Atributos interactivos:** Si falta `key`, Testform solicitará su valor en consola de forma interactiva:
+  ```text
+  key
+    The path to the state file inside the bucket
+
+    Enter a value: 
+  ```
+- **Falta de región:** Si no se define `region` ni las variables de entorno asociadas (`AWS_REGION` o `AWS_DEFAULT_REGION`):
+  ```text
+  ╷
+  │ Error: Missing region value
+  │ 
+  │ The "region" attribute or the "AWS_REGION" or "AWS_DEFAULT_REGION" environment variables must
+  │ be set.
+  ╵
+  ```
+- **Falta de bucket:** Si no se define el nombre del bucket de almacenamiento:
+  ```text
+  ╷
+  │ Error: Missing bucket value
+  │ 
+  │ The "bucket" attribute must be set for the s3 backend.
+  ╵
+  ```
+
 
 ## Uso Avanzado y Escenarios
 

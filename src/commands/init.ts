@@ -1,12 +1,51 @@
 import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
 import YAML from 'yaml';
 
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { Config } from '../core/config';
 import { Logger } from '../core/logger';
 import { basename, dirname, join } from 'path';
-import { State } from '../core/state';
+import { State, parseBackendOverrides } from '../core/state';
 import { ensureDriverInstalled } from '../core/driver';
+import { findFeatureFiles } from '../core/editor';
+import { WorkspaceManager } from '../core/workspace';
+import { askBackendAttribute, isInteractive } from '../core/prompt';
+
+export const EXPECTED_BACKEND_ARGS: Record<string, string[]> = {
+    local: ['path', 'workspace_dir', 'workspace_dir_prefix'],
+    s3: [
+        'bucket', 'key', 'region', 'endpoint', 'dynamodb_table', 'profile',
+        'namespace', 'force_path_style', 'forcepathstyle', 'encrypt',
+        'kms_key_id', 'role_arn', 'workspace_key_prefix', 'access_key',
+        'secret_key', 'token'
+    ],
+    oci: [
+        'bucket', 'namespace', 'region', 'key', 'endpoint', 'profile',
+        'tenancy_id', 'compartment_id', 'fingerprint', 'private_key_path', 'user_id'
+    ],
+    azurerm: [
+        'resource_group_name', 'storage_account_name', 'container_name', 'key',
+        'connection_string', 'environment', 'subscription_id', 'tenant_id',
+        'client_id', 'client_secret'
+    ],
+    gcs: ['bucket', 'prefix', 'credentials', 'impersonate_service_account'],
+    github: ['owner', 'repository', 'repo', 'branch', 'path', 'token_env', 'tokenenv', 'token']
+};
+
+export const hasValidFeatureFiles = (dir: string): boolean => {
+    const files = findFeatureFiles(dir, true);
+    for (const file of files) {
+        try {
+            const content = readFileSync(file, 'utf-8');
+            if (/@(testcase|testrun|testplan)\b/i.test(content)) {
+                return true;
+            }
+        } catch {
+            // ignore unreadable files
+        }
+    }
+    return false;
+};
 
 interface InitPaths {
     configPath: string;
@@ -148,21 +187,16 @@ const loadValidatedConfig = (dir: string): Config => {
     return config;
 };
 
-const printInitSummary = (logger: Logger, config: Config): void => {
-    const resolvedConfigName = config.getResolvedPath() ? basename(config.getResolvedPath()!) : FILE_CONFIG;
-    logger.info(`- Configuration: ${resolvedConfigName} (v${config.getConfig().version})`);
-    logger.info(`- State backend: ready`);
-    logger.blank();
-};
-
 const printNextSteps = (logger: Logger): void => {
     logger.success(`${TITLE_APP} has been successfully initialized!`, { bold: true });
     logger.blank();
     logger.info(`You may now begin working with ${TITLE_APP}. Try running "${TITLE_CLI} plan" to see`);
-    logger.info('any changes that are required for your test management resources.');
+    logger.info(`any changes that are required for your test management resources. All ${TITLE_APP} commands`);
+    logger.info('should now work.');
     logger.blank();
-    logger.info(`If you ever set or change configuration for ${TITLE_APP}, rerun this command to`);
-    logger.info('reinitialize your working directory.');
+    logger.info(`If you ever set or change modules or backend configuration for ${TITLE_APP},`);
+    logger.info('rerun this command to reinitialize your working directory. If you forget, other');
+    logger.info('commands will detect it and remind you to do so if necessary.');
 };
 
 interface InitCmdOptions {
@@ -199,30 +233,68 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
     // INPUT
     ensureWorkingDirectory(dir, logger);
+
+    const hasFeatures = hasValidFeatureFiles(dir);
+    if (!hasFeatures) {
+        logger.success(`${TITLE_APP} initialized in an empty directory!`, { bold: true });
+        logger.blank();
+        logger.info(`The directory has no ${TITLE_APP} feature files. You may begin working`);
+        logger.info(`with ${TITLE_APP} immediately by creating Gherkin feature files.`);
+        return;
+    }
+
     const wasAlreadyInitialized = createConfigIfNotExists(paths.configPath, logger, backendType, providerType);
 
     // PROCESS
-    logger.info('Initializing the backend...', { bold: true });
-    logger.info(`Initializing ${TITLE_APP} configuration...`, { bold: true });
+    if (backendEnabled) {
+        logger.info('Initializing the backend...', { bold: true });
+    }
 
     const config = loadValidatedConfig(dir);
-    let backendConfig = config.getBackend();
+    const configuredBackend = config.getBackend();
+    let backendConfig = configuredBackend;
 
     if (!backendEnabled) {
         backendConfig = { type: 'local', config: {} };
     }
 
-    // Auto-install required cloud drivers if missing (just like terraform init plugin download)
-    if (backendEnabled && backendConfig && backendConfig.type !== 'local' && backendConfig.type !== 'github') {
-        if (backendConfig.type === 'azurerm') {
-            ensureDriverInstalled('@azure/storage-blob', logger);
-        } else if (backendConfig.type === 's3' || backendConfig.type === 'oci') {
-            ensureDriverInstalled('@aws-sdk/client-s3', logger);
-            if (backendConfig.config?.dynamodb_table && backendConfig.config.dynamodb_table !== '<optional>') {
-                ensureDriverInstalled('@aws-sdk/client-dynamodb', logger);
+    if (backendConfigRaw) {
+        if (!configuredBackend) {
+            logger.push({
+                type: 'warning',
+                title: 'Missing backend configuration',
+                extra: [
+                    '-backend-config was used without a "backend" block in the configuration.',
+                    '',
+                    'If you intended to override the default local backend configuration,',
+                    'no action is required, but you may add an explicit backend block to your',
+                    'configuration to clear this warning:',
+                    '',
+                    '  backend: "local"',
+                    '',
+                    'However, if you intended to override a defined backend, please verify that',
+                    'the backend configuration is present and valid.'
+                ]
+            });
+        } else {
+            const overrides = parseBackendOverrides(backendConfigRaw, dir);
+            const backendType = (backendConfig?.type || 'local').toLowerCase().trim();
+            const allowedKeys = EXPECTED_BACKEND_ARGS[backendType] || [];
+
+            for (const key of Object.keys(overrides)) {
+                const normalizedKey = key.toLowerCase().replace(/-/g, '_');
+                if (!allowedKeys.includes(normalizedKey)) {
+                    logger.push({
+                        type: 'error',
+                        title: 'Invalid backend configuration argument',
+                        extra: [
+                            `The backend configuration argument "${key}" given on the command line is not`,
+                            'expected for the selected backend type.'
+                        ]
+                    });
+                    return;
+                }
             }
-        } else if (backendConfig.type === 'gcs') {
-            ensureDriverInstalled('@google-cloud/storage', logger);
         }
     }
 
@@ -247,30 +319,226 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         return;
     }
 
-    if (wasAlreadyInitialized && !reconfigure) {
-        logger.info([
-            `${TITLE_APP} initialized in not empty directory!`,
-            `The directory has ${TITLE_APP} configuration files. You may begin working`,
-            `with ${TITLE_APP} immediately by creating ${TITLE_APP} resources.`
-        ]);
+    const workspaceManager = new WorkspaceManager(dir);
+    const activeBackend = workspaceManager.getActiveBackend();
+
+    // Determine the effective backend being initialized
+    const effectiveBackendType = (backendConfig?.type || 'local').toLowerCase().trim();
+    const effectiveBackendConfig: Record<string, any> = { ...(backendConfig?.config || {}) };
+    if (backendConfigRaw) {
+        const overrides = parseBackendOverrides(backendConfigRaw, dir);
+        Object.assign(effectiveBackendConfig, overrides);
+    }
+    const effectiveBackend = {
+        type: effectiveBackendType,
+        config: effectiveBackendConfig
+    };
+
+    const isBackendEqual = (a: any, b: any): boolean => {
+        if (!a || !b) return false;
+        if (a.type !== b.type) return false;
+        const aKeys = Object.keys(a.config || {}).filter(k => a.config[k] !== undefined && a.config[k] !== '');
+        const bKeys = Object.keys(b.config || {}).filter(k => b.config[k] !== undefined && b.config[k] !== '');
+        if (aKeys.length !== bKeys.length) return false;
+        for (const k of aKeys) {
+            if (String(a.config[k] || '') !== String(b.config[k] || '')) return false;
+        }
+        return true;
+    };
+
+    const isBackendChanged = backendEnabled && activeBackend !== null && !isBackendEqual(activeBackend, effectiveBackend);
+
+    if (isBackendChanged) {
+        if (!reconfigure && !options.migrateState) {
+            logger.push({
+                type: 'error',
+                title: 'Backend configuration changed',
+                extra: [
+                    'A change in the backend configuration has been detected, which may require migrating existing',
+                    'state.',
+                    '',
+                    `If you wish to attempt automatic migration of the state, run "${TITLE_CLI} init -migrate-state".`,
+                    'If you wish to store the current configuration with no changes to the state, run',
+                    `"${TITLE_CLI} init -reconfigure".`
+                ]
+            });
+            return;
+        }
     }
 
-    
+    // Required backend attributes validation (like terraform: Missing region value, Missing bucket value, Missing key value)
+    if (backendEnabled && !isPlaceholder) {
+        const canPrompt = (options.inputEnabled ?? true) && isInteractive();
 
-    const stateObj = new State(dir, undefined, undefined, !backendEnabled, backendConfigRaw);
+        if (effectiveBackendType === 's3') {
+            if (!effectiveBackendConfig.bucket || effectiveBackendConfig.bucket === '<required>') {
+                if (canPrompt) {
+                    const entered = await askBackendAttribute('bucket', 'The name of the S3 bucket');
+                    if (entered) {
+                        effectiveBackendConfig.bucket = entered;
+                    }
+                }
+            }
+            if (!effectiveBackendConfig.bucket || effectiveBackendConfig.bucket === '<required>') {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing bucket value',
+                    extra: ['The "bucket" attribute must be set for the s3 backend.']
+                });
+                return;
+            }
+            if (!effectiveBackendConfig.key) {
+                if (canPrompt) {
+                    const entered = await askBackendAttribute('key', 'The path to the state file inside the bucket');
+                    if (entered) {
+                        effectiveBackendConfig.key = entered;
+                    }
+                }
+            }
+            if (!effectiveBackendConfig.key) {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing key value',
+                    extra: ['The "key" attribute must be set for the s3 backend.']
+                });
+                return;
+            }
+            if (!effectiveBackendConfig.region && !process.env.AWS_REGION && !process.env.AWS_DEFAULT_REGION) {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing region value',
+                    extra: [
+                        'The "region" attribute or the "AWS_REGION" or "AWS_DEFAULT_REGION" environment variables must',
+                        'be set.'
+                    ]
+                });
+                return;
+            }
+        } else if (effectiveBackendType === 'oci') {
+            if (!effectiveBackendConfig.bucket || effectiveBackendConfig.bucket === '<required_oci_bucket>') {
+                if (canPrompt) {
+                    const entered = await askBackendAttribute('bucket', 'The name of the OCI bucket');
+                    if (entered) {
+                        effectiveBackendConfig.bucket = entered;
+                    }
+                }
+            }
+            if (!effectiveBackendConfig.bucket || effectiveBackendConfig.bucket === '<required_oci_bucket>') {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing bucket value',
+                    extra: ['The "bucket" attribute must be set for the oci backend.']
+                });
+                return;
+            }
+            if (!effectiveBackendConfig.namespace || effectiveBackendConfig.namespace === '<required_namespace>') {
+                if (canPrompt) {
+                    const entered = await askBackendAttribute('namespace', 'The OCI Object Storage namespace');
+                    if (entered) {
+                        effectiveBackendConfig.namespace = entered;
+                    }
+                }
+            }
+            if (!effectiveBackendConfig.namespace || effectiveBackendConfig.namespace === '<required_namespace>') {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing namespace value',
+                    extra: ['The "namespace" attribute must be set for the oci backend.']
+                });
+                return;
+            }
+            if (!effectiveBackendConfig.key) {
+                if (canPrompt) {
+                    const entered = await askBackendAttribute('key', 'The path to the state file inside the bucket');
+                    if (entered) {
+                        effectiveBackendConfig.key = entered;
+                    }
+                }
+            }
+            if (!effectiveBackendConfig.key) {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing key value',
+                    extra: ['The "key" attribute must be set for the oci backend.']
+                });
+                return;
+            }
+        } else if (effectiveBackendType === 'azurerm') {
+            const azurePrompts: Record<string, string> = {
+                resource_group_name: 'The name of the Resource Group',
+                storage_account_name: 'The name of the Storage Account',
+                container_name: 'The name of the Storage Container',
+                key: 'The name of the blob file inside the storage container'
+            };
+            const requiredAzure = ['resource_group_name', 'storage_account_name', 'container_name', 'key'];
+            for (const field of requiredAzure) {
+                if (!effectiveBackendConfig[field] || effectiveBackendConfig[field] === '<required>') {
+                    if (canPrompt && azurePrompts[field]) {
+                        const entered = await askBackendAttribute(field, azurePrompts[field]);
+                        if (entered) {
+                            effectiveBackendConfig[field] = entered;
+                        }
+                    }
+                }
+                if (!effectiveBackendConfig[field] || effectiveBackendConfig[field] === '<required>') {
+                    logger.push({
+                        type: 'error',
+                        title: `Missing ${field} value`,
+                        extra: [`The "${field}" attribute must be set for the azurerm backend.`]
+                    });
+                    return;
+                }
+            }
+        } else if (effectiveBackendType === 'gcs') {
+            if (!effectiveBackendConfig.bucket || effectiveBackendConfig.bucket === '<required>') {
+                if (canPrompt) {
+                    const entered = await askBackendAttribute('bucket', 'The name of the GCS bucket');
+                    if (entered) {
+                        effectiveBackendConfig.bucket = entered;
+                    }
+                }
+            }
+            if (!effectiveBackendConfig.bucket || effectiveBackendConfig.bucket === '<required>') {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing bucket value',
+                    extra: ['The "bucket" attribute must be set for the gcs backend.']
+                });
+                return;
+            }
+        }
+    }
+
+
+    // Auto-install required cloud drivers if missing (just like terraform init plugin download)
+    if (backendEnabled && effectiveBackendType !== 'local' && effectiveBackendType !== 'github') {
+        if (effectiveBackendType === 'azurerm') {
+            ensureDriverInstalled('@azure/storage-blob', logger);
+        } else if (effectiveBackendType === 's3' || effectiveBackendType === 'oci') {
+            ensureDriverInstalled('@aws-sdk/client-s3', logger);
+            if (effectiveBackendConfig?.dynamodb_table && effectiveBackendConfig.dynamodb_table !== '<optional>') {
+                ensureDriverInstalled('@aws-sdk/client-dynamodb', logger);
+            }
+        } else if (effectiveBackendType === 'gcs') {
+            ensureDriverInstalled('@google-cloud/storage', logger);
+        }
+    }
+
+
+    const stateObj = new State(dir, undefined, undefined, !backendEnabled, backendConfigRaw, effectiveBackend);
     try {
         await stateObj.acquireLock(lock, lockTimeout);
 
-        if (options.migrateState && backendConfig && backendConfig.type !== 'local' && existsSync(paths.statePath)) {
-            logger.info(`Migrating state from local to ${backendConfig.type}...`);
-            const oldStateObj = new State(dir, paths.statePath, undefined, true);
+        if (options.migrateState && isBackendChanged && activeBackend) {
+            logger.info(`Migrating state from ${activeBackend.type} to ${effectiveBackend.type}...`);
+            const oldStateObj = new State(dir, undefined, undefined, false, undefined, activeBackend);
             try {
                 await oldStateObj.init();
                 const oldData = oldStateObj.getState();
                 await stateObj.init();
                 stateObj.replaceState(oldData);
                 await stateObj.save();
-                logger.success(`Successfully migrated state to ${backendConfig.type} backend!`);
+                logger.success(`Successfully migrated state to ${effectiveBackend.type} backend!`);
             } catch (err: any) {
                 logger.error(`Failed to migrate state: ${err.message}`);
                 return;
@@ -287,7 +555,17 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         await stateObj.releaseLock();
     }
 
+    if (backendEnabled) {
+        workspaceManager.setActiveBackend(effectiveBackend);
+        logger.blank();
+        logger.info(`Successfully configured the backend "${effectiveBackend.type}"! ${TITLE_APP} will automatically`);
+        logger.info('use this backend unless the backend configuration changes.');
+        logger.blank();
+    }
+
+    logger.info('Initializing provider plugins...', { bold: true });
+    logger.blank();
+
     // OUTPUT
-    printInitSummary(logger, config);
     printNextSteps(logger);
 };

@@ -1,4 +1,7 @@
 import { randomUUID } from 'crypto';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
+import YAML from 'yaml';
 import { FILE_STATE, VERSION_STATE } from '../core/const';
 import { logger as notify } from '../core/logger';
 import { IState, StateResource } from '../core/types';
@@ -11,6 +14,53 @@ import { GitHubBackend, GitHubBackendConfig } from '../backends/github';
 import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
+
+export function parseBackendOverrides(raw: string | string[], baseDir: string = '.'): Record<string, string> {
+    const overrides: Record<string, string> = {};
+    const items = Array.isArray(raw) ? raw : [raw];
+    for (const item of items) {
+        if (!item || typeof item !== 'string') continue;
+        const index = item.indexOf('=');
+        if (index > 0) {
+            const key = item.substring(0, index).trim();
+            const val = item.substring(index + 1).trim();
+            overrides[key] = val;
+        } else {
+            const filePath = resolve(baseDir, item.trim());
+            if (existsSync(filePath)) {
+                try {
+                    const content = readFileSync(filePath, 'utf-8');
+                    let parsed: any;
+                    try {
+                        parsed = YAML.parse(content);
+                    } catch {
+                        // ignore
+                    }
+                    if (parsed && typeof parsed === 'object') {
+                        for (const [k, v] of Object.entries(parsed)) {
+                            overrides[k] = String(v);
+                        }
+                    } else {
+                        const lines = content.split('\n');
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+                            const eqIdx = trimmed.indexOf('=');
+                            if (eqIdx > 0) {
+                                const k = trimmed.substring(0, eqIdx).trim().replace(/["']/g, '');
+                                const v = trimmed.substring(eqIdx + 1).trim().replace(/["']/g, '');
+                                overrides[k] = v;
+                            }
+                        }
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+        }
+    }
+    return overrides;
+}
 
 export class State {
     private state!: IState;
@@ -39,7 +89,7 @@ export class State {
             backendConfig = { type: 'local', config: {} };
         } else if (backendConfig && backendConfig.type !== 'local' && backendConfigRaw) {
             // Apply CLI overrides to the backend config
-            const overrides = this.parseBackendOverrides(backendConfigRaw);
+            const overrides = parseBackendOverrides(backendConfigRaw, dir);
             backendConfig.config = { ...backendConfig.config, ...overrides };
         }
 
@@ -61,20 +111,6 @@ export class State {
         } else {
             this.backend = new LocalBackend(dir, customStatePath, customBackupPath, currentWorkspace);
         }
-    }
-
-    private parseBackendOverrides(raw: string | string[]): Record<string, string> {
-        const overrides: Record<string, string> = {};
-        const items = Array.isArray(raw) ? raw : [raw];
-        for (const item of items) {
-            const index = item.indexOf('=');
-            if (index > 0) {
-                const key = item.substring(0, index).trim();
-                const val = item.substring(index + 1).trim();
-                overrides[key] = val;
-            }
-        }
-        return overrides;
     }
 
     async hasState(): Promise<boolean> {

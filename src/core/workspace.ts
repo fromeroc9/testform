@@ -1,4 +1,4 @@
-﻿import { join } from 'path';
+import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'fs';
 
 export class WorkspaceManager {
@@ -30,4 +30,23 @@ export class WorkspaceManager {
         this.ensureDir();
         writeFileSync(this.envPath, name, 'utf8');
     }
+
+    getActiveBackend(): { type: string; config?: Record<string, any> } | null {
+        const backendPath = join(this.testformDir, 'backend.json');
+        if (existsSync(backendPath) && statSync(backendPath).isFile()) {
+            try {
+                return JSON.parse(readFileSync(backendPath, 'utf8'));
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    setActiveBackend(backend: { type: string; config?: Record<string, any> }): void {
+        this.ensureDir();
+        const backendPath = join(this.testformDir, 'backend.json');
+        writeFileSync(backendPath, JSON.stringify(backend, null, 2), 'utf8');
+    }
 }
+

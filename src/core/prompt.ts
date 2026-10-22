@@ -109,6 +109,28 @@ export async function askInput(promptText: string, defaultValue?: string): Promi
     });
 }
 
+/**
+ * Interactive prompt for backend configuration attributes matching Terraform's format.
+ *
+ * @param name - The attribute name.
+ * @param description - The description of the attribute.
+ * @returns The entered value.
+ */
+export async function askBackendAttribute(name: string, description: string): Promise<string> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    return new Promise((resolve) => {
+        console.log(name);
+        console.log(`  ${description}`);
+        console.log('');
+        rl.question('  Enter a value: ', (answer) => {
+            rl.close();
+            console.log('');
+            resolve(answer.trim());
+        });
+    });
+}
+
+
 export async function askSelect(
     titleText: string,
     choices: { label: string; value: string }[]

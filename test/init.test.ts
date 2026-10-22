@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { initCmd } from '../src/commands/init';
 import { join } from 'path';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { FILE_CONFIG, FILE_STATE } from '../src/core/const';
 import YAML from 'yaml';
@@ -21,6 +21,7 @@ describe('Comando initCmd', () => {
     beforeEach(() => {
         // Create a unique temporary directory for each test
         tmpDir = mkdtempSync(join(tmpdir(), 'testform-test-'));
+        writeFileSync(join(tmpDir, 'sample.case.feature'), '@testcase\nFeature: Sample\nScenario: A\nGiven b');
         mockExit.mockClear();
         mockLog.mockClear();
         mockError.mockClear();
@@ -39,12 +40,15 @@ describe('Comando initCmd', () => {
         mockError.mockRestore();
     });
 
-    it('debe inicializarse correctamente y crear el archivo de configuración si el directorio está vacío', async () => {
+    it('no debe continuar el proceso ni generar testform.yml si el directorio está vacío', async () => {
+        rmSync(join(tmpDir, 'sample.case.feature'));
         await initCmd({ dir: tmpDir, lock: true, lockTimeout: '0s', isJson: false });
 
-        // Validar que se crearon los archivos de configuración y estado
-        expect(existsSync(join(tmpDir, FILE_CONFIG))).toBe(true);
+        // En un empty directory, no debe generar testform.yml ni state
+        expect(existsSync(join(tmpDir, FILE_CONFIG))).toBe(false);
         expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('initialized in an empty directory');
     });
 
     it('debe fallar si el archivo testform.yml no tiene una versión válida', async () => {
@@ -148,8 +152,10 @@ describe('Comando initCmd', () => {
 
         await initCmd({ dir: tmpDir, backendEnabled: false });
 
-        // Cuando el backend está deshabilitado, Testform omite inicializar backends remotos y vuelve al local.
-        // Como el log se imprime antes del switch de estado, verificamos que el archivo state local se generó de igual forma.
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).not.toContain('Initializing the backend...');
+        expect(calls).toContain('Initializing provider plugins...');
+        expect(calls).toContain('has been successfully initialized');
         expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
     });
 
@@ -233,4 +239,158 @@ describe('Comando initCmd', () => {
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
         expect(parsed.backend).toBe('local');
     });
+
+    it('debe mostrar mensaje de empty directory si no hay archivos .feature con @testcase', async () => {
+        rmSync(join(tmpDir, 'sample.case.feature'));
+        await initCmd({ dir: tmpDir });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('initialized in an empty directory');
+        expect(calls).toContain('has no Testform feature files');
+    });
+
+    it('debe mostrar mensaje de éxito si existen archivos .feature con @testcase', async () => {
+        const featureDir = join(tmpDir, 'testcase');
+        mkdirSync(featureDir, { recursive: true });
+        writeFileSync(join(featureDir, 'login.case.feature'), '@testcase\nFeature: Login\nScenario: Success\nGiven ok');
+
+        await initCmd({ dir: tmpDir });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('has been successfully initialized');
+    });
+
+    it('debe emitir error Invalid backend configuration argument si el argumento no pertenece al backend local', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({ version: '1.0', backend: 'local' }));
+
+        await initCmd({ dir: tmpDir, backendConfigRaw: 'bucket=mi-bucket-qa' });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('Invalid backend configuration argument');
+        expect(calls).toContain('bucket');
+    });
+
+    it('debe emitir warning Missing backend configuration si no hay bloque backend configurado', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({ version: '1.0', provider: 'local' }));
+
+        await initCmd({ dir: tmpDir, backendConfigRaw: 'bucket=mi-bucket-qa' });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('Missing backend configuration');
+    });
+
+    it('debe emitir error Backend configuration changed si cambia el backend sin -reconfigure ni -migrate-state', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({ version: '1.0', backend: 'local' }));
+
+        // Initial setup as local
+        await initCmd({ dir: tmpDir });
+
+        // User updates configuration to s3
+        writeFileSync(configPath, YAML.stringify({
+            version: '1.0',
+            backend: {
+                s3: {
+                    bucket: 'my-bucket',
+                    region: 'us-east-1',
+                    key: 'testform.state'
+                }
+            }
+        }));
+
+        await initCmd({ dir: tmpDir });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('Backend configuration changed');
+        expect(calls).toContain('testform init -migrate-state');
+        expect(calls).toContain('testform init -reconfigure');
+    });
+
+    it('debe permitir cambiar la configuración del backend si se pasa reconfigure=true (-reconfigure)', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({ version: '1.0', backend: 'local' }));
+
+        // Initial setup as default local
+        await initCmd({ dir: tmpDir });
+
+        // User updates configuration to custom local path
+        writeFileSync(configPath, YAML.stringify({
+            version: '1.0',
+            backend: {
+                local: {
+                    path: 'custom.state'
+                }
+            }
+        }));
+
+        await initCmd({ dir: tmpDir, reconfigure: true });
+        const backendJsonPath = join(tmpDir, '.testform', 'backend.json');
+        expect(existsSync(backendJsonPath)).toBe(true);
+        const savedBackend = JSON.parse(readFileSync(backendJsonPath, 'utf8'));
+        expect(savedBackend.type).toBe('local');
+        expect(savedBackend.config.path).toBe('custom.state');
+    });
+
+
+    it('debe emitir error Missing region value si el backend s3 no tiene region definida', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({
+            version: '1.0',
+            backend: {
+                s3: {
+                    bucket: 'my-bucket',
+                    key: 'testform.state'
+                }
+            }
+        }));
+
+        const originalRegion = process.env.AWS_REGION;
+        const originalDefaultRegion = process.env.AWS_DEFAULT_REGION;
+        delete process.env.AWS_REGION;
+        delete process.env.AWS_DEFAULT_REGION;
+
+        try {
+            await initCmd({ dir: tmpDir, inputEnabled: false });
+            const calls = mockLog.mock.calls.flat().join(' ');
+            expect(calls).toContain('Missing region value');
+            expect(calls).toContain('The "region" attribute or the "AWS_REGION" or "AWS_DEFAULT_REGION" environment variables must');
+        } finally {
+            if (originalRegion) process.env.AWS_REGION = originalRegion;
+            if (originalDefaultRegion) process.env.AWS_DEFAULT_REGION = originalDefaultRegion;
+        }
+    });
+
+    it('debe emitir error Missing bucket value si el backend s3 no tiene bucket definido', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({
+            version: '1.0',
+            backend: {
+                s3: {
+                    region: 'us-east-1',
+                    key: 'testform.state'
+                }
+            }
+        }));
+
+        await initCmd({ dir: tmpDir, inputEnabled: false });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('Missing bucket value');
+        expect(calls).toContain('The "bucket" attribute must be set for the s3 backend.');
+    });
+
+    it('debe emitir error Missing key value si el backend s3 no tiene key y no hay input interactivo', async () => {
+        const configPath = join(tmpDir, FILE_CONFIG);
+        writeFileSync(configPath, YAML.stringify({
+            version: '1.0',
+            backend: {
+                s3: {
+                    bucket: 'my-bucket',
+                    region: 'us-east-1'
+                }
+            }
+        }));
+
+        await initCmd({ dir: tmpDir, inputEnabled: false });
+        const calls = mockLog.mock.calls.flat().join(' ');
+        expect(calls).toContain('Missing key value');
+        expect(calls).toContain('The "key" attribute must be set for the s3 backend.');
+    });
 });
+
