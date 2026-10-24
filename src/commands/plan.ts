@@ -99,8 +99,8 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     if (target) {
         const targetArray = Array.isArray(target) ? target : [target];
         filtered = filtered.filter(s => {
-            const id = s.custom?.identity ? `${s.uri}::${s.custom.identity}` : '';
-            return targetArray.some(t => id === t || id.startsWith(`${t}::`) || id.endsWith(`/${t}`) || id.endsWith(t));
+            const id = s.custom?.identity ? `${s.uri}.${s.custom.identity}` : '';
+            return targetArray.some(t => id === t || id.startsWith(`${t}.`) || id.endsWith(`/${t}`) || id.endsWith(t));
         });
     }
 
@@ -161,12 +161,10 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         const rawIdentity = scenario.custom?.identity;
         if (!rawIdentity) continue;
         
-        if (rawIdentity.includes('::')) {
-            identity = rawIdentity;
-        } else if (rawIdentity === scenario.uri) {
+        if (rawIdentity.startsWith(scenario.uri) || rawIdentity === scenario.uri) {
             identity = rawIdentity;
         } else {
-            identity = `${scenario.uri}::${rawIdentity}`;
+            identity = `${scenario.uri}.${rawIdentity}`;
         }
 
         localIds.add(identity);
@@ -263,6 +261,7 @@ interface PlanCmdOptions {
     outPath?: string;
     lock?: boolean;
     lockTimeout?: string;
+    input?: boolean;
     variables?: VariableParser;
     isJson?: boolean;
     detailedExitCode?: boolean;
@@ -286,6 +285,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
         outPath,
         lock = true,
         lockTimeout = '0s',
+        input = true,
         variables,
         isJson = false,
         detailedExitCode = false,
@@ -301,6 +301,39 @@ export const planCmd = async (options: PlanCmdOptions) => {
         testDirectory
     } = options;
     const logger = new Logger(verbose);
+
+    // Interactive prompt for required missing variables if -input=true
+    if (variables) {
+        const missingVars = variables.getMissingRequiredVars();
+        if (missingVars.length > 0) {
+            if (!input || !process.stdin.isTTY) {
+                logger.push({
+                    type: 'error',
+                    title: 'No value for required variable',
+                    detail: missingVars.map(v => `The root module input variable "${v.name}" is not set, and has no default value. Use -var or -var-file to supply a value.`),
+                    close: true
+                });
+                return;
+            }
+
+            const readline = require('readline');
+            const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+            const ask = (q: string): Promise<string> => new Promise(res => rl.question(q, (ans: string) => res(ans.trim())));
+
+            for (const v of missingVars) {
+                console.log(`var.${v.name}`);
+                if (v.description) {
+                    console.log(`  ${v.description}`);
+                }
+                console.log('');
+                const val = await ask('  Enter a value: ');
+                console.log('');
+                variables.setVar(v.name, val);
+            }
+            rl.close();
+        }
+    }
+
     const stateObj = new State(dir, statePath, backupPath);
     await stateObj.init();
     await stateObj.acquireLock(lock, lockTimeout);

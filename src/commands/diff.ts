@@ -132,12 +132,10 @@ export const diffCmd = async (options: DiffCmdOptions) => {
             if (!rawIdentity) continue;
 
             let identity: string;
-            if (rawIdentity.includes('::')) {
-                identity = rawIdentity;
-            } else if (rawIdentity === scenario.uri) {
+            if (rawIdentity.startsWith(scenario.uri) || rawIdentity === scenario.uri) {
                 identity = rawIdentity;
             } else {
-                identity = `${scenario.uri}::${rawIdentity}`;
+                identity = `${scenario.uri}.${rawIdentity}`;
             }
 
             localIds.add(identity);
@@ -248,7 +246,7 @@ async function executeRemoteDrift(
 
             const matchedScenario = localScenarios.find(ls => {
                 const raw = ls.custom?.identity;
-                return raw === res.identity || `${ls.uri}::${raw}` === res.identity || res.identity.endsWith(raw || '');
+                return raw === res.identity || `${ls.uri}.${raw}` === res.identity || res.identity.endsWith(raw || '');
             });
 
             try {
@@ -339,14 +337,13 @@ async function executeRemoteDrift(
 
         try {
             for (const item of driftedItems) {
-                console.log(`Resolution for ${bold(item.identity)} (Issue #${item.issueNumber}):`);
-                console.log(`  [1] PULL:      Update local .feature file with remote values`);
-                console.log(`  [2] OVERWRITE: Keep local .feature (next 'apply' will overwrite remote)`);
-                console.log(`  [3] SKIP:      Ignore for now`);
+                console.log(`Action for resource ${bold(item.identity)}:`);
+                console.log(`  Enter 'pull' to update local file, 'overwrite' to keep local, or 'skip' to ignore.\n`);
 
-                const answer = await promptUser(rl, 'Choose action [1-3]: ');
+                const rawAns = await promptUser(rl, '  Enter a value: ');
+                const answer = rawAns.toLowerCase().trim();
 
-                if (answer === '1') {
+                if (answer === 'pull' || answer === '1') {
                     if (item.filePath && existsSync(item.filePath) && item.remoteIssue) {
                         const rawLabels = Array.isArray(item.remoteIssue.labels)
                             ? item.remoteIssue.labels.map((l: any) => typeof l === 'string' ? l : l.name || '')
@@ -372,7 +369,7 @@ async function executeRemoteDrift(
                     } else {
                         console.log(yellow(`  No local file mapped for ${item.identity}. Cannot pull automatically.\n`));
                     }
-                } else if (answer === '2') {
+                } else if (answer === 'overwrite' || answer === '2') {
                     console.log(cyan(`  → Kept local version. Will overwrite remote on next apply.\n`));
                 } else {
                     console.log(dim(`  → Skipped.\n`));

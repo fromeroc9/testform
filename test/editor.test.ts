@@ -153,7 +153,7 @@ describe('GherkinEditor module', () => {
             const runFile = join(tmpDir, 'expand.run.feature');
             writeFileSync(runFile, '@testrun\nFeature: Run\n  Rule: auth.feature\n', 'utf8');
 
-            GherkinEditor.expandScenarios(runFile, ['auth.feature::Login', 'auth.feature::Logout'], 'pending');
+            GherkinEditor.expandScenarios(runFile, ['auth.feature.Login', 'auth.feature.Logout'], 'pending');
 
             const content = readFileSync(runFile, 'utf8');
             expect(content).toContain('Scenario: Login');

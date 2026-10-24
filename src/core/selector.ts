@@ -23,7 +23,7 @@ export function matchesScope(s: any, scopeName: IScope, filePattern?: string): b
         return true;
     }
     if (filePattern) {
-        const clean = filePattern.split('::')[0].trim();
+        const clean = filePattern.split('.')[0].trim();
         if (clean && clean !== '*') {
             if (clean.startsWith('*') && uri.endsWith(clean.slice(1))) {
                 return true;
@@ -56,7 +56,7 @@ export function detectScopeFromTarget(target: string): IScope | undefined {
 
 /**
  * Checks if a given identity or URI matches any of the target expressions.
- * Supports exact match, scope prefix (`${target}::`), path suffix (`/${target}`),
+ * Supports exact match, scope prefix (`${target}.`), path suffix (`/${target}`),
  * and filename suffix.
  */
 export function matchesTarget(identityOrUri: string, target: string | string[]): boolean {
@@ -70,7 +70,7 @@ export function matchesTarget(identityOrUri: string, target: string | string[]):
 
         return (
             identityOrUri === t ||
-            identityOrUri.startsWith(`${t}::`) ||
+            identityOrUri.startsWith(`${t}.`) ||
             identityOrUri.endsWith(`/${t}`) ||
             identityOrUri.endsWith(t) ||
             basename(identityOrUri) === t ||
@@ -100,7 +100,7 @@ export interface ParseSpecOptions {
  * Parses a CLI spec string like:
  *   - "@tc-1=passed"
  *   - "cuenta/inicio.feature@tc-1=passed"
- *   - "checkout.case.feature::@tc-1=failed"
+ *   - "checkout.case.feature.@tc-1=failed"
  *   - "Pago con tarjeta=passed"
  *   - "checkout.case.feature" (whole file for implicit link)
  */
@@ -152,10 +152,10 @@ export function parseSpec(specArg: string, options: ParseSpecOptions = {}): Pars
     let casePart = '';
     let isWholeFile = false;
 
-    if (stripped.includes('::')) {
-        const doubleColonIdx = stripped.indexOf('::');
-        featurePart = stripped.slice(0, doubleColonIdx).trim();
-        casePart = stripped.slice(doubleColonIdx + 2).trim();
+    if (stripped.includes('.feature.')) {
+        const dotIdx = stripped.indexOf('.feature.');
+        featurePart = stripped.slice(0, dotIdx + 8).trim();
+        casePart = stripped.slice(dotIdx + 9).trim();
     } else {
         const atIdx = stripped.lastIndexOf('@');
         if (atIdx > 0) {
@@ -165,6 +165,10 @@ export function parseSpec(specArg: string, options: ParseSpecOptions = {}): Pars
             featurePart = stripped.trim();
             casePart = '';
             isWholeFile = true;
+        } else if (stripped.includes('.')) {
+            const lastDot = stripped.lastIndexOf('.');
+            featurePart = stripped.slice(0, lastDot).trim();
+            casePart = stripped.slice(lastDot + 1).trim();
         } else {
             casePart = stripped.trim();
         }
@@ -229,7 +233,7 @@ export function matchesScenarioSpec(
     }
 
     // Strategy 3: Full identity match
-    const fullId = `${scenario.uri}::${scenario.custom?.identity || scenario.name}`.toLowerCase();
+    const fullId = `${scenario.uri}.${scenario.custom?.identity || scenario.name}`.toLowerCase();
     if (fullId === normCase) {
         return true;
     }
@@ -238,14 +242,16 @@ export function matchesScenarioSpec(
 }
 
 /**
- * Matches a state key (e.g. `login.case.feature::@tc-1`) against a spec.
+ * Matches a state key (e.g. `login.case.feature.@tc-1`) against a spec.
  */
 export function matchesStateKey(
     key: string,
     scenarioTitle: string | undefined,
     spec: { featurePart?: string; casePart: string; rawIdentifier?: string }
 ): boolean {
-    const [kFile = '', kId = ''] = key.split('::');
+    const lastDot = key.lastIndexOf('.');
+    const kFile = lastDot !== -1 ? key.slice(0, lastDot) : key;
+    const kId = lastDot !== -1 ? key.slice(lastDot + 1) : '';
 
     if (spec.featurePart && !matchesFeatureFile(kFile, spec.featurePart)) {
         return false;
@@ -316,10 +322,10 @@ export async function resolveTargetScenario(
     const filtered = parser.filter(rawScenarios, data, scope) || [];
 
     const matches = filtered.filter(s => {
-        const id = s.custom?.identity ? `${s.uri}::${s.custom.identity}` : s.uri;
+        const id = s.custom?.identity ? `${s.uri}.${s.custom.identity}` : s.uri;
         return (
             id === target ||
-            id.startsWith(`${target}::`) ||
+            id.startsWith(`${target}.`) ||
             id.endsWith(`/${target}`) ||
             id.endsWith(target) ||
             s.uri === target ||

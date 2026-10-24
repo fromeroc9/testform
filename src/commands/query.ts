@@ -1,9 +1,11 @@
-﻿import { bold, green, yellow, red, cyan, gray, dim, magenta } from 'chalk';
+import { bold, green, yellow, red, cyan, gray, dim, magenta } from 'chalk';
 import { State } from '../core/state';
 import { Config } from '../core/config';
 import { IScope, StateResource } from '../core/types';
 import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
 import { resolve, join } from 'path';
+
+import { writeFileSync } from 'fs';
 
 export interface QueryCmdOptions {
     dir?: string;
@@ -20,6 +22,8 @@ export interface QueryCmdOptions {
     verbose?: boolean;
     statePath?: string;
     backupPath?: string;
+    generateConfigOut?: string;
+    variables?: any;
 }
 
 export interface QueryResultItem {
@@ -53,7 +57,8 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
         count = false,
         verbose = false,
         statePath,
-        backupPath
+        backupPath,
+        generateConfigOut
     } = options;
 
     const targetDir = testDirectory ? resolve(dir, testDirectory) : resolve(dir);
@@ -61,6 +66,15 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
     await stateObj.init();
 
     const allResources = stateObj.getState().resources || [];
+
+    if (allResources.length === 0) {
+        console.error(red('╷'));
+        console.error(`${red('│')} ${bold(red('Error:'))} ${bold('No resources to query')}`);
+        console.error(red('│'));
+        console.error(`${red('│')} The configuration does not contain any resources that can be queried.`);
+        console.error(red('╵'));
+        process.exit(1);
+    }
 
     // Helper for canonical scope
     const getCanonicalScope = (type: string): string => {
@@ -188,6 +202,20 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
     }
 
     // ── Output ──
+
+    if (generateConfigOut) {
+        const outPath = resolve(dir, generateConfigOut);
+        const configLines = items.map(it => {
+            return `# Resource: ${it.id}\nimport {\n  to = ${it.type}.${it.id.replace(/[^a-zA-Z0-9_]/g, '_')}\n  id = "${it.remoteId || it.issueNumber || it.id}"\n}`;
+        }).join('\n\n');
+        if (json) {
+            console.log(JSON.stringify({ generated_config: configLines, resources: items }, null, 2));
+        } else {
+            writeFileSync(outPath, configLines + '\n', 'utf-8');
+            console.log(green(`\n✔ Generated configuration written to ${outPath}\n`));
+        }
+        return;
+    }
 
     if (count) {
         console.log(items.length);

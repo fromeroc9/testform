@@ -15,9 +15,9 @@ export interface ModuleTarget {
  *   @module(source="./auth.case.feature")
  *   @module(source="./auth.case.feature",scenario="@tc-1")
  *   @module(source="./auth.case.feature",id="@tc-1")
- *   @module(source="./auth.case.feature::@tc-1")
- *   @module("./auth.case.feature::@tc-1")
- *   @module(source=["./m1.feature::@tc-1","./m2.feature"])
+ *   @module(source="./auth.case.feature.@tc-1")
+ *   @module("./auth.case.feature.@tc-1")
+ *   @module(source=["./m1.feature.@tc-1","./m2.feature"])
  */
 export function parseModuleTargets(tag: string): ModuleTarget[] | null {
     if (!tag.startsWith('@module')) return null;
@@ -34,9 +34,9 @@ export function parseModuleTargets(tag: string): ModuleTarget[] | null {
             .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
             .filter(Boolean)
             .map(item => {
-                if (item.includes('::')) {
-                    const [src, sc] = item.split('::');
-                    return { source: src.trim(), scenario: sc.trim() };
+                if (item.includes('.feature.')) {
+                    const idx = item.indexOf('.feature.');
+                    return { source: item.slice(0, idx + 8).trim(), scenario: item.slice(idx + 9).trim() };
                 }
                 return { source: item, scenario: scenarioArg };
             });
@@ -47,10 +47,10 @@ export function parseModuleTargets(tag: string): ModuleTarget[] | null {
     if (singleMatch) {
         let src = singleMatch[1].trim();
         let sc = scenarioArg;
-        if (src.includes('::')) {
-            const parts = src.split('::');
-            src = parts[0].trim();
-            sc = parts[1].trim();
+        if (src.includes('.feature.')) {
+            const idx = src.indexOf('.feature.');
+            sc = src.slice(idx + 9).trim();
+            src = src.slice(0, idx + 8).trim();
         }
         return [{ source: src, scenario: sc }];
     }
@@ -60,10 +60,10 @@ export function parseModuleTargets(tag: string): ModuleTarget[] | null {
     if (directMatch) {
         let src = directMatch[1].trim();
         let sc = scenarioArg;
-        if (src.includes('::')) {
-            const parts = src.split('::');
-            src = parts[0].trim();
-            sc = parts[1].trim();
+        if (src.includes('.feature.')) {
+            const idx = src.indexOf('.feature.');
+            sc = src.slice(idx + 9).trim();
+            src = src.slice(0, idx + 8).trim();
         }
         return [{ source: src, scenario: sc }];
     }
@@ -75,7 +75,7 @@ export function parseModuleTargets(tag: string): ModuleTarget[] | null {
 export function parseModuleTag(tag: string): string[] | null {
     const targets = parseModuleTargets(tag);
     if (!targets) return null;
-    return targets.map(t => t.scenario ? `${t.source}::${t.scenario}` : t.source);
+    return targets.map(t => t.scenario ? `${t.source}.${t.scenario}` : t.source);
 }
 
 /**

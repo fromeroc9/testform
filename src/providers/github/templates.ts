@@ -43,22 +43,25 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
     const result: GitHubCommentResult[] = [];
 
     const sortedTestcases = [...testcases].sort((a: string, b: string) => {
-        const aName = a.split('::').pop()?.replace('@', '') || '';
-        const bName = b.split('::').pop()?.replace('@', '') || '';
+        const aName = a.split('.').pop()?.replace('@', '') || '';
+        const bName = b.split('.').pop()?.replace('@', '') || '';
         return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
     });
 
     for (const tc of sortedTestcases) {
-        const parts = tc.split('::');
+        const parts = tc.split('.');
         const scenarioName = parts.pop();
-        const ruleName = parts.pop() || '';
+        const ruleName = parts.join('.');
         const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
 
         const tcResources = state.getResources('github_testcase').filter((r: any) =>
-            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
+            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`.${scenarioName}`))
         );
 
-        const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
+        const distinctFiles = new Set(tcResources.map((r: any) => {
+            const lastDot = r.identity.lastIndexOf('.');
+            return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+        }));
         let validResources = tcResources;
 
         if (distinctFiles.size > 1) {
@@ -71,8 +74,8 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
         }
 
         validResources.sort((a: any, b: any) => {
-            const aName = a.identity.split('::').pop()?.replace('@', '') || '';
-            const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+            const aName = a.identity.split('.').pop()?.replace('@', '') || '';
+            const bName = b.identity.split('.').pop()?.replace('@', '') || '';
             return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
         });
 
@@ -82,7 +85,7 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
             let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
                 if (!gs.rule || !gs.name) return false;
                 const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
-                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`::${gs.name}`);
+                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`.${gs.name}`);
             });
 
             if (!groupScenario) {
@@ -96,7 +99,9 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
             const localStatus = groupScenario?.custom?.fields?.status || context?.existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
             const tcTitle = tcResource.attributes?.title || tcIdentity;
 
-            const [safeBaseRule, safeScenarioName] = tcIdentity.split('::');
+            const lastDot = tcIdentity.lastIndexOf('.');
+            const safeBaseRule = lastDot !== -1 ? tcIdentity.slice(0, lastDot) : tcIdentity;
+            const safeScenarioName = lastDot !== -1 ? tcIdentity.slice(lastDot + 1) : '';
             const originFile = basename(safeBaseRule || '');
             const safeScenario = safeScenarioName ? safeScenarioName.replace('@', '') : '';
 
@@ -118,18 +123,26 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
         body += '\n\n### Test Runs\n';
         const state = context.state;
         for (const tr of testruns) {
-            const runResources = state.getResources('github_testrun').filter((r: any) =>
-                r.identity.split('::')[0].endsWith(tr)
-            );
+            const runResources = state.getResources('github_testrun').filter((r: any) => {
+                const lastDot = r.identity.lastIndexOf('.');
+                const base = lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                return base.endsWith(tr) || r.identity.endsWith(tr);
+            });
 
-            const distinctFiles = new Set(runResources.map((r: any) => r.identity.split('::')[0]));
+            const distinctFiles = new Set(runResources.map((r: any) => {
+                const lastDot = r.identity.lastIndexOf('.');
+                return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+            }));
             let validResources = runResources;
 
             if (distinctFiles.size > 1) {
                 if (context?.testDirectory) {
                     const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
                     validResources = runResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
-                    const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                    const distinctValid = new Set(validResources.map((r: any) => {
+                        const lastDot = r.identity.lastIndexOf('.');
+                        return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                    }));
                     if (distinctValid.size > 1) {
                         throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
                     }

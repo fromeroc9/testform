@@ -285,7 +285,7 @@ function generateMarkdownReport(type: string, data: FlatData[], groupBy: string 
         const activeRuns = testruns.filter(r => r.attributes.state === 'open').length;
         const closedRuns = testruns.filter(r => r.attributes.state === 'closed').length;
         const totalTestCases = new Set(data.filter(d => d.testRunId).map(d => d.id)).size;
-        const requirementsCount = new Set(data.filter(d => d.testRunId).map(d => d.id.split('::')[0])).size;
+        const requirementsCount = new Set(data.filter(d => d.testRunId).map(d => (d.id.includes('.') ? d.id.slice(0, d.id.lastIndexOf('.')) : d.id))).size;
         const failuresCount = data.filter(d => d.testRunId && ['failed', 'blocked'].includes(d.status.toLowerCase())).length;
 
         // 1. Chart: Total Test Runs (Half Doughnut)
@@ -373,7 +373,7 @@ function generateMarkdownReport(type: string, data: FlatData[], groupBy: string 
         const activeRuns = testruns.filter(r => r.attributes.state === 'open').length;
         const closedRuns = testruns.filter(r => r.attributes.state === 'closed').length;
         const totalTestCases = new Set(data.filter(d => d.testRunId).map(d => d.id)).size;
-        const requirementsCount = new Set(data.filter(d => d.testRunId).map(d => d.id.split('::')[0])).size;
+        const requirementsCount = new Set(data.filter(d => d.testRunId).map(d => (d.id.includes('.') ? d.id.slice(0, d.id.lastIndexOf('.')) : d.id))).size;
 
         // Chart: Trend line over specific test runs
         const runCounts: Record<string, number> = {};
@@ -542,7 +542,7 @@ function generateMarkdownReport(type: string, data: FlatData[], groupBy: string 
         } else {
             // Por defecto, agrupamos por el archivo .feature (Requisito) extrayéndolo del ID
             for (const d of data) {
-                const featurePath = d.id.split('::')[0] || 'Unknown';
+                const featurePath = (d.id.includes('.') ? d.id.slice(0, d.id.lastIndexOf('.')) : d.id) || 'Unknown';
                 if (!byGroup[featurePath]) byGroup[featurePath] = [];
                 byGroup[featurePath].push(d);
             }

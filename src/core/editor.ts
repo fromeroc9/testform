@@ -380,7 +380,7 @@ export class GherkinEditor {
 
         let hasExplicit = false;
         for (const tc of testcases) {
-            const parts = tc.split('::');
+            const parts = tc.split('.');
             if (parts.length >= 2 && parts[parts.length - 1] !== '*') {
                 hasExplicit = true;
                 break;
@@ -392,11 +392,11 @@ export class GherkinEditor {
         }
 
         for (const tc of testcases) {
-            const parts = tc.split('::');
+            const parts = tc.split('.');
             if (parts.length < 2) continue;
 
             const scenarioName = parts.pop()!;
-            const ruleName = parts.pop()!;
+            const ruleName = parts.join('.');
 
             if (hasExplicit && scenarioName === '*') continue;
 

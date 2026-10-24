@@ -38,7 +38,7 @@ describe('Target and Spec Selector (src/core/selector)', () => {
 
     describe('matchesTarget', () => {
         it('should match by exact identity or prefix', () => {
-            expect(matchesTarget('tests/login.case.feature::@tc-1', 'tests/login.case.feature')).toBe(true);
+            expect(matchesTarget('tests/login.case.feature.@tc-1', 'tests/login.case.feature')).toBe(true);
             expect(matchesTarget('tests/login.case.feature', 'login.case.feature')).toBe(true);
             expect(matchesTarget('tests/login.case.feature', 'login')).toBe(true);
             expect(matchesTarget('@tr-1', '@tr-1')).toBe(true);
@@ -65,8 +65,8 @@ describe('Target and Spec Selector (src/core/selector)', () => {
             expect(parsed.newStatus).toBe('failed');
         });
 
-        it('should parse file::@tag=status format', () => {
-            const parsed = parseSpec('checkout.case.feature::@tc-2=passed');
+        it('should parse file.@tag=status format', () => {
+            const parsed = parseSpec('checkout.case.feature.@tc-2=passed');
             expect(parsed.featurePart).toBe('checkout.case.feature');
             expect(parsed.casePart).toBe('@tc-2');
             expect(parsed.newStatus).toBe('passed');
@@ -79,7 +79,7 @@ describe('Target and Spec Selector (src/core/selector)', () => {
         });
 
         it('should strip provider type prefix', () => {
-            const parsed = parseSpec('github_testcase.cuenta/login.case.feature::@tc-1=passed');
+            const parsed = parseSpec('github_testcase.cuenta/login.case.feature.@tc-1=passed');
             expect(parsed.featurePart).toBe('cuenta/login.case.feature');
             expect(parsed.casePart).toBe('@tc-1');
         });
@@ -124,7 +124,7 @@ describe('Target and Spec Selector (src/core/selector)', () => {
         });
 
         it('Strategy 3: Full identity match', () => {
-            expect(matchesScenarioSpec(scenario, { casePart: 'auth/login.case.feature::@tc-1' })).toBe(true);
+            expect(matchesScenarioSpec(scenario, { casePart: 'auth/login.case.feature.@tc-1' })).toBe(true);
         });
 
         it('should reject if featurePart does not match', () => {
@@ -133,7 +133,7 @@ describe('Target and Spec Selector (src/core/selector)', () => {
         });
 
         it('should match state keys using 3 strategies', () => {
-            const stateKey = 'auth/login.case.feature::@tc-1';
+            const stateKey = 'auth/login.case.feature.@tc-1';
             const title = 'Validar credenciales correctas';
 
             expect(matchesStateKey(stateKey, title, { casePart: '@tc-1' })).toBe(true);

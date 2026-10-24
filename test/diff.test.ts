@@ -59,15 +59,15 @@ describe('Command diffCmd', () => {
 
         const mockStateResources = [
             {
-                identity: 'file1::synced_tc',
+                identity: 'file1.synced_tc',
                 attributes: { localHash: hashScenario(scenarioSynced), remoteId: 'remote-1' }
             },
             {
-                identity: 'file1::modified_tc',
+                identity: 'file1.modified_tc',
                 attributes: { localHash: 'old-hash', remoteId: 'remote-2' }
             },
             {
-                identity: 'file3::orphaned_tc',
+                identity: 'file3.orphaned_tc',
                 attributes: { localHash: 'orphaned-hash', remoteId: 'remote-3' }
             }
         ];
@@ -91,10 +91,10 @@ describe('Command diffCmd', () => {
         expect(logs).toContain('orphaned (not in config)');
 
         // Check identities
-        expect(logs).toContain('file1::synced_tc');
-        expect(logs).toContain('file1::modified_tc');
-        expect(logs).toContain('file2::new_tc');
-        expect(logs).toContain('file3::orphaned_tc');
+        expect(logs).toContain('file1.synced_tc');
+        expect(logs).toContain('file1.modified_tc');
+        expect(logs).toContain('file2.new_tc');
+        expect(logs).toContain('file3.orphaned_tc');
 
         // Check summary counts
         expect(logs).toContain('1 synced');
@@ -115,7 +115,7 @@ describe('Command diffCmd', () => {
 
         const mockStateResource = {
             type: 'github_testcase',
-            identity: 'login.feature::login_tc',
+            identity: 'login.feature.login_tc',
             attributes: {
                 title: 'Login V1',
                 issueNumber: 104,
@@ -165,7 +165,7 @@ describe('Command diffCmd', () => {
 
         const mockStateResource = {
             type: 'github_testcase',
-            identity: 'login.feature::login_tc',
+            identity: 'login.feature.login_tc',
             attributes: {
                 title: 'Login V1',
                 issueNumber: 104,
@@ -218,7 +218,7 @@ describe('Command diffCmd', () => {
 
             const mockStateResource = {
                 type: 'github_testcase',
-                identity: `${tmpFile}::login_tc`,
+                identity: `${tmpFile}.login_tc`,
                 attributes: {
                     title: 'Old Title',
                     issueNumber: 105,

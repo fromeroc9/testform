@@ -2,6 +2,13 @@ import { cyan, green, yellow, red, gray, bold, dim } from 'chalk';
 import { LogLevel, LogOptions, INotify } from './types';
 import { TestformError } from './errors';
 
+function cleanText(text: string): string {
+    if (process.env.NO_COLOR === '1') {
+        return text.replace(/\u001b\[[0-9;]*m/g, '');
+    }
+    return text;
+}
+
 export class Logger {
     private verbose: boolean = false;
     private isJson: boolean = false;
@@ -9,6 +16,15 @@ export class Logger {
     constructor(verbose: boolean = false, isJson: boolean = false) {
         this.verbose = verbose;
         this.isJson = isJson;
+    }
+
+    private print(text: string, isError: boolean = false): void {
+        const out = cleanText(text);
+        if (isError) {
+            console.error(out);
+        } else {
+            console.log(out);
+        }
     }
 
     private applyStyle(text: string, options?: LogOptions): string {
@@ -46,8 +62,8 @@ export class Logger {
         const showPrefix = options?.prefix !== false;
         const prefix = showPrefix ? dim(`[DEBUG] `) : '';
         const styledMsg = this.applyStyle(msgStr, options);
-        console.log(`${prefix}${gray(styledMsg)}`);
-        if (options?.data) console.log(gray(JSON.stringify(options.data, null, 2)));
+        this.print(`${prefix}${gray(styledMsg)}`);
+        if (options?.data) this.print(gray(JSON.stringify(options.data, null, 2)));
     }
 
     info(message: string | string[], options?: LogOptions): void {
@@ -59,8 +75,8 @@ export class Logger {
         const showPrefix = options?.prefix === true; // No prefix by default
         const prefix = showPrefix ? cyan(`[INFO] `) : '';
         const styledMsg = this.applyStyle(msgStr, options);
-        console.log(`${prefix}${styledMsg}`);
-        if (options?.data && this.verbose) console.log(gray(JSON.stringify(options.data, null, 2)));
+        this.print(`${prefix}${styledMsg}`);
+        if (options?.data && this.verbose) this.print(gray(JSON.stringify(options.data, null, 2)));
     }
 
     success(message: string | string[], options?: LogOptions): void {
@@ -72,8 +88,8 @@ export class Logger {
         const showPrefix = options?.prefix === true; // No prefix by default
         const prefix = showPrefix ? green(`[✓] `) : '';
         const styledMsg = this.applyStyle(green(msgStr), options);
-        console.log(`${prefix}${styledMsg}`);
-        if (options?.data && this.verbose) console.log(gray(JSON.stringify(options.data, null, 2)));
+        this.print(`${prefix}${styledMsg}`);
+        if (options?.data && this.verbose) this.print(gray(JSON.stringify(options.data, null, 2)));
     }
 
     warn(message: string | string[], options?: LogOptions): void {
@@ -82,17 +98,17 @@ export class Logger {
             this.emitJson("warn", msgStr, options?.data);
             return;
         }
-        console.error(yellow('╷'));
+        this.print(yellow('╷'), true);
         const prefix = bold(yellow('Warning:'));
         const styledMsg = this.applyStyle(msgStr, options);
-        console.error(`${yellow('│')} ${prefix} ${styledMsg}`);
+        this.print(`${yellow('│')} ${prefix} ${styledMsg}`, true);
 
         if (options?.data && this.verbose) {
-            console.error(yellow('│'));
+            this.print(yellow('│'), true);
             const dataStr = JSON.stringify(options.data, null, 2);
-            dataStr.split('\n').forEach(line => console.error(`${yellow('│')}   ${line}`));
+            dataStr.split('\n').forEach(line => this.print(`${yellow('│')}   ${line}`, true));
         }
-        console.error(yellow('╵'));
+        this.print(yellow('╵'), true);
     }
 
     error(message: string | string[], error?: Error | any): void {
@@ -101,36 +117,36 @@ export class Logger {
             this.emitJson("error", msgStr, error ? (error instanceof Error ? error.stack : error) : undefined);
             throw new TestformError(msgStr);
         }
-        console.error(red('╷'));
+        this.print(red('╷'), true);
         const prefix = bold(red('Error:'));
 
         const lines = msgStr.split('\n');
-        console.error(`${red('│')} ${prefix} ${bold(lines[0])}`);
+        this.print(`${red('│')} ${prefix} ${bold(lines[0])}`, true);
         for (let i = 1; i < lines.length; i++) {
-            console.error(`${red('│')} ${lines[i]}`);
+            this.print(`${red('│')} ${lines[i]}`, true);
         }
 
         if (error) {
-            console.error(red('│'));
+            this.print(red('│'), true);
             if (error instanceof Error) {
-                console.error(`${red('│')}   ${error.message}`);
+                this.print(`${red('│')}   ${error.message}`, true);
                 if (this.verbose && error.stack) {
-                    error.stack.split('\n').forEach(line => console.error(`${red('│')}   ${dim(line)}`));
+                    error.stack.split('\n').forEach(line => this.print(`${red('│')}   ${dim(line)}`, true));
                 }
             } else if (typeof error === 'object') {
                 const str = JSON.stringify(error, null, 2);
-                str.split('\n').forEach(line => console.error(`${red('│')}   ${line}`));
+                str.split('\n').forEach(line => this.print(`${red('│')}   ${line}`, true));
             } else {
-                console.error(`${red('│')}   ${String(error)}`);
+                this.print(`${red('│')}   ${String(error)}`, true);
             }
         }
-        console.error(red('╵'));
+        this.print(red('╵'), true);
         throw new TestformError(msgStr);
     }
 
     blank(): void {
         if (this.isJson) return;
-        console.log('');
+        this.print('');
     }
 
     push(options: INotify) {
@@ -146,23 +162,23 @@ export class Logger {
             return;
         }
 
-        console.log(lineColor('╷'));
-        console.log(`${lineColor('│')} ${prefixStr} ${title}`);
-        console.log(lineColor('│'));
+        this.print(lineColor('╷'));
+        this.print(`${lineColor('│')} ${prefixStr} ${title}`);
+        this.print(lineColor('│'));
 
         if (options.detail) {
             for (const line of options.detail) {
-                console.log(line ? `${lineColor('│')}   ${line}` : lineColor('│'));
+                this.print(line ? `${lineColor('│')}   ${line}` : lineColor('│'));
             }
         }
 
         if (options.extra) {
             for (const line of options.extra) {
-                console.log(`${lineColor('│')} ${line}`);
+                this.print(`${lineColor('│')} ${line}`);
             }
         }
 
-        console.log(lineColor('╵'));
+        this.print(lineColor('╵'));
 
         if (close) throw new TestformError(options.title);
     }
@@ -170,7 +186,7 @@ export class Logger {
     refresh(resourceId: string, remoteId?: string) {
         if (this.isJson) return;
         const state = remoteId ? dim(`[id=${remoteId}]`) : '';
-        console.log(`${cyan(resourceId)}: Refreshing state... ${state}`);
+        this.print(`${cyan(resourceId)}: Refreshing state... ${state}`);
     }
 
 }

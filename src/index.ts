@@ -4,7 +4,8 @@ import { cyan } from 'chalk';
 import { arch, platform } from 'node:process';
 import { resolve } from 'path';
 
-// Import commands
+import { existsSync, readFileSync } from 'fs';
+import { Config } from './core/config';
 import { initCmd } from './commands/init';
 import { planCmd } from './commands/plan';
 import { validateCmd } from './commands/validate';
@@ -28,6 +29,7 @@ import { toolCmd } from './commands/tool';
 import { printCmd } from './commands/print';
 import { queryCmd } from './commands/query';
 import { ephemeralCmd } from './commands/ephemeral';
+import { providersCmd } from './commands/providers';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
 import chalk from 'chalk';
@@ -63,8 +65,33 @@ async function fetchLatestNpmVersion(): Promise<string | undefined> {
     return undefined;
 }
 
-async function printVersion(detailed: boolean = false): Promise<void> {
-    const platformArch = `${platform}_${arch}`;
+async function printVersion(isJson: boolean = false, detailed: boolean = false): Promise<void> {
+    const rawPlatform = platform === 'win32' ? 'windows' : platform;
+    const rawArch = arch === 'x64' ? 'amd64' : arch;
+    const platformArch = `${rawPlatform}_${rawArch}`;
+
+    const latestVersion = process.env.TESTSTATE_LATEST_VERSION || await fetchLatestNpmVersion();
+    const isOutdated = Boolean(latestVersion && compareVersions(VERSION_CLI, latestVersion) < 0);
+
+    if (isJson) {
+        const providerSelections: Record<string, string> = {};
+        try {
+            const config = new Config(process.cwd(), false);
+            const pType = config.getProviderType();
+            if (pType && pType !== 'local') {
+                providerSelections[`registry.testform.io/fromeroc9/${pType}`] = '1.0.0';
+            }
+        } catch {}
+
+        const payload = {
+            testform_version: VERSION_CLI,
+            platform: platformArch,
+            provider_selections: providerSelections,
+            testform_outdated: isOutdated
+        };
+        console.log(JSON.stringify(payload, null, 2));
+        return;
+    }
 
     console.log(cyan(`${TITLE_APP} v${VERSION_CLI}`));
     console.log(`on ${platformArch}`);
@@ -74,9 +101,7 @@ async function printVersion(detailed: boolean = false): Promise<void> {
         console.log(`+ State Version: ${VERSION_STATE} (${FILE_STATE})`);
     }
 
-    const latestVersion = process.env.TESTSTATE_LATEST_VERSION || await fetchLatestNpmVersion();
-
-    if (latestVersion && compareVersions(VERSION_CLI, latestVersion) < 0) {
+    if (isOutdated) {
         console.log('');
         console.log(`Your version of ${TITLE_APP} is out of date! The latest version`);
         console.log(`is ${latestVersion}. You can update by running:`);
@@ -92,8 +117,10 @@ export function createCli() {
     cli.option('-s, --scope <scope>', 'Scope filter (testcase | testrun | testplan | all)');
     cli.option('-v, --verbose', 'Show detailed debug output');
     cli.option('--no-color', 'Disable colorized console output');
+    cli.option('--project-id <id>', 'Override the default project ID defined in your testform.yml');
+    cli.option('--projectId <id>', 'Alias for --project-id');
     cli.option('--var <var>', 'Set a variable value (key=value)');
-    cli.option('--var-file <file>', 'Load variables from a JSON file');
+    cli.option('--var-file <file>', 'Load variables from a YAML file');
 
     // ─── init ─────────────────────────────────────────────────────────────
     cli.command('init', 'Initialize a new Testform workspace')
@@ -136,6 +163,8 @@ export function createCli() {
         .option('--test-directory <dir>', 'Subdirectory containing test files')
         .option('--no-tests', 'Suppress test execution checks')
         .option('--query <query>', 'Filter query for validation')
+        .option('--var <var>', 'Set a variable value (key=value)')
+        .option('--var-file <file>', 'Load variable values from a YAML file')
         .action(async (targetPath, options) => {
             const workDir = getWorkDir(options);
             const validateDir = targetPath || workDir;
@@ -184,6 +213,7 @@ export function createCli() {
                 outPath: options.out,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
+                input: options.input !== false && options.input !== 'false',
                 variables: variableParser,
                 isJson: options.json,
                 detailedExitCode: options.detailedExitcode,
@@ -287,6 +317,9 @@ export function createCli() {
 
     // ─── refresh ──────────────────────────────────────────────────────────
     cli.command('refresh', 'Update the state file against remote target platform')
+        .option('--target <target>', 'Resource to target (can be specified multiple times)')
+        .option('--var <var>', 'Set a variable value')
+        .option('--var-file <file>', 'Load variable values from file')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
         .option('--state <path>', 'Path to state file')
@@ -301,6 +334,7 @@ export function createCli() {
                 dir: workDir,
                 verbose: Boolean(options.verbose),
                 scope,
+                target: options.target,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
                 statePath: options.state,
@@ -555,6 +589,7 @@ export function createCli() {
     // ─── fmt ──────────────────────────────────────────────────────────────
     cli.command('fmt [targetDir]', 'Rewrites Gherkin configuration files to canonical format')
         .option('--check', 'Check if files are formatted without rewriting')
+        .option('--diff', 'Display diffs instead of rewriting files')
         .option('--list', 'List unformatted files', { default: true })
         .option('--write', 'Write reformatted files to disk', { default: true })
         .option('--recursive', 'Recursively format subdirectories')
@@ -567,6 +602,7 @@ export function createCli() {
             await fmtCmd({
                 dir: destDir,
                 check: options.check,
+                diff: options.diff,
                 list: options.list ?? true,
                 write: options.write ?? true,
                 recursive: options.recursive
@@ -575,33 +611,28 @@ export function createCli() {
 
     // ─── query ───────────────────────────────────────────────────────────
     cli.command('query', 'Query and filter managed test resources in state')
-        .option('--test-directory <dir>', 'Subdirectory containing test files')
-        .option('--status <status>', 'Filter by issue state (open, closed, etc.)')
-        .option('--label <label>', 'Filter by label')
-        .option('--assignee <assignee>', 'Filter by assignee')
-        .option('--milestone <milestone>', 'Filter by milestone')
         .option('--custom <custom>', 'Filter by custom field (key=value)')
         .option('--search <text>', 'Free-text search in title or labels')
+        .option('--generate-config-out <path>', 'Generate import configuration blocks at PATH')
+        .option('--var <var>', 'Set a variable value')
+        .option('--var-file <file>', 'Load variable values from file')
         .option('--json', 'Output results formatted as JSON')
-        .option('--count', 'Output only the count of matched resources')
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const { scope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
 
             await queryCmd({
                 dir: workDir,
                 testDirectory: options.testDirectory,
                 scope,
-                status: options.status,
-                label: options.label,
-                assignee: options.assignee,
-                milestone: options.milestone,
                 custom: options.custom,
                 search: options.search,
+                generateConfigOut: options.generateConfigOut,
+                variables: variableParser,
                 json: Boolean(options.json),
-                count: Boolean(options.count),
                 verbose: Boolean(options.verbose),
                 statePath: options.state,
                 backupPath: options.backup
@@ -650,10 +681,29 @@ export function createCli() {
             await logoutCmd({ hostname: hostname || 'github.com' });
         });
 
+    // ─── providers ────────────────────────────────────────────────────────
+    cli.command('providers [action] [...args]', 'Prints a tree of providers and schemas')
+        .option('--test-directory <dir>', 'Directory containing test files')
+        .option('--var <var>', 'Set a variable value')
+        .option('--var-file <file>', 'Load variable values from file')
+        .action(async (action, args, options) => {
+            const workDir = getWorkDir(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await providersCmd({
+                dir: workDir,
+                action,
+                args: Array.isArray(args) ? args : (args ? [args] : []),
+                testDirectory: options.testDirectory,
+                variables: variableParser
+            });
+        });
+
     // ─── version ──────────────────────────────────────────────────────────
     cli.command('version', 'Show detailed version information')
-        .action(async () => {
-            await printVersion(true);
+        .option('--json', 'Output the version information as a JSON object.')
+        .action(async (options) => {
+            await printVersion(Boolean(options?.json), true);
         });
 
     cli.help();
@@ -665,6 +715,12 @@ export function createCli() {
 export const main = async () => {
     const rawArgs = process.argv.slice(2);
 
+    // Early no-color check
+    if (rawArgs.some(a => a === '--no-color' || a === '-no-color')) {
+        chalk.level = 0;
+        process.env.NO_COLOR = '1';
+    }
+
     // If no args or just help
     if (rawArgs.length === 0) {
         console.log(HELP_GLOBAL);
@@ -672,14 +728,19 @@ export const main = async () => {
     }
 
     // Version flag
-    if (rawArgs.includes('--version') || rawArgs.includes('-version') || rawArgs.includes('-v') && rawArgs.length === 1) {
-        await printVersion(false);
+    if (rawArgs.includes('--version') || rawArgs.includes('-version') || (rawArgs.includes('-v') && rawArgs.length === 1)) {
+        const isJson = rawArgs.includes('--json') || rawArgs.includes('-json');
+        await printVersion(isJson, false);
         process.exit(0);
     }
 
     // Help flag check with specific command
     if (rawArgs.includes('--help') || rawArgs.includes('-help') || rawArgs.includes('-h')) {
         const nonFlagArgs = rawArgs.filter(a => !a.startsWith('-'));
+        if (nonFlagArgs.length === 0) {
+            console.log(HELP_GLOBAL);
+            process.exit(0);
+        }
         const subCmdName = nonFlagArgs.slice(0, 2).join(' ');
         const cmdName = nonFlagArgs[0];
         if (subCmdName) {
@@ -696,10 +757,6 @@ export const main = async () => {
                 process.exit(0);
             }
         }
-    }
-
-    if (rawArgs.includes('--no-color')) {
-        chalk.level = 0;
     }
 
     const normalized = normalizeArgv(rawArgs);

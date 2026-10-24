@@ -74,6 +74,43 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
     const config = new Config(configDir);
     logger.debug(`Configuration loaded: v${config.getConfig().version}`);
 
+    // Validate provider configuration
+    const rawProvider = (config.getConfig() as any).provider;
+    const providerType = config.getProviderType();
+    const KNOWN_PROVIDERS = ['github', 'gitlab', 'local', 'custom'];
+
+    const isProviderMissing = !rawProvider ||
+        (typeof rawProvider === 'string' && rawProvider.trim() === '') ||
+        (typeof rawProvider === 'object' && Object.keys(rawProvider).length === 0);
+
+    if (isProviderMissing || !KNOWN_PROVIDERS.includes(providerType)) {
+        const provName = isProviderMissing ? 'a provider to be defined in testform.yml' : `provider "${providerType}"`;
+        if (isJson) {
+            console.log(JSON.stringify({
+                valid: false,
+                error_count: 1,
+                warning_count: 0,
+                diagnostics: [{
+                    severity: 'error',
+                    summary: 'Missing required provider',
+                    detail: `This configuration requires ${provName}, but that provider isn't available. Run "testform init" to configure it.`
+                }]
+            }, null, 2));
+        } else {
+            logger.push({
+                type: 'error',
+                title: 'Missing required provider',
+                detail: [
+                    `This configuration requires ${provName}, but that provider isn't available. You may be able`,
+                    `to install or configure it automatically by running:`,
+                    `  testform init`
+                ],
+                close: true
+            });
+        }
+        return;
+    }
+
     logger.debug(`Found ${documents.length} scenarios across feature files`);
 
     // Filter by scope (only process files matching the requested scope)

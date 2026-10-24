@@ -71,7 +71,7 @@ describe('Command validateCmd', () => {
 
     it('should successfully validate if valid feature files are present (Happy Path)', async () => {
         // Create testform.yml
-        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0', provider: 'local' }));
 
         // Create a dummy feature file
         writeFileSync(join(tmpDir, 'dummy.case.feature'), `
@@ -90,7 +90,7 @@ Feature: Dummy Feature
     });
 
     it('should skip tests if noTests=true is passed', async () => {
-        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0', provider: 'local' }));
         writeFileSync(join(tmpDir, 'dummy.case.feature'), `
 Feature: Dummy Feature
   @testcase
@@ -108,7 +108,7 @@ Feature: Dummy Feature
     });
 
     it('should respect testDirectory option', async () => {
-        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0', provider: 'local' }));
         const testDir = join(tmpDir, 'custom_tests');
         mkdirSync(testDir);
         writeFileSync(join(testDir, 'dummy.case.feature'), `
@@ -128,7 +128,7 @@ Feature: Dummy Feature
     });
 
     it('should output JSON success if isJson=true and files are valid', async () => {
-        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0', provider: 'local' }));
         writeFileSync(join(tmpDir, 'dummy.case.feature'), `
 Feature: Dummy Feature
   @testcase
@@ -150,7 +150,7 @@ Feature: Dummy Feature
     });
 
     it('should filter scenarios based on query', async () => {
-        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0', provider: 'local' }));
         writeFileSync(join(tmpDir, 'dummy.case.feature'), `
 Feature: Dummy Feature
   @testcase
@@ -169,5 +169,15 @@ Feature: Dummy Feature
         const calledScenarios = (policy.scanner as any).mock.calls[0][0] as any[];
         expect(calledScenarios.length).toBe(1);
         expect(calledScenarios[0].name).toBe('Specific Query Scenario');
+    });
+
+    it('should fail with Missing required provider when provider is not declared', async () => {
+        writeFileSync(join(tmpDir, FILE_CONFIG), JSON.stringify({ version: '1.0' }));
+        writeFileSync(join(tmpDir, 'dummy.case.feature'), `Feature: Dummy\n  Scenario: S1\n    Given s\n`);
+
+        await expect(validateCmd({
+            targetPath: tmpDir,
+            scope: 'testcase'
+        })).rejects.toThrow('Missing required provider');
     });
 });

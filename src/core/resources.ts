@@ -325,13 +325,13 @@ resource.registry({
                 if (testcases.length > 0 && context?.state) {
                     const state = context.state;
 
-                    const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}::${s.custom.identity}` : s.uri;
+                    const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}.${s.custom.identity}` : s.uri;
                     const existingRun = state.getResources('github_testrun').find((r: any) => r.identity === runIdentity);
                     const existingStatuses = existingRun?.attributes?.testcaseStatuses || {};
 
                     const sortedTestcases = [...testcases].sort((a: string, b: string) => {
-                        const aName = a.split('::').pop()?.replace('@', '') || '';
-                        const bName = b.split('::').pop()?.replace('@', '') || '';
+                        const aName = a.split('.').pop()?.replace('@', '') || '';
+                        const bName = b.split('.').pop()?.replace('@', '') || '';
                         return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
                     });
 
@@ -339,23 +339,29 @@ resource.registry({
                     const notFoundTCs: string[] = [];
 
                     for (const tc of sortedTestcases) {
-                        const parts = tc.split('::');
+                        const parts = tc.split('.');
                         const scenarioName = parts.pop();
-                        const ruleName = parts.pop() || '';
+                        const ruleName = parts.join('.');
                         const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
 
                         const tcResources = state.getResources('github_testcase').filter((r: any) =>
-                            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`::${scenarioName}`))
+                            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`.${scenarioName}`))
                         );
 
-                        const distinctFiles = new Set(tcResources.map((r: any) => r.identity.split('::')[0]));
+                        const distinctFiles = new Set(tcResources.map((r: any) => {
+                            const lastDot = r.identity.lastIndexOf('.');
+                            return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                        }));
                         let validResources = tcResources;
 
                         if (distinctFiles.size > 1) {
                             if (context?.testDirectory) {
                                 const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
                                 validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
-                                const distinctValid = new Set(validResources.map((r: any) => r.identity.split('::')[0]));
+                                const distinctValid = new Set(validResources.map((r: any) => {
+                                    const lastDot = r.identity.lastIndexOf('.');
+                                    return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                                }));
                                 if (distinctValid.size > 1) {
                                     throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
                                 }
@@ -380,14 +386,15 @@ resource.registry({
                     const uniqueResources = Array.from(uniqueResourcesMap.values());
 
                     uniqueResources.sort((a: any, b: any) => {
-                        const aName = a.identity.split('::').pop()?.replace('@', '') || '';
-                        const bName = b.identity.split('::').pop()?.replace('@', '') || '';
+                        const aName = a.identity.split('.').pop()?.replace('@', '') || '';
+                        const bName = b.identity.split('.').pop()?.replace('@', '') || '';
                         return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
                     });
 
                     const groupedByOrigin = new Map<string, any[]>();
                     for (const tcResource of uniqueResources) {
-                        const [baseRule] = tcResource.identity.split('::');
+                        const lastDot = tcResource.identity.lastIndexOf('.');
+                        const baseRule = lastDot !== -1 ? tcResource.identity.slice(0, lastDot) : tcResource.identity;
                         const originFile = require('path').basename(baseRule || '');
                         if (!groupedByOrigin.has(originFile)) {
                             groupedByOrigin.set(originFile, []);
@@ -399,12 +406,12 @@ resource.registry({
                         body += `\n\n**Origin:** ${origin}\n`;
                         for (const tcResource of resources) {
                             const tcIdentity = tcResource.identity;
-                            const safeName = tcIdentity.split('::').pop()?.replace('@', '') || '';
+                            const safeName = tcIdentity.split('.').pop()?.replace('@', '') || '';
 
                             let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
                                 if (!gs.rule || !gs.name) return false;
                                 const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
-                                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`::${gs.name}`);
+                                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`.${gs.name}`);
                             });
 
                             if (!groupScenario) {
@@ -429,7 +436,7 @@ resource.registry({
                     if (notFoundTCs.length > 0) {
                         body += `\n\n**Not Found in State**\n`;
                         for (const tc of notFoundTCs) {
-                            const safeName = tc.split('::').pop()?.replace('@', '') || '';
+                            const safeName = tc.split('.').pop()?.replace('@', '') || '';
                             body += `- [ ] ${safeName}: (not found in state) - ${tc}\n`;
                         }
                     }

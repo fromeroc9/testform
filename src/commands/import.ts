@@ -88,9 +88,9 @@ export const importCmd = async (options: ImportCmdOptions) => {
 
             const fullId = (scope === 'testrun' || scope === 'testplan')
                 ? rawId
-                : `${s.uri}::${rawId}`;
+                : `${s.uri}.${rawId}`;
 
-            // Exact match or ends with the arg (e.g. test1.run.feature or tc1.case.feature::@[1])
+            // Exact match or ends with the arg (e.g. test1.run.feature or tc1.case.feature.tc-01)
             return fullId === identityArg || fullId.endsWith(identityArg) || identityArg.endsWith(fullId);
         });
 
@@ -98,7 +98,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
             const rawId = matchedScenario.custom?.identity;
             identity = (scope === 'testrun' || scope === 'testplan')
                 ? (rawId || identityArg)
-                : `${matchedScenario.uri}::${rawId}`;
+                : `${matchedScenario.uri}.${rawId}`;
             console.log(`Resolved short identity to full identity: ${identity}`);
         } else {
             console.log(yellow(`Warning: Could not find matching local scenario for identity: ${identityArg}`));
@@ -132,8 +132,10 @@ export const importCmd = async (options: ImportCmdOptions) => {
         }
 
         // Auto-reconstruct code if not matched
-        if (!matchedScenario && scope === 'testcase' && identity.includes('::')) {
-            const [rawFilePath, tag] = identity.split('::');
+        if (!matchedScenario && scope === 'testcase' && identity.includes('.')) {
+            const lastDot = identity.lastIndexOf('.');
+            const rawFilePath = identity.slice(0, lastDot);
+            const tag = identity.slice(lastDot + 1);
             const filePath = normalize(resolve(basePath, rawFilePath));
             
             if (!filePath.startsWith(basePath)) {

@@ -32,10 +32,10 @@ export class TestrunParser extends TestcaseParser {
             }
 
             // Extract all testcases belonging to this run
-            // Format: "RuleName::ScenarioName"
+            // Format: "RuleName.ScenarioName"
             aggregated.custom.testcases = groupScenarios
                 .filter(e => e.rule && e.name)
-                .map(e => `${e.rule?.name}::${e.name}`);
+                .map(e => `${e.rule?.name}.${e.name}`);
 
             // Also keep the raw group scenarios so we can extract their status fields later
             aggregated.custom.groupScenarios = groupScenarios;

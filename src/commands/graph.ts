@@ -38,7 +38,7 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
             testrunsMap.set(r.uri, { name: r.feature?.name || 'Unnamed Run', testcases: [], identity: r.custom?.identity || r.feature?.name || '', uri: r.uri });
         }
         if (r.rule?.name) testrunsMap.get(r.uri)!.testcases.push(r.rule.name);
-        else if (r.name) testrunsMap.get(r.uri)!.testcases.push(`${r.feature?.name}::${r.name}`);
+        else if (r.name) testrunsMap.get(r.uri)!.testcases.push(`${r.feature?.name}.${r.name}`);
     }
     const testruns = Array.from(testrunsMap.values());
 
@@ -54,14 +54,21 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
     function findTcs(tcId: string) {
         let scenarioName = '*';
         let ruleName = tcId;
-        if (tcId.includes('::')) {
-            const parts = tcId.split('::');
+        if (tcId.includes('.feature.')) {
+            const idx = tcId.indexOf('.feature.');
+            ruleName = tcId.substring(0, idx + 8);
+            scenarioName = tcId.substring(idx + 9);
+        } else if (tcId.endsWith('.feature')) {
+            ruleName = tcId;
+            scenarioName = '*';
+        } else if (tcId.includes('.')) {
+            const parts = tcId.split('.');
             scenarioName = parts.pop() || '*';
-            ruleName = parts.join('::');
+            ruleName = parts.join('.');
         }
         const matches = testcases.filter(r => {
-            const matchesFile = r.uri.endsWith(ruleName) || r.uri.includes(ruleName);
-            const matchesScenario = scenarioName === '*' || r.name === scenarioName || r.name.includes(scenarioName);
+            const matchesFile = !ruleName || r.uri.endsWith(ruleName) || r.uri.includes(ruleName);
+            const matchesScenario = scenarioName === '*' || r.name === scenarioName || r.name.includes(scenarioName) || r.custom?.identity === scenarioName;
             return matchesFile && matchesScenario;
         });
 

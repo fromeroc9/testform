@@ -84,7 +84,7 @@ export const generateCmd = async (options: GenerateCmdOptions) => {
         const allFeatures = findFeatureFiles(dir, true);
 
         for (const rule of options.rules) {
-            const ruleFile = rule.includes('::') ? rule.split('::')[0] : rule;
+            const ruleFile = rule.includes('.feature.') ? rule.slice(0, rule.indexOf('.feature.') + 8) : rule;
             const exists = allFeatures.some(f => f.endsWith(ruleFile) || f.includes(ruleFile));
 
             if (!exists) {

@@ -93,7 +93,7 @@ Feature: Auth Helpers
         writeFileSync(mainFile, `@testcase
 Feature: Mi Cuenta
   @tc-1
-  @module(source="./modules-targeted/auth.case.feature::tc-login")
+  @module(source="./modules-targeted/auth.case.feature.tc-login")
   Scenario: Ver perfil
     When consulta sus datos
     Then muestra su nombre

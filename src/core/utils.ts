@@ -22,20 +22,6 @@ export function elapsedSeconds(startTime: number): string {
 }
 
 export function formatIdentityDisplay(identity: string): string {
-    const parts = identity.split('::');
-    if (parts.length > 0) {
-        let filePath = parts[0];
-        const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
-        if (lastSlash !== -1) {
-            filePath = filePath.substring(lastSlash + 1);
-        }
-        const lastDot = filePath.lastIndexOf('.');
-        if (lastDot !== -1) {
-            filePath = filePath.substring(0, lastDot);
-        }
-        parts[0] = filePath;
-        return parts.join('::');
-    }
     return identity;
 }
 
@@ -43,11 +29,11 @@ export function formatIdentityDisplay(identity: string): string {
  * Formats a resource address string.
  *
  * @param type     - The resource type (e.g. `'github_testcase'`).
- * @param identity - The resource identity (e.g. `'tc1.case.feature::@[tc1]'`).
- * @returns A formatted address like `"github_testcase.tc1::@[tc1]"`.
+ * @param identity - The resource identity (e.g. `'tc1.case.feature.tc-01'`).
+ * @returns A formatted address like `"github_testcase.tc1.case.feature.tc-01"`.
  */
 export function formatResourceAddress(type: string, identity: string): string {
-    return `${type}.${formatIdentityDisplay(identity)}`;
+    return `${type}.${identity}`;
 }
 
 export const formatHclValue = (value: any, indentLevel: number): string => {

@@ -156,7 +156,13 @@ export class Config {
 
     getBackend(): IBackendConfig | undefined {
         const raw = this.config.backend;
-        if (!raw) return undefined;
+        if (raw === undefined) return undefined;
+        if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+            return {
+                type: '' as any,
+                config: {}
+            };
+        }
 
         // 1. Support string scalar, e.g. "backend: local"
         if (typeof raw === 'string') {
@@ -207,7 +213,7 @@ export class Config {
     getMatch(scope: IScope): string | undefined {
         const scopeConf = this.getScopeConf(scope);
         if (!scopeConf?.match) return undefined;
-        return scopeConf.match.split('::')[0].trim();
+        return scopeConf.match.trim();
     }
 
     getIdentity(scope: IScope): string {
@@ -215,9 +221,8 @@ export class Config {
         const scopeConf = this.getScopeConf(scope);
 
         let id = scopeConf?.identity;
-        if (!id && scopeConf?.match && scopeConf.match.includes('::')) {
-            const parts = scopeConf.match.split('::');
-            const candidate = parts.slice(1).join('::').trim();
+        if (!id && scopeConf?.match && scopeConf.match.includes('.feature.')) {
+            const candidate = scopeConf.match.slice(scopeConf.match.indexOf('.feature.') + 9).trim();
             if (candidate && candidate !== '*') {
                 id = candidate;
             }

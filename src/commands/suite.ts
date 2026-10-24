@@ -121,14 +121,14 @@ async function runAutocomplete(options: {
             continue;
         }
 
-        // Build testcases list: "ruleName::scenarioIdentity"
+        // Build testcases list: "ruleName.scenarioIdentity"
         const config = new Config(dir);
         const caseData = { identity: config.getIdentity('testcase'), fields: config.getFields('testcase') };
         const filteredCases = caseParser.filter(caseScenarios, caseData, 'testcase') || [];
 
         const testcases = filteredCases.map((s: any) => {
             const id = s.custom?.identity || s.name;
-            return `${ruleName}::${id}`;
+            return `${ruleName}.${id}`;
         });
 
         GherkinEditor.expandScenarios(absoluteRunPath, testcases, 'pending');
@@ -186,7 +186,7 @@ async function runLink(options: {
                     `  ${TITLE_CLI} suite link "checkout.case.feature" -target="@tr-42"`,
                     `  # Link into testrun (explicit):`,
                     `  ${TITLE_CLI} suite link "@tc-1" -target="@tr-42"`,
-                    `  ${TITLE_CLI} suite link "checkout.case.feature::@tc-1=passed" -target="@tr-42"`,
+                    `  ${TITLE_CLI} suite link "checkout.case.feature.@tc-1=passed" -target="@tr-42"`,
                     `  # Link into testplan:`,
                     `  ${TITLE_CLI} suite link "sprint42.run.feature" -target="@tp-1"`,
                 ],
@@ -221,7 +221,7 @@ async function runLink(options: {
     if (targetScope === 'testplan') {
         let runToLink = options.linkArg;
 
-        if (runToLink && (runToLink.includes('::') || runToLink.includes('=') || runToLink.startsWith('@tc'))) {
+        if (runToLink && (runToLink.includes('=') || runToLink.startsWith('@tc'))) {
             Diag.error({
                 title: `Cannot link explicit testcase scenarios into a testplan.`,
                 detail: [
@@ -319,7 +319,7 @@ async function runLink(options: {
                     const tag = c.custom?.identity ? `[${c.custom.identity}] ` : '';
                     return {
                         label: `${tag}${c.name}`,
-                        value: `${basename(c.uri)}::${c.custom?.identity || c.name}`
+                        value: `${basename(c.uri)}.${c.custom?.identity || c.name}`
                     };
                 });
                 const chosenCase = await askSelect('Selecciona el testcase a enlazar:', choices);
@@ -333,7 +333,7 @@ async function runLink(options: {
                     `Please provide the testcase or rule argument to link into '${target}'.`,
                     `Usage:`,
                     `  Implicit link:  ${TITLE_CLI} suite link "checkout.case.feature" -target="${target}"`,
-                    `  Explicit link:  ${TITLE_CLI} suite link "checkout.case.feature::@tc-1" -target="${target}"`,
+                    `  Explicit link:  ${TITLE_CLI} suite link "checkout.case.feature.@tc-1" -target="${target}"`,
                     `                  ${TITLE_CLI} suite link "@tc-1" -target="${target}"`,
                     `                  ${TITLE_CLI} suite link "@tc-1=passed" -target="${target}"`,
                 ],
@@ -344,9 +344,10 @@ async function runLink(options: {
 
     if (!tcArg) return;
 
+    const stripped = tcArg.replace(/=(passed|failed|skipped|pending)$/i, '').trim();
+
     // Determine if implicit (whole file) or explicit (scenario)
-    const stripped = tcArg.replace(/^([a-zA-Z0-9_-]+_)?testcase\./, '');
-    const isExplicitCandidate = stripped.includes('::') || stripped.includes('@') || stripped.includes('=');
+    const isExplicitCandidate = stripped.includes('@') || stripped.includes('=') || stripped.includes('.case.feature.') || stripped.includes('.run.feature.');
 
     const caseDocs = documents.filter(s => matchesScope(s, 'testcase'));
     const caseFiles = Array.from(new Set(caseDocs.map(s => s.uri)));
@@ -387,7 +388,7 @@ async function runLink(options: {
     }
 
     if (matches.length > 1) {
-        const amb = matches.map(m => `${basename(m.uri)}::${m.custom?.identity || m.name}`);
+        const amb = matches.map(m => `${basename(m.uri)}.${m.custom?.identity || m.name}`);
         Diag.ambiguousTestcase({
             identifier: casePart,
             target: 'workspace',
@@ -438,12 +439,10 @@ async function runState(options: {
     const rawIdentity = runScenario.custom?.identity;
     if (!rawIdentity) {
         identity = runScenario.uri;
-    } else if (rawIdentity.includes('::')) {
-        identity = rawIdentity;
-    } else if (rawIdentity === runScenario.uri) {
+    } else if (rawIdentity.startsWith(runScenario.uri) || rawIdentity === runScenario.uri) {
         identity = rawIdentity;
     } else {
-        identity = `${runScenario.uri}::${rawIdentity}`;
+        identity = `${runScenario.uri}.${rawIdentity}`;
     }
 
     // Find testrun resource in state
@@ -500,7 +499,9 @@ async function runState(options: {
             const selectedKey = await askSelect(`Testcases disponibles en '${foundRun.identity}':`, choices);
             const selectedStatus = await askStatus();
 
-            const [kFile = '', kId = ''] = selectedKey.split('::');
+            const lastDot = selectedKey.lastIndexOf('.');
+            const kFile = lastDot !== -1 ? selectedKey.slice(0, lastDot) : selectedKey;
+            const kId = lastDot !== -1 ? selectedKey.slice(lastDot + 1) : '';
             featurePart = kFile;
             casePart = kId;
             newStatus = selectedStatus;
@@ -520,7 +521,7 @@ async function runState(options: {
                     `Please provide the testcase argument.`,
                     `Strategies:`,
                     `  1. Only tag:       "@tc-1=passed"`,
-                    `  2. File + tag:     "checkout.case.feature::@tc-1=passed"`,
+                    `  2. File + tag:     "checkout.case.feature.@tc-1=passed"`,
                     `  3. Scenario name:  "Pago con tarjeta=passed"`,
                 ],
             }).abort();
@@ -557,7 +558,9 @@ async function runState(options: {
     const targetId = matchingKeys[0];
     const commentId = commentIds[targetId];
     const oldStatus = foundRun.attributes?.testcaseStatuses?.[targetId] || 'pending';
-    const [baseRule, scenarioName] = targetId.split('::');
+    const lastTargetDot = targetId.lastIndexOf('.');
+    const baseRule = lastTargetDot !== -1 ? targetId.slice(0, lastTargetDot) : targetId;
+    const scenarioName = lastTargetDot !== -1 ? targetId.slice(lastTargetDot + 1) : '';
 
     // Verify that the scenario is actually expanded in the local .run.feature file.
     // If the rule is implicit, require the user to run `suite fill` first.
@@ -772,7 +775,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                         `Examples:`,
                         `  ${TITLE_CLI} suite mark "@tc-1=passed" -target="@tr-2"`,
                         `  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
-                        `  ${TITLE_CLI} suite mark "github_testcase.agencia/cuenta.feature::@tc-3=failed" -target="20260607.run.feature"`,
+                        `  ${TITLE_CLI} suite mark "github_testcase.agencia/cuenta.feature.@tc-3=failed" -target="20260607.run.feature"`,
                     ],
                 }).abort();
                 return;

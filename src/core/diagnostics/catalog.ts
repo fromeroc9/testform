@@ -126,7 +126,7 @@ export class Diag {
                 ...availableLines,
                 `Accepted identity strategies:`,
                 `  1. Only tag:       "@tc-1=passed"`,
-                `  2. File + tag:     "checkout.case.feature::@tc-1=passed"`,
+                `  2. File + tag:     "checkout.case.feature.@tc-1=passed"`,
                 `  3. Scenario name:  "Pago con tarjeta=passed"`,
             ],
         });
@@ -146,7 +146,7 @@ export class Diag {
                 ...matchesFormatted,
                 ``,
                 `Please specify the feature file to disambiguate:`,
-                `  e.g. ${TITLE_CLI} suite ${cmd} "<file>::${props.identifier}=${st}" -target="${props.target}"`,
+                `  e.g. ${TITLE_CLI} suite ${cmd} "<file>.${props.identifier}=${st}" -target="${props.target}"`,
             ],
         });
     }

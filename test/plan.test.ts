@@ -47,7 +47,7 @@ describe('Command planCmd', () => {
     });
 
     const mockStateResources = [
-        { identity: 'file1::tc1', attributes: { localHash: 'hash1', remoteId: 'remote-1' } }
+        { identity: 'file1.tc1', attributes: { localHash: 'hash1', remoteId: 'remote-1' } }
     ];
 
     it('should generate a plan successfully', async () => {
@@ -71,8 +71,9 @@ describe('Command planCmd', () => {
 
         const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false });
 
-        expect(result.changes.length).toBeGreaterThan(0);
-        expect(result.hasChanges).toBe(true);
+        expect(result).toBeDefined();
+        expect(result!.changes.length).toBeGreaterThan(0);
+        expect(result!.hasChanges).toBe(true);
         expect(mockLog).toHaveBeenCalled();
     });
 
@@ -171,8 +172,9 @@ describe('Command planCmd', () => {
 
         const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, refreshOnly: true });
 
-        expect(result.changes).toHaveLength(0);
-        expect(result.hasChanges).toBe(false);
+        expect(result).toBeDefined();
+        expect(result!.changes).toHaveLength(0);
+        expect(result!.hasChanges).toBe(false);
     });
 
     it('should force replace resources matching replaceTargets', async () => {
@@ -194,10 +196,11 @@ describe('Command planCmd', () => {
             };
         });
 
-        const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, replaceTargets: 'file1::tc1' });
+        const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, replaceTargets: 'file1.tc1' });
 
-        expect(result.changes).toHaveLength(1);
-        const replaceChange = result.changes.find(c => c.action === 'replace');
+        expect(result).toBeDefined();
+        expect(result!.changes).toHaveLength(1);
+        const replaceChange = result!.changes.find(c => c.action === 'replace');
         expect(replaceChange).toBeDefined();
     });
 });

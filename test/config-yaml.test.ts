@@ -248,7 +248,7 @@ version: "1.0"
 provider: local
 scopes:
   testcase:
-    match: "*.case.feature::login-*"
+    match: "*.case.feature.login-*"
   testrun:
     match: "*.run.feature"
     identity: "smoke-*"

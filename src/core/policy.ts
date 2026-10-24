@@ -297,7 +297,7 @@ policy.registry({
 
             // For testcase, identities only need to be unique within the same file.
             // For testrun/testplan, identities must be globally unique across all files.
-            const uniquenessKey = scope === 'testcase' ? `${scenario.uri}::${identity}` : identity;
+            const uniquenessKey = scope === 'testcase' ? `${scenario.uri}.${identity}` : identity;
 
             const existing = seen.get(uniquenessKey);
             if (existing) {
@@ -310,7 +310,8 @@ policy.registry({
         for (const [key, entries] of seen) {
             if (entries.length <= 1) continue;
 
-            const identity = key.includes('::') ? key.split('::')[1] : key;
+            const lastDot = key.lastIndexOf('.');
+            const identity = lastDot !== -1 ? key.slice(lastDot + 1) : key;
 
             const allSameOutline =
                 entries.every((e) => (e.keyword || '').trim() === "Scenario Outline") &&

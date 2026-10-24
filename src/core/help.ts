@@ -25,6 +25,7 @@ ${bold(`All other commands:`)}
   login         Obtain and save credentials for a remote host
   logout        Remove locally-stored credentials for a remote host
   print         Parse a feature file and print the JSON AST
+  providers     Show the providers required for this configuration
   query         Query and filter managed test resources in state
   refresh       Update the state to match remote systems
   report        Generate multi-dimensional test execution reports
@@ -38,7 +39,7 @@ ${bold(`All other commands:`)}
 
 ${bold(`Global options (use these before the subcommand, if any):`)}
   -chdir=DIR    Switch to a different working directory before executing the given subcommand.
-  -projectId    Override the default project ID defined in your testform.yml.
+  -project-id   Override the default project ID defined in your testform.yml.
   -scope        Limit the scope of the execution (testcase, testrun, testplan).
   -help         Show this help output, or the help for a specified subcommand.
   -version      An alias for the "version" subcommand.
@@ -153,6 +154,8 @@ ${bold(`Other Options:`)}
                       1 - Errored
                       2 - Succeeded, there is a diff
 
+  -input=true         Ask for input for variables if not directly set.
+
   -lock=false         Don't hold a state lock during the operation. This
                       is dangerous if others might concurrently run
                       commands against the same workspace.
@@ -200,8 +203,16 @@ ${bold(`Options:`)}
 
   -test-directory=path  Set the ${TITLE_APP} test directory, defaults to "tests".
   
-  -query=string         Filter the parsed documents to locate specific test 
+  -query                Filter the parsed documents to locate specific test 
                         scenarios across the active scope.
+
+  -var 'foo=bar'        Set a value for one of the input variables in the
+                        configuration. Use this option more than once to set
+                        more than one variable.
+
+  -var-file=filename    Load variable values from the given file (.yml or .yaml format).
+                        Use this option more than once to include more than one
+                        variables file.
 `.trim();
 
 export const HELP_APPLY = `
@@ -314,12 +325,10 @@ ${bold(`Options:`)}
 export const HELP_REFRESH = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] refresh [options]
 
-  Update the local state file by checking the real-world status of all tracked
-  GitHub Issues and updating their metadata (e.g., titles, descriptions).
+  Update the state to match remote systems.
 
-  This command will not modify your GitHub Issues, but it will modify your
-  local state file to reflect any changes made on GitHub. These state changes
-  might cause new actions to occur when you generate a plan or call apply next.
+  This command will not modify your remote test entities directly,
+  but it will update your state file to reflect any changes made on the remote platform.
 
 ${bold(`Options:`)}
 
@@ -337,7 +346,19 @@ ${bold(`Options:`)}
 
   -parallelism=n      Limit the number of concurrent operations. Defaults to 3.
 
-  -state, and -backup Custom paths for the state and backup files.
+  -target=resource    Resource to target. Operation will be limited to this
+                      resource and its dependencies. This flag can be used
+                      multiple times.
+
+  -var 'foo=bar'      Set a variable in the ${TITLE_APP} configuration. This
+                      flag can be set multiple times.
+
+  -var-file=foo       Set variables in the ${TITLE_APP} configuration from
+                      a file. If "testform.vars.yml" or any "*.auto.vars.yml"
+                      files are present, they will be automatically loaded.
+
+  -state, state-out, and -backup are legacy options supported for the local
+  backend only. For more information, see the local backend's documentation.
 `.trim();
 
 export const HELP_SHOW = `
@@ -370,7 +391,9 @@ ${bold(`Options:`)}
 
   -list=false    Don't list files whose formatting differs
 
-  -write=false   Don't write to source files
+  -write=false   Don't write to source files (implied by -check or -diff)
+
+  -diff          Display diffs of formatting changes
 
   -check         Check if the input is formatted. Exit status will be 3 if
                  any input is not properly formatted and zero otherwise.
@@ -454,14 +477,31 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] state [subcommand] [options] [ar
   backup of the state prior to making modifications.
 
 ${bold(`Subcommands:`)}
-    clean               Clean and optimize state payload (strip body and empty values)
     identities          List the identities of resources in the state
     list                List resources in the state
     mv                  Move an item in the state
     pull                Pull current state and output to stdout
     push                Update remote state from a local state file
+    replace-provider    Replace provider in the state
     rm                  Remove instances from the state
     show                Show a resource in the state
+`.trim();
+
+export const HELP_STATE_REPLACE_PROVIDER = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] state replace-provider [options] FROM_PROVIDER TO_PROVIDER
+
+  Replace provider in the ${TITLE_APP} state.
+
+  This command updates the provider for all matching resources in the state,
+  allowing seamless migration between providers (e.g. from github to gitlab).
+
+${bold(`Options:`)}
+
+  -auto-approve       Skip interactive confirmation before modifying state.
+  -lock=false         Don't hold a state lock during the operation.
+  -lock-timeout=0s    Duration to retry a state lock.
+  -state=path         Path to state file.
+  -backup=path        Path to backup file.
 `.trim();
 
 export const HELP_STATE_CLEAN = `
@@ -681,7 +721,7 @@ ${bold(`Options:`)}
 `.trim();
 
 export const HELP_TAINT = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] taint [options] [address]
+${bold(`Usage:`)} ${TITLE_CLI} [global options] taint [options] <address>
 
   ${TITLE_APP} uses the term "tainted" to describe a resource instance
   which may not be fully functional, either because its creation
@@ -695,10 +735,10 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] taint [options] [address]
   You can remove the "taint" state from a resource instance using
   the "${TITLE_CLI} untaint" command.
 
-  The address is in the usual resource address syntax, such as:
-    aws_instance.foo
-    aws_instance.bar[1]
-    module.foo.module.bar.aws_instance.baz
+  The address is in the resource address syntax, such as:
+    testcase/cart.case.feature.tc-01
+    testrun/sprint.run.feature.tr-login
+    testplan/release.plan.feature.tp-smoke
 
   Use your shell's quoting or escaping syntax to ensure that the
   address will reach ${TITLE_APP} correctly, without any special
@@ -715,7 +755,20 @@ ${bold(`Options:`)}
 
   -lock-timeout=0s        Duration to retry a state lock.
 
-  -state, and -backup     Custom paths for the state and backup files.
+  -ignore-remote-version  A rare option used for the remote backend only. See
+                          the remote backend documentation for more information.
+
+  -var 'foo=bar'          Set a value for one of the input variables in the root
+                          module of the configuration. Use this option more than
+                          once to set more than one variable.
+
+  -var-file=filename      Load variable values from the given file, in addition
+                          to the default files testform.vars.yml and *.auto.vars.yml.
+                          Use this option more than once to include more than one
+                          variables file.
+
+  -state, state-out, and -backup are legacy options supported for the local
+  backend only. For more information, see the local backend's documentation.
 `.trim();
 
 export const HELP_UNTAINT = `
@@ -744,13 +797,21 @@ ${bold(`Options:`)}
 
   -lock-timeout=0s        Duration to retry a state lock.
 
-  -state, and -backup     Custom paths for the state and backup files.
+  -ignore-remote-version  A rare option used for the remote backend only. See
+                          the remote backend documentation for more information.
+
+  -state, state-out, and -backup are legacy options supported for the local
+  backend only. For more information, see the local backend's documentation.
 `.trim();
 
 export const HELP_VERSION = `
-${bold(`Usage:`)} ${TITLE_CLI} version [options]
+${bold(`Usage:`)} ${TITLE_CLI} [global options] version [options]
 
-  Displays the version of ${TITLE_APP}.
+  Displays the version of ${TITLE_APP} and all installed plugins
+
+${bold(`Options:`)}
+
+  -json       Output the version information as a JSON object.
 `.trim();
 
 export const HELP_WORKSPACE = `
@@ -773,50 +834,94 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] diff [options]
 
 ${bold(`Options:`)}
 
-  -scope=scope            Limit the scope of the execution (testcase, testrun, testplan).
   -remote                 Compare local and state against live remote provider issues.
   -i, -interactive        Interactively resolve detected drift (pull / overwrite / skip).
   -test-directory=dir     Subdirectory containing test files.
 `.trim();
 
 export const HELP_EPHEMERAL = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] ephemeral <subcommand> [id] [options]
+${bold(`Usage:`)} ${TITLE_CLI} [global options] ephemeral <subcommand> [options] [args]
 
-  Manage isolated, temporary QA sandboxes for CI/CD pipelines (Pull Requests).
-  Ensures remote issues are cleanly created and 100% destroyed without leaving orphans.
+  Manage temporary CI/CD QA sandboxes.
 
 ${bold(`Subcommands:`)}
+    up          Deploy an isolated ephemeral sandbox
+    down        Destroy all remote issues and clean sandbox
+    list        List all active ephemeral sandboxes
+    show        Inspect an ephemeral sandbox
+`.trim();
 
-  up <id>             Deploy an isolated ephemeral QA sandbox (e.g., pr-42).
-  down <id>           Close all remote issues created by the sandbox and delete its state.
-  list                List all active ephemeral sandboxes on this machine.
-  show <id>           Inspect tracked resources in an ephemeral sandbox.
+export const HELP_PROVIDERS = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] providers [options] [DIR]
+
+  Prints out a tree of modules in the referenced configuration annotated with
+  their provider requirements.
+
+  This provides an overview of all of the provider requirements across all
+  referenced modules, as an aid to understanding why particular provider
+  plugins are needed and why particular versions are selected.
 
 ${bold(`Options:`)}
 
-  -auto-approve       Skip interactive confirmation prompts.
-  -force              Force destruction even if state is incomplete.
-  -test-directory=dir Subdirectory containing test files.
-  -json               Output as JSON (useful in scripts and CI/CD).
+  -test-directory=path  Set the ${TITLE_APP} test directory, defaults to "tests".
+
+  -var 'foo=bar'        Set a value for one of the input variables in the root
+                        module of the configuration. Use this option more than
+                        once to set more than one variable.
+
+  -var-file=filename    Load variable values from the given file, in addition
+                        to the default files testform.vars.yml and *.auto.vars.yml.
+                        Use this option more than once to include more than one
+                        variables file.
+
+${bold(`Subcommands:`)}
+    lock      Write out dependency locks for the configured providers
+    mirror    Save local copies of all required provider plugins
+    schema    Show schemas for the providers used in the configuration
 `.trim();
 
 export const HELP_QUERY = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] query [options]
 
-  Query and filter managed test resources in state.
+  Queries the remote infrastructure for resources.
 
-${bold(`Options:`)}
+  ${TITLE_APP} will search for .feature and test configuration files within the current configuration.
+  ${TITLE_APP} will then use the configured providers to query the remote
+  infrastructure for resources that match the defined list blocks. The results
+  will be printed to the terminal and optionally can be used to generate
+  configuration.
 
-  -scope=scope            Limit search scope (testcase, testrun, testplan, all).
-  -status=status          Filter by issue state (open, closed, etc.).
-  -label=label            Filter by label.
-  -assignee=assignee      Filter by assignee username.
-  -milestone=milestone    Filter by milestone title.
-  -custom=key=value       Filter by custom field value.
-  -search=text            Free-text search across resource titles and labels.
-  -json                   Output results formatted as JSON.
-  -count                  Output only the count of matched resources.
-  -test-directory=dir     Subdirectory containing test files.
+${bold(`Query Customization Options:`)}
+
+  The following options customize how ${TITLE_APP} will run the query.
+
+  -var 'foo=bar'        Set a value for one of the input variables in the query
+                        file of the configuration. Use this option more than
+                        once to set more than one variable.
+
+  -var-file=filename    Load variable values from the given file, in addition
+                        to the default files testform.vars.yml and *.auto.vars.yml.
+                        Use this option more than once to include more than one
+                        variables file.
+
+  -custom=key=value     Filter by custom field value.
+
+  -search=text          Free-text search across resource titles and content.
+
+${bold(`Other Options:`)}
+
+  -generate-config-out=path  Instructs ${TITLE_APP} to generate import and resource
+                             blocks for any found results. The configuration is
+                             written to a new file at PATH, which must not
+                             already exist. When this option is used with the
+                             json option, the generated configuration will be
+                             part of the JSON output instead of written to a
+                             file.
+
+  -json                      If specified, machine readable output will be
+                             printed in JSON format.
+
+  -no-color                  If specified, output won't contain any color.
 `.trim();
 
 export const HELP_REPORT = `
@@ -968,7 +1073,7 @@ ${bold(`Argument:`)} "featureFile@tc-N=status"
 ${bold(`Examples:`)}
 
   ${TITLE_CLI} test state "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
-  ${TITLE_CLI} test state "github_testcase.agencia/cuenta.feature::@tc-3=failed" -target="20260607.run.feature"
+  ${TITLE_CLI} test state "github_testcase.agencia/cuenta.feature.@tc-3=failed" -target="20260607.run.feature"
 `.trim();
 
 export const HELP_PRINT = `
@@ -1069,7 +1174,7 @@ ${bold(`Scopes & Modes:`)}
 
 ${bold(`Identity Strategies:`)}
   1. Only tag:       "@tc-1" or "@tc-1=passed"
-  2. File + tag:     "checkout.case.feature::@tc-1=passed" (or "@tc-1")
+  2. File + tag:     "checkout.case.feature.@tc-1=passed" (or "@tc-1")
   3. Scenario name:  "Pago con tarjeta=passed" (matches scenario title)
 `.trim();
 
@@ -1110,6 +1215,7 @@ export function getCommandHelp(command: string): string | null {
     case 'report': return HELP_REPORT;
     case 'print': return HELP_PRINT;
     case 'logout': return HELP_LOGOUT;
+    case 'providers': return HELP_PROVIDERS;
     case 'state': return HELP_STATE;
     case 'state clean': return HELP_STATE_CLEAN;
     case 'state identities': return HELP_STATE_IDENTITIES;
@@ -1117,6 +1223,7 @@ export function getCommandHelp(command: string): string | null {
     case 'state mv': return HELP_STATE_MV;
     case 'state pull': return HELP_STATE_PULL;
     case 'state push': return HELP_STATE_PUSH;
+    case 'state replace-provider': return HELP_STATE_REPLACE_PROVIDER;
     case 'state rm': return HELP_STATE_RM;
     case 'state show': return HELP_STATE_SHOW;
     case 'taint': return HELP_TAINT;

@@ -60,7 +60,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     if (target) {
         const targetArray = Array.isArray(target) ? target : [target];
-        resources = resources.filter(r => targetArray.some(t => r.identity === t || r.identity.startsWith(`${t}::`) || r.identity.endsWith(`/${t}`) || r.identity.endsWith(t)));
+        resources = resources.filter(r => targetArray.some(t => r.identity === t || r.identity.startsWith(`${t}.`) || r.identity.endsWith(`/${t}`) || r.identity.endsWith(t)));
     }
 
     if (resources.length === 0) {

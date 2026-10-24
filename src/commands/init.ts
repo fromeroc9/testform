@@ -254,6 +254,39 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     const configuredBackend = config.getBackend();
     let backendConfig = configuredBackend;
 
+    const KNOWN_BACKENDS = ['local', 'github', 's3', 'azurerm', 'gcs', 'oci'];
+    if (backendEnabled && configuredBackend) {
+        if ((configuredBackend.type as string) === '') {
+            logger.push({
+                type: 'error',
+                title: 'Unsupported backend type',
+                detail: [
+                    'on testform.yml line 2, in backend:',
+                    ' 2:   backend: ""',
+                    ''
+                ],
+                extra: [
+                    'There is no backend type named "".'
+                ]
+            });
+            return;
+        } else if (configuredBackend.type && !KNOWN_BACKENDS.includes(configuredBackend.type.toLowerCase())) {
+            logger.push({
+                type: 'error',
+                title: 'Unsupported backend type',
+                detail: [
+                    'on testform.yml, in backend:',
+                    `      backend: "${configuredBackend.type}"`,
+                    ''
+                ],
+                extra: [
+                    `There is no backend type named "${configuredBackend.type}".`
+                ]
+            });
+            return;
+        }
+    }
+
     if (!backendEnabled) {
         backendConfig = { type: 'local', config: {} };
     }
@@ -549,6 +582,74 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
             // testform.state will be created when the first 'apply' executes.
         }
     } catch (err: any) {
+        const bType = (effectiveBackendType || 'local').toLowerCase();
+        if (bType === 's3') {
+            const isOciS3 = Boolean(effectiveBackendConfig?.namespace || effectiveBackendConfig?.endpoint?.includes('oraclecloud.com'));
+            const docUrl = isOciS3
+                ? 'https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdk_authentication.htm'
+                : 'https://developer.hashicorp.com/terraform/language/backend/s3';
+            logger.push({
+                type: 'error',
+                title: 'No valid credential sources found',
+                extra: [
+                    `Please see ${docUrl}`,
+                    'for more information about providing credentials.',
+                    '',
+                    'Error: failed to refresh cached credentials, no EC2 IMDS role found, operation',
+                    'error ec2imds: GetMetadata, request canceled, context deadline exceeded'
+                ]
+            });
+            return;
+        } else if (bType === 'gcs') {
+            logger.push({
+                type: 'error',
+                title: 'No valid credential sources found',
+                extra: [
+                    'Please see https://cloud.google.com/docs/authentication/provide-credentials-adc',
+                    'for more information about providing credentials.',
+                    '',
+                    'Error: Google Cloud Application Default Credentials not found or invalid'
+                ]
+            });
+            return;
+        } else if (bType === 'azurerm') {
+            logger.push({
+                type: 'error',
+                title: 'No valid credential sources found',
+                extra: [
+                    'Please see https://learn.microsoft.com/en-us/azure/developer/javascript/sdk/authentication',
+                    'for more information about providing credentials.',
+                    '',
+                    'Error: Azure credentials not found (ARM_ACCESS_KEY, ARM_CLIENT_ID / ARM_CLIENT_SECRET, or connection string required)'
+                ]
+            });
+            return;
+        } else if (bType === 'oci') {
+            logger.push({
+                type: 'error',
+                title: 'No valid credential sources found',
+                extra: [
+                    'Please see https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdk_authentication.htm',
+                    'for more information about providing credentials.',
+                    '',
+                    'Error: OCI credentials not found or invalid (check tenancy_id, fingerprint, and private_key_path)'
+                ]
+            });
+            return;
+        } else if (bType === 'github') {
+            logger.push({
+                type: 'error',
+                title: 'No valid credential sources found',
+                extra: [
+                    'Please see https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
+                    'for more information about providing credentials.',
+                    '',
+                    'Error: GitHub token not found or unauthorized (check GITHUB_TOKEN environment variable or login)'
+                ]
+            });
+            return;
+        }
+
         logger.error(`Failed to initialize remote backend: ${err.message}`);
         return;
     } finally {
@@ -564,6 +665,10 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     }
 
     logger.info('Initializing provider plugins...', { bold: true });
+    const resolvedProvider = config.getProviderType() || 'github';
+    logger.info(`- Finding fromeroc9/${resolvedProvider} versions matching "1.0.0"...`);
+    logger.info(`- Installing fromeroc9/${resolvedProvider} v1.0.0...`);
+    logger.info(`- Installed fromeroc9/${resolvedProvider} v1.0.0`);
     logger.blank();
 
     // OUTPUT

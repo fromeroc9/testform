@@ -274,8 +274,32 @@ export const stateCmd = async (options: StateCmdOptions) => {
                 }
             }
 
+        } else if (action === 'replace-provider') {
+            if (args.length !== 2) {
+                console.error(red(`Usage: ${TITLE_CLI} state replace-provider [options] FROM_PROVIDER TO_PROVIDER`));
+                process.exit(1);
+            }
+            const fromProvider = args[0].toLowerCase();
+            const toProvider = args[1].toLowerCase();
+
+            let replacedCount = 0;
+            for (const res of rawResources) {
+                if (res.type.startsWith(`${fromProvider}_`)) {
+                    res.type = res.type.replace(`${fromProvider}_`, `${toProvider}_`);
+                    replacedCount++;
+                }
+            }
+
+            const curr = state.getState() as any;
+            if (curr.provider && curr.provider.toLowerCase() === fromProvider) {
+                curr.provider = toProvider;
+            }
+
+            await state.save();
+            console.log(green(`\nSuccess! Replaced provider "${fromProvider}" with "${toProvider}" across ${replacedCount} resource(s).\n`));
+
         } else {
-            console.error(red(`Usage: ${TITLE_CLI} state <clean|identities|list|mv|pull|push|rm|show> [options] [args]`));
+            console.error(red(`Usage: ${TITLE_CLI} state <clean|identities|list|mv|pull|push|replace-provider|rm|show> [options] [args]`));
             process.exit(1);
         }
     } finally {

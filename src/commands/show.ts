@@ -58,14 +58,7 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
             const remoteId = res.attributes.remoteId ?? '(unknown)';
             const status = res.attributes.issueNumber ? green('synced') : yellow('pending');
 
-            let formattedIdentity = res.identity;
-            if (formattedIdentity.includes('::')) {
-                const parts = formattedIdentity.split('::');
-                const base = pathLib.basename(parts[0], '.feature');
-                formattedIdentity = `${base}::${parts.slice(1).join('::')}`;
-            } else {
-                formattedIdentity = pathLib.basename(formattedIdentity, '.feature');
-            }
+            const formattedIdentity = res.identity;
 
             console.log(`  ${cyan(res.type)}.${bold(formattedIdentity)} [id=${remoteId}] ${status}`);
             console.log(`    title:        ${res.attributes.title}`);

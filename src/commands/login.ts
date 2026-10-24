@@ -1,4 +1,4 @@
-import { bold, green, cyan, yellow } from 'chalk';
+import { bold, green, cyan, yellow, red } from 'chalk';
 import * as readline from 'readline';
 import { Credentials, CredentialsData } from '../core/credentials';
 import { TITLE_CLI } from '../core/const';
@@ -15,7 +15,15 @@ const askQuestion = (rl: readline.Interface, question: string): Promise<string> 
 
 export const loginCmd = async (options: LoginCmdOptions = {}) => {
     let { hostname = 'github.com' } = options;
-    if (hostname === 'app.terraform.io') hostname = 'github.com';
+    const norm = (hostname || '').trim().toLowerCase();
+
+    if (norm === 'local') {
+        console.error(bold(red(`\nError: The "local" provider does not require authentication.\n`)));
+        process.exit(1);
+    }
+
+    if (norm === 'app.terraform.io' || norm === 'github') hostname = 'github.com';
+    else if (norm === 'gitlab') hostname = 'gitlab.com';
 
     console.log(`
 TestForm must now request authentication credentials for ${bold(hostname)}.
