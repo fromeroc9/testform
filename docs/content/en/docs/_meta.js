@@ -4,5 +4,9 @@ export default {
   'test-as-code': 'Testform Test (Test-as-Code)',
   guides: 'Guides',
   migration: 'Migration',
-  integration: 'Integration'
+  integration: 'Integration',
+  'terraform-parity': {
+    title: 'Terraform Quantum Parity Matrix',
+    display: 'hidden'
+  }
 };
