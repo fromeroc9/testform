@@ -7,6 +7,7 @@ import { policy } from '../core/policy';
 import { Logger } from '../core/logger';
 import { IScope } from '../core/types';
 import { matchesScope } from '../core/selector';
+import { DependencyResolver } from '../core/dependencies';
 
 interface ValidateCmdOptions {
     targetPath?: string;
@@ -151,6 +152,39 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
             }
             logger.blank();
         }
+    }
+
+    // Validate dependencies and cycle detection
+    const depResolver = new DependencyResolver(configDir);
+    try {
+        const getCanonicalId = (s: any): string => {
+            const raw = s.custom?.identity;
+            if (!raw) return `${s.uri}.${s.name}`;
+            if (raw.startsWith(s.uri) || raw === s.uri) return raw;
+            return `${s.uri}.${raw}`;
+        };
+
+        depResolver.sortTopologically(
+            filtered,
+            getCanonicalId,
+            (s) => s.tags ? s.tags.map(t => typeof t === 'string' ? t : (t as any).name) : []
+        );
+    } catch (err: any) {
+        if (isJson) {
+            console.log(JSON.stringify({
+                valid: false,
+                error_count: 1,
+                warning_count: 0,
+                diagnostics: [{
+                    severity: 'error',
+                    summary: 'Circular dependency detected',
+                    detail: err.message
+                }]
+            }, null, 2));
+        } else {
+            logger.error(`Circular dependency detected\n\n${err.message}`);
+        }
+        return;
     }
 
     // Run policy validation (will print violations via notify or JSON)

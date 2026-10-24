@@ -1,0 +1,38 @@
+# Lifecycle Meta-Arguments
+
+The `lifecycle` meta-argument allows you to customize resource lifecycle behavior directly from `testform.yml` or domain configuration files.
+
+---
+
+## 1. `prevent_destroy`
+
+Prevents accidental destruction of critical test cases, plans, or test runs.
+
+```yaml
+lifecycle:
+  "auth/login.case.feature.@tc-1":
+    prevent_destroy: true
+```
+
+When active, running `testform destroy` or generating a plan that marks the resource for destruction will halt execution immediately with an error:
+
+```
+Error: Instance cannot be destroyed
+Resource github_testcase.auth/login.case.feature.@tc-1 has lifecycle.prevent_destroy set.
+```
+
+---
+
+## 2. `ignore_changes`
+
+Suppresses drift detection for specific volatile attributes (e.g. `labels`, `title`, `assignees`):
+
+```yaml
+lifecycle:
+  "suites/smoke.run.feature.@tr-1":
+    ignore_changes:
+      - labels
+      - assignees
+```
+
+Attributes listed in `ignore_changes` will be ignored during `testform plan`, `testform diff`, and state refresh calculations.

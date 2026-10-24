@@ -1,0 +1,93 @@
+---
+title: "Meta-Argumento depends_on"
+description: "Declaración explícita de dependencias y orden de ejecución entre pruebas en el grafo de Testform."
+---
+
+# Meta-Argumento `depends_on`
+
+El meta-argumento `depends_on` en Testform permite definir dependencias explícitas de ejecución entre casos de prueba, suites de ejecución y planes maestros, garantizando que los requisitos previos se sincronicen y apliquen en el orden correcto.
+
+Al igual que en **Terraform**, `depends_on` es esencial cuando la relación causal entre recursos no se puede inferir automáticamente a partir de referencias de datos implícitas.
+
+---
+
+## 1. Declaración en Gherkin (`@depends_on`)
+
+Los ingenieros de QA pueden declarar dependencias directamente en la cabecera del escenario usando tags Gherkin:
+
+```gherkin
+@checkout @e2e
+@depends_on("auth/login.case.feature.@tc-1", "inventory/catalog.case.feature.@tc-4")
+Scenario: Finalización exitosa de orden de compra
+  Given que el carrito contiene productos seleccionados
+  When confirmo los datos de envío y pago
+  Then la orden de compra es emitida exitosamente
+```
+
+### Sintaxis soportada:
+- `@depends_on("direccion")`
+- `@depends_on("direccion1", "direccion2")`
+- Referencias relativas o completas con o sin `@`:
+  - `"auth/login.case.feature.@tc-1"`
+  - `"auth/login.case.feature.tc-1"`
+  - `"tc-1"` (si es unívoco dentro del scope)
+
+---
+
+## 2. Declaración en YAML (`testform.yml` o Dominio)
+
+También es posible centralizar la matriz de dependencias en `testform.yml` o archivos de configuración por dominio:
+
+```yaml
+# testform.yml o checkout.yml
+dependencies:
+  "checkout/checkout.case.feature.@tc-6":
+    - "auth/login.case.feature.@tc-1"
+    - "inventory/catalog.case.feature.@tc-4"
+
+  "inventory/catalog.case.feature.@tc-4":
+    - "auth/login.case.feature.@tc-1"
+```
+
+---
+
+## 3. Orden de Ejecución Topológico (DAG)
+
+Durante `testform apply`:
+1. Testform construye un grafo acíclico dirigido (**DAG**) de todos los recursos planificados.
+2. Aplica el **algoritmo de Kahn** para determinar el orden topológico exacto.
+3. Los escenarios padre o requisitos previos (`auth/login`) se crean y aplican siempre **antes** que los escenarios dependientes (`checkout/order`).
+
+---
+
+## 4. Detección de Ciclos de Dependencia Circular
+
+Si dos o más pruebas se dependen mutuamente de forma directa o indirecta (ej. `A -> B -> A`):
+
+Tanto `testform validate` como `testform apply` detectan el ciclo inmediatamente y abortan la operación con un error explícito:
+
+```
+Error: Circular dependency detected
+
+  Cycle: github_testcase.auth/stepA.case.feature.@tc-1, github_testcase.auth/stepB.case.feature.@tc-2
+```
+
+---
+
+## 5. Visualización en `testform graph`
+
+El comando `testform graph` renderiza automáticamente las dependencias declaradas junto a la jerarquía de planes y ejecuciones:
+
+```bash
+testform graph
+```
+
+```text
+Test Infrastructure Graph
+
+📦 Plan de Pruebas Release v1.0 (testplan)
+   └── 📂 Suite de Smoke Tests (testrun)
+       ├── 📄 Inicio de sesión exitoso (testcase)
+       └── 📄 Finalización exitosa de orden de compra (testcase)
+              └── 🔗 depends_on: auth/login.case.feature.@tc-1
+```

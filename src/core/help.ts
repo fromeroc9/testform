@@ -24,6 +24,7 @@ ${bold(`All other commands:`)}
   import        Associate existing infrastructure with a ${TITLE_APP} resource
   login         Obtain and save credentials for a remote host
   logout        Remove locally-stored credentials for a remote host
+  output        Show output values from your root module or state
   print         Parse a feature file and print the JSON AST
   providers     Show the providers required for this configuration
   query         Query and filter managed test resources in state
@@ -1195,6 +1196,25 @@ ${bold(`Examples:`)}
   ${TITLE_CLI} suite mark "Validar login exitoso=passed" -target="20260607.run.feature"
 `.trim();
 
+export const HELP_OUTPUT = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] output [options] [NAME]
+
+  Reads an output variable from a ${TITLE_APP} state file and prints
+  the value. With no additional arguments, output will display all the
+  outputs for the root module. An optional NAME can be provided to display
+  a specific output value.
+
+${bold(`Options:`)}
+
+  -state=path       Path to the state file to read. Defaults to "${FILE_STATE}".
+
+  -json             If specified, machine readable output will be
+                    printed in JSON format.
+
+  -raw              If specified for a single named output value,
+                    the value will be printed without formatting or quotes.
+`.trim();
+
 export function getCommandHelp(command: string): string | null {
   switch (command) {
     case 'init': return HELP_INIT;
@@ -1207,6 +1227,7 @@ export function getCommandHelp(command: string): string | null {
     case 'diff': return HELP_DIFF;
     case 'query': return HELP_QUERY;
     case 'show': return HELP_SHOW;
+    case 'output': return HELP_OUTPUT;
     case 'fmt': return HELP_FMT;
     case 'force-unlock': return HELP_FORCE_UNLOCK;
     case 'login': return HELP_LOGIN;

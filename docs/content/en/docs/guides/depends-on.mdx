@@ -1,0 +1,37 @@
+# Meta-Argument depends_on
+
+The `depends_on` meta-argument allows you to define explicit execution dependencies between test resources to guarantee proper ordering and prevent race conditions.
+
+---
+
+## 1. Gherkin Tag Syntax (`@depends_on`)
+
+Define dependencies directly in your feature files:
+
+```gherkin
+@tc-checkout
+@depends_on("auth/login.case.feature.tc-1", "inventory/catalog.case.feature.tc-4")
+Scenario: Finalize checkout order
+  When the user submits checkout
+  Then order is created
+```
+
+---
+
+## 2. YAML Syntax in `testform.yml`
+
+```yaml
+dependencies:
+  "checkout/checkout.case.feature.@tc-6":
+    depends_on:
+      - "auth/login.case.feature.@tc-1"
+      - "inventory/catalog.case.feature.@tc-4"
+```
+
+---
+
+## 3. DAG Sorting and Cycle Detection
+
+- **Topological Sorting (Kahn's Algorithm):** Prerequisites are applied and created first during `testform apply`.
+- **Circular Cycle Detection:** `testform validate` inspects the DAG and reports any circular dependency cycles before execution.
+- **Graph Visualization:** `testform graph` displays dependency links with `└── 🔗 depends_on: ...`.

@@ -8,12 +8,14 @@ import { logger as notify } from '../core/logger';
 import { calculatePlan } from './plan';
 import { IScope, GitHubIssuePayload } from '../core/types';
 import { VariableParser } from '../core/variables';
+import { OutputResolver } from '../core/outputs';
 import { refreshState } from './refresh';
 import { askApproval } from '../core/prompt';
 import { formatResourceAddress, elapsedSeconds } from '../core/utils';
 import { createCommandContext } from '../core/context';
 import { executeInBatches, syncTestrunComments as syncCommentsHelper } from '../core/sync';
 import { resolveScopes, assertApprovalAllowed } from '../core/cli';
+import { DependencyResolver } from '../core/dependencies';
 
 interface ApplyCmdOptions {
     dir?: string;
@@ -196,10 +198,28 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 onCommentCreate: (id, st) => console.log(`  -> Created status comment for ${id} as '${st}'`),
             });
 
-        // Execute changes in parallel batches
+        // Execute changes in parallel batches with topological dependency ordering
         const parallelismNum = parallelism ? parseInt(String(parallelism), 10) || 1 : 1;
+        const depResolver = new DependencyResolver(dir);
+        let orderedChanges = plan.changes;
 
-        await executeInBatches(plan.changes, parallelismNum, async (change) => {
+        try {
+            orderedChanges = depResolver.sortTopologically(
+                plan.changes,
+                (c) => c.identity,
+                (c) => c.scenario?.tags ? c.scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : []
+            );
+        } catch (err: any) {
+            notify.push({
+                type: 'error',
+                title: 'Circular dependency detected',
+                detail: [err.message],
+                close: true
+            });
+            throw err;
+        }
+
+        await executeInBatches(orderedChanges, parallelismNum, async (change) => {
             try {
                     if (change.action === 'add') {
                         const address = formatResourceAddress(change.resourceType, change.identity);
@@ -397,6 +417,16 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         await stateObj.save();
 
         console.log(green(bold(`Apply complete! Resources: ${added} added, ${changed} changed, ${destroyed} destroyed.`)));
+
+        // Evaluate and save outputs
+        const outputResolver = new OutputResolver(dir);
+        const resolvedOutputs = outputResolver.resolve(stateObj, variables);
+        if (Object.keys(resolvedOutputs).length > 0) {
+            stateObj.setOutputs(resolvedOutputs);
+            await stateObj.save();
+            console.log("\n" + bold("Outputs:\n"));
+            console.log(outputResolver.format(resolvedOutputs));
+        }
     } finally {
         await stateObj.releaseLock();
     }

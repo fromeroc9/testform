@@ -19,6 +19,7 @@ import { IScope } from '../core/types';
 import { formatResourceAddress } from '../core/utils';
 import { executeInBatches, detectAttributeDrift } from '../core/sync';
 import { withStateLock, resolveScopes } from '../core/cli';
+import { LifecycleResolver } from '../core/lifecycle';
 
 /**
  * Core refresh logic: updates the state to reflect remote GitHub reality.
@@ -95,6 +96,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let removed = 0;
 
     const parallelism = parallelismRaw ? parseInt(String(parallelismRaw), 10) || 3 : 3;
+    const lifecycleResolver = new LifecycleResolver(dir);
 
     await executeInBatches(resources, parallelism, async (res) => {
         const remoteId = res.attributes.remoteId ?? '';
@@ -123,10 +125,12 @@ export const refreshState = async (options: RefreshStateOptions) => {
                     ? await github.getProjectItemFields(issue.node_id)
                     : undefined;
 
+                const lifecycle = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
                 const { hasDrift, newAttributes } = detectAttributeDrift(
                     res.attributes,
                     issue,
-                    remoteCustomFields
+                    remoteCustomFields,
+                    lifecycle.ignore_changes
                 );
 
                 if (hasDrift) {

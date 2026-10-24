@@ -16,17 +16,27 @@ import {
 } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { CONFIG_FILE_NAMES } from '../core/const';
-import { parseModuleTargets, parseModuleTag, resolveModulePath, loadModuleSteps } from '../core/module';
+import { parseModuleTargets, parseModuleTag, resolveModulePath, loadModuleSteps, ModuleRegistry } from '../core/module';
+import { reassembleSplitTags, sanitizeTagsWithSpaces, restoreTagsWithSpaces } from '../core/utils';
 import { findFeatureFiles } from '../core/editor';
 import { Diag } from '../core/diagnostics';
 
 export const FIELD_PATTERN = /^(?:field)\s+([A-Za-z0-9_.\- ]+?)\s*=\s*(.+)$/i;
 
 export abstract class BaseParser {
+    private moduleRegistry?: ModuleRegistry;
+
     constructor(
         protected dir: string,
         protected variables?: VariableParser
     ) { }
+
+    protected getModuleRegistry(): ModuleRegistry {
+        if (!this.moduleRegistry) {
+            this.moduleRegistry = new ModuleRegistry(this.dir);
+        }
+        return this.moduleRegistry;
+    }
 
     protected find(targetPath: string): string[] {
         return findFeatureFiles(targetPath, true);
@@ -65,13 +75,13 @@ export abstract class BaseParser {
 
                 if (child.scenario) {
                     const s = child.scenario;
-                    const featureTags = (feature?.tags ?? []).map((t: any) => t.name);
-                    const tags: string[] = [...featureTags, ...(s.tags ?? []).map((t: any) => t.name)];
+                    const featureTags = (feature?.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name));
+                    const tags: string[] = [...featureTags, ...(s.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name))];
                     const isUnique = tags.includes("@unique");
                     const hasTemplate = (s.name).includes("<") || (s.steps ?? []).some((st: Step) => (st.text).includes("<")) || tags.some((t) => t.includes("<"));
 
                     const featureObj: ParserFeature = {
-                        tags: (feature?.tags ?? []).map((t: Tag) => t.name),
+                        tags: (feature?.tags ?? []).map((t: Tag) => restoreTagsWithSpaces(t.name)),
                         keyword: feature?.keyword ?? "",
                         name: feature?.name ?? "",
                         description: feature?.description ?? "",
@@ -80,13 +90,24 @@ export abstract class BaseParser {
 
                     // Handle Scenario-level @module composition (inheriting steps)
                     const moduleSteps: ParserStep[] = [];
-                    for (const t of tags) {
-                        const moduleTargets = parseModuleTargets(t);
+                    const reassembledModuleTags = reassembleSplitTags(tags, '@module(');
+                    for (const t of reassembledModuleTags) {
+                        const moduleTargets = parseModuleTargets(t, this.getModuleRegistry());
                         if (moduleTargets) {
                             for (const target of moduleTargets) {
-                                const resolved = resolveModulePath(currentFile, target.source, this.dir);
+                                const resolved = resolveModulePath(currentFile, target.source, this.dir, this.getModuleRegistry());
                                 if (resolved) {
-                                    moduleSteps.push(...loadModuleSteps(resolved, target.scenario));
+                                    const evaluatedVars: Record<string, any> = {};
+                                    if (target.vars) {
+                                        for (const [k, v] of Object.entries(target.vars)) {
+                                            if (typeof v === 'string' && this.variables) {
+                                                evaluatedVars[k] = this.variables.applyToTemplate(v);
+                                            } else {
+                                                evaluatedVars[k] = v;
+                                            }
+                                        }
+                                    }
+                                    moduleSteps.push(...loadModuleSteps(resolved, target.scenario, evaluatedVars, this.variables));
                                 }
                             }
                         }
@@ -207,6 +228,7 @@ export abstract class BaseParser {
             if (this.variables) {
                 content = this.variables.applyToTemplate(content);
             }
+            content = sanitizeTagsWithSpaces(content);
             const parser = new Parse(new AstBuilder(IdGenerator.uuid()), new GherkinClassicTokenMatcher());
             let rawDoc: GherkinDocument = null as any;
             try {
@@ -238,16 +260,21 @@ export abstract class BaseParser {
             rawDoc.uri = relative(projectRoot, file);
 
             // Check for Feature-level @module tags to accumulate module scenarios
-            const featureTags = (rawDoc.feature?.tags ?? []).map((t: any) => t.name);
-            for (const tag of featureTags) {
-                const sources = parseModuleTag(tag);
-                if (sources) {
-                    for (const src of sources) {
-                        const resolvedMod = resolveModulePath(file, src, projectRoot);
+            const featureTags = (rawDoc.feature?.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name));
+            const reassembledFeatureTags = reassembleSplitTags(featureTags, '@module(');
+            for (const tag of reassembledFeatureTags) {
+                const targets = parseModuleTargets(tag, this.getModuleRegistry());
+                if (targets) {
+                    for (const target of targets) {
+                        const resolvedMod = resolveModulePath(file, target.source, projectRoot, this.getModuleRegistry());
                         if (resolvedMod && !featureFiles.includes(resolvedMod) && !loadedModules.has(resolvedMod)) {
                             loadedModules.add(resolvedMod);
                             try {
-                                const modContent = readFileSync(resolvedMod, "utf-8");
+                                let modContent = readFileSync(resolvedMod, "utf-8");
+                                if (this.variables) {
+                                    modContent = this.variables.applyToTemplate(modContent);
+                                }
+                                modContent = sanitizeTagsWithSpaces(modContent);
                                 const modDoc = parser.parse(modContent);
                                 modDoc.uri = relative(projectRoot, resolvedMod);
                                 scenarios.push(...this.format(modDoc, resolvedMod));

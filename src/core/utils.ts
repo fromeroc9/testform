@@ -4,6 +4,8 @@
  * Small, stateless helpers that eliminate common one-liner duplications
  * found across command files.
  */
+import { existsSync, readdirSync } from 'fs';
+import { resolve } from 'path';
 
 /**
  * Calculates seconds elapsed since a given timestamp and returns a
@@ -87,6 +89,103 @@ export function normalizeAddress(str: string): string {
  */
 export function addressesMatch(a: string, b: string): boolean {
     return normalizeAddress(a) === normalizeAddress(b);
+}
+
+/**
+ * Recursively scans a workspace directory for YAML domain/configuration files (*.yml, *.yaml).
+ * Automatically ignores build/versioning folders and standard root config files.
+ */
+export function findDomainConfigFiles(dir: string, extraReserved: string[] = []): string[] {
+    const results: string[] = [];
+    if (!existsSync(dir)) return results;
+
+    const IGNORED_DIRS = new Set(['node_modules', '.git', '.testform', '.terraform', 'dist', 'coverage', '.system_generated']);
+    const RESERVED_FILES = new Set([
+        'testform.yml', 'testform.yaml',
+        'vars.yml', 'vars.yaml',
+        'local.yml', 'local.yaml',
+        'outputs.yml', 'outputs.yaml',
+        'data.yml', 'data.yaml',
+        ...extraReserved.map(s => s.toLowerCase())
+    ]);
+
+    const scan = (currentDir: string) => {
+        try {
+            const isRoot = resolve(currentDir) === resolve(dir);
+            const entries = readdirSync(currentDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    if (!IGNORED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+                        scan(resolve(currentDir, entry.name));
+                    }
+                } else if (entry.isFile()) {
+                    const lower = entry.name.toLowerCase();
+                    if (lower.endsWith('.yml') || lower.endsWith('.yaml')) {
+                        if (isRoot && RESERVED_FILES.has(lower)) {
+                            continue;
+                        }
+                        results.push(resolve(currentDir, entry.name));
+                    }
+                }
+            }
+        } catch {
+            // Ignore
+        }
+    };
+
+    scan(dir);
+    return results.sort();
+}
+
+export const TF_SPACE_TOKEN = '__TF_SPACE__';
+
+/**
+ * Temporarily replaces spaces inside tag parameter blocks (@module(...), @depends_on(...))
+ * so that Cucumber's lexer parses tags without "A tag may not contain whitespace" syntax errors.
+ */
+export function sanitizeTagsWithSpaces(content: string): string {
+    return content.replace(/(@(?:module|depends_on)\([^)]*\))/g, (match) => {
+        return match.replace(/ /g, TF_SPACE_TOKEN);
+    });
+}
+
+/**
+ * Restores sanitized spaces inside tags back to normal spaces.
+ */
+export function restoreTagsWithSpaces(str: string): string {
+    return str.split(TF_SPACE_TOKEN).join(' ');
+}
+
+
+/**
+ * Reassembles Cucumber Gherkin tags that were split across whitespace or inner '@' symbols.
+ * Example: ["@module(source=\"./auth.feature\",", "vars={user:", "\"admin\"})"]
+ * becomes ["@module(source=\"./auth.feature\", vars={user: \"admin\"})"]
+ */
+export function reassembleSplitTags(tags: string[], prefix: string): string[] {
+    const result: string[] = [];
+    for (let i = 0; i < tags.length; i++) {
+        const t = tags[i];
+        if (t.startsWith(prefix) && (!t.endsWith(')') || (t.match(/\(/g) || []).length !== (t.match(/\)/g) || []).length)) {
+            let combined = t;
+            while (i + 1 < tags.length) {
+                i++;
+                const nextTag = tags[i];
+                if (nextTag.startsWith('@') && !combined.endsWith(',') && !combined.endsWith('(') && !combined.endsWith(':') && !combined.endsWith('=')) {
+                    combined += nextTag;
+                } else {
+                    combined += ' ' + nextTag;
+                }
+                const opens = (combined.match(/\(/g) || []).length;
+                const closes = (combined.match(/\)/g) || []).length;
+                if (opens === closes && closes > 0) break;
+            }
+            result.push(combined);
+        } else {
+            result.push(t);
+        }
+    }
+    return result;
 }
 
 

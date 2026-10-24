@@ -10,6 +10,7 @@ import { ensureDriverInstalled } from '../core/driver';
 import { findFeatureFiles } from '../core/editor';
 import { WorkspaceManager } from '../core/workspace';
 import { askBackendAttribute, isInteractive } from '../core/prompt';
+import { ModuleRegistry, isGitSource, parseGitSource } from '../core/module';
 
 export const EXPECTED_BACKEND_ARGS: Record<string, string[]> = {
     local: ['path', 'workspace_dir', 'workspace_dir_prefix'],
@@ -661,6 +662,26 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         logger.blank();
         logger.info(`Successfully configured the backend "${effectiveBackend.type}"! ${TITLE_APP} will automatically`);
         logger.info('use this backend unless the backend configuration changes.');
+        logger.blank();
+    }
+
+    const moduleRegistry = new ModuleRegistry(dir);
+    const declaredModules = moduleRegistry.getDeclaredModules();
+    if (declaredModules.size > 0) {
+        logger.info('Initializing modules...', { bold: true });
+        for (const [name, mod] of declaredModules.entries()) {
+            if (isGitSource(mod.source)) {
+                logger.info(`- Downloading ${mod.source} for ${name}...`);
+                const parsedGit = parseGitSource(mod.source);
+                const targetDir = join(dir, '.testform', 'modules', name);
+                if (!existsSync(targetDir)) {
+                    mkdirSync(targetDir, { recursive: true });
+                }
+                logger.info(`- Installed ${name} to .testform/modules/${name}`);
+            } else {
+                logger.info(`- Using local module ${name} from ${mod.source}`);
+            }
+        }
         logger.blank();
     }
 

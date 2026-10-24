@@ -3,6 +3,8 @@ import { resolve } from 'path';
 import YAML from 'yaml';
 import { logger as notify } from '../core/logger';
 import { CONFIG_FILE_NAMES } from '../core/const';
+import { DataResolver } from './data';
+import { findDomainConfigFiles } from './utils';
 
 export interface VariableDeclaration {
     type?: string;
@@ -16,49 +18,19 @@ export class VariableParser {
     private rawLocals: Record<string, any> = {};
     private locals: Record<string, string> = {};
     private workDir: string;
+    private dataResolver: DataResolver;
+    private outputResolver?: any;
+    private state?: any;
 
     constructor(varArgs?: string | string[], varFileArgs?: string | string[], workDir: string = '.') {
         this.workDir = workDir;
+        this.dataResolver = new DataResolver(workDir);
         this.loadDeclarations();
         this.parseVarFiles(varFileArgs);
         this.parseVars(varArgs);
         this.evaluateLocals();
     }
 
-    /**
-     * Finds domain configuration files (*.yml, *.yaml) recursively,
-     * ignoring system/dependency directories and reserved root files.
-     */
-    private findDomainConfigFiles(dir: string): string[] {
-        const results: string[] = [];
-        if (!existsSync(dir)) return results;
-
-        const IGNORED_DIRS = new Set(['node_modules', '.git', '.testform', '.terraform', 'dist', 'coverage', '.system_generated']);
-        const RESERVED_FILES = new Set(['testform.yml', 'testform.yaml', 'vars.yml', 'vars.yaml', 'local.yml', 'local.yaml']);
-
-        const scan = (currentDir: string) => {
-            try {
-                const entries = readdirSync(currentDir, { withFileTypes: true });
-                for (const entry of entries) {
-                    if (entry.isDirectory()) {
-                        if (!IGNORED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
-                            scan(resolve(currentDir, entry.name));
-                        }
-                    } else if (entry.isFile()) {
-                        const lower = entry.name.toLowerCase();
-                        if ((lower.endsWith('.yml') || lower.endsWith('.yaml')) && !RESERVED_FILES.has(lower)) {
-                            results.push(resolve(currentDir, entry.name));
-                        }
-                    }
-                }
-            } catch {
-                // Ignore directory read errors
-            }
-        };
-
-        scan(dir);
-        return results.sort();
-    }
 
     /**
      * Loads variable and local declarations according to the precedence hierarchy:
@@ -137,7 +109,7 @@ export class VariableParser {
         // [Nivel 2] Funcionalidad / Dominio: auth.yml, checkout.yml, pagos.yml
         // Se escanean recursivamente todos los .yml/.yaml del proyecto.
         // Tienen máxima prioridad de configuración sobre Nivel 0 y Nivel 1.
-        const domainFiles = this.findDomainConfigFiles(this.workDir);
+        const domainFiles = findDomainConfigFiles(this.workDir);
         for (const filePath of domainFiles) {
             try {
                 const content = readFileSync(filePath, 'utf-8');
@@ -267,6 +239,28 @@ export class VariableParser {
                 resolved = resolved.replace(/\$\{local\.([a-zA-Z0-9_-]+)\}/g, (_, k) => {
                     return evaluated[k] !== undefined ? evaluated[k] : `\${local.${k}}`;
                 });
+                // Substitute data.*
+                resolved = resolved.replace(/\$\{data\.([a-zA-Z0-9_\-\.\@\/]+)\}/g, (_, k) => {
+                    const dataVal = this.dataResolver.resolvePath(k);
+                    return dataVal !== undefined && dataVal !== null ? (typeof dataVal === 'object' ? JSON.stringify(dataVal) : String(dataVal)) : `\${data.${k}}`;
+                });
+                // Substitute module.*
+                resolved = resolved.replace(/\$\{module\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\}/g, (_, mod, out) => {
+                    const fullKey = `module.${mod}.${out}`;
+                    if (this.state) {
+                        const stateOutputs = (this.state as any).getOutputs ? (this.state as any).getOutputs() : (this.state as any).outputs;
+                        if (stateOutputs && stateOutputs[fullKey] && stateOutputs[fullKey].value !== undefined) {
+                            return String(stateOutputs[fullKey].value);
+                        }
+                    }
+                    if (this.outputResolver) {
+                        const decls = this.outputResolver.getDeclarations ? this.outputResolver.getDeclarations() : {};
+                        if (decls[fullKey] && decls[fullKey].value !== undefined) {
+                            return String(decls[fullKey].value);
+                        }
+                    }
+                    return `\${module.${mod}.${out}}`;
+                });
 
                 evaluated[key] = resolved;
             }
@@ -328,6 +322,47 @@ export class VariableParser {
             return this.locals[key] !== undefined ? this.locals[key] : match;
         });
 
+        // Match ${data.PATH}
+        const dataRegex = /\$\{data\.([a-zA-Z0-9_\-\.\@\/]+)\}/g;
+        result = result.replace(dataRegex, (match, path) => {
+            const val = this.dataResolver.resolvePath(path);
+            if (val !== undefined && val !== null) {
+                return typeof val === 'object' ? JSON.stringify(val) : String(val);
+            }
+            return match;
+        });
+
+        // Match ${module.NAME.OUTPUT}
+        const moduleRegex = /\$\{module\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\}/g;
+        result = result.replace(moduleRegex, (match, mod, out) => {
+            const fullKey = `module.${mod}.${out}`;
+            if (this.state) {
+                const stateOutputs = (this.state as any).getOutputs ? (this.state as any).getOutputs() : (this.state as any).outputs;
+                if (stateOutputs && stateOutputs[fullKey] && stateOutputs[fullKey].value !== undefined) {
+                    return String(stateOutputs[fullKey].value);
+                }
+            }
+            if (this.outputResolver) {
+                const decls = this.outputResolver.getDeclarations ? this.outputResolver.getDeclarations() : {};
+                if (decls[fullKey] && decls[fullKey].value !== undefined) {
+                    return String(decls[fullKey].value);
+                }
+            }
+            return match;
+        });
+
         return result;
+    }
+
+    public setOutputResolver(outputResolver: any) {
+        this.outputResolver = outputResolver;
+    }
+
+    public setState(state: any) {
+        this.state = state;
+    }
+
+    public getDataResolver(): DataResolver {
+        return this.dataResolver;
     }
 }

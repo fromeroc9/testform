@@ -16,6 +16,7 @@ import { askDestroyApproval } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
 import { IScope } from '../core/types';
 import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
+import { LifecycleResolver } from '../core/lifecycle';
 
 /**
  * Destroy command: closes all GitHub issues tracked by TestForm in the current scope.
@@ -65,6 +66,25 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
         }
 
         assertApprovalAllowed(autoApprove, input);
+
+        const lifecycleResolver = new LifecycleResolver(dir);
+        const protectedResources = allResources.filter(res => {
+            const lc = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
+            return lc.prevent_destroy;
+        });
+
+        if (protectedResources.length > 0) {
+            const details = protectedResources.map(r => 
+                `Resource ${formatResourceAddress(r.type, r.identity)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
+            );
+            notify.push({
+                type: 'error',
+                title: 'Instance cannot be destroyed',
+                detail: details,
+                close: true
+            });
+            throw new Error(`Instance cannot be destroyed: ${protectedResources.map(r => r.identity).join(', ')} has lifecycle.prevent_destroy set.`);
+        }
 
         let destroyed = 0;
 

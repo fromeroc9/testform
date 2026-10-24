@@ -6,32 +6,51 @@ import { Config } from '../core/config';
 import { Parser } from '../core/parser';
 import { policy } from '../core/policy';
 import { State } from '../core/state';
-import { Logger } from '../core/logger';
+import { Logger, logger as notify } from '../core/logger';
 import { writeFileSync } from 'fs';
 import { IScope, PlanChange, PlanResult, ParserScenario } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
 import { SCOPE_CONFIG, VERSION_CLI } from '../core/const';
-import { formatResourceAddress } from '../core/utils';
+import { formatResourceAddress, normalizeAddress } from '../core/utils';
 import { join } from 'path';
 import { matchesScope, matchesTarget } from '../core/selector';
 import { resolveScopes } from '../core/cli';
+import { LifecycleResolver } from '../core/lifecycle';
 
 /**
  * Calculate the hash for a scenario (used for idempotency).
  */
-export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
+export function hashScenario(scenario: ParserScenario, scope?: IScope, ignoreChanges: string[] = []): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
+    const ignored = new Set(ignoreChanges.map(s => s.toLowerCase()));
+
     // Testcases depend on uri and tags, NEVER on the Scenario title
-    if (!scope || scope === 'testcase') {
+    if (!scope || scope === 'testcase' || ignored.has('title') || ignored.has('name')) {
         clone.name = '';
     }
     // Testruns and Testplans depend on uri and tags, NEVER on the Feature title
-    if (!scope || scope === 'testrun' || scope === 'testplan') {
+    if (!scope || scope === 'testrun' || scope === 'testplan' || ignored.has('title') || ignored.has('name')) {
         if (clone.feature) {
             clone.feature.name = '';
         }
     }
+
+    if (ignored.has('tags') || ignored.has('labels')) {
+        clone.tags = [];
+        if (clone.feature) {
+            clone.feature.tags = [];
+        }
+    }
+
+    if (ignored.has('steps') || ignored.has('body')) {
+        clone.steps = [];
+    }
+
+    if (ignored.has('custom_fields') && clone.custom) {
+        delete (clone.custom as any).fields;
+    }
+
     return createHash('sha256').update(JSON.stringify(clone)).digest('hex');
 }
 
@@ -146,13 +165,14 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     }
     console.log("");
 
-    // Build a lookup map for O(1) access by identity
-    const stateMap = new Map(resources.map(r => [r.identity, r]));
+    // Build a lookup map for O(1) access by normalized identity
+    const stateMap = new Map(resources.map(r => [normalizeAddress(r.identity), r]));
 
     // Track which identities exist locally
     const localIds = new Set<string>();
 
     const changes: PlanChange[] = [];
+    const lifecycleResolver = new LifecycleResolver(dir);
 
     // Check for creates and updates
     for (const scenario of filtered) {
@@ -167,9 +187,12 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
             identity = `${scenario.uri}.${rawIdentity}`;
         }
 
-        localIds.add(identity);
-        const localHash = hashScenario(scenario, scope);
-        const existing = stateMap.get(identity);
+        const normId = normalizeAddress(identity);
+        localIds.add(normId);
+        const scenarioTags = scenario.tags ? scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+        const lc = lifecycleResolver.getLifecycle(identity, scenarioTags);
+        const localHash = hashScenario(scenario, scope, lc.ignore_changes);
+        const existing = stateMap.get(normId);
 
         const shouldForceReplace = replaceTargets ? matchesTarget(identity, replaceTargets) : false;
 
@@ -213,7 +236,20 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 
     // Check for destroys (in state but not in local files)
     for (const res of resources) {
-        if (!localIds.has(res.identity)) {
+        if (!localIds.has(normalizeAddress(res.identity))) {
+            const lc = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
+            if (lc.prevent_destroy) {
+                notify.push({
+                    type: 'error',
+                    title: 'Instance cannot be destroyed',
+                    detail: [
+                        `Resource ${formatResourceAddress(res.type, res.identity)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
+                    ],
+                    close: true
+                });
+                throw new Error(`Instance cannot be destroyed: ${res.identity} has lifecycle.prevent_destroy set.`);
+            }
+
             // Create a minimal scenario from state for display
             changes.push({
                 action: 'destroy',

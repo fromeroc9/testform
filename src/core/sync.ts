@@ -50,12 +50,18 @@ export function arraysEqual(a?: string[] | string, b?: string[] | string): boole
  */
 export function compareCustomFields(
     localFields: Record<string, any> = {},
-    remoteFields: Record<string, string> = {}
+    remoteFields: Record<string, string> = {},
+    ignoreFields: string[] = []
 ): { hasDrift: boolean; reconciled: Record<string, string> } {
     const reconciled: Record<string, string> = { ...localFields };
     let hasDrift = false;
+    const ignoredSet = new Set(ignoreFields.map(f => f.toLowerCase()));
 
     for (const localKey of Object.keys(localFields)) {
+        if (ignoredSet.has(localKey.toLowerCase()) || ignoredSet.has('custom_fields')) {
+            continue;
+        }
+
         // Find remote value by case-insensitive key
         const remoteKeyMatch = Object.keys(remoteFields).find(k => k.toLowerCase() === localKey.toLowerCase());
         const remoteVal = remoteKeyMatch ? remoteFields[remoteKeyMatch] : '';
@@ -82,32 +88,35 @@ export interface DriftDetectionResult {
 
 /**
  * Detects differences between local state attributes and remote issue data,
- * updating attributes for title, labels, assignees, milestone, and custom fields.
+ * updating attributes for title, labels, assignees, milestone, and custom fields,
+ * while respecting ignored fields in ignoreChanges.
  */
 export function detectAttributeDrift(
     currentAttributes: Record<string, any>,
     remoteIssue: IProviderIssueResult,
-    remoteCustomFields?: Record<string, string>
+    remoteCustomFields?: Record<string, string>,
+    ignoreChanges: string[] = []
 ): DriftDetectionResult {
     const newAttributes: Record<string, any> = { ...currentAttributes };
     let hasDrift = false;
+    const ignored = new Set(ignoreChanges.map(s => s.toLowerCase()));
 
     // 1. Title
-    if (newAttributes.title !== remoteIssue.title) {
+    if (!ignored.has('title') && newAttributes.title !== remoteIssue.title) {
         newAttributes.title = remoteIssue.title;
         hasDrift = true;
     }
 
     // 2. Labels
     const remoteLabels = remoteIssue.labels ?? [];
-    if (!arraysEqual(newAttributes.labels, remoteLabels)) {
+    if (!ignored.has('labels') && !arraysEqual(newAttributes.labels, remoteLabels)) {
         newAttributes.labels = remoteLabels;
         hasDrift = true;
     }
 
     // 3. Assignees
     const remoteAssignees = remoteIssue.assignees ?? [];
-    if (!arraysEqual(newAttributes.assignees, remoteAssignees)) {
+    if (!ignored.has('assignees') && !arraysEqual(newAttributes.assignees, remoteAssignees)) {
         newAttributes.assignees = remoteAssignees;
         hasDrift = true;
     }
@@ -115,15 +124,15 @@ export function detectAttributeDrift(
     // 4. Milestone
     const remoteMilestone = remoteIssue.milestone ?? '';
     const localMilestone = String(newAttributes.milestone ?? '');
-    if (localMilestone !== remoteMilestone) {
+    if (!ignored.has('milestone') && localMilestone !== remoteMilestone) {
         newAttributes.milestone = remoteMilestone;
         hasDrift = true;
     }
 
     // 5. Custom Fields
-    if (remoteCustomFields !== undefined) {
+    if (remoteCustomFields !== undefined && !ignored.has('custom_fields')) {
         const localCustomFields = (newAttributes.custom_fields as Record<string, string>) || {};
-        const fieldComparison = compareCustomFields(localCustomFields, remoteCustomFields);
+        const fieldComparison = compareCustomFields(localCustomFields, remoteCustomFields, ignoreChanges);
         if (fieldComparison.hasDrift) {
             newAttributes.custom_fields = fieldComparison.reconciled;
             hasDrift = true;

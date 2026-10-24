@@ -12,6 +12,7 @@ import { validateCmd } from './commands/validate';
 import { applyCmd } from './commands/apply';
 import { destroyCmd } from './commands/destroy';
 import { showCmd } from './commands/show';
+import { outputCmd } from './commands/output';
 import { refreshCmd } from './commands/refresh';
 import { diffCmd } from './commands/diff';
 import { importCmd } from './commands/import';
@@ -312,6 +313,25 @@ export function createCli() {
                 dir: workDir,
                 statePath: options.state,
                 backupPath: options.backup
+            });
+        });
+
+    // ─── output ───────────────────────────────────────────────────────────
+    cli.command('output [name]', 'Read an output from a state file')
+        .option('--state <path>', 'Path to the state file')
+        .option('--json', 'Produce output in a machine-readable JSON format')
+        .option('--raw', 'Print raw string value without formatting')
+        .action(async (name, options) => {
+            const workDir = getWorkDir(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await outputCmd({
+                dir: workDir,
+                name,
+                statePath: options.state,
+                isJson: Boolean(options.json),
+                raw: Boolean(options.raw),
+                variables: variableParser
             });
         });
 

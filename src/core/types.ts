@@ -75,6 +75,8 @@ export interface IConfig {
         testrun?: IField[] | Record<string, any>;
         testplan?: IField[] | Record<string, any>;
     };
+    outputs?: Record<string, any>;
+    data?: Record<string, any>;
     report_mapping?: Record<string, string>;
 }
 
@@ -132,6 +134,13 @@ export interface ParserRule {
 }
 
 // ─── State model ─────────────────────────────────────────────────────────────
+export interface StateOutput {
+    value: any;
+    type?: string;
+    description?: string;
+    sensitive?: boolean;
+}
+
 export interface IState {
     version: string;
     serial: number;
@@ -139,6 +148,7 @@ export interface IState {
     lastSync: string;
     provider?: string;
     resources: StateResource[];
+    outputs?: Record<string, StateOutput>;
 }
 
 export interface StateResource {

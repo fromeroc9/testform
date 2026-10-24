@@ -1,0 +1,91 @@
+---
+title: "Meta-Argumento Lifecycle (prevent_destroy e ignore_changes)"
+description: "Protección contra destrucción accidental y supresión de drift en atributos específicos."
+---
+
+# Meta-Argumento `lifecycle`
+
+Al igual que en **Terraform**, el bloque de meta-argumentos `lifecycle` en Testform permite modificar el comportamiento estándar del ciclo de vida de los casos de prueba, suites de ejecución y planes maestros.
+
+Testform implementa dos controles esenciales de `lifecycle`:
+1. **`prevent_destroy`**: Bloquea de forma estricta cualquier intento de destruir o cerrar recursos críticos durante un `testform destroy` o `testform plan -destroy`.
+2. **`ignore_changes`**: Evita que modificaciones externas realizadas en el tablero (GitHub, GitLab, Jira) o campos específicos causen deriva (*drift*) no deseada o actualizaciones innecesarias.
+
+---
+
+## 1. Configuración en YAML (`testform.yml` o Dominio)
+
+Puedes definir reglas de ciclo de vida a nivel global, por scope (`testcase`, `testrun`, `testplan`) o para recursos específicos mediante su dirección canónica.
+
+```yaml
+# testform.yml o auth.yml
+lifecycle:
+  # 1. Reglas Globales por Defecto
+  prevent_destroy: false
+  ignore_changes:
+    - assignees   # Si alguien reasigna un issue en GitHub, ignorar el drift
+
+  # 2. Reglas Específicas por Recurso
+  resources:
+    "auth/login.case.feature.@tc-1":
+      prevent_destroy: true  # Este caso de prueba nunca puede ser destruido
+      ignore_changes:
+        - labels             # Ignorar etiquetas añadidas manualmente por QA
+        - priority           # Ignorar cambios de prioridad en tableros Kanban
+```
+
+---
+
+## 2. Configuración en Tags Gherkin
+
+Para mayor conveniencia, los ingenieros de QA pueden declarar las directivas de `lifecycle` directamente en los encabezados de los escenarios o características Gherkin:
+
+```gherkin
+@auth @smoke
+@prevent_destroy
+@ignore_changes("labels", "assignees", "priority")
+Scenario: Login crítico con credenciales bancarias
+  Given que el usuario está en el portal de pagos
+  When ingresa su certificado digital
+  Then el acceso es concedido
+```
+
+### Sintaxis soportada:
+- `@prevent_destroy` o `@prevent-destroy`: Activa la protección contra borrado.
+- `@ignore_changes("campo1", "campo2")` o `@ignore_changes:campo1,campo2`: Declara la lista de atributos a excluir de la detección de cambios.
+
+---
+
+## 3. Comportamiento de `prevent_destroy`
+
+Si un usuario o pipeline de CI/CD intenta ejecutar:
+```bash
+testform destroy -auto-approve
+```
+Y uno o más recursos tienen `prevent_destroy: true`, Testform aborta inmediatamente la operación antes de tocar cualquier recurso en el proveedor:
+
+```
+Error: Instance cannot be destroyed
+
+  Resource github_testcase.auth/login.case.feature.@tc-1 has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.
+```
+
+Para proceder con la destrucción de otros recursos sin afectar al recurso protegido, se debe usar la bandera `-target`:
+```bash
+testform destroy -target=checkout/cart.case.feature.@tc-2
+```
+
+---
+
+## 4. Comportamiento de `ignore_changes`
+
+En proyectos reales de QA, miembros del equipo o bots suelen modificar metadatos de las incidencias fuera del código:
+- Asignar el issue a un tester específico (`assignees`).
+- Agregar etiquetas temporales como `needs-review` o `bug` (`labels`).
+- Mover el ticket a otra columna o cambiar la prioridad (`priority`).
+
+Sin `ignore_changes`, cada ejecución de `testform refresh` o `testform plan` detectaría estas diferencias como discrepancias (*drift*) y trataría de sobreescribirlas con el código local.
+
+Al configurar `ignore_changes`:
+- **En `testform refresh`**: Esas diferencias se ignoran y no invalidan el hash local.
+- **En `testform plan`**: Testform calcula el hash del recurso omitiendo los atributos ignorados, manteniendo el recurso en estado sincronizado (`synced`).

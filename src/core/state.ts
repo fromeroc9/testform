@@ -4,7 +4,7 @@ import { resolve } from 'path';
 import YAML from 'yaml';
 import { FILE_STATE, VERSION_STATE } from '../core/const';
 import { logger as notify } from '../core/logger';
-import { IState, StateResource } from '../core/types';
+import { IState, StateResource, StateOutput } from '../core/types';
 import { IBackend } from '../backends/backend';
 import { LocalBackend } from '../backends/local';
 import { S3Backend, S3BackendConfig } from '../backends/s3';
@@ -149,6 +149,7 @@ export class State {
             lastSync: parsed.lastSync ?? '',
             provider: parsed.provider ?? config.getAdapterType(),
             resources: parsed.resources ?? [],
+            outputs: parsed.outputs ?? {},
         };
     }
 
@@ -234,7 +235,7 @@ export class State {
      * Get all resources of a given type (supports exact or canonical scope match).
      */
     getResources(type?: string): StateResource[] {
-        if (!this.state.resources) return [];
+        if (!this.state || !this.state.resources) return [];
         if (!type) return this.state.resources;
         return this.state.resources.filter(r => {
             if (r.type === type) return true;
@@ -242,6 +243,14 @@ export class State {
             const canonicalT = type.includes('_') ? type.split('_').slice(1).join('_') : type;
             return canonicalR === canonicalT;
         });
+    }
+
+    getOutputs(): Record<string, StateOutput> {
+        return (this.state && this.state.outputs) || {};
+    }
+
+    setOutputs(outputs: Record<string, StateOutput>): void {
+        this.state.outputs = outputs;
     }
 
     // Workspace Delegation

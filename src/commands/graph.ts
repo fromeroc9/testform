@@ -2,6 +2,8 @@ import { bold, cyan, dim, green, magenta } from 'chalk';
 import { Parser } from '../core/parser';
 import { IScope, ParserScenario } from '../core/types';
 import { VariableParser } from '../core/variables';
+import { DependencyResolver } from '../core/dependencies';
+import { normalizeAddress, addressesMatch } from '../core/utils';
 
 interface GraphCmdOptions {
     dir?: string;
@@ -19,6 +21,7 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
     const vars = options.variables || new VariableParser(undefined, undefined, dir);
     const parser = new Parser(dir, vars);
     const scenarios = parser.content();
+    const depResolver = new DependencyResolver(dir);
 
     const testcases = scenarios.filter(s => !s.uri.endsWith('.run.feature') && !s.uri.endsWith('.plan.feature'));
     const testrunsAll = scenarios.filter(s => s.uri.endsWith('.run.feature'));
@@ -100,7 +103,14 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                 const isLastRun = i === trIds.length - 1;
                 const runPrefix = isLastRun ? '└── ' : '├── ';
 
-                const run = testruns.find(r => r.identity === trId || r.name === trId || r.name.endsWith(trId) || trId.endsWith(r.name) || r.uri.endsWith(trId));
+                const normTrId = normalizeAddress(trId);
+                const run = testruns.find(r => 
+                    addressesMatch(r.identity, trId) || 
+                    r.name === trId || 
+                    r.name.endsWith(trId) || 
+                    trId.endsWith(r.name) || 
+                    normalizeAddress(r.uri).endsWith(normTrId)
+                );
 
                 if (run) {
                     const runName = run.name;
@@ -122,6 +132,13 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                                     const tcIsLast = isLastTc && k === tcs.length - 1;
                                     const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
                                     console.log(`   ${tcPrefix}${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
+
+                                    const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+                                    const deps = depResolver.getDependencies(tc.custom?.identity || `${tc.uri}.${tc.name}`, tcTags);
+                                    if (deps.length > 0) {
+                                        const depPrefix = tcIsLast ? '       ' : '│      ';
+                                        console.log(`   ${tcPrefix}${depPrefix}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
+                                    }
                                 }
                             } else {
                                 console.log(`   ${tcPrefix}${link(tcConnector)}📄 ${dim(tcId + ' (Not found)')}`);
@@ -139,7 +156,12 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
             // Identify orphaned testruns
             const referencedRuns = new Set(testplans.flatMap(p => p.testruns || []));
             const orphanedRuns = testruns.filter(r => {
-                return !Array.from(referencedRuns).some(ref => r.identity === ref || r.name === ref || r.uri.endsWith(ref) || ref.endsWith(r.name));
+                return !Array.from(referencedRuns).some(ref => 
+                    addressesMatch(r.identity, ref) || 
+                    r.name === ref || 
+                    normalizeAddress(r.uri).endsWith(normalizeAddress(ref)) || 
+                    ref.endsWith(r.name)
+                );
             });
 
             if (orphanedRuns.length > 0) {
@@ -152,7 +174,25 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                         const tcId = tcIds.at(j)!;
                         const isLastTc = j === tcIds.length - 1;
                         const tcConnector = isLastTc ? '└── ' : '├── ';
-                        console.log(`   ${link(tcConnector)}📄 ${tcId}`);
+
+                        const tcs = findTcs(tcId);
+                        if (tcs.length > 0) {
+                            for (let k = 0; k < tcs.length; k++) {
+                                const tc = tcs.at(k)!;
+                                const tcIsLast = isLastTc && k === tcs.length - 1;
+                                const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
+                                console.log(`   ${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
+
+                                const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+                                const deps = depResolver.getDependencies(tc.custom?.identity || `${tc.uri}.${tc.name}`, tcTags);
+                                if (deps.length > 0) {
+                                    const depPrefix = tcIsLast ? '       ' : '│      ';
+                                    console.log(`   ${depPrefix}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
+                                }
+                            }
+                        } else {
+                            console.log(`   ${link(tcConnector)}📄 ${tcId}`);
+                        }
                     }
                     console.log('');
                 }
