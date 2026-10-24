@@ -1,4 +1,4 @@
-﻿# Recursos Declarativos
+# Recursos Declarativos
 
 Testform define cuatro tipos de recursos fundamentales para modelar la estrategia de calidad de extremo a extremo: `testcase`, `testrun`, `testplan` y `testsuite`.
 
@@ -8,7 +8,7 @@ El recurso `testcase` representa una especificacion de prueba individual. En Tes
 
 - **Ubicacion Estandar:** `tests/features/*.case.feature`
 - **Ubicacion de Identidad:** Directamente sobre el `Scenario:` con prefijo `@tc-*` (ejemplo: `@tc-cancel-001` o `@tc-cancel-order`).
-- **Nivel de Unicidad:** Unico dentro del mismo archivo `.case.feature`. La direccion completa en el ledger es `ruta/archivo.case.feature::@tc-cancel-001`.
+- **Nivel de Unicidad:** Unico dentro del mismo archivo `.case.feature`. La direccion completa en el ledger es `ruta/archivo.case.feature.@tc-cancel-001` (o con namespace de provider: `github_testcase.ruta/archivo.case.feature.@tc-cancel-001`).
 - **Ciclo de Vida:** `draft` -> `active` -> `deprecated` -> `archived`
 
 ### Ejemplo de Archivo con Multiples Casos

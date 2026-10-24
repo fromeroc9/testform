@@ -2,6 +2,7 @@ import { red, green } from 'chalk';
 import { State } from '../core/state';
 import { TITLE_CLI } from '../core/const';
 import { TestformError } from '../core/errors';
+import { normalizeAddress } from '../core/utils';
 
 interface TaintCmdOptions {
     dir?: string;
@@ -33,7 +34,11 @@ export const taintCmd = async (options: TaintCmdOptions) => {
         let res: any = null;
         for (const type of ['testcase', 'testrun', 'testplan']) {
             const identity = identityRaw.replace(new RegExp(`^([a-zA-Z0-9_-]+_)?${type}\\.`), '');
-            res = state.getResources(type).find((r: any) => r.identity === identity);
+            res = state.getResources(type).find((r: any) => 
+                r.identity === identity ||
+                normalizeAddress(r.identity) === normalizeAddress(identity) ||
+                normalizeAddress(r.identity) === normalizeAddress(identityRaw)
+            );
             if (res) break;
         }
 

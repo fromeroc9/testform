@@ -74,3 +74,19 @@ export const formatHclValue = (value: any, indentLevel: number): string => {
     return JSON.stringify(value);
 };
 
+/**
+ * Normalizes a resource address or identity for consistent cross-platform matching.
+ * Converts Windows backslashes to forward slashes and strips leading '@' in scenario tags.
+ */
+export function normalizeAddress(str: string): string {
+    return str.replace(/\\/g, '/').replace(/\.@/, '.');
+}
+
+/**
+ * Checks if two resource addresses match, handling differences in slashes and tag '@' prefixes.
+ */
+export function addressesMatch(a: string, b: string): boolean {
+    return normalizeAddress(a) === normalizeAddress(b);
+}
+
+

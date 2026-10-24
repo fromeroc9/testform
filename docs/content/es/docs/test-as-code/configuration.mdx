@@ -20,7 +20,21 @@ provider:
     projectId: 12
     token_env: "GITHUB_TOKEN"
 
-# 3. Alcance Global y por Recurso (scopes)
+# 3. Variables y Valores Locales Base (Nivel 0)
+vars:
+  app_url:
+    type: string
+    description: "URL base de la aplicacion"
+    default: "https://www.saucedemo.com"
+  environment:
+    type: string
+    default: "dev"
+
+local:
+  base_url: "${var.app_url}"
+  api_health: "${local.base_url}/health"
+
+# 4. Alcance Global y por Recurso (scopes)
 scopes:
   global:
     directory: "tests"
@@ -144,3 +158,13 @@ provider:
     projectId: 12345678
     token_env: "GITLAB_TOKEN"
 ```
+
+## 5. Variables (`vars:`) y Valores Locales (`local:`)
+
+Testform permite parametrizar tanto el texto de los pasos Gherkin como las etiquetas mediante variables de entrada e interpolación local:
+
+- **`vars:`**: Declaración de variables con tipo (`string`, `number`, `boolean`), descripción y valor por defecto.
+- **`local:`**: Constantes computadas y derivadas, resueltas dinámicamente mediante expresiones `${var.nombre}` y `${local.nombre}` en múltiples pasadas.
+
+Para más detalles sobre la precedencia de 5 niveles (CLI, archivos modulares por dominio, etc.), consulta la [Guía de Variables y Locales](/docs/guides/variables-and-locals).
+

@@ -5,6 +5,7 @@ import { resolve, join } from 'path';
 import * as readline from 'readline';
 import { Config } from '../core/config';
 import { Parser } from '../core/parser';
+import { VariableParser } from '../core/variables';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { IScope, DiffEntry, DiffStatus, ParserScenario, StateResource } from '../core/types';
@@ -53,6 +54,7 @@ export interface DiffCmdOptions {
     interactive?: boolean;
     statePath?: string;
     backupPath?: string;
+    variables?: VariableParser;
 }
 
 export interface RemoteDriftDifference {
@@ -97,7 +99,8 @@ export const diffCmd = async (options: DiffCmdOptions) => {
     // Load config and parse features
     const config = new Config(dir);
     const parseDir = testDirectory ? resolve(dir, testDirectory) : resolve(dir);
-    const parser = new Parser(parseDir);
+    const vars = options.variables || new VariableParser(undefined, undefined, dir);
+    const parser = new Parser(parseDir, vars);
     const documents = parser.content();
 
     // Load state

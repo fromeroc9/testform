@@ -354,6 +354,7 @@ export function createCli() {
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const { scope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
 
             await diffCmd({
                 dir: workDir,
@@ -363,7 +364,8 @@ export function createCli() {
                 remote: Boolean(options.remote),
                 interactive: Boolean(options.interactive),
                 statePath: options.state,
-                backupPath: options.backup
+                backupPath: options.backup,
+                variables: variableParser
             });
         });
 
@@ -662,11 +664,13 @@ export function createCli() {
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const { singleScope } = getScope(options);
+            const variableParser = getVariableParser(options, workDir);
 
             await graphCmd({
                 dir: workDir,
                 scope: singleScope,
-                drawCycles: options.drawCycles
+                drawCycles: options.drawCycles,
+                variables: variableParser
             });
         });
 
@@ -767,6 +771,7 @@ export const main = async () => {
         await cli.runMatchedCommand();
     } catch (err: any) {
         if (err instanceof TestformError) {
+            if (err.message) console.error(err.message);
             process.exit(err.exitCode);
         }
         if (err.name === 'CACError') {

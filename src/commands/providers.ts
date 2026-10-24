@@ -20,7 +20,7 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
         console.log(`
 Providers required by configuration:
 .
-└── provider[registry.testform.io/fromeroc9/${provider}] 1.0.0
+└── provider[registry.testform.com/fromeroc9/${provider}] 1.0.0
 `);
         return;
     }

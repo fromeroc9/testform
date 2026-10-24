@@ -1,11 +1,13 @@
 import { bold, cyan, dim, green, magenta } from 'chalk';
 import { Parser } from '../core/parser';
 import { IScope, ParserScenario } from '../core/types';
+import { VariableParser } from '../core/variables';
 
 interface GraphCmdOptions {
     dir?: string;
     scope?: IScope;
     drawCycles?: boolean;
+    variables?: VariableParser;
 }
 
 export const graphCmd = async (options: GraphCmdOptions = {}) => {
@@ -14,7 +16,8 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
         scope = 'testcase',
         drawCycles = false
     } = options;
-    const parser = new Parser(dir);
+    const vars = options.variables || new VariableParser(undefined, undefined, dir);
+    const parser = new Parser(dir, vars);
     const scenarios = parser.content();
 
     const testcases = scenarios.filter(s => !s.uri.endsWith('.run.feature') && !s.uri.endsWith('.plan.feature'));

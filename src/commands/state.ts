@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { State, cleanAttributes } from '../core/state';
 import { TITLE_CLI } from '../core/const';
-import { formatHclValue } from '../core/utils';
+import { formatHclValue, normalizeAddress } from '../core/utils';
 
 interface StateCmdOptions {
     dir?: string;
@@ -140,7 +140,12 @@ export const stateCmd = async (options: StateCmdOptions) => {
             }
             const address = args[0];
             const identity = address.includes('.') ? address.split('.').slice(1).join('.') : address;
-            const res = rawResources.find(r => r.identity === identity || `${r.type}.${r.identity}` === identity);
+            const res = rawResources.find(r => 
+                normalizeAddress(r.identity) === normalizeAddress(identity) || 
+                normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(identity) ||
+                normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(address) ||
+                normalizeAddress(r.identity) === normalizeAddress(address)
+            );
 
             if (!res) {
                 console.error(red(`No instance found for the given address!`));
@@ -174,11 +179,17 @@ export const stateCmd = async (options: StateCmdOptions) => {
             let removedCount = 0;
             for (const arg of args) {
                 const identity = arg.includes('.') ? arg.split('.').slice(1).join('.') : arg;
-                if (rawResources.find(r => r.identity === identity || `${r.type}.${r.identity}` === identity)) {
+                const matched = rawResources.find(r => 
+                    normalizeAddress(r.identity) === normalizeAddress(identity) || 
+                    normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(identity) ||
+                    normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(arg) ||
+                    normalizeAddress(r.identity) === normalizeAddress(arg)
+                );
+                if (matched) {
                     if (dryRun) {
                         console.log(`Would remove ${arg}`);
                     } else {
-                        state.removeResource(identity);
+                        state.removeResource(matched.identity);
                         console.log(`Removed ${arg}`);
                     }
                     removedCount++;
