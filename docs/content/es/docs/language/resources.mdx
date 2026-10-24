@@ -1,0 +1,67 @@
+# Resources (Recursos Declarativos)
+
+En Testform, los **Recursos** son el bloque de construcción fundamental del testing. Mientras que en Terraform un recurso modela un componente de infraestructura (una instancia EC2, un bucket S3), en Testform un recurso modela una **especificación o ejecución de prueba** con ciclo de vida gestionado.
+
+---
+
+## Tipos de Recursos en Testform
+
+Testform define cuatro tipos canónicos de recursos:
+
+| Recurso | Propósito | Formato / Ubicación |
+|---|---|---|
+| **`testcase`** | Especificación unitaria de prueba individual | `Scenario:` en archivos `*.case.feature` |
+| **`testrun`** | Ejecución inmutable de pruebas contra un build | `*.run.feature` |
+| **`testsuite`** | Agrupación lógica de casos de prueba | `*.suite.feature` |
+| **`testplan`** | Plan de orquestación y alcance de pruebas | `*.plan.feature` |
+
+---
+
+## 1. El Recurso `testcase`
+
+Cada `Scenario` dentro de un archivo de especificación representa un recurso `testcase`.
+
+- **Dirección en el Ledger:** `tests/features/orders.case.feature.@tc-cancel-001`
+- **Etiqueta de Identidad:** `@tc-*` ubicada directamente sobre el `Scenario:`.
+- **Ciclo de Vida:** `draft` $\rightarrow$ `active` $\rightarrow$ `deprecated` $\rightarrow$ `archived`.
+
+```gherkin
+Feature: Cancelación de Pedidos
+  Como cliente con un pedido pendiente
+  Quiero cancelar mi compra desde el panel
+
+  @high @tc-cancel-001
+  Scenario: Cancelación antes del empaque
+    Given el pedido "ORD-9912" se encuentra en estado "Pendiente"
+    When el usuario pulsa "Cancelar Pedido"
+    Then el estado del pedido cambia a "Cancelado"
+```
+
+---
+
+## 2. Direcciones Canónicas de Recursos (Resource Addresses)
+
+Al igual que en Terraform cada recurso posee un identificador universal único (ej. `aws_instance.web`), en Testform cada recurso se direcciona mediante **notación por puntos pura**:
+
+```text
+<ruta_archivo_relativa>.<tag_identificador>
+```
+
+Ejemplos:
+- `auth/login.feature.@login_success`
+- `modules/checkout/payment.feature.@stripe_charge`
+
+Estas direcciones son utilizadas por:
+- El motor de dependencias `@depends_on("auth/login.feature.@login_success")`
+- El ledger de estado `testform.state`
+- Comandos CLI como `testform state show <address>`
+
+---
+
+## 3. Estado y Conciliación
+
+Durante `testform plan`, el motor compara los recursos declarados en el código con el estado actual registrado en `testform.state`:
+
+- **`+ create`**: Se ha creado un nuevo escenario de prueba.
+- **`~ update`**: Se han modificado pasos o variables de un escenario existente.
+- **`- destroy`**: Se ha eliminado un escenario del código.

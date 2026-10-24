@@ -1,0 +1,48 @@
+# Locals (`locals:`)
+
+**Local Values** in Testform assign reusable names to computed expressions or repeated values, preventing duplication and making your test suites easier to maintain.
+
+Identical to Terraform's `locals` block, locals are defined in `local.yml` (or `testform.yml`) and referenced in step templates via `${local.<name>}`.
+
+---
+
+## Declaring Locals
+
+Locals are declared under the `local:` or `locals:` key:
+
+```yaml
+# local.yml
+locals:
+  base_url: "${var.app_url}"
+  login_url: "${local.base_url}/auth/v1/login"
+  checkout_api: "${local.base_url}/api/checkout"
+  env_tag: "@env-${var.environment}"
+```
+
+---
+
+## Cascading and Recursive Resolution
+
+Testform resolves transitive dependencies (locals referencing other locals or variables) through multi-pass evaluation:
+
+1. `${var.app_url}` resolves to `"https://staging.app.com"`.
+2. `${local.base_url}` captures that value.
+3. `${local.login_url}` evaluates to `"https://staging.app.com/auth/v1/login"`.
+
+---
+
+## Usage in Scenarios
+
+```gherkin
+Scenario: Centralized login verification
+  Given user opens "${local.login_url}"
+  When user submits valid credentials
+  Then user is redirected to main dashboard
+```
+
+---
+
+## When to use Variables vs Locals
+
+- **Use Variables (`vars:`):** For values that vary by deployment environment, CI/CD pipeline, or that need to be supplied by external callers.
+- **Use Locals (`locals:`):** For internal computed constants, concatenated endpoints, or repeated selectors that should not be exposed as configurable inputs.

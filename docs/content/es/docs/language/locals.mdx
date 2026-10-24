@@ -1,0 +1,48 @@
+# Locals (`locals:`)
+
+Los **Valores Locales** en Testform permiten asignar un nombre a expresiones o valores computados repetitivos, evitando la duplicación de código y facilitando el mantenimiento de las suites de prueba.
+
+Al igual que el bloque `locals` en Terraform, en Testform se declaran en `local.yml` (o `testform.yml`) y se referencian mediante `${local.<nombre>}`.
+
+---
+
+## Declaración de Locales
+
+Los valores locales pueden declararse bajo la clave `local:` o `locals:`:
+
+```yaml
+# local.yml
+locals:
+  base_url: "${var.app_url}"
+  login_url: "${local.base_url}/auth/v1/login"
+  checkout_api: "${local.base_url}/api/checkout"
+  env_tag: "@env-${var.environment}"
+```
+
+---
+
+## Resolución en Cascada y Referencias Recursivas
+
+Testform resuelve dependencias transitivas (locales que referencian a otros locales o a variables) mediante un evaluador de múltiples pasadas:
+
+1. `${var.app_url}` se resuelve a `"https://staging.app.com"`.
+2. `${local.base_url}` toma dicho valor.
+3. `${local.login_url}` se evalúa finalmente a `"https://staging.app.com/auth/v1/login"`.
+
+---
+
+## Uso en Escenarios
+
+```gherkin
+Scenario: Login centralizado
+  Given el usuario abre la URL "${local.login_url}"
+  When envía credenciales válidas
+  Then es redirigido al dashboard principal
+```
+
+---
+
+## ¿Cuándo usar Variables vs Locals?
+
+- **Usa Variables (`vars:`):** Para valores que cambian según el entorno de ejecución, el pipeline de CI/CD o que se configuran externamente por el usuario.
+- **Usa Locals (`locals:`):** Para constantes internas derivadas, concatenaciones de URLs o selectores repetitivos que no deben exponerse como parámetros de entrada externos.

@@ -1,44 +1,58 @@
-﻿# Testform Documentation
+# Testform Documentation
 
-Welcome to the official documentation for **Testform**, the declarative **Test-as-Code (TaC)** framework for quality engineering and version-controlled test management in Git.
+Welcome to the official documentation for **Testform**, the **Test-as-Code (TaC)** framework for quality engineering and declarative test management in Git.
+
+---
 
 ## Documentation Structure
 
-The documentation is organized across five core chapters:
+The documentation is organized following industry standards (IaC / TaC):
 
 ### 1. [Getting Started](./getting-started)
-Learn how to install Testform, initialize your workspace, author your first declarative tests, and orchestrate automated runner suites.
+Learn how to install Testform, initialize your workspace, draft your first declarative tests, and run automated suites.
 - [Installation and Quickstart](./getting-started)
 - [Writing Declarative Tests](./getting-started/writing-tests)
-- [Running Tests and Reconciliation](./getting-started/running-tests)
+- [Running Tests & Reconciliation](./getting-started/running-tests)
 - [Test Suite Automation](./getting-started/test-suite-automation)
 
-### 2. [Testform Test (Test-as-Code)](./test-as-code)
-Deep dive into engine architecture, declarative resources, Gherkin DSL semantics, `testform.yml` schema specification, and quality gates.
-- [Architecture and Principles](./test-as-code)
-- [Declarative Resources](./test-as-code/resources)
+### 2. [Configuration Language](./language)
+Full specification of Testform's declarative language blocks:
+- [Configure Providers](./language/providers)
+- [Resources](./language/resources)
+- [Data Sources](./language/data-sources)
+- [Variables](./language/variables)
+- [Locals](./language/locals)
+- [Outputs](./language/outputs)
+- [Modules](./language/modules)
+- [Meta-arguments (`depends_on`, `lifecycle`)](./language/meta-arguments)
+- [Search and Import (`query`, `import`)](./language/search-and-import)
+- [State & Storage](./language/state)
+- [Test and Validate](./language/validate)
+
+### 3. [Core Architecture](./test-as-code)
+Deep dive into the engine architecture, Gherkin DSL, `testform.yml` configuration, and quality gates.
+- [Architecture & Principles](./test-as-code)
 - [Gherkin DSL and Step Bindings](./test-as-code/gherkin)
 - [Configuration testform.yml](./test-as-code/configuration)
 - [Reconciliation Engine](./test-as-code/reconciliation)
 - [Policies and Quality Gates](./test-as-code/policies)
 
-### 3. [Guides](./guides)
-Architectural guides for high-availability enterprise environments, distributed locking, and continuous maintenance.
+### 4. [Guides](./guides)
+Architectural patterns and practical recipes:
 - [Multi-Cloud Backends](./guides/multi-cloud-backends)
 - [Distributed State Locking](./guides/state-locking)
 - [Data-Driven Testing](./guides/data-driven)
-- [Modular Architecture (@module)](./guides/modules)
 - [Drift Detection and Alerts](./guides/drift-detection)
 
-### 4. [Migration](./migration)
-Practical pathways for migrating legacy test cases from spreadsheets or tools such as Jira, Zephyr, and QMetry.
-- [Migration from Spreadsheets](./migration/from-manual)
-- [Migration from Jira / Zephyr / QMetry](./migration/from-jira)
-- [State Ledger Upgrades](./migration/state-migration)
-
 ### 5. [Integration](./integration)
-Automate state reconciliation within continuous integration workflows and connect automated execution frameworks.
+Automate reconciliation in your continuous delivery pipelines and connect modern test runners.
 - [GitHub Actions Pipeline](./integration/ci-cd-github)
 - [GitLab CI/CD Pipeline](./integration/ci-cd-gitlab)
 - [Test Runners Integration](./integration/test-runners)
-- [Custom Providers and Webhooks](./integration/custom-providers)
+- [Providers and Webhooks](./integration/custom-providers)
+
+### 6. [Migration](./migration)
+Step-by-step pathways to migrate test cases from legacy spreadsheets or platforms like Jira, Zephyr, and QMetry.
+- [Migration from Spreadsheets](./migration/from-manual)
+- [Migration from Jira / Zephyr / QMetry](./migration/from-jira)
+- [State Ledger Migration](./migration/state-migration)

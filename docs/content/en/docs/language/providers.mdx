@@ -1,0 +1,58 @@
+# Configure Providers
+
+**Providers** in Testform are decoupled plugins that connect your declarative test specifications with **test management and state platforms** (GitHub Issues / Projects, GitLab, Jira, or Local State Ledgers).
+
+Just as a Terraform provider handles communication with cloud APIs (AWS, Azure, GCP) to manage infrastructure state, a Testform provider manages communication with issue trackers or state storage to **create, update, close, and version test cases, runs, and quality gates as code in Git**.
+
+> [!IMPORTANT]
+> **Key Distinction: Providers vs Test Runners**  
+> - **Provider (`provider`):** Test management and state tracking platform where test cases and the state ledger reside (`local`, `github`, `gitlab`, `jira`).  
+> - **Test Runner:** Automation execution engine that drives browsers, APIs, or performance load (`Playwright`, `Cypress`, `Supertest`, `K6`).
+
+---
+
+## Configuration in `testform.yml`
+
+Providers are defined in the root `testform.yml`:
+
+```yaml
+version: "1.0"
+
+# Active provider for testcase lifecycle and state ledger
+provider: "github" # or "local", "gitlab", "jira"
+
+github:
+  owner: "my-organization"
+  repo: "my-web-app"
+  project_number: 12 # GitHub Projects v2
+  labels:
+    testcase: "testcase"
+    testrun: "testrun"
+    testplan: "testplan"
+```
+
+---
+
+## Available Providers
+
+| Provider | Storage Type | Recommended Use |
+|---|---|---|
+| **`local`** | Local JSON file `testform.state` | Autonomous projects, local tests, and Git-only suites with zero external dependencies. |
+| **`github`** | GitHub Issues + GitHub Projects (GraphQL) | Teams centralizing specifications and test runs directly in GitHub Enterprise / Cloud. |
+| **`gitlab`** | GitLab Issues + Scoped Labels | GitLab CI/CD pipelines with Kanban traceability in GitLab boards. |
+| **`custom`** | HTTP / Webhook Adapters | Custom adapters for proprietary QA tools or external test management systems. |
+
+---
+
+## Initializing Providers (`testform init`)
+
+Before running a plan, `testform init` authenticates and validates the configured provider:
+
+```bash
+testform init
+```
+
+During initialization:
+1. Validates access credentials (such as `GITHUB_TOKEN` or `GITLAB_TOKEN`).
+2. Configures the state backend and concurrent locking mechanism (`.lock`).
+3. Confirms repository permissions and project board schemas.

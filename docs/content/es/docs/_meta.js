@@ -1,7 +1,8 @@
 export default {
   index: 'Visión General',
   'getting-started': 'Getting Started',
-  'test-as-code': 'Testform Test (Test-as-Code)',
+  language: 'Configuration Language',
+  'test-as-code': 'Arquitectura Core',
   guides: 'Guides',
   migration: 'Migration',
   integration: 'Integration',

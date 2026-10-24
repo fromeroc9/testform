@@ -1,70 +1,44 @@
-﻿import React from 'react';
+import React from 'react';
 
 export function TestformLogo({ className = 'h-7 w-auto' }: { className?: string }) {
   return (
-    <div className="flex items-center gap-2.5 select-none" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.625rem', userSelect: 'none' }}>
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.65rem',
+        userSelect: 'none',
+        textDecoration: 'none',
+      }}
+    >
       <svg
         className={className}
-        style={{ height: '1.75rem', width: 'auto', flexShrink: 0 }}
-        viewBox="0 0 36 36"
+        style={{ height: '1.75rem', width: '1.75rem', flexShrink: 0 }}
+        viewBox="0 0 32 32"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="tf-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id="tf-stem" x1="12.5" y1="13" x2="19.5" y2="26" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#38bdf8" />
-            <stop offset="50%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#10b981" />
+            <stop offset="100%" stopColor="#0284c7" />
           </linearGradient>
-          <linearGradient id="tf-grad-glow" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.1" />
+          <linearGradient id="tf-top" x1="12.5" y1="2" x2="19.5" y2="15" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0284c7" />
+            <stop offset="100%" stopColor="#4f46e5" />
           </linearGradient>
         </defs>
-        {/* Hexagonal Isometric Base */}
-        <path
-          d="M18 2.5L31.5 10.29V25.71L18 33.5L4.5 25.71V10.29L18 2.5Z"
-          fill="url(#tf-grad-glow)"
-          stroke="url(#tf-grad-1)"
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-        {/* Inner Isometric Node Edges */}
-        <path
-          d="M18 2.5V18M31.5 10.29L18 18M4.5 10.29L18 18"
-          stroke="url(#tf-grad-1)"
-          strokeWidth="1.5"
-          strokeOpacity="0.5"
-        />
-        {/* Verification Checkmark */}
-        <path
-          d="M12 18L16.5 22.5L24.5 13"
-          stroke="#38bdf8"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {/* Top-Left Wing */}
+        <path d="M 3.5 11 L 10.5 7 L 10.5 16 L 3.5 20 Z" fill="#6366f1" />
+        {/* Top-Center Tile */}
+        <path d="M 12.5 6 L 19.5 2 L 19.5 11 L 12.5 15 Z" fill="url(#tf-top)" />
+        {/* Top-Right Wing */}
+        <path d="M 21.5 11 L 28.5 7 L 28.5 16 L 21.5 20 Z" fill="#38bdf8" />
+        {/* Stem (Lower Center Tile) */}
+        <path d="M 12.5 17 L 19.5 13 L 19.5 22 L 12.5 26 Z" fill="url(#tf-stem)" />
       </svg>
-      <span style={{ fontWeight: 700, fontSize: '1.15rem', letterSpacing: '-0.025em', color: 'currentColor' }}>
-        Testform
-      </span>
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '0.1rem 0.4rem',
-          fontSize: '0.65rem',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          borderRadius: '0.375rem',
-          border: '1px solid rgba(56, 189, 248, 0.35)',
-          backgroundColor: 'rgba(56, 189, 248, 0.1)',
-          color: '#0284c7'
-        }}
-        className="dark:text-cyan-400"
-      >
-        v1.0
+      <span style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.03em' }}>
+        test<span style={{ color: '#0284c7' }}>form</span>
       </span>
     </div>
   );

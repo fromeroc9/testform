@@ -1,0 +1,17 @@
+{
+  "buy_groceries": {
+    "title": "Comprar provisiones para la semana",
+    "completed": false,
+    "userId": 1
+  },
+  "read_book": {
+    "title": "Leer documentación de Test-as-Code",
+    "completed": true,
+    "userId": 1
+  },
+  "write_tests": {
+    "title": "Escribir pruebas E2E con Playwright",
+    "completed": false,
+    "userId": 2
+  }
+}

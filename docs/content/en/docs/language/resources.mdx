@@ -1,0 +1,67 @@
+# Resources (Declarative Testing Resources)
+
+In Testform, **Resources** are the primary building block of your test suites. While in Terraform a resource models a cloud infrastructure component (an EC2 instance, an S3 bucket), in Testform a resource models a **managed test specification or execution**.
+
+---
+
+## Resource Types in Testform
+
+Testform defines four canonical resource types:
+
+| Resource | Purpose | Format / Location |
+|---|---|---|
+| **`testcase`** | Individual test specification | `Scenario:` in `*.case.feature` |
+| **`testrun`** | Immutable test run against a build | `*.run.feature` |
+| **`testsuite`** | Logical grouping of test cases | `*.suite.feature` |
+| **`testplan`** | Orchestration and execution schedule | `*.plan.feature` |
+
+---
+
+## 1. The `testcase` Resource
+
+Every `Scenario` inside a specification file represents a declarative `testcase` resource.
+
+- **Ledger Address:** `tests/features/orders.case.feature.@tc-cancel-001`
+- **Identity Tag:** `@tc-*` placed directly above the `Scenario:`.
+- **Lifecycle:** `draft` $\rightarrow$ `active` $\rightarrow$ `deprecated` $\rightarrow$ `archived`.
+
+```gherkin
+Feature: Order Cancellation
+  As a customer with a pending order
+  I want to cancel my purchase from the dashboard
+
+  @high @tc-cancel-001
+  Scenario: Cancel before item packaging
+    Given order "ORD-9912" is in "Pending" status
+    When user clicks "Cancel Order"
+    Then order status changes to "Cancelled"
+```
+
+---
+
+## 2. Canonical Resource Addresses
+
+Just as Terraform uniquely identifies resources (e.g., `aws_instance.web`), Testform addresses resources using **pure dot notation**:
+
+```text
+<relative_file_path>.<identifier_tag>
+```
+
+Examples:
+- `auth/login.feature.@login_success`
+- `modules/checkout/payment.feature.@stripe_charge`
+
+These addresses are used across the engine:
+- In dependency declarations: `@depends_on("auth/login.feature.@login_success")`
+- In the state ledger: `testform.state`
+- In CLI commands: `testform state show <address>`
+
+---
+
+## 3. Resource Reconciliation
+
+During `testform plan`, Testform compares declared scenarios against the records in `testform.state`:
+
+- **`+ create`**: A new test scenario has been added to the codebase.
+- **`~ update`**: Steps, tags, or variables in an existing scenario changed.
+- **`- destroy`**: A previously recorded scenario was deleted.

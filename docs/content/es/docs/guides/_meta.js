@@ -9,5 +9,6 @@ export default {
   "lifecycle": "Meta-Argumento Lifecycle",
   "depends-on": "Meta-Argumento depends_on",
   "modules": "Arquitectura Modular (@module)",
-  "drift-detection": "Detección de Deriva (Drift)"
+  "drift-detection": "Detección de Deriva (Drift)",
+  "automation-relationship": "Control del Paradigma: E2E, API y Performance"
 };

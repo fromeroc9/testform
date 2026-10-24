@@ -1,4 +1,4 @@
-﻿import { Footer, Layout, Navbar } from 'nextra-theme-docs';
+import { Footer, Layout, Navbar } from 'nextra-theme-docs';
 import { getPageMap } from 'nextra/page-map';
 import { TestformLogo } from '../components/Logo';
 
@@ -28,7 +28,8 @@ export default async function LocaleLayout({
     <Layout
       navbar={navbar}
       pageMap={pageMap}
-      footer={footer}
+      footer={null}
+      copyPageButton={false}
       i18n={[
         { locale: 'en', name: 'English' },
         { locale: 'es', name: 'Español' },

@@ -1,65 +1,165 @@
-﻿<div className="landing-hero">
-  <div className="landing-hero-bg"></div>
-  <div className="landing-badge">Test-as-Code Framework • Open Source</div>
-  <h1 className="landing-title">Test-as-Code for Git and Quality Platforms</h1>
-  <div className="landing-subtitle">
-    Apply the declarative, immutable, and idempotent architectural principles of Terraform to Quality Assurance (QA).
-    Author your tests in Gherkin, version them in Git, review them in Pull Requests, and reconcile them automatically with GitHub Projects V2, GitLab, and Jira.
+<div className="landing-hero">
+  {/* Modern High-Impact Centered Headline (guaranteed non-overlapping) */}
+  <h1 className="hero-main-title">
+    <span className="hero-title-line">Declarative Test Infrastructure</span>
+    <span className="hero-title-gradient">for Modern Teams</span>
+  </h1>
+
+  <div className="hero-main-desc">
+    Define tests in Gherkin, reconcile state automatically with Jira and GitHub in every Pull Request, and orchestrate Playwright, API, and K6 runners without spreadsheets or per-seat costs.
   </div>
 
-  <div className="landing-cta-group">
-    <a href="./docs" className="landing-btn-primary"><span>Get Started with Docs</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-    <a href="./cli" className="landing-btn-secondary"><span>CLI Reference</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></a>
+  {/* Install Bar */}
+  <div className="hero-center-box">
+    <div className="install-bar" title="Copy install command">
+      <span className="install-prompt">$</span>
+      <span>npm install -g @fromeroc9/testform</span>
+      <span className="install-copy-hint">npm</span>
+    </div>
+  </div>
+
+  {/* Call to Actions */}
+  <div className="landing-cta-group" style={{ marginBottom: '1.5rem' }}>
+    <a href="./docs" className="landing-btn-primary">
+      <span>Get Started Free →</span>
+    </a>
+    <a href="./docs/guides/automation-relationship" className="landing-btn-secondary">
+      <span>View Automation Demo</span>
+    </a>
+  </div>
+
+  {/* Bento Grid: A | B | C on top, D | F on bottom */}
+  <div className="bento-grid">
+    {/* Card A */}
+    <div className="bento-card bento-card-a">
+      <div className="bento-badge">
+        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#6366f1' }}></span>
+        01 • Declarative Gherkin
+      </div>
+      <div className="bento-title">Specifications in Git</div>
+      <div className="bento-desc">
+        Define versioned <code>.feature</code> scenarios tracked and reviewed directly in Pull Requests alongside your source code.
+      </div>
+    </div>
+
+    {/* Card B */}
+    <div className="bento-card bento-card-b">
+      <div className="bento-badge">
+        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }}></span>
+        02 • Zero Test Drift
+      </div>
+      <div className="bento-title">Zero State Drift</div>
+      <div className="bento-desc">
+        The engine computes DAG diff graphs against Jira and GitHub Projects. If someone changes a test manually, Testform restores the truth.
+      </div>
+    </div>
+
+    {/* Card C */}
+    <div className="bento-card bento-card-c">
+      <div className="bento-badge">
+        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+        03 • ROI & Cost Savings
+      </div>
+      <div className="bento-title">No Per-Seat Licenses</div>
+      <div className="bento-desc">
+        Eliminate recurring license fees from TestRail and Zephyr. 100% open-source under MIT, with zero user caps or hidden fees.
+      </div>
+    </div>
+
+    {/* Card D */}
+    <div className="bento-card bento-card-d">
+      <div className="bento-badge">
+        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#38bdf8' }}></span>
+        04 • Multi-Runner Orchestration
+      </div>
+      <div className="bento-title">E2E, API & Load Orchestration</div>
+      <div className="bento-desc">
+        A single <code>testform suite</code> command runs your Playwright, Supertest REST, and K6 tests concurrently, logging all metrics to the central state ledger.
+      </div>
+      <div className="bento-tags">
+        <span className="bento-pill">Playwright (E2E)</span>
+        <span className="bento-pill">Supertest (API)</span>
+        <span className="bento-pill">K6 (Performance)</span>
+        <span className="bento-pill">Vitest</span>
+      </div>
+    </div>
+
+    {/* Card F */}
+    <div className="bento-card bento-card-f">
+      <div className="bento-badge">
+        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#818cf8' }}></span>
+        05 • Git & CI/CD Native
+      </div>
+      <div className="bento-title">Atomic Pipeline Reconciliation</div>
+      <div className="bento-desc">
+        Preview changes with <code>testform plan</code> in PRs and apply state atomically with distributed locking in S3, Azure, OCI, or Local.
+      </div>
+      <div className="bento-tags">
+        <span className="bento-pill">GitHub Actions</span>
+        <span className="bento-pill">GitLab CI</span>
+        <span className="bento-pill">Jira Cloud</span>
+        <span className="bento-pill">GitHub Projects V2</span>
+      </div>
+    </div>
   </div>
 </div>
 
 ## Declarative Workflow in Action
 
-See how a version-controlled Gherkin specification translates into a reproducible, read-only reconciliation plan.
+See how a technical specification in Git transforms into a speculative reconciliation plan and automated test runner execution:
 
-<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem', margin: '2rem 0' }}>
-
-<div>
-
-### 1. Local Specification (Git)
-`tests/features/auth.case.feature`
-
+<Tabs items={['features/auth.case.feature', 'testform.yml', 'testform plan', 'testform suite (Runners)']}>
+  <Tabs.Tab>
 ```gherkin
-Feature: User Authentication and Access
-  As a registered user of the platform
+Feature: Access Control and Authentication
+  As a registered platform user
   I want to authenticate with valid credentials
-  In order to access the protected dashboard
+  In order to access the protected admin dashboard
 
   Background:
     * field automate = apply
 
-  @high @tc-login-001
-  Scenario: Successful login with valid credentials
+  @tc-auth-001 @high
+  Scenario: Successful login to the dashboard
     Given the user navigates to "/login"
     When the user enters email "admin@company.com"
-    And the user enters temporary password "Secret123!"
+    And the user enters password "${vars.admin_pass}"
     And clicks the "Sign In" button
-    Then the browser redirects to "/dashboard"
+    Then the system redirects to "/dashboard"
     And the banner displays "Welcome, Administrator"
 ```
+  </Tabs.Tab>
 
-</div>
+  <Tabs.Tab>
+```yaml
+backend:
+  local:
+    path: "./testform.state"
 
-<div>
+providers:
+  github:
+    owner: "company"
+    repo: "web-portal"
 
-### 2. Speculative Reconciliation Plan
-`testform plan`
+vars:
+  admin_pass: "Secret123!"
 
+outputs:
+  total_scenarios: "${testcase.*.count}"
+```
+  </Tabs.Tab>
+
+  <Tabs.Tab>
 ```text
-Testform v1.0.17
-Configured backend: local (testform.state)
-Acquiring state lock... Lock acquired.
+Testform CLI
+Backend: local (testform.state)
+Acquiring state lock... [OK]
 
-Calculating dependency graph and reconciliation diff:
+Calculating DAG graph and reconciliation plan:
 
-  + resource "testcase" "tests/features/auth.case.feature::@tc-login-001" {
-      + title       = "Successful login with valid credentials"
-      + feature     = "User Authentication and Access"
+  + resource "testcase" "features/auth.case.feature::@tc-auth-001" {
+      + title       = "Successful login to the dashboard"
+      + feature     = "Access Control and Authentication"
       + priority    = "high"
       + automate    = "apply"
       + steps_count = 6
@@ -67,88 +167,101 @@ Calculating dependency graph and reconciliation diff:
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
-Releasing state lock... Lock released.
+State: no drift detected. Lock released.
 ```
+  </Tabs.Tab>
 
-</div>
+  <Tabs.Tab>
+```text
+Executing orchestrated test matrix...
 
-</div>
+  ✔ [E2E] Playwright: Login on React TodoMVC (1.42s)
+  ✔ [API] Supertest: POST /auth/tokens [200 OK] (184ms)
+  ✔ [PERF] K6: 100 concurrent requests - p95: 142ms < SLA (200ms)
 
-## Core Architecture Pillars
+Matrix: 3 suites executed, 3 passed (100% green)
+Evidences and telemetry recorded in testform.state.
+```
+  </Tabs.Tab>
+</Tabs>
 
-<div className="landing-grid">
+## Get Started in 60 Seconds
 
-  <div className="landing-card">
-    <div className="landing-card-title">Declarative and Idempotent</div>
-    <div className="landing-card-desc">
-      Git is your single source of truth. Running apply guarantees identical target state across testing platforms without duplicate records or side effects.
-    </div>
-  </div>
+Adopt Testform in your existing project in 4 simple steps:
 
-  <div className="landing-card">
-    <div className="landing-card-title">Multi-Cloud Ledger and Locking</div>
-    <div className="landing-card-desc">
-      Enterprise state storage with distributed mutex locking across Oracle Cloud (OCI), AWS S3 with DynamoDB, Azure Blob Storage, and Google Cloud Storage.
-    </div>
-  </div>
-
-  <div className="landing-card">
-    <div className="landing-card-title">Universal Test Runner Orchestrator</div>
-    <div className="landing-card-desc">
-      Bridge declarative test cases directly with automation execution frameworks such as Playwright, Cypress, and Vitest using testform suite.
-    </div>
-  </div>
-
-  <div className="landing-card">
-    <div className="landing-card-title">Continuous Drift Detection</div>
-    <div className="landing-card-desc">
-      Automated scheduled scans identify unauthorized manual modifications in Jira or GitHub, restoring Git authoritative state on demand.
-    </div>
-  </div>
-
-  <div className="landing-card">
-    <div className="landing-card-title">Policies and Quality Gates</div>
-    <div className="landing-card-desc">
-      Enforce metadata completeness, required tags, regex patterns, and governance standards in Pull Requests prior to production merges.
-    </div>
-  </div>
-
-  <div className="landing-card">
-    <div className="landing-card-title">Modular Architecture (@module)</div>
-    <div className="landing-card-desc">
-      Compose reusable cross-cutting workflows like authentication or checkout across multiple feature files without step duplication.
-    </div>
-  </div>
-
-</div>
-
-## Traditional QA vs Testform (Test-as-Code)
-
-| Dimension | Traditional Approach | Testform (Test-as-Code) |
-| :--- | :--- | :--- |
-| **Storage** | Spreadsheets or disconnected web interfaces. | Git-versioned `.feature` files living alongside application code. |
-| **Peer Review** | Untracked or informal comments. | Pull Requests, branch protection, and speculative diff reviews. |
-| **Traceability** | Decoupled from releases and commits. | Exact mapping to Git commit SHA and release tags. |
-| **Concurrency** | Silent overwrites and race conditions. | Distributed state mutex locks with cryptographic leases. |
-| **Automation** | Fragmented scripts disconnected from test cases. | Native orchestration with Playwright, Vitest, and Cypress. |
-
-## Get Started in Three Steps
-
-### 1. Global Installation
-
+<Steps>
+### 1. Install Testform
 ```bash
 npm install -g @fromeroc9/testform
 ```
 
-### 2. Initialize Workspace
-
+### 2. Initialize Your Workspace
 ```bash
 testform init
 ```
+Set up the state backend (Local, OCI, AWS S3, or Azure) and connect your tracking platforms (GitHub Projects V2, GitLab, or Jira).
 
-### 3. Plan and Reconcile
-
+### 3. Plan Your Tests Speculatively
 ```bash
 testform plan
-testform apply -auto-approve
 ```
+Calculates the dependency graph and reviews what resources will be added or updated before making any real changes.
+
+### 4. Reconcile and Run Your Test Runners
+```bash
+testform apply -auto-approve
+testform suite
+```
+Applies state atomically with distributed locking and launches your automated Playwright, REST API, and K6 suites.
+</Steps>
+
+## Test Project Architecture
+
+Organize your tests, fixtures, runners, and configuration with a clean, modular structure:
+
+<FileTree>
+  <FileTree.Folder name="features" defaultOpen>
+    <FileTree.File name="auth.case.feature" />
+    <FileTree.File name="e2e_todo.case.feature" />
+    <FileTree.File name="api_todo.case.feature" />
+    <FileTree.File name="perf_todo.case.feature" />
+  </FileTree.Folder>
+  <FileTree.Folder name="fixtures" defaultOpen>
+    <FileTree.File name="todos.json" />
+  </FileTree.Folder>
+  <FileTree.Folder name="runners" defaultOpen>
+    <FileTree.Folder name="e2e" defaultOpen>
+      <FileTree.File name="todo_e2e_runner.js" />
+    </FileTree.Folder>
+    <FileTree.Folder name="api" defaultOpen>
+      <FileTree.File name="todo_api_runner.js" />
+    </FileTree.Folder>
+    <FileTree.Folder name="perf" defaultOpen>
+      <FileTree.File name="todo_perf_runner.js" />
+    </FileTree.Folder>
+  </FileTree.Folder>
+  <FileTree.File name="testform.yml" />
+  <FileTree.File name="testform.state" />
+  <FileTree.File name="testform.state.lock" />
+</FileTree>
+
+<Callout type="info" emoji="⚡">
+  **Live Reference Project:** Clone and run the full working reference project in the [`examples/todo-app`](https://github.com/fromeroc9/testform/tree/main/examples/todo-app) folder. Includes live E2E browser automation on TodoMVC, real public REST API assertions, and p95 latency performance measurements.
+</Callout>
+
+<div className="landing-cta-banner">
+  <div className="cta-banner-title">
+    Bring your tests to the Infrastructure-as-Code standard
+  </div>
+  <div className="cta-banner-sub">
+    Start transforming test management into declarative code today. Open source under MIT license, with zero per-seat fees or hidden costs.
+  </div>
+  <div className="landing-cta-group" style={{ marginBottom: 0 }}>
+    <a href="./docs" className="landing-btn-primary">
+      <span>Explore Documentation →</span>
+    </a>
+    <a href="./cli" className="landing-btn-secondary">
+      <span>CLI Command Reference</span>
+    </a>
+  </div>
+</div>

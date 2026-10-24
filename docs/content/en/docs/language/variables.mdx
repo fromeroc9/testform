@@ -1,0 +1,71 @@
+# Variables (`vars:`)
+
+**Input Variables** in Testform allow you to parameterize your test suites and modules without hardcoding URLs, test credentials, or environment-specific values in Gherkin feature files.
+
+Directly mirroring Terraform's `variable` block, variables are cleanly declared in YAML and evaluated in Gherkin steps via `${var.<name>}`.
+
+---
+
+## Declaring Variables
+
+Variables are declared in `vars.yml`, `testform.yml`, or domain files:
+
+```yaml
+# vars.yml
+vars:
+  base_url:
+    type: string
+    description: "Base URL for the system under test"
+    default: "https://staging.app.com"
+
+  test_user:
+    type: string
+    default: "standard_user"
+
+  timeout_ms:
+    type: number
+    default: 5000
+```
+
+---
+
+## Usage in Gherkin Scenarios
+
+Variables can be interpolated inside any Gherkin step using `${var.<name>}`:
+
+```gherkin
+Scenario: Dynamic user authentication
+  Given browser navigates to "${var.base_url}/login"
+  When user inputs username "${var.test_user}"
+  Then page loads within ${var.timeout_ms} milliseconds
+```
+
+---
+
+## 5-Level Precedence Hierarchy
+
+Testform determines the final value of a variable using a strict precedence order:
+
+```text
+▲ HIGHEST PRECEDENCE
+│  [Level 5] CLI Flags:            testform plan -var "base_url=https://prod.app.com"
+│  [Level 4] CLI Files:            testform apply -var-file="production.yml"
+│  [Level 3] Environment:          TF_VAR_base_url="https://ci.app.com"
+│  [Level 2] Domain Files:         modules/auth/vars.yml
+│  [Level 1] Root Files:           vars.yml
+│  [Level 0] Monolith Base:        testform.yml (default values)
+▼ LOWEST PRECEDENCE
+```
+
+### 1. Environment Variables (`TF_VAR_*`)
+Any environment variable with the `TF_VAR_` prefix is automatically captured:
+```bash
+export TF_VAR_base_url="https://qa-sandbox.app.com"
+testform plan
+```
+
+### 2. CLI Flags (`--var` / `-var`)
+Override variables on the fly in terminal or CI/CD pipelines:
+```bash
+testform plan -var "base_url=https://dev.app.com" -var "timeout_ms=10000"
+```

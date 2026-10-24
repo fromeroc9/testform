@@ -1,0 +1,71 @@
+# Variables (`vars:`)
+
+Las **Variables de Entrada** en Testform permiten parametrizar suites de prueba y módulos sin necesidad de hardcodear URLs, credenciales o datos de entorno dentro de los archivos de prueba.
+
+Al igual que el bloque `variable` en Terraform, en Testform se declaran de manera limpia en YAML y se resuelven en expresiones Gherkin mediante `${var.<nombre>}`.
+
+---
+
+## Declaración de Variables
+
+Las variables se declaran en `vars.yml`, `testform.yml` o archivos modulares por dominio:
+
+```yaml
+# vars.yml
+vars:
+  base_url:
+    type: string
+    description: "URL base de la aplicación bajo prueba"
+    default: "https://staging.app.com"
+
+  test_user:
+    type: string
+    default: "standard_user"
+
+  timeout_ms:
+    type: number
+    default: 5000
+```
+
+---
+
+## Uso en Escenarios Gherkin
+
+Dentro de cualquier paso de prueba puedes interpolar variables usando `${var.<nombre>}`:
+
+```gherkin
+Scenario: Autenticación con credenciales dinámicas
+  Given el navegador se dirige a "${var.base_url}/login"
+  When ingresa el usuario "${var.test_user}"
+  Then la sesión se inicia en menos de ${var.timeout_ms} milisegundos
+```
+
+---
+
+## Jerarquía de Precedencia (5 Niveles)
+
+Testform resuelve el valor final de cada variable evaluando las fuentes de menor a mayor prioridad:
+
+```text
+▲ MÁXIMA PRIORIDAD
+│  [Nivel 5] Flags CLI:            testform plan -var "base_url=https://prod.app.com"
+│  [Nivel 4] Archivos CLI:         testform apply -var-file="production.yml"
+│  [Nivel 3] Variables de Entorno: TF_VAR_base_url="https://ci.app.com"
+│  [Nivel 2] Archivos de Dominio:  modules/auth/vars.yml
+│  [Nivel 1] Estándar Raíz:        vars.yml
+│  [Nivel 0] Monolito Base:        testform.yml (valores default)
+▼ MENOR PRIORIDAD
+```
+
+### 1. Variables de Entorno (`TF_VAR_*`)
+Cualquier variable de entorno que comience con el prefijo `TF_VAR_` es leída automáticamente:
+```bash
+export TF_VAR_base_url="https://qa-sandbox.app.com"
+testform plan
+```
+
+### 2. Flags CLI (`--var` / `-var`)
+Sobrescribe variables directamente desde la terminal o pipeline de CI/CD:
+```bash
+testform plan -var "base_url=https://dev.app.com" -var "timeout_ms=10000"
+```

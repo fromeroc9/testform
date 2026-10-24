@@ -1,44 +1,58 @@
-﻿# Documentacion de Testform
+# Documentación de Testform
 
-Bienvenido a la documentacion oficial de **Testform**, el framework de **Test-as-Code (TaC)** para ingenieria de calidad y gestion declarativa de pruebas en Git.
+Bienvenido a la documentación oficial de **Testform**, el framework de **Test-as-Code (TaC)** para ingeniería de calidad y gestión declarativa de pruebas en Git.
 
-## Estructura de la Documentacion
+---
 
-La documentacion esta organizada en cinco secciones clave:
+## Estructura de la Documentación
+
+La documentación está organizada de forma limpia siguiendo el estándar de la industria (IaC / TaC):
 
 ### 1. [Getting Started](./getting-started)
 Aprende a instalar Testform, inicializar tu espacio de trabajo, redactar tus primeros casos declarativos y ejecutar suites de prueba automatizadas.
-- [Instalacion y Quickstart](./getting-started)
-- [Redaccion de Pruebas Declarativas](./getting-started/writing-tests)
-- [Ejecucion y Conciliacion](./getting-started/running-tests)
-- [Automatizacion de Suites](./getting-started/test-suite-automation)
+- [Instalación y Quickstart](./getting-started)
+- [Redacción de Pruebas Declarativas](./getting-started/writing-tests)
+- [Ejecución y Conciliación](./getting-started/running-tests)
+- [Automatización de Suites](./getting-started/test-suite-automation)
 
-### 2. [Testform Test (Test-as-Code)](./test-as-code)
-Profundiza en la arquitectura del motor, la declaracion de recursos, el DSL Gherkin, la configuracion de `testform.yml` y las compuertas de calidad.
+### 2. [Configuration Language](./language)
+Especificación completa de los bloques declarativos de Testform:
+- [Configure Providers](./language/providers)
+- [Resources](./language/resources)
+- [Data Sources](./language/data-sources)
+- [Variables](./language/variables)
+- [Locals](./language/locals)
+- [Outputs](./language/outputs)
+- [Modules](./language/modules)
+- [Meta-arguments (`depends_on`, `lifecycle`)](./language/meta-arguments)
+- [Search and Import (`query`, `import`)](./language/search-and-import)
+- [State & Storage](./language/state)
+- [Test and Validate](./language/validate)
+
+### 3. [Arquitectura Core](./test-as-code)
+Profundiza en la arquitectura del motor, el DSL Gherkin, la configuración de `testform.yml` y las compuertas de calidad.
 - [Arquitectura y Principios](./test-as-code)
-- [Recursos Declarativos](./test-as-code/resources)
 - [Gherkin DSL y Step Bindings](./test-as-code/gherkin)
-- [Configuracion testform.yml](./test-as-code/configuration)
-- [Motor de Conciliacion](./test-as-code/reconciliation)
-- [Politicas y Quality Gates](./test-as-code/policies)
+- [Configuración testform.yml](./test-as-code/configuration)
+- [Motor de Conciliación](./test-as-code/reconciliation)
+- [Políticas y Quality Gates](./test-as-code/policies)
 
-### 3. [Guides](./guides)
-Patrones arquitectonicos para despliegues empresariales, almacenamiento distribuido y mantenimiento continuo.
+### 4. [Guides](./guides)
+Patrones arquitectónicos y casos de uso prácticos:
 - [Backends Multi-Cloud](./guides/multi-cloud-backends)
 - [Bloqueo Distribuido de Estado](./guides/state-locking)
 - [Pruebas Basadas en Datos](./guides/data-driven)
-- [Arquitectura Modular (@module)](./guides/modules)
-- [Deteccion de Deriva (Drift)](./guides/drift-detection)
-
-### 4. [Migration](./migration)
-Rutas paso a paso para migrar casos de prueba desde hojas de calculo tradicionales o plataformas como Jira, Zephyr y QMetry.
-- [Migracion desde Hojas de Calculo](./migration/from-manual)
-- [Migracion desde Jira / Zephyr / QMetry](./migration/from-jira)
-- [Actualizacion de Ledger de Estado](./migration/state-migration)
+- [Detección de Deriva (Drift)](./guides/drift-detection)
 
 ### 5. [Integration](./integration)
-Automatiza la conciliacion en tus pipelines de entrega continua y conecta ejecutores de prueba modernos.
+Automatiza la conciliación en tus pipelines de entrega continua y conecta ejecutores de prueba modernos.
 - [GitHub Actions Pipeline](./integration/ci-cd-github)
 - [GitLab CI/CD Pipeline](./integration/ci-cd-gitlab)
-- [Integracion con Test Runners](./integration/test-runners)
+- [Integración con Test Runners](./integration/test-runners)
 - [Proveedores y Webhooks](./integration/custom-providers)
+
+### 6. [Migration](./migration)
+Rutas paso a paso para migrar casos de prueba desde hojas de cálculo tradicionales o plataformas como Jira, Zephyr y QMetry.
+- [Migración desde Hojas de Cálculo](./migration/from-manual)
+- [Migración desde Jira / Zephyr / QMetry](./migration/from-jira)
+- [Actualización de Ledger de Estado](./migration/state-migration)

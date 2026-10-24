@@ -1,0 +1,75 @@
+# Modules (Arquitectura Modular)
+
+Los **Módulos** en Testform permiten empaquetar, parametrizar y reutilizar flujos de prueba complejos (autenticación, checkout, sembrado de datos) a través de múltiples suites y proyectos, siguiendo exactamente el modelo de módulos de **Terraform**.
+
+---
+
+## Modos de Invocación
+
+Testform ofrece dos modalidades complementarias para modularizar pruebas:
+
+### 1. Invocación Directa en Gherkin (`@module`)
+
+Puedes invocar un módulo directamente sobre un paso de fondo (`Background:`) o un escenario mediante el tag `@module`:
+
+```gherkin
+Feature: Gestión de Inventario
+
+  Background:
+    @module(source="./modules/auth/login.feature", scenario="Login de Administrador", vars={user: "admin", role: "SuperAdmin"})
+    Given que la sesión de administrador está iniciada
+
+  Scenario: Crear nuevo producto en catálogo
+    When el administrador registra el producto "SKU-991"
+    Then el stock muestra 100 unidades
+```
+
+### 2. Registro Central en `testform.yml`
+
+Puedes registrar módulos con alias reutilizables y parámetros por defecto:
+
+```yaml
+# testform.yml
+modules:
+  auth_staging:
+    source: "./modules/auth/login.feature"
+    vars:
+      base_url: "${var.app_url}"
+      user: "staging_tester"
+      password: "${var.test_password}"
+    outputs:
+      token:
+        value: "${testcase.modules/auth/login.feature.@login.token}"
+```
+
+---
+
+## Módulos Remotos (Git Module Registry)
+
+Testform soporta la descarga e inicialización automática de módulos alojados en repositorios Git remotos durante `testform init`:
+
+```yaml
+modules:
+  shared_auth:
+    source: "git::https://github.com/mi-org/test-modules.git//auth?ref=v1.2.0"
+    vars:
+      base_url: "https://qa.empresa.com"
+```
+
+El formato de URL sigue la convención estándar de Terraform:
+- **Prefijo:** `git::https://...`
+- **Subdirectorio:** `//ruta/subdirectorio`
+- **Versión o Tag:** `?ref=v1.2.0` o `?ref=main`
+
+---
+
+## Outputs Aislados de Módulos
+
+Los valores exportados por un módulo hijo quedan registrados bajo el namespace del módulo (`module.<nombre>.<output>`):
+
+```gherkin
+Scenario: Consumir token generado por módulo
+  Given configuro el encabezado "Authorization: Bearer ${module.shared_auth.token}"
+  When consulto la lista de usuarios
+  Then el código HTTP es 200
+```

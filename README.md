@@ -1,4 +1,14 @@
-# Testform
+<p align="center">
+  <img src="docs/public/testform-logo.svg" alt="Testform Logo" width="80" height="80" />
+</p>
+
+<h1 align="center">Testform</h1>
+
+<p align="center">
+  <strong>Declarative Test-as-Code Framework for Git & Testing Platforms</strong>
+</p>
+
+---
 
 **Testform** brings the **Test-as-Code** paradigm to your version control platforms. It transforms standard issue trackers (like GitHub) into full-fledged Test Management ecosystems. By treating your QA processes as code, it codifies issue APIs into declarative Gherkin (`.feature`) configurations that can be shared amongst team members, edited, reviewed in Pull Requests, and strictly versioned.
 

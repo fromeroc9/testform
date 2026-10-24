@@ -1,0 +1,68 @@
+# Outputs (`outputs:`)
+
+Los **Valores de Salida (Outputs)** en Testform permiten exportar datos generados durante la ejecución de las pruebas (IDs remotos, URLs de reportes, métricas o tokens) para consumirlos en etapas posteriores de pipelines de CI/CD o en otros módulos.
+
+Equivalente al bloque `output` de Terraform, los outputs se persisten automáticamente en `testform.state` tras cada `testform apply`.
+
+---
+
+## Declaración en `outputs.yml` o `testform.yml`
+
+Puedes declarar salidas en `outputs.yml` o dentro de `testform.yml`:
+
+```yaml
+# outputs.yml
+outputs:
+  login_case_title:
+    description: "Título del caso de autenticación"
+    value: "${testcase.auth/login.case.feature.@tc-1.title}"
+
+  smoke_run_id:
+    description: "Identificador del Run en el proveedor"
+    value: "${testrun.suites/smoke.run.feature.@tr-1.remoteId}"
+
+  report_url:
+    description: "Enlace directo al reporte HTML generado"
+    value: "${local.base_url}/reports/${testrun.suites/smoke.run.feature.@tr-1.remoteId}"
+```
+
+---
+
+## Comando CLI: `testform output`
+
+Puedes consultar los outputs almacenados en el ledger de estado en cualquier momento:
+
+### 1. Listar todas las salidas
+```bash
+testform output
+```
+```text
+login_case_title = "Inicio de sesión exitoso"
+smoke_run_id = "local:15"
+report_url = "https://app.com/reports/local:15"
+```
+
+### 2. Obtener un valor individual en crudo (`-raw`)
+Ideal para scripts bash o variables de entorno en pipelines:
+```bash
+export RUN_ID=$(testform output smoke_run_id -raw)
+```
+
+### 3. Salida estructurada JSON (`-json`)
+Permite procesar todas las salidas con herramientas como `jq`:
+```bash
+testform output -json
+```
+
+---
+
+## Outputs de Módulos
+
+Cuando consumes un módulo externo mediante `@module`, sus outputs quedan aislados bajo el namespace del módulo y pueden ser consumidos en escenarios o en el archivo `outputs.yml` raíz:
+
+```gherkin
+Scenario: Uso de token generado por módulo
+  Given configuro el encabezado "Authorization: Bearer ${module.auth_module.auth_token}"
+  When consulto el endpoint protegido
+  Then la respuesta es 200 OK
+```

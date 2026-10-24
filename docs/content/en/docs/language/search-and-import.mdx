@@ -1,0 +1,73 @@
+# Search and Import
+
+Testform includes native capabilities to **search, discover, and import test resources** that either live in the state ledger or were created externally, directly corresponding to Terraform's **Search and Import** section.
+
+---
+
+## 1. Searching and Querying Resources (`testform query`)
+
+The `testform query` command inspects, filters, and audits declared test resources and execution results stored in `testform.state`.
+
+### Syntax
+```bash
+testform query [options]
+```
+
+### Advanced Filtering Options
+
+| Flag | Description | Example |
+|---|---|---|
+| `--scope` | Filter by resource type (`testcase`, `testrun`, `testsuite`) | `testform query --scope=testrun` |
+| `--status` | Filter by test execution status (`passed`, `failed`, `skipped`) | `testform query --status=failed` |
+| `--label` | Filter by tag or label | `testform query --label=@smoke` |
+| `--assignee` | Filter by assigned operator | `testform query --assignee=john` |
+| `--milestone` | Filter by release milestone | `testform query --milestone=v1.0` |
+| `--custom` | Filter by custom fields (`key=value`) | `testform query --custom=priority=high` |
+| `--search` | Free-text search across titles and step descriptions | `testform query --search="checkout"` |
+| `--count` | Return count of matching resources | `testform query --status=failed --count` |
+| `--json` | Machine-readable JSON output for CI/CD | `testform query --json` |
+
+### Example: Auditing Failed Test Cases
+```bash
+testform query --status=failed --scope=testcase
+```
+```text
+Query Results:
+  - checkout.feature::pay_test | Status: failed | Priority: high
+Total: 1 resource(s) found.
+```
+
+---
+
+## 2. Importing Existing Resources (`testform import`)
+
+The `testform import` command brings pre-existing test cases or issues (e.g. GitHub Issues or GitLab tickets created manually before adopting Testform) under Testform's declarative state management **without deleting or recreating them**.
+
+### Syntax
+```bash
+testform import -scope=<type> <local_address> <remote_id>
+```
+
+### Example: Importing an Existing GitHub Issue
+Suppose GitHub has Issue `#104` ("Digital certificate authentication") and you want to manage it in Testform as `@tc-5`:
+
+```bash
+testform import -scope=testcase "auth/login.case.feature.@tc-5" 104
+```
+
+### Execution Lifecycle:
+1. Testform queries the provider API (GitHub, GitLab, etc.).
+2. Validates remote issue existence and current status.
+3. Extracts title, labels, assignees, and attributes.
+4. Registers the resource in `testform.state` under `auth/login.case.feature.@tc-5`.
+5. Run `testform plan` to confirm that local code matches imported state with zero drift.
+
+```text
+github_testcase.auth_login_case_feature__tc_5: Importing from ID "104"...
+github_testcase.auth_login_case_feature__tc_5: Import prepared!
+  Prepared github_testcase for import on auth/login.case.feature.@tc-5
+
+Import successful!
+These resources are now in your Testform state and will henceforth be managed
+by Testform.
+```

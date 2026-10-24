@@ -1,0 +1,52 @@
+# Meta-argument `depends_on`
+
+El meta-argumento `depends_on` permite definir dependencias explícitas de ejecución entre casos de prueba, garantizando que los requisitos previos se sincronicen y ejecuten en el orden correcto mediante un **Grafo Acíclico Dirigido (DAG)**.
+
+---
+
+## Declaración en Gherkin (`@depends_on`)
+
+Las dependencias se declaran directamente como tag sobre el `Scenario:`:
+
+```gherkin
+@checkout @e2e
+@depends_on("auth/login.feature.@login_success", "inventory/cart.feature.@add_item")
+Scenario: Finalización exitosa de orden de compra
+  Given que el carrito contiene productos seleccionados
+  When confirmo los datos de envío y pago
+  Then la orden de compra es emitida exitosamente
+```
+
+---
+
+## Orden de Ejecución Topológico (DAG)
+
+Durante `testform plan` y `testform apply`:
+1. Testform construye un grafo acíclico dirigido (**DAG**) de todos los recursos declarados.
+2. Aplica el **algoritmo de ordenamiento topológico de Kahn** para determinar la secuencia exacta.
+3. Los escenarios padre (`auth/login`) se ejecutan y validan siempre **antes** que los escenarios dependientes (`checkout/order`).
+
+---
+
+## Detección Preventiva de Ciclos Circulares
+
+Si se declara una dependencia circular (ej. $A \rightarrow B \rightarrow A$), Testform aborta inmediatamente en la fase estática de validación sin ejecutar pruebas a ciegas:
+
+```text
+[ERROR] Circular dependency detected in DAG:
+  auth/login.feature.@login_success -> checkout/order.feature.@checkout -> auth/login.feature.@login_success
+```
+
+---
+
+## Visualización del Grafo: `testform graph`
+
+Puedes generar y visualizar el grafo completo de dependencias en formato DOT:
+
+```bash
+testform graph
+```
+```bash
+# Renderizar como imagen con Graphviz:
+testform graph | dot -Tpng -o dependencies.png
+```

@@ -1,0 +1,38 @@
+# testform.yml
+version: "1.0"
+
+# El Provider gestiona el LEDGER DE ESTADO y la plataforma donde se versionan los casos (Local, GitHub, GitLab).
+# NO gestiona la ejecución del navegador o el socket HTTP (eso es rol de los Test Runners).
+provider: "local"
+
+# Variables de entrada compartidas por toda la suite
+vars:
+  e2e_app_url:
+    type: string
+    description: "URL de la aplicación web TodoMVC"
+    default: "https://demo.playwright.dev/todomvc"
+
+  api_base_url:
+    type: string
+    description: "API pública REST bajo prueba"
+    default: "https://jsonplaceholder.typicode.com"
+
+  perf_max_latency_ms:
+    type: number
+    description: "Umbral máximo de latencia p95 tolerado"
+    default: 1500
+
+# Archivo de datos de prueba
+data:
+  todos_fixture:
+    file: "fixtures/todos.json"
+
+# Valores de salida exportables tras la ejecución
+outputs:
+  last_created_todo_id:
+    description: "ID del todo retornado por la API"
+    value: "${testcase.features/api_todo.case.feature.@tc-api-001.remoteId}"
+  
+  api_endpoint:
+    description: "Endpoint público verificado"
+    value: "${var.api_base_url}/todos"

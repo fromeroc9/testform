@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "serial": 1,
+  "last_run_timestamp": "2026-10-24T18:36:38.452Z",
+  "execution_summary": {
+    "total_tests": 5,
+    "passed": 5,
+    "failed": 0
+  },
+  "resources": [
+    {
+      "identity": "@tc-api-001",
+      "status": "passed",
+      "duration_ms": 555,
+      "timestamp": "2026-10-24T18:36:38.454Z"
+    },
+    {
+      "identity": "@tc-api-002",
+      "status": "passed",
+      "duration_ms": 310,
+      "timestamp": "2026-10-24T18:36:38.454Z"
+    },
+    {
+      "identity": "@tc-e2e-001",
+      "status": "passed",
+      "duration_ms": 31,
+      "timestamp": "2026-10-24T18:36:38.454Z"
+    },
+    {
+      "identity": "@tc-e2e-002",
+      "status": "passed",
+      "duration_ms": 42,
+      "timestamp": "2026-10-24T18:36:38.454Z"
+    },
+    {
+      "identity": "@tc-perf-001",
+      "status": "passed",
+      "duration_ms": 322,
+      "timestamp": "2026-10-24T18:36:38.454Z"
+    }
+  ],
+  "outputs": {
+    "e2e_app_url": "https://demo.playwright.dev/todomvc",
+    "api_base_url": "https://jsonplaceholder.typicode.com",
+    "perf_p95_latency_ms": 322,
+    "overall_status": "PASSED"
+  }
+}

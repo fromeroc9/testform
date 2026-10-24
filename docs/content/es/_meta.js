@@ -1,11 +1,14 @@
-﻿export default {
+export default {
   index: {
     type: 'page',
     display: 'hidden',
     theme: {
       layout: 'full',
       sidebar: false,
-      toc: false
+      toc: false,
+      copyPage: false,
+      footer: false,
+      pagination: false
     }
   },
   docs: {
