@@ -1,0 +1,69 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install root & docs dependencies
+        run: |
+          npm ci
+          npm --prefix docs ci
+
+      - name: Build docs
+        run: npm --prefix docs run build
+
+      - name: Prepare static export artifact
+        run: |
+          mkdir -p out/_next
+          cp -r docs/.next/static out/_next/
+          cp -r docs/public/* out/ 2>/dev/null || true
+          cp -r docs/.next/server/app/es out/
+          cp -r docs/.next/server/app/en out/
+          cp docs/.next/server/app/es.html out/es/index.html 2>/dev/null || true
+          cp docs/.next/server/app/en.html out/en/index.html 2>/dev/null || true
+          # Redirección raíz a español
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=./es/"></head><body></body></html>' > out/index.html
+          # Deshabilitar Jekyll para que GitHub Pages sirva la carpeta _next
+          touch out/.nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

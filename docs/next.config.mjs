@@ -1,4 +1,4 @@
-﻿import nextra from 'nextra';
+import nextra from 'nextra';
 import path from 'node:path';
 
 const withNextra = nextra({
