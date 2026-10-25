@@ -19,14 +19,14 @@ Durante la siguiente ejecución de `testform apply`, Testform aplicará una **op
 
 ```bash
 # Marcar recurso como dañado
-$ testform taint "login.case.feature::@tc-1"
+$ testform taint "login.case.feature.@tc-1"
 Resource instance github_testcase.login_case_feature__1 has been marked as tainted.
 
 # Ejecutar plan para verificar el reemplazo
 $ testform plan
 Testform will perform the following actions:
 
-  # login.case.feature::@tc-1 is tainted, so must be replaced
+  # login.case.feature.@tc-1 is tainted, so must be replaced
 -/+ resource "testcase" "login_valid" {
       ~ id = 104 -> (known after apply)
     }
@@ -39,7 +39,7 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 Si marcaste un recurso por error, puedes revertir la acción antes de ejecutar `apply`:
 
 ```bash
-$ testform untaint "login.case.feature::@tc-1"
+$ testform untaint "login.case.feature.@tc-1"
 Resource instance github_testcase.login_case_feature__1 has been successfully untainted.
 ```
 

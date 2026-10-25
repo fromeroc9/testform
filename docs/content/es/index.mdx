@@ -108,7 +108,7 @@
 
 Observa cómo una especificación técnica en Git se traduce en un plan especulativo y en la ejecución orquestada de runners de prueba:
 
-<Tabs items={['features/auth.case.feature', 'testform.yml', 'testform plan', 'testform suite (Runners)']}>
+<Tabs items={['features/auth.case.feature', 'main.yml', 'testform plan', 'testform suite (Runners)']}>
   <Tabs.Tab>
 ```gherkin
 Feature: Control de Acceso y Autenticación
@@ -123,7 +123,7 @@ Feature: Control de Acceso y Autenticación
   Scenario: Inicio de sesión exitoso en el portal
     Given el usuario navega a la URL "/login"
     When introduce el correo "admin@empresa.com"
-    And introduce la contraseña "${vars.admin_pass}"
+    And introduce la contraseña "${var.admin_pass}"
     And pulsa el botón "Iniciar Sesión"
     Then el sistema debe redirigir a "/dashboard"
     And el banner muestra "Bienvenido, Administrador"
@@ -132,20 +132,17 @@ Feature: Control de Acceso y Autenticación
 
   <Tabs.Tab>
 ```yaml
-backend:
-  local:
-    path: "./testform.state"
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "./testform.state"
 
-providers:
+provider:
   github:
     owner: "empresa"
-    repo: "portal-web"
-
-vars:
-  admin_pass: "Secret123!"
-
-outputs:
-  total_scenarios: "${testcase.*.count}"
+    repository: "portal-web"
+    token_env: "GITHUB_TOKEN"
 ```
   </Tabs.Tab>
 
@@ -157,7 +154,7 @@ Adquiriendo bloqueo de estado... [OK]
 
 Calculando grafo DAG y plan de conciliación:
 
-  + resource "testcase" "features/auth.case.feature::@tc-auth-001" {
+  + resource "testcase" "features/auth.case.feature.@tc-auth-001" {
       + title       = "Inicio de sesión exitoso en el portal"
       + feature     = "Control de Acceso y Autenticación"
       + priority    = "high"
@@ -240,9 +237,11 @@ Organiza tus pruebas, fixtures, runners y configuración bajo una estructura cla
       <FileTree.File name="todo_perf_runner.js" />
     </FileTree.Folder>
   </FileTree.Folder>
-  <FileTree.File name="testform.yml" />
+  <FileTree.File name="main.yml" />
+  <FileTree.File name="variables.yml" />
+  <FileTree.File name="testform.vars.yml" />
+  <FileTree.File name="locals.yml" />
   <FileTree.File name="testform.state" />
-  <FileTree.File name="testform.state.lock" />
 </FileTree>
 
 <Callout type="info" emoji="⚡">

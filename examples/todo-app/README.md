@@ -11,7 +11,7 @@ A primera vista, un archivo Gherkin (`Scenario:`, `Given`, `When`, `Then`) puede
 Sin embargo, en la arquitectura **Test-as-Code (TaC)**:
 1. **Testform es el Plano de Control (Control Plane):**  
    - Define el **contrato declarativo** de la prueba (con IDs `@tc-*` y tags `@e2e`, `@api`, `@smoke`).
-   - Gobierna las **variables de entorno y URLs** (`vars.yml`).
+   - Gobierna las **variables de entorno y URLs** (`main.yml` o `variables.yml`).
    - Inyecta **datasets y fixtures** (`fixtures/todos.json` vía `${data.*}`).
    - Establece el **grafo de dependencias DAG** (`@depends_on("auth.@login")`).
    - Mantiene el **ledger autoritativo de estado** (`testform.state`).
@@ -28,7 +28,7 @@ Sin embargo, en la arquitectura **Test-as-Code (TaC)**:
 
 ```text
 examples/todo-app/
-├── testform.yml                   # Configuración del proyecto, variables, data y outputs
+├── main.yml                       # Configuración del proyecto, variables, data y outputs
 ├── fixtures/
 │   └── todos.json                 # Dataset estructurado de tareas
 ├── features/

@@ -55,7 +55,7 @@ Escribe directamente la estructura Gherkin en el archivo de la suite correspondi
 
   # Con estado explícito
   testform suite link "@tc-1=passed" -target="@tr-42"
-  testform suite link "checkout.case.feature::@tc-1=failed" -target="@tr-42"
+  testform suite link "checkout.case.feature.@tc-1=failed" -target="@tr-42"
   ```
   Produce en el archivo `.run.feature`:
   ```gherkin
@@ -84,7 +84,7 @@ Feature: Plan de Lanzamiento Q3
 Registra o actualiza el estado de ejecución (`passed`, `failed`, `pending`, `skipped`) de un caso de prueba en una corrida de pruebas (`testrun`), sincronizando el archivo Gherkin local (`* mark status = <status>`) y el comentario del issue remoto:
 ```bash
 testform suite mark "@tc-1=passed" -target="@tr-42"
-testform suite mark "checkout.case.feature::@tc-1=failed" -target="@tr-42"
+testform suite mark "checkout.case.feature.@tc-1=failed" -target="@tr-42"
 testform suite mark "Pago con tarjeta=passed" -target="@tr-42"
 ```
 
@@ -101,7 +101,7 @@ testform suite mark "Pago con tarjeta=passed" -target="@tr-42"
 Tanto `link` como `mark` soportan tres estrategias flexibles para identificar los casos de prueba:
 
 1. **Solo Tag de Identidad:** `"@tc-1=passed"` (o `"tc-1=passed"`): Busca el caso en el espacio de trabajo o testrun por su tag único.
-2. **Archivo + Tag (o Nombre):** `"checkout.case.feature::@tc-1=passed"` (o `"checkout.case.feature@tc-1=passed"`): Desambigua casos cuando múltiples archivos comparten la misma convención de tags.
+2. **Archivo + Tag (o Nombre):** `"checkout.case.feature.@tc-1=passed"` (o `"checkout.case.feature@tc-1=passed"`): Desambigua casos cuando múltiples archivos comparten la misma convención de tags.
 3. **Nombre/Título de Escenario:** `"Inicio de sesión con credenciales válidas=passed"`: Resuelve directamente contra el nombre del escenario en Gherkin.
 
 ## Resolución de Objetivos (`-target`)

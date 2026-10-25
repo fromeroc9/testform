@@ -11,7 +11,7 @@ The `testform destroy` command is a convenient shorthand for `testform apply -de
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `-auto-approve` | `false` | Skips interactive confirmation before destroying resources. |
-| `-target=address` | — | Limits destruction to a single resource instance (e.g. `login.case.feature::@tc-1`). |
+| `-target=address` | — | Limits destruction to a single resource instance (e.g. `login.case.feature.@tc-1`). |
 | `-lock=false` | `true` | Disables holding a state lock during destruction. |
 | `-no-color` | `false` | Disables color output. |
 | `-json` | `false` | Emits destruction events as JSON. |
@@ -23,7 +23,7 @@ $ testform destroy -scope=testcase
 
 Testform will perform the following actions:
 
-  # login.case.feature::@tc-1 will be destroyed
+  # login.case.feature.@tc-1 will be destroyed
   - resource "testcase" "login_valid" {
       - id        = 104
       - title     = "Valid credentials allow login"
@@ -48,7 +48,7 @@ Destroy complete! Resources: 1 destroyed.
 To destroy an isolated scenario without affecting the rest of your test suite:
 
 ```bash
-testform destroy -target="auth.case.feature::@tc-2"
+testform destroy -target="auth.case.feature.@tc-2"
 ```
 
 ## Exit Codes

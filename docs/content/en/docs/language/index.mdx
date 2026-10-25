@@ -21,7 +21,7 @@ The sidebar navigation mirrors Terraform's core structure, tailored to Testform'
 
 ```mermaid
 graph TD
-    A[testform.yml] --> B[Configure Providers]
+    A[main.yml] --> B[Configure Providers]
     B --> C[Resources: Scenarios & Steps]
     C --> D[Data Sources & Variables]
     D --> E[Locals & Expressions]
@@ -33,7 +33,7 @@ graph TD
 ```
 
 ### 1. [Configure Providers](./providers)
-Configuring decoupled execution plugins (`playwright`, `cypress`, `appium`, `artillery`, `k6`) in `testform.yml`.
+Configuring quality management platforms (`github`, `gitlab`, `jira`, `local`) in `main.yml`.
 
 ### 2. [Resources](./resources)
 Gherkin scenarios and steps serve as declarative resources with canonical addresses (`featurepath.tag`) and managed lifecycles.

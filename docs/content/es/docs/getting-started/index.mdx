@@ -50,7 +50,7 @@ Salida real en consola:
 ```text
 Initializing the backend...
 Initializing Testform configuration...
-- Configuration: testform.yml (v1.0)
+- Configuration: main.yml (v1.0)
 - State backend: ready
 
 Testform has been successfully initialized!
@@ -68,7 +68,7 @@ Al igual que en Terraform, **`testform init` genera unicamente el archivo de con
 
 ```text
 mi-proyecto/
-└── testform.yml            # Manifiesto principal de configuracion
+└── main.yml            # Manifiesto principal de configuracion
 ```
 
 ### Ciclo de Vida en Backend Local (`backend: local`)
@@ -76,7 +76,7 @@ mi-proyecto/
 Cuando utilizas el backend local por defecto, los archivos de estado se crean dinamicamente segun la fase del flujo de trabajo:
 
 1. **Tras `testform init`:**
-   - Unicamente existe `testform.yml`. No se crea `testform.state` ni copias de respaldo.
+   - Unicamente existe `main.yml`. No se crea `testform.state` ni copias de respaldo.
 2. **Durante `testform plan`:**
    - Si `testform.state` aun no existe, Testform lee un estado vacio en memoria (0 recursos) y calcula las adiciones planeadas (`+ create`) en modo de solo lectura, sin escribir nada en disco.
 3. **Tras el primer `testform apply`:**
@@ -86,18 +86,18 @@ Cuando utilizas el backend local por defecto, los archivos de estado se crean di
 
 ```text
 mi-proyecto/
-├── testform.yml            # Manifiesto principal de configuracion
+├── main.yml            # Manifiesto principal de configuracion
 ├── testform.state          # Estado activo (creado tras el primer apply)
 └── testform.state.backup   # Respaldo automatico (creado a partir del segundo apply)
 ```
 
 ### Ciclo de Vida en Backends Remotos (`s3`, `oci`, `azurerm`, `gcs`)
 
-Cuando configuras un backend en la nube en tu `testform.yml`:
+Cuando configuras un backend en la nube en tu `main.yml`:
 
 ```text
 mi-proyecto/
-└── testform.yml            # Manifiesto principal de configuracion
+└── main.yml            # Manifiesto principal de configuracion
 ```
 
 - **Sin archivos de estado locales:** En ningun momento se generan archivos `testform.state` ni `testform.state.backup` en tu disco local.

@@ -40,7 +40,7 @@ Each evaluated item examines four dimensions:
 ## Part I: Core Language Components
 
 ### 1. Configure Provider
-- **Testform Status:** `Implemented` (via `testform.yml` with Playwright, Cypress, Appium, Artillery, K6 plugins).
+- **Testform Status:** `Implemented` (via `main.yml` with Playwright, Cypress, Appium, Artillery, K6 plugins).
 - **Terraform Purpose:** Connect Terraform to external APIs (AWS, Azure, GCP, GitHub) via decoupled gRPC binaries.
 - **Comparison / Gap:** Terraform supports multiple instances of the same provider using aliases (`provider "aws" { alias = "west" }`). In Testform, provider configuration is global or per-step; lacks alias support (`provider: playwright.firefox` vs `provider: playwright.chrome` within the same feature).
 - **Applies to Testform?:** **Yes (High priority)**. Enables simultaneous multi-browser or multi-tenant tests in a single scenario.
@@ -107,7 +107,7 @@ Each evaluated item examines four dimensions:
 ### 9. Backends
 - **Testform Status:** `Partial` (Local state with `testform.state` and `testform.state.lock`).
 - **Terraform Purpose:** Store state files in shared remote storage (S3, GCS, HTTP, Terraform Cloud) with distributed locking.
-- **Comparison / Gap:** Testform lacks native remote backends (`backend "s3"` in `testform.yml`) for sharing state across parallel CI/CD runners.
+- **Comparison / Gap:** Testform lacks native remote backends (`backend "s3"` in `main.yml`) for sharing state across parallel CI/CD runners.
 - **Applies to Testform?:** **Yes (Medium priority)**. Vital for distributed CI/CD pipelines.
 
 ### 10. Search and Import

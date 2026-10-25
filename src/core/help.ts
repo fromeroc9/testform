@@ -40,7 +40,7 @@ ${bold(`All other commands:`)}
 
 ${bold(`Global options (use these before the subcommand, if any):`)}
   -chdir=DIR    Switch to a different working directory before executing the given subcommand.
-  -project-id   Override the default project ID defined in your testform.yml.
+  -project-id   Override the default project ID defined in your main.yml.
   -scope        Limit the scope of the execution (testcase, testrun, testplan).
   -help         Show this help output, or the help for a specified subcommand.
   -version      An alias for the "version" subcommand.
@@ -1004,7 +1004,7 @@ export const HELP_TEST_FEATURE = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] test feature [options]
 
   Create a new testrun or testplan feature file based on your naming
-  convention defined in testform.yml.
+  convention defined in main.yml.
 
   This subcommand does NOT apply to testcase scope.
   It automatically resolves the output directory and applies the naming

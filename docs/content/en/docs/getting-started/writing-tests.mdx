@@ -1,4 +1,4 @@
-﻿# Writing Declarative Tests
+# Writing Declarative Tests
 
 Learn how `.case.feature` files are structured, where identity tags must be placed, and how test cases differ from test runs and plans in Testform.
 
@@ -9,7 +9,7 @@ In Testform, a `.case.feature` file represents a feature or capability module, a
 For this reason:
 - **The testcase identity tag is placed DIRECTLY above the `Scenario:`** (never above the `Feature:`).
 - **The identity tag is unique within that specific `.case.feature` file**.
-- The canonical resource address in the state ledger is the combination of file path and scenario tag: `tests/features/auth.case.feature::@tc-login-001`.
+- The canonical resource address in the state ledger is the combination of file path and scenario tag: `tests/features/auth.case.feature.@tc-login-001`.
 
 ## Complete `.case.feature` Example
 
@@ -47,7 +47,7 @@ Testform applies a clear architectural distinction regarding how identities are 
 
 | Resource | File Scope | Identity Tag Placement | Uniqueness Scope |
 | :--- | :--- | :--- | :--- |
-| **`testcase`** | 1 `.case.feature` file contains **multiple test cases** (scenarios). | **Above each `Scenario:`** with `@tc-*` prefix (e.g. `@tc-login-001` or `@tc-login`). | Unique **within that `.feature` file**. Resolved as `<file>::<tag>`. |
+| **`testcase`** | 1 `.case.feature` file contains **multiple test cases** (scenarios). | **Above each `Scenario:`** with `@tc-*` prefix (e.g. `@tc-login-001` or `@tc-login`). | Unique **within that `.feature` file**. Resolved as `<file>.<tag>`. |
 | **`testrun`** | 1 `.run.feature` file models **one entire execution record**. | **Above the `Feature:`** with `@tr-*` prefix at the top of the file. | **Globally unique** across the entire repository. |
 | **`testplan`** | 1 `.plan.feature` file models **one milestone certification matrix**. | **Above the `Feature:`** with `@tp-*` prefix at the top of the file. | **Globally unique** across the entire repository. |
 

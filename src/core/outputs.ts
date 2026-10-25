@@ -6,6 +6,7 @@ import { VariableParser } from './variables';
 import { StateOutput, StateResource } from './types';
 import { normalizeAddress, addressesMatch, formatHclValue, findDomainConfigFiles } from './utils';
 import { DataResolver } from './data';
+import { CONFIG_FILE_NAMES } from './const';
 
 export interface OutputDeclaration {
     value: any;
@@ -30,8 +31,8 @@ export class OutputResolver {
     public loadDeclarations(): void {
         const rootOutputs: Record<string, OutputDeclaration> = {};
 
-        // 1. Root testform.yml / testform.yaml
-        for (const name of ['testform.yml', 'testform.yaml']) {
+        // 1. Root main.yml / CONFIG_FILE_NAMES
+        for (const name of CONFIG_FILE_NAMES) {
             const p = resolve(this.workDir, name);
             if (existsSync(p)) {
                 try {

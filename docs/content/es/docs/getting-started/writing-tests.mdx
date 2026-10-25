@@ -1,4 +1,4 @@
-﻿# Redaccion de Pruebas Declarativas
+# Redaccion de Pruebas Declarativas
 
 Aprende la estructura de archivos `.case.feature`, donde colocar los tags de identidad y como se diferencian los casos de prueba de los planes y ejecuciones en Testform.
 
@@ -9,7 +9,7 @@ En Testform, un archivo `.case.feature` representa una funcionalidad o modulo, y
 Por esta razon:
 - **El tag de identidad de un caso de prueba va colocado DIRECTAMENTE sobre el `Scenario:`** (nunca a nivel del `Feature:`).
 - **El tag de identidad es unico dentro del mismo archivo `.case.feature`**.
-- La identidad canonical del caso en el ledger de estado es la combinacion de la ruta del archivo y su tag: `tests/features/auth.case.feature::@tc-login-001`.
+- La identidad canonical del caso en el ledger de estado es la combinacion de la ruta del archivo y su tag: `tests/features/auth.case.feature.@tc-login-001`.
 
 ## Ejemplo Completo de un Archivo `.case.feature`
 
@@ -47,7 +47,7 @@ Existe una distincion arquitectonica fundamental en como Testform maneja las ide
 
 | Recurso | Alcance del Archivo | Ubicacion del Tag de Identidad | Nivel de Unicidad |
 | :--- | :--- | :--- | :--- |
-| **`testcase`** | 1 archivo `.case.feature` contiene **multiples casos de prueba** (escenarios). | **Sobre cada `Scenario:`** con prefijo `@tc-*` (ejemplo: `@tc-login-001` o `@tc-login`). | Unico **dentro del mismo archivo `.feature`**. Se resuelve como `<archivo>::<tag>`. |
+| **`testcase`** | 1 archivo `.case.feature` contiene **multiples casos de prueba** (escenarios). | **Sobre cada `Scenario:`** con prefijo `@tc-*` (ejemplo: `@tc-login-001` o `@tc-login`). | Unico **dentro del mismo archivo `.feature`**. Se resuelve como `<archivo>.<tag>`. |
 | **`testrun`** | 1 archivo `.run.feature` representa **una unica ejecucion completa**. | **Sobre el `Feature:`** con prefijo `@tr-*` en la cabecera del archivo. | **Globalmente unico** en todo el repositorio. |
 | **`testplan`** | 1 archivo `.plan.feature` representa **un unico plan de certificacion**. | **Sobre el `Feature:`** con prefijo `@tp-*` en la cabecera del archivo. | **Globalmente unico** en todo el repositorio. |
 

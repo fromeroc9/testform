@@ -101,8 +101,11 @@ export function findDomainConfigFiles(dir: string, extraReserved: string[] = [])
 
     const IGNORED_DIRS = new Set(['node_modules', '.git', '.testform', '.terraform', 'dist', 'coverage', '.system_generated']);
     const RESERVED_FILES = new Set([
+        'main.yml', 'main.yaml',
         'testform.yml', 'testform.yaml',
+        'variables.yml', 'variables.yaml',
         'vars.yml', 'vars.yaml',
+        'locals.yml', 'locals.yaml',
         'local.yml', 'local.yaml',
         'outputs.yml', 'outputs.yaml',
         'data.yml', 'data.yaml',

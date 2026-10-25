@@ -41,7 +41,7 @@ testform state rm github_testcase.old_deprecated_test
 ### 4. `testform state mv <source> <destination>`
 Moves or renames a resource address inside the state file, preserving its remote binding:
 ```bash
-testform state mv "auth.case.feature::@tc-1" "login.case.feature::@tc-1"
+testform state mv "auth.case.feature.@tc-1" "login.case.feature.@tc-1"
 ```
 
 ## State Locking

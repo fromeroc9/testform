@@ -148,9 +148,11 @@ const createConfigIfNotExists = (
     }
 
     const initialConfig = {
-        version: VERSION_CONFIG,
+        testform: {
+            required_version: `>= ${VERSION_CONFIG}`,
+            backend: backendBlock
+        },
         provider: providerBlock,
-        backend: backendBlock,
         scopes: {
             testcase: {
                 match: "*.case.feature",
@@ -262,7 +264,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
                 type: 'error',
                 title: 'Unsupported backend type',
                 detail: [
-                    'on testform.yml line 2, in backend:',
+                    `on ${FILE_CONFIG} line 2, in backend:`,
                     ' 2:   backend: ""',
                     ''
                 ],
@@ -276,7 +278,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
                 type: 'error',
                 title: 'Unsupported backend type',
                 detail: [
-                    'on testform.yml, in backend:',
+                    `on ${FILE_CONFIG}, in backend:`,
                     `      backend: "${configuredBackend.type}"`,
                     ''
                 ],
@@ -344,7 +346,8 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
     if (isPlaceholder) {
         const resolvedConfigName = config.getResolvedPath() ? basename(config.getResolvedPath()!) : FILE_CONFIG;
-        logger.info(`- Configuration: ${resolvedConfigName} (v${config.getConfig().version})`);
+        const ver = config.getRequiredVersion ? config.getRequiredVersion() : config.getConfig().version;
+        logger.info(`- Configuration: ${resolvedConfigName} (${ver ? 'v' + ver : 'v' + VERSION_CONFIG})`);
         logger.info(`- State backend: scaffolded (${backendConfig?.type || 'local'})`);
         logger.blank();
         logger.info(`Notice: Backend configuration template created with placeholder '<required>' values.`);

@@ -2,6 +2,7 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
 import YAML from 'yaml';
 import { normalizeAddress, addressesMatch, findDomainConfigFiles, reassembleSplitTags } from './utils';
+import { CONFIG_FILE_NAMES } from './const';
 
 export interface DependencyDeclaration {
     depends_on?: string[];
@@ -17,10 +18,10 @@ export class DependencyResolver {
     }
 
     /**
-     * Loads dependency declarations from testform.yml and domain files.
+     * Loads dependency declarations from main.yml and domain files.
      */
     public loadDeclarations(): void {
-        const rootFiles = ['testform.yml', 'testform.yaml'];
+        const rootFiles = CONFIG_FILE_NAMES;
         for (const name of rootFiles) {
             const p = resolve(this.workDir, name);
             if (existsSync(p)) {

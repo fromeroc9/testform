@@ -24,12 +24,12 @@ Feature: Inventory Management
     Then stock reflects 100 units
 ```
 
-### 2. Centralized Declaration in `testform.yml`
+### 2. Centralized Declaration in `main.yml`
 
 Register reusable module instances with default input values and output bindings:
 
 ```yaml
-# testform.yml
+# main.yml
 modules:
   auth_staging:
     source: "./modules/auth/login.feature"

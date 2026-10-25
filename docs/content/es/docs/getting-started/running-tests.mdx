@@ -1,4 +1,4 @@
-﻿# Ejecucion y Conciliacion del Estado
+# Ejecucion y Conciliacion del Estado
 
 Aprende a ejecutar `testform plan` y `testform apply` para calcular diferencias entre tus archivos locales y el estado remoto, aplicando cambios de forma segura y reproducible.
 
@@ -28,8 +28,8 @@ Calculando grafo de dependencias y plan de conciliacion...
 
 Testform realizara las siguientes acciones:
 
-  # tests/features/checkout.case.feature::@tc-checkout-001 sera creado
-  + resource "testcase" "tests/features/checkout.case.feature::@tc-checkout-001" {
+  # tests/features/checkout.case.feature.@tc-checkout-001 sera creado
+  + resource "testcase" "tests/features/checkout.case.feature.@tc-checkout-001" {
       + title       = "Transaccion aprobada con fondos suficientes"
       + feature     = "Proceso de Pago en Linea"
       + component   = "billing"
@@ -39,8 +39,8 @@ Testform realizara las siguientes acciones:
       + status      = "draft"
     }
 
-  # tests/features/auth.case.feature::@tc-auth-001 sera actualizado en el lugar
-  ~ resource "testcase" "tests/features/auth.case.feature::@tc-auth-001" {
+  # tests/features/auth.case.feature.@tc-auth-001 sera actualizado en el lugar
+  ~ resource "testcase" "tests/features/auth.case.feature.@tc-auth-001" {
         title       = "Inicio de sesion exitoso con correo y contrasena"
       ~ priority    = "Medium" => "High"
       ~ steps_count = 5 => 6
@@ -100,10 +100,10 @@ Puedes limitar la planificacion o aplicacion a un unico recurso o archivo median
 
 ```bash
 # Planificar solo un caso de prueba especifico
-testform plan -target="tests/features/auth.case.feature::@tc-auth-001"
+testform plan -target="tests/features/auth.case.feature.@tc-auth-001"
 
 # Aplicar cambios unicamente a ese recurso
-testform apply -target="tests/features/auth.case.feature::@tc-auth-001" -auto-approve
+testform apply -target="tests/features/auth.case.feature.@tc-auth-001" -auto-approve
 ```
 
 ## Codigos de Salida para CI/CD

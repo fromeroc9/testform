@@ -15,7 +15,7 @@ It is always safe to run `testform init` multiple times to re-synchronize backen
 | `-provider=<type>` | `github` | Provider type to scaffold (`github`, `local`, `gitlab`). |
 | `-backend-type=<type>` | `local` | Backend type to scaffold when creating a new configuration (`local`, `github`, `s3`, `azurerm`, `gcs`, `oci`). |
 | `-backend=false` | `true` | Disables backend initialization for this run and uses the previously initialized configuration. |
-| `-backend-config=path` | — | Configuration to merge with or override the `backend` block in `testform.yml`. Can be a `key=value` string or a file path. May be specified multiple times. |
+| `-backend-config=path` | — | Configuration to merge with or override the `backend` block in `main.yml`. Can be a `key=value` string or a file path. May be specified multiple times. |
 | `-reconfigure` | `false` | Reconfigures a backend from scratch, ignoring any cached configuration. |
 | `-migrate-state` | `false` | Reconfigures a backend and automatically migrates any existing state to the new location. |
 | `-lock=false` | `true` | Disables holding a state lock during migration (use with caution). |
@@ -66,7 +66,7 @@ commands will detect it and remind you to do so if necessary.
 
 ### Initializing in an Empty Directory
 
-Just like Terraform when no `.tf` files are present, if Testform is executed in a directory where no valid `.feature` files with the mandatory reserved tag `@testcase` exist, the process **stops immediately and does not generate `testform.yml`**, reporting:
+Just like Terraform when no `.tf` files are present, if Testform is executed in a directory where no valid `.feature` files with the mandatory reserved tag `@testcase` exist, the process **stops immediately and does not generate `main.yml`**, reporting:
 
 ```text
 Testform initialized in an empty directory!
@@ -75,7 +75,7 @@ The directory has no Testform feature files. You may begin working
 with Testform immediately by creating Gherkin feature files.
 ```
 
-Once you author your first Gherkin specification file with `@testcase`, subsequent executions of `testform init` will generate `testform.yml` (if not already present), initialize the backend, and report `Testform has been successfully initialized!`.
+Once you author your first Gherkin specification file with `@testcase`, subsequent executions of `testform init` will generate `main.yml` (if not already present), initialize the backend, and report `Testform has been successfully initialized!`.
 
 ## Backend Argument Validation
 
@@ -90,11 +90,11 @@ When `-backend-config` is supplied, Testform strictly validates the arguments ag
   │ expected for the selected backend type.
   ╵
   ```
-- **Missing backend block:** If `-backend-config` is used without a declared `backend` block in `testform.yml`, Testform outputs `Warning: Missing backend configuration` to remind you to declare the backend block or clear the warning.
+- **Missing backend block:** If `-backend-config` is used without a declared `backend` block in `main.yml`, Testform outputs `Warning: Missing backend configuration` to remind you to declare the backend block or clear the warning.
 
 ## Backend Configuration Changed
 
-Testform continuously tracks the active backend configuration inside `.testform/backend.json`. If you alter the `backend` block in `testform.yml` or provide differing overrides via `-backend-config`, Testform detects the mismatch before running and halts execution:
+Testform continuously tracks the active backend configuration inside `.testform/backend.json`. If you alter the `backend` block in `main.yml` or provide differing overrides via `-backend-config`, Testform detects the mismatch before running and halts execution:
 
 ```text
 ╷
@@ -145,7 +145,7 @@ If the backend configuration lacks mandatory parameters, Testform enforces provi
 ## Advanced Usage & Scenarios
 
 ### Dynamic CI/CD Backend Injection
-Pass sensitive tokens or bucket names dynamically without hardcoding them in `testform.yml`:
+Pass sensitive tokens or bucket names dynamically without hardcoding them in `main.yml`:
 ```bash
 testform init \
   -backend-config="bucket=my-company-test-states" \

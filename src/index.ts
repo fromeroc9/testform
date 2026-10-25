@@ -118,7 +118,7 @@ export function createCli() {
     cli.option('-s, --scope <scope>', 'Scope filter (testcase | testrun | testplan | all)');
     cli.option('-v, --verbose', 'Show detailed debug output');
     cli.option('--no-color', 'Disable colorized console output');
-    cli.option('--project-id <id>', 'Override the default project ID defined in your testform.yml');
+    cli.option('--project-id <id>', 'Override the default project ID defined in your main.yml');
     cli.option('--projectId <id>', 'Alias for --project-id');
     cli.option('--var <var>', 'Set a variable value (key=value)');
     cli.option('--var-file <file>', 'Load variables from a YAML file');
@@ -807,6 +807,11 @@ export const main = async () => {
         process.exit(1);
     }
 };
+
+export { resource, registerResource } from './core/resources';
+export { evaluateExpression, interpolateExpressions } from './core/expressions/evaluator';
+export { VariableParser } from './core/variables';
+export { Config } from './core/config';
 
 if (require.main === module || !module.parent) {
     main().catch((err: any) => {

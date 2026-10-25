@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import YAML from 'yaml';
 import { State } from './state';
 import { normalizeAddress, addressesMatch } from './utils';
+import { CONFIG_FILE_NAMES } from './const';
 
 export interface DataSourceDeclaration {
     address?: string;
@@ -28,8 +29,8 @@ export class DataResolver {
     public loadDeclarations(): void {
         const dataMap: Record<string, DataSourceDeclaration> = {};
 
-        // 1. Root testform.yml / testform.yaml
-        for (const name of ['testform.yml', 'testform.yaml']) {
+        // 1. Root main.yml / CONFIG_FILE_NAMES
+        for (const name of CONFIG_FILE_NAMES) {
             const p = resolve(this.workDir, name);
             if (existsSync(p)) {
                 try {
@@ -102,7 +103,15 @@ export class DataResolver {
         if (!existsSync(dir)) return results;
 
         const IGNORED_DIRS = new Set(['node_modules', '.git', '.testform', '.terraform', 'dist', 'coverage', '.system_generated']);
-        const RESERVED_FILES = new Set(['testform.yml', 'testform.yaml', 'vars.yml', 'vars.yaml', 'local.yml', 'local.yaml', 'outputs.yml', 'outputs.yaml', 'data.yml', 'data.yaml']);
+        const RESERVED_FILES = new Set([
+            ...CONFIG_FILE_NAMES,
+            'variables.yml', 'variables.yaml',
+            'vars.yml', 'vars.yaml',
+            'locals.yml', 'locals.yaml',
+            'local.yml', 'local.yaml',
+            'outputs.yml', 'outputs.yaml',
+            'data.yml', 'data.yaml'
+        ]);
 
         const scan = (currentDir: string) => {
             try {

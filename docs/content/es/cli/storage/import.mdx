@@ -20,16 +20,16 @@ Al importar un issue existente:
 1. Testform consulta la API del Provider y extrae el título completo, cuerpo, etiquetas, asignados y milestone.
 2. Registra la vinculación en `testform.state`.
 3. **Si el escenario NO existe aún en tu archivo local `.feature`**, Testform reconstruirá automáticamente el escenario Gherkin y lo añadirá a tu archivo local.
-4. Compara el issue contra los valores por defecto de `testform.yml` y `Background:` para mantener tu código DRY y sin redundancias.
+4. Compara el issue contra los valores por defecto de `main.yml` y `Background:` para mantener tu código DRY y sin redundancias.
 
 ## Ejemplo de Ejecución Real
 
 ```bash
-$ testform import -scope=testcase "auth.case.feature::@tc-5" 104
+$ testform import -scope=testcase "auth.case.feature.@tc-5" 104
 
 github_testcase.auth_case_feature__tc_5: Importing from ID "104"...
 github_testcase.auth_case_feature__tc_5: Import prepared!
-  Prepared github_testcase for import on auth.case.feature::@tc-5
+  Prepared github_testcase for import on auth.case.feature.@tc-5
 github_testcase.auth_case_feature__tc_5: Refreshing state... [id=104]
 
 Import successful!

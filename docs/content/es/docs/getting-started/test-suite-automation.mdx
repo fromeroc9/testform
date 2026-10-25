@@ -1,4 +1,4 @@
-﻿# Automatizacion de Suites de Pruebas
+# Automatizacion de Suites de Pruebas
 
 Conecta tus casos de prueba declarativos con ejecutores de pruebas reales como Playwright, Cypress y Vitest mediante el comando `testform suite`.
 
@@ -34,12 +34,14 @@ Testform no compite con los ejecutores de pruebas como Playwright o Vitest; actu
 +-----------------------+
 ```
 
-## Configuracion del Runner en testform.yml
+## Configuracion del Runner en main.yml
 
-Define el runner y los comandos de ejecucion en tu archivo `testform.yml`:
+Define el runner y los comandos de ejecucion en tu archivo `main.yml`:
 
 ```yaml
-version: "1.0"
+testform:
+  required_version: ">= 1.0"
+  backend: local
 
 suite:
   runner: "playwright"
@@ -65,8 +67,8 @@ Testform Suite Orchestrator v1.0.0
 Criterio de seleccion: @smoke
 
 Casos resueltos:
-  - tests/features/auth.case.feature::@tc-auth-001
-  - tests/features/checkout.case.feature::@tc-checkout-001
+  - tests/features/auth.case.feature.@tc-auth-001
+  - tests/features/checkout.case.feature.@tc-checkout-001
 
 Ejecutando runner subyacente: npx playwright test...
 

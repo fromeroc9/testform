@@ -40,7 +40,7 @@ Cada punto analizado evalúa cuatro dimensiones:
 ## Parte I: Componentes Principales del Lenguaje
 
 ### 1. Configure Provider
-- **Estado en Testform:** `Implementado` (vía `testform.yml` con plugins Playwright, Cypress, Appium, Artillery, K6).
+- **Estado en Testform:** `Implementado` (vía `main.yml` con plugins Playwright, Cypress, Appium, Artillery, K6).
 - **Motivo en Terraform:** Conectar Terraform con APIs externas (AWS, Azure, GCP, GitHub) mediante binarios gRPC desacoplados.
 - **Comparado / Faltante (Gap):** Terraform soporta múltiples instancias del mismo provider mediante alias (`provider "aws" { alias = "west" }`). En Testform, la configuración de providers es global o por step; falta soporte para alias de provider (`provider: playwright.firefox` vs `provider: playwright.chrome` dentro del mismo feature).
 - **¿Aplica a Testform?:** **Sí (Alta prioridad)**. Permitiría pruebas multi-navegador o multi-tenant simultáneas en un solo escenario.
@@ -107,7 +107,7 @@ Cada punto analizado evalúa cuatro dimensiones:
 ### 9. Backends
 - **Estado en Testform:** `Parcial` (Backend local con `testform.state` y `testform.state.lock`).
 - **Motivo en Terraform:** Almacenar el archivo de estado en almacenamiento remoto compartido (S3, Azure Blob, GCS, HTTP, Terraform Cloud) con bloqueo concurrente.
-- **Comparado / Faltante (Gap):** Falta backend remoto nativo (`backend "s3"` o `backend "http"` en `testform.yml`) para compartir estado entre agentes de CI/CD paralelos.
+- **Comparado / Faltante (Gap):** Falta backend remoto nativo (`backend "s3"` o `backend "http"` en `main.yml`) para compartir estado entre agentes de CI/CD paralelos.
 - **¿Aplica a Testform?:** **Sí (Media prioridad)**. Vital para pipelines distribuidos en Jenkins / GitHub Actions.
 
 ### 10. Search and Import

@@ -5,6 +5,7 @@ import { StateResource } from '../core/types';
 import { Config } from '../core/config';
 import { GitHubProvider as GitHubAdapter, LocalProvider as LocalAdapter, IProvider as IProviderAdapter } from '../providers';
 import { VariableParser } from '../core/variables';
+import { FILE_CONFIG } from '../core/const';
 
 interface ReportCmdOptions {
     dir: string;
@@ -189,7 +190,7 @@ export const reportCmd = async (options: ReportCmdOptions) => {
         } else {
             const ghConfig = config.getGitHub();
             if (!ghConfig) {
-                console.error(red('Error: GitHub configuration not found in testform.yml'));
+                console.error(red(`Error: GitHub configuration not found in ${FILE_CONFIG}`));
                 process.exit(1);
             }
             github = new GitHubAdapter(ghConfig);

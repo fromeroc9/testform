@@ -1,4 +1,4 @@
-﻿# Running Tests and State Reconciliation
+# Running Tests and State Reconciliation
 
 Learn how to execute `testform plan` and `testform apply` to compute diffs between your local Git feature files and remote platforms safely and reproducibly.
 
@@ -28,8 +28,8 @@ Building dependency graph and calculating reconciliation diff...
 
 Testform will perform the following actions:
 
-  # tests/features/checkout.case.feature::@tc-checkout-001 will be created
-  + resource "testcase" "tests/features/checkout.case.feature::@tc-checkout-001" {
+  # tests/features/checkout.case.feature.@tc-checkout-001 will be created
+  + resource "testcase" "tests/features/checkout.case.feature.@tc-checkout-001" {
       + title       = "Successful transaction with sufficient funds"
       + feature     = "Online Checkout Process"
       + component   = "billing"
@@ -39,8 +39,8 @@ Testform will perform the following actions:
       + status      = "draft"
     }
 
-  # tests/features/auth.case.feature::@tc-auth-001 will be updated in-place
-  ~ resource "testcase" "tests/features/auth.case.feature::@tc-auth-001" {
+  # tests/features/auth.case.feature.@tc-auth-001 will be updated in-place
+  ~ resource "testcase" "tests/features/auth.case.feature.@tc-auth-001" {
         title       = "Successful login with valid email and password"
       ~ priority    = "Medium" => "High"
       ~ steps_count = 5 => 6
@@ -100,10 +100,10 @@ Narrow execution to a single resource or feature file using `-target`:
 
 ```bash
 # Plan only a specific test case
-testform plan -target="tests/features/auth.case.feature::@tc-auth-001"
+testform plan -target="tests/features/auth.case.feature.@tc-auth-001"
 
 # Apply mutations only to that resource
-testform apply -target="tests/features/auth.case.feature::@tc-auth-001" -auto-approve
+testform apply -target="tests/features/auth.case.feature.@tc-auth-001" -auto-approve
 ```
 
 ## Detailed Exit Codes for CI/CD

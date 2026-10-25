@@ -66,7 +66,7 @@ export class Config {
     }
 
     getProviderType(): string {
-        const raw: any = this.config.provider;
+        const raw: any = this.config.provider || (this.config as any).providers;
         if (!raw) {
             if ((this.config as any).github) return 'github';
             return 'local';
@@ -109,7 +109,7 @@ export class Config {
 
     getProviderConfig(type?: string): Record<string, any> {
         const targetType = type || this.getProviderType();
-        const raw = this.config.provider;
+        const raw = this.config.provider || (this.config as any).providers;
 
         if (!raw || typeof raw === 'string') {
             if (targetType === 'github' && (this.config as any).github) {
@@ -154,8 +154,21 @@ export class Config {
         };
     }
 
+    getRequiredVersion(): string | undefined {
+        const tfBlock = (this.config as any).testform;
+        if (tfBlock) {
+            if (typeof tfBlock === 'string') return tfBlock;
+            if (typeof tfBlock === 'object') return tfBlock.required_version || tfBlock.version;
+        }
+        return this.config.version;
+    }
+
     getBackend(): IBackendConfig | undefined {
-        const raw = this.config.backend;
+        const tfBlock = (this.config as any).testform;
+        const raw = (tfBlock && typeof tfBlock === 'object' && tfBlock.backend !== undefined)
+            ? tfBlock.backend
+            : this.config.backend;
+
         if (raw === undefined) return undefined;
         if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
             return {
@@ -343,23 +356,37 @@ export class Config {
         }
 
         const config = this.load(resolve!)
-        const version = config.version ?? ""
-
-        if (version == null) {
-            notify.push({
-                type: 'error',
-                title: `Configuration is missing the "version" field`,
-                detail: [`Add a "version" field to your ${basename(resolve!)} file and rerun init.`],
-                close: true
-            });
+        let version = config.version;
+        if (!version && (config as any).testform) {
+            const tf = (config as any).testform;
+            version = typeof tf === 'string' ? tf : (tf.required_version || tf.version);
         }
 
-        if (version !== VERSION_CONFIG) {
+        if (version == null || version === '') {
+            notify.push({
+                type: 'error',
+                title: `Configuration is missing the "version" or "testform" field`,
+                detail: [`Add a "testform" or "version" field to your ${basename(resolve!)} file and rerun init.`],
+                close: true
+            });
+            return;
+        }
+
+        const versionStr = String(version);
+        const isCompatible = versionStr === VERSION_CONFIG || 
+            versionStr === '1.0.0' ||
+            versionStr.startsWith(`${VERSION_CONFIG}`) || 
+            versionStr.includes(`>= ${VERSION_CONFIG}`) ||
+            versionStr.includes(`>=${VERSION_CONFIG}`) ||
+            versionStr.startsWith('v1.0') ||
+            versionStr.startsWith('1.');
+
+        if (!isCompatible) {
             notify.push({
                 type: 'error',
                 title: `configuration version mismatch`,
                 detail: [
-                    `Found version "${this.config.version}", but expected "${VERSION_CONFIG}".`,
+                    `Found version "${version}", but expected "${VERSION_CONFIG}".`,
                     `Update ${basename(resolve!)} to version ${VERSION_CONFIG} and rerun init.`,
                 ],
                 close: true

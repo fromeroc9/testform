@@ -1,27 +1,27 @@
-# Especificacion de testform.yml
+# Especificación de main.yml
 
-El archivo `testform.yml` es el manifiesto de configuracion central de tu espacio de trabajo. En el se declaran el backend de almacenamiento de estado, los proveedores externos, los alcances (*scopes*) y el esquema de campos personalizados.
+El archivo `main.yml` es el manifiesto de configuración central de tu espacio de trabajo. En él se declaran la versión requerida de Testform, el backend de almacenamiento de estado, los proveedores externos, los alcances (*scopes*) y el esquema de campos personalizados.
 
 ## Estructura General
 
 ```yaml
-version: "1.0"
+# main.yml
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "testform.state"
 
-# 1. Configuracion del Backend de Estado
-backend:
-  type: "local"
-  path: "testform.state"
-
-# 2. Configuracion del Proveedor (modo diccionario o local)
+# 1. Configuración del Proveedor (GitHub, Jira, GitLab, Local)
 provider:
   github:
     owner: "mi-organizacion"
     repository: "mi-aplicacion"
-    projectId: 12
+    project_number: 12
     token_env: "GITHUB_TOKEN"
 
-# 3. Variables y Valores Locales Base (Nivel 0)
-vars:
+# 2. Variables y Valores Locales Base
+variable:
   app_url:
     type: string
     description: "URL base de la aplicacion"
@@ -30,11 +30,11 @@ vars:
     type: string
     default: "dev"
 
-local:
+locals:
   base_url: "${var.app_url}"
   api_health: "${local.base_url}/health"
 
-# 4. Alcance Global y por Recurso (scopes)
+# 3. Alcance Global y por Recurso (scopes)
 scopes:
   global:
     directory: "tests"

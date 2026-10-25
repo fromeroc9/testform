@@ -21,7 +21,7 @@ La navegación lateral organiza cada bloque y capacidad activa de Testform:
 
 ```mermaid
 graph TD
-    A[testform.yml] --> B[Configure Providers]
+    A[main.yml] --> B[Configure Providers]
     B --> C[Resources: Scenarios & Steps]
     C --> D[Data Sources & Variables]
     D --> E[Locals & Expressions]
@@ -33,7 +33,7 @@ graph TD
 ```
 
 ### 1. [Configure Providers](./providers)
-Configuración de plugins de ejecución desacoplados (`playwright`, `cypress`, `appium`, `artillery`, `k6`) en `testform.yml`.
+Configuración de plataformas de gestión (`github`, `gitlab`, `jira`, `local`) en `main.yml`.
 
 ### 2. [Resources](./resources)
 Los escenarios y pasos de Gherkin actúan como recursos declarativos con direcciones canónicas (`featurepath.tag`) y ciclo de vida gestionado.

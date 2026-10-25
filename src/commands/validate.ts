@@ -8,6 +8,7 @@ import { Logger } from '../core/logger';
 import { IScope } from '../core/types';
 import { matchesScope } from '../core/selector';
 import { DependencyResolver } from '../core/dependencies';
+import { FILE_CONFIG } from '../core/const';
 
 interface ValidateCmdOptions {
     targetPath?: string;
@@ -85,7 +86,7 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
         (typeof rawProvider === 'object' && Object.keys(rawProvider).length === 0);
 
     if (isProviderMissing || !KNOWN_PROVIDERS.includes(providerType)) {
-        const provName = isProviderMissing ? 'a provider to be defined in testform.yml' : `provider "${providerType}"`;
+        const provName = isProviderMissing ? `a provider to be defined in ${FILE_CONFIG}` : `provider "${providerType}"`;
         if (isJson) {
             console.log(JSON.stringify({
                 valid: false,

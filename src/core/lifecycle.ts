@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
 import YAML from 'yaml';
+import { CONFIG_FILE_NAMES } from './const';
 import { normalizeAddress, addressesMatch } from './utils';
 
 export interface LifecycleDeclaration {
@@ -23,7 +24,7 @@ export class LifecycleResolver {
      * Loads lifecycle configurations from testform.yml and domain files.
      */
     public loadDeclarations(): void {
-        const rootFiles = ['testform.yml', 'testform.yaml'];
+        const rootFiles = CONFIG_FILE_NAMES;
         for (const name of rootFiles) {
             const p = resolve(this.workDir, name);
             if (existsSync(p)) {
@@ -91,7 +92,15 @@ export class LifecycleResolver {
         if (!existsSync(dir)) return results;
 
         const IGNORED_DIRS = new Set(['node_modules', '.git', '.testform', '.terraform', 'dist', 'coverage', '.system_generated']);
-        const RESERVED_FILES = new Set(['testform.yml', 'testform.yaml', 'vars.yml', 'vars.yaml', 'local.yml', 'local.yaml', 'outputs.yml', 'outputs.yaml', 'data.yml', 'data.yaml']);
+        const RESERVED_FILES = new Set([
+            ...CONFIG_FILE_NAMES,
+            'variables.yml', 'variables.yaml',
+            'vars.yml', 'vars.yaml',
+            'locals.yml', 'locals.yaml',
+            'local.yml', 'local.yaml',
+            'outputs.yml', 'outputs.yaml',
+            'data.yml', 'data.yaml'
+        ]);
 
         const scan = (currentDir: string) => {
             try {

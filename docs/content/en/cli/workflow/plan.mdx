@@ -15,7 +15,7 @@ It is a **speculative, read-only operation** that does not make any mutations to
 | `-out=path` | — | Writes the generated execution plan to a file. This plan can be passed to `apply` to guarantee identical execution. |
 | `-destroy` | `false` | Generates a plan to destroy all managed resources rather than applying updates. |
 | `-refresh=false` | `true` | Skips checking the remote API for out-of-band drift prior to planning. |
-| `-target=address` | — | Limits planning to a single resource identity (e.g. `login.case.feature::@tc-1`). May be specified multiple times. |
+| `-target=address` | — | Limits planning to a single resource identity (e.g. `login.case.feature.@tc-1`). May be specified multiple times. |
 | `-json` | `false` | Emits the plan in JSON format. |
 | `-detailed-exitcode` | `false` | Returns detailed exit codes (`0` = empty plan, `2` = changes present). |
 
@@ -40,14 +40,14 @@ Resource actions are indicated with the following symbols:
 
 Testform will perform the following actions:
 
-  # login.case.feature::@tc-1 will be updated in-place
+  # login.case.feature.@tc-1 will be updated in-place
   ~ resource "testcase" "login_valid" {
         id        = 104
       ~ labels    = ["login", "smoke"] -> ["login", "smoke", "high"]
       ~ milestone = "Sprint 41" -> "Sprint 42"
     }
 
-  # checkout.case.feature::@tc-3 will be created
+  # checkout.case.feature.@tc-3 will be created
   + resource "testcase" "checkout_coupon" {
       + title     = "Apply valid promotional coupon"
       + labels    = ["checkout", "promotions"]

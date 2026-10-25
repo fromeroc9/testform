@@ -19,14 +19,14 @@ During the next `testform apply`, Testform will execute a **replace operation** 
 
 ```bash
 # Mark resource as tainted
-$ testform taint "login.case.feature::@tc-1"
+$ testform taint "login.case.feature.@tc-1"
 Resource instance github_testcase.login_case_feature__1 has been marked as tainted.
 
 # Run plan to verify replacement
 $ testform plan
 Testform will perform the following actions:
 
-  # login.case.feature::@tc-1 is tainted, so must be replaced
+  # login.case.feature.@tc-1 is tainted, so must be replaced
 -/+ resource "testcase" "login_valid" {
       ~ id = 104 -> (known after apply)
     }
@@ -39,7 +39,7 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 If you tainted a resource by mistake, you can undo it before running `apply`:
 
 ```bash
-$ testform untaint "login.case.feature::@tc-1"
+$ testform untaint "login.case.feature.@tc-1"
 Resource instance github_testcase.login_case_feature__1 has been successfully untainted.
 ```
 

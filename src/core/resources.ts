@@ -12,9 +12,11 @@ class Resource {
     private userTemplates: Record<string, ResourceTemplate> = Object.create(null);
 
     private resolve(): ResourceTemplate[] {
-        const system = Object.values(this.builtinTemplates);
-        const user = Object.values(this.userTemplates);
-        return [...system, ...user]
+        const merged: Record<string, ResourceTemplate> = {
+            ...this.builtinTemplates,
+            ...this.userTemplates,
+        };
+        return Object.values(merged);
     }
 
     private get(type: string): ResourceTemplate {
@@ -43,11 +45,28 @@ class Resource {
 
     registry(template: ResourceTemplate, type: 'system' | 'user' = 'system'): void {
         if (type === 'system') {
-            this.builtinTemplates[template.type] = template
+            this.builtinTemplates[template.type] = template;
         }
 
         if (type === 'user') {
-            this.userTemplates[template.type] = template
+            const existing = this.builtinTemplates[template.type] || this.userTemplates[template.type];
+            if (existing) {
+                // Merge fields by name: user fields override existing fields, other fields are preserved
+                const fieldMap = new Map(existing.fields.map(f => [f.name, f]));
+                if (template.fields) {
+                    for (const field of template.fields) {
+                        fieldMap.set(field.name, field);
+                    }
+                }
+                this.userTemplates[template.type] = {
+                    ...existing,
+                    ...template,
+                    fields: Array.from(fieldMap.values()),
+                    comments: template.comments !== undefined ? template.comments : existing.comments,
+                };
+            } else {
+                this.userTemplates[template.type] = template;
+            }
         }
     }
 

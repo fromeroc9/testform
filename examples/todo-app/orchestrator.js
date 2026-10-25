@@ -19,8 +19,8 @@ async function main() {
   console.log('╚═══════════════════════════════════════════════════════════════════════════╝\n');
 
   console.log('📋 [PASO 1: TESTFORM PLAN & VALIDATE]');
-  console.log('  • Cargando configuración: testform.yml');
-  console.log('  • Resolviendo variables: vars.yml');
+  console.log('  • Cargando configuración: main.yml');
+  console.log('  • Resolviendo variables: main.yml');
   console.log('  • Cargando fixtures: fixtures/todos.json');
   console.log('  • Construyendo Grafo de Dependencias DAG:');
   console.log('      features/e2e_todo.case.feature.@tc-e2e-001  --> Padre');

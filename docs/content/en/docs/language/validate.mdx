@@ -13,7 +13,7 @@ testform validate
 ```
 
 ### Static Checks Performed:
-- **YAML Syntax:** Checks structure of `testform.yml`, `data.yml`, `vars.yml`, `local.yml`, and `outputs.yml`.
+- **YAML Syntax:** Checks structure of `main.yml`, `data.yml`, `variables.yml`, `locals.yml`, and `outputs.yml`.
 - **Gherkin Lexer:** Ensures all `.feature` files comply with BDD syntax.
 - **Circular Cycle Prevention:** Analyzes `@depends_on` directed graphs to detect cycles ($A \rightarrow B \rightarrow A$).
 - **Module Target Resolution:** Confirms paths referenced in `@module(source="...")` exist and resolve cleanly.

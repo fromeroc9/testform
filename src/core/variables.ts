@@ -5,11 +5,19 @@ import { logger as notify } from '../core/logger';
 import { CONFIG_FILE_NAMES } from '../core/const';
 import { DataResolver } from './data';
 import { findDomainConfigFiles } from './utils';
+import { evaluateExpression, interpolateExpressions } from './expressions/evaluator';
+
+export interface VariableValidation {
+    condition: string;
+    error_message: string;
+}
 
 export interface VariableDeclaration {
-    type?: string;
+    type?: 'string' | 'number' | 'boolean' | 'list' | 'map' | string;
     description?: string;
     default?: any;
+    enum?: (string | number)[];
+    validation?: VariableValidation;
 }
 
 export class VariableParser {
@@ -26,27 +34,28 @@ export class VariableParser {
         this.workDir = workDir;
         this.dataResolver = new DataResolver(workDir);
         this.loadDeclarations();
+        this.loadAutoVarFiles();
         this.parseVarFiles(varFileArgs);
         this.parseVars(varArgs);
+        this.validateVariables();
         this.evaluateLocals();
     }
 
-
     /**
-     * Loads variable and local declarations according to the precedence hierarchy:
-     *   [Nivel 0] Monolito Base: testform.yml (defaults globales)
-     *   [Nivel 1] Estándar Terraform: vars.yml, local.yml
-     *   [Nivel 2] Funcionalidad / Dominio: auth.yml, checkout.yml, pagos.yml
+     * Loads variable and local declarations:
+     *   [Nivel 0] Configuración Base: main.yml / main.yaml (bloques variable: y locals:)
+     *   [Nivel 1] Estándar: variables.yml / variables.yaml & locals.yml / locals.yaml
+     *   [Nivel 2] Funcionalidad / Dominio: archivos domain .yml en el proyecto
      */
     private loadDeclarations() {
-        // [Nivel 0] Monolito Base: testform.yml
+        // [Nivel 0] Configuración Base: main.yml / main.yaml
         for (const name of CONFIG_FILE_NAMES) {
             const configPath = resolve(this.workDir, name);
             if (existsSync(configPath)) {
                 try {
                     const content = readFileSync(configPath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const varsBlock = parsed.vars;
+                    const varsBlock = parsed.variable || parsed.vars;
                     if (varsBlock && typeof varsBlock === 'object') {
                         this.declaredVars = { ...this.declaredVars, ...varsBlock };
                         for (const [key, decl] of Object.entries(varsBlock)) {
@@ -57,7 +66,7 @@ export class VariableParser {
                             }
                         }
                     }
-                    const localBlock = parsed.local;
+                    const localBlock = parsed.locals || parsed.local;
                     if (localBlock && typeof localBlock === 'object') {
                         this.rawLocals = { ...this.rawLocals, ...localBlock };
                     }
@@ -68,14 +77,14 @@ export class VariableParser {
             }
         }
 
-        // [Nivel 1] Estándar Terraform: vars.yml / local.yml
-        for (const name of ['vars.yml', 'vars.yaml']) {
+        // [Nivel 1] Estándar: variables.yml & locals.yml
+        for (const name of ['variables.yml', 'variables.yaml', 'vars.yml', 'vars.yaml']) {
             const varDeclPath = resolve(this.workDir, name);
             if (existsSync(varDeclPath)) {
                 try {
                     const content = readFileSync(varDeclPath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const varsObj = parsed.vars || parsed;
+                    const varsObj = parsed.variable || parsed.vars || parsed;
                     if (typeof varsObj === 'object') {
                         this.declaredVars = { ...this.declaredVars, ...varsObj };
                         for (const [key, decl] of Object.entries(varsObj)) {
@@ -91,13 +100,13 @@ export class VariableParser {
             }
         }
 
-        for (const name of ['local.yml', 'local.yaml']) {
+        for (const name of ['locals.yml', 'locals.yaml', 'local.yml', 'local.yaml']) {
             const localsPath = resolve(this.workDir, name);
             if (existsSync(localsPath)) {
                 try {
                     const content = readFileSync(localsPath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const localsObj = parsed.local || parsed;
+                    const localsObj = parsed.locals || parsed.local || parsed;
                     if (typeof localsObj === 'object') {
                         this.rawLocals = { ...this.rawLocals, ...localsObj };
                     }
@@ -106,9 +115,7 @@ export class VariableParser {
             }
         }
 
-        // [Nivel 2] Funcionalidad / Dominio: auth.yml, checkout.yml, pagos.yml
-        // Se escanean recursivamente todos los .yml/.yaml del proyecto.
-        // Tienen máxima prioridad de configuración sobre Nivel 0 y Nivel 1.
+        // [Nivel 2] Funcionalidad / Dominio: archivos domain
         const domainFiles = findDomainConfigFiles(this.workDir);
         for (const filePath of domainFiles) {
             try {
@@ -116,9 +123,9 @@ export class VariableParser {
                 const parsed = YAML.parse(content);
                 if (!parsed || typeof parsed !== 'object') continue;
 
-                // Si contiene vars:, suma o sobreescribe las variables
-                if (parsed.vars && typeof parsed.vars === 'object') {
-                    for (const [key, val] of Object.entries(parsed.vars)) {
+                const varsBlock = parsed.variable || parsed.vars;
+                if (varsBlock && typeof varsBlock === 'object') {
+                    for (const [key, val] of Object.entries(varsBlock)) {
                         if (val && typeof val === 'object' && !Array.isArray(val)) {
                             this.declaredVars[key] = { ...this.declaredVars[key], ...(val as any) };
                             if ((val as any).default !== undefined) {
@@ -131,13 +138,34 @@ export class VariableParser {
                     }
                 }
 
-                // Si contiene local:, suma o sobreescribe los valores locales
-                if (parsed.local && typeof parsed.local === 'object') {
-                    this.rawLocals = { ...this.rawLocals, ...parsed.local };
+                const localBlock = parsed.locals || parsed.local;
+                if (localBlock && typeof localBlock === 'object') {
+                    this.rawLocals = { ...this.rawLocals, ...localBlock };
                 }
             } catch {
                 // Ignore parse errors on domain files
             }
+        }
+    }
+
+    /**
+     * Auto-loads all *.vars.yml and *.vars.yaml files in the workspace directory.
+     * Files are sorted alphabetically for deterministic precedence.
+     */
+    private loadAutoVarFiles() {
+        if (!existsSync(this.workDir)) return;
+        try {
+            const entries = readdirSync(this.workDir);
+            const varFiles = entries
+                .filter(file => file.endsWith('.vars.yml') || file.endsWith('.vars.yaml'))
+                .sort();
+
+            for (const file of varFiles) {
+                const fullPath = resolve(this.workDir, file);
+                this.loadSingleYamlFile(fullPath);
+            }
+        } catch {
+            // Ignore readdir errors
         }
     }
 
@@ -197,7 +225,7 @@ export class VariableParser {
             const content = readFileSync(filePath, 'utf-8');
             const parsed = YAML.parse(content);
             if (parsed && typeof parsed === 'object') {
-                const entries = parsed.vars || parsed;
+                const entries = parsed.variable || parsed.vars || parsed;
                 for (const [k, v] of Object.entries(entries)) {
                     if (v !== undefined && v !== null && typeof v !== 'object') {
                         this.vars[k] = String(v);
@@ -216,13 +244,96 @@ export class VariableParser {
     }
 
     /**
-     * Evaluates local expressions, resolving variables and local dependencies.
+     * Validates declared variables: types, enums, and AST condition rules.
+     */
+    private validateVariables() {
+        const evalContext = {
+            vars: this.vars,
+            locals: this.rawLocals,
+            data: this.dataResolver,
+            workDir: this.workDir
+        };
+
+        for (const [key, decl] of Object.entries(this.declaredVars)) {
+            const val = this.vars[key];
+            if (val === undefined) continue;
+
+            // 1. Enum check
+            if (decl.enum && Array.isArray(decl.enum) && decl.enum.length > 0) {
+                const validValues = decl.enum.map(String);
+                if (!validValues.includes(String(val))) {
+                    notify.push({
+                        type: 'error',
+                        title: `Variable enum validation error: "${key}"`,
+                        detail: [
+                            `Value "${val}" is not in the allowed list: [${validValues.join(', ')}].`
+                        ],
+                        close: true
+                    });
+                }
+            }
+
+            // 2. Type check
+            if (decl.type) {
+                const type = decl.type.toLowerCase();
+                if (type === 'number') {
+                    if (isNaN(Number(val))) {
+                        notify.push({
+                            type: 'error',
+                            title: `Variable type validation error: "${key}"`,
+                            detail: [`Value "${val}" cannot be parsed as a number.`],
+                            close: true
+                        });
+                    }
+                } else if (type === 'boolean') {
+                    if (val !== 'true' && val !== 'false' && typeof val !== 'boolean') {
+                        notify.push({
+                            type: 'error',
+                            title: `Variable type validation error: "${key}"`,
+                            detail: [`Value "${val}" is not a boolean ('true' or 'false').`],
+                            close: true
+                        });
+                    }
+                }
+            }
+
+            // 3. Validation rule check via AST expression engine
+            if (decl.validation?.condition) {
+                let result: any;
+                try {
+                    result = evaluateExpression(decl.validation.condition, evalContext);
+                } catch (error: any) {
+                    notify.push({
+                        type: 'error',
+                        title: `Error evaluating validation condition for "${key}"`,
+                        detail: [error.message],
+                        close: true
+                    });
+                }
+
+                if (!result) {
+                    notify.push({
+                        type: 'error',
+                        title: decl.validation.error_message || `Variable validation condition failed: "${key}"`,
+                        detail: [
+                            decl.validation.error_message ||
+                            `Condition "${decl.validation.condition}" evaluated to false for variable "${key}".`
+                        ],
+                        close: true
+                    });
+                }
+            }
+        }
+    }
+
+    /**
+     * Evaluates local expressions using the AST expression engine and function library.
      */
     private evaluateLocals() {
         const raw = { ...this.rawLocals };
         const evaluated: Record<string, string> = {};
 
-        // Resolve ${var.x} and ${local.x} up to 3 passes for nested references
+        // Resolve expressions up to 3 passes for nested references
         for (let pass = 0; pass < 3; pass++) {
             for (const [key, val] of Object.entries(raw)) {
                 if (typeof val !== 'string') {
@@ -230,22 +341,8 @@ export class VariableParser {
                     continue;
                 }
 
-                let resolved = val;
-                // Substitute var.*
-                resolved = resolved.replace(/\$\{var\.([a-zA-Z0-9_-]+)\}/g, (_, k) => {
-                    return this.vars[k] !== undefined ? this.vars[k] : `\${var.${k}}`;
-                });
-                // Substitute local.*
-                resolved = resolved.replace(/\$\{local\.([a-zA-Z0-9_-]+)\}/g, (_, k) => {
-                    return evaluated[k] !== undefined ? evaluated[k] : `\${local.${k}}`;
-                });
-                // Substitute data.*
-                resolved = resolved.replace(/\$\{data\.([a-zA-Z0-9_\-\.\@\/]+)\}/g, (_, k) => {
-                    const dataVal = this.dataResolver.resolvePath(k);
-                    return dataVal !== undefined && dataVal !== null ? (typeof dataVal === 'object' ? JSON.stringify(dataVal) : String(dataVal)) : `\${data.${k}}`;
-                });
-                // Substitute module.*
-                resolved = resolved.replace(/\$\{module\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\}/g, (_, mod, out) => {
+                // First resolve module outputs if any
+                let current = val.replace(/\$\{module\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\}/g, (_, mod, out) => {
                     const fullKey = `module.${mod}.${out}`;
                     if (this.state) {
                         const stateOutputs = (this.state as any).getOutputs ? (this.state as any).getOutputs() : (this.state as any).outputs;
@@ -262,7 +359,19 @@ export class VariableParser {
                     return `\${module.${mod}.${out}}`;
                 });
 
-                evaluated[key] = resolved;
+                // Evaluate using AST engine
+                const evalContext = {
+                    vars: this.vars,
+                    locals: evaluated,
+                    data: this.dataResolver,
+                    workDir: this.workDir
+                };
+
+                try {
+                    evaluated[key] = interpolateExpressions(current, evalContext);
+                } catch {
+                    evaluated[key] = current;
+                }
             }
         }
 
@@ -275,6 +384,7 @@ export class VariableParser {
 
     public setVar(key: string, value: string) {
         this.vars[key] = value;
+        this.validateVariables();
         this.evaluateLocals();
     }
 
@@ -304,37 +414,13 @@ export class VariableParser {
     }
 
     /**
-     * Replaces ${var.name} and ${local.name} in the given template string
-     * with the corresponding resolved values.
+     * Replaces expressions in template string with resolved values.
      */
     public applyToTemplate(template: string): string {
-        let result = template;
+        if (typeof template !== 'string') return template;
 
-        // Match ${var.NAME}
-        const varRegex = /\$\{var\.([a-zA-Z0-9_-]+)\}/g;
-        result = result.replace(varRegex, (match, key) => {
-            return this.vars[key] !== undefined ? this.vars[key] : match;
-        });
-
-        // Match ${local.NAME}
-        const localRegex = /\$\{local\.([a-zA-Z0-9_-]+)\}/g;
-        result = result.replace(localRegex, (match, key) => {
-            return this.locals[key] !== undefined ? this.locals[key] : match;
-        });
-
-        // Match ${data.PATH}
-        const dataRegex = /\$\{data\.([a-zA-Z0-9_\-\.\@\/]+)\}/g;
-        result = result.replace(dataRegex, (match, path) => {
-            const val = this.dataResolver.resolvePath(path);
-            if (val !== undefined && val !== null) {
-                return typeof val === 'object' ? JSON.stringify(val) : String(val);
-            }
-            return match;
-        });
-
-        // Match ${module.NAME.OUTPUT}
-        const moduleRegex = /\$\{module\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\}/g;
-        result = result.replace(moduleRegex, (match, mod, out) => {
+        // Substitute module.*
+        let result = template.replace(/\$\{module\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\}/g, (match, mod, out) => {
             const fullKey = `module.${mod}.${out}`;
             if (this.state) {
                 const stateOutputs = (this.state as any).getOutputs ? (this.state as any).getOutputs() : (this.state as any).outputs;
@@ -351,7 +437,15 @@ export class VariableParser {
             return match;
         });
 
-        return result;
+        // Evaluate with AST engine
+        const evalContext = {
+            vars: this.vars,
+            locals: this.locals,
+            data: this.dataResolver,
+            workDir: this.workDir
+        };
+
+        return interpolateExpressions(result, evalContext);
     }
 
     public setOutputResolver(outputResolver: any) {

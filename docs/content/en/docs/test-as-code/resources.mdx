@@ -1,4 +1,4 @@
-﻿# Declarative Resources
+# Declarative Resources
 
 Testform defines four fundamental declarative resource primitives to model your end-to-end quality engineering strategy: `testcase`, `testrun`, `testplan`, and `testsuite`.
 
@@ -8,7 +8,7 @@ The `testcase` resource represents an isolated test specification. In Testform, 
 
 - **Standard Location:** `tests/features/*.case.feature`
 - **Identity Tag Placement:** Directly above the `Scenario:` with `@tc-*` prefix (e.g. `@tc-cancel-001` or `@tc-cancel-order`).
-- **Uniqueness Scope:** Unique within that `.case.feature` file. Resolved as `path/to/file.case.feature::@tc-cancel-001`.
+- **Uniqueness Scope:** Unique within that `.case.feature` file. Resolved as `path/to/file.case.feature.@tc-cancel-001`.
 - **Lifecycle:** `draft` -> `active` -> `deprecated` -> `archived`
 
 ### Multi-Testcase Feature File Example

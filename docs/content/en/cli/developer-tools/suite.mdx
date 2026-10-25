@@ -55,7 +55,7 @@ Directly writes Gherkin structure into the target suite file (`testrun` or `test
 
   # With explicit status
   testform suite link "@tc-1=passed" -target="@tr-42"
-  testform suite link "checkout.case.feature::@tc-1=failed" -target="@tr-42"
+  testform suite link "checkout.case.feature.@tc-1=failed" -target="@tr-42"
   ```
   Produces in the `.run.feature` file:
   ```gherkin
@@ -84,7 +84,7 @@ Feature: Q3 Release Plan
 Records or updates the execution status (`passed`, `failed`, `pending`, `skipped`) of an existing testcase in a test run (`testrun`), synchronizing both the local Gherkin file (`* mark status = <status>`) and the remote issue comment:
 ```bash
 testform suite mark "@tc-1=passed" -target="@tr-42"
-testform suite mark "checkout.case.feature::@tc-1=failed" -target="@tr-42"
+testform suite mark "checkout.case.feature.@tc-1=failed" -target="@tr-42"
 testform suite mark "Credit card payment=passed" -target="@tr-42"
 ```
 
@@ -101,7 +101,7 @@ testform suite mark "Credit card payment=passed" -target="@tr-42"
 Both `link` and `mark` support three flexible strategies to identify testcases:
 
 1. **Identity Tag Only:** `"@tc-1=passed"` (or `"tc-1=passed"`): Matches the case in workspace or testrun by its unique tag.
-2. **File + Tag (or Name):** `"checkout.case.feature::@tc-1=passed"` (or `"checkout.case.feature@tc-1=passed"`): Disambiguates cases when multiple files share similar tags.
+2. **File + Tag (or Name):** `"checkout.case.feature.@tc-1=passed"` (or `"checkout.case.feature@tc-1=passed"`): Disambiguates cases when multiple files share similar tags.
 3. **Scenario Name/Title Only:** `"Successful user login=passed"`: Resolves directly against the Gherkin scenario name.
 
 ## Target Resolution (`-target`)

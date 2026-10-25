@@ -1,24 +1,38 @@
-# testform.yml Specification
+# main.yml Specification
 
-The `testform.yml` file is the central workspace configuration manifest. It configures the state storage backend, external providers, artifact scopes, and custom metadata fields schema.
+The `main.yml` file is the central workspace configuration manifest. It configures the required Testform version, state storage backend, external providers, artifact scopes, and custom metadata fields schema.
 
 ## Schema Overview
 
 ```yaml
-version: "1.0"
+# main.yml
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "testform.state"
 
-# 1. State Storage Backend
-backend:
-  type: "local"
-  path: "testform.state"
-
-# 2. Provider Configuration (dictionary mode or local)
+# 1. Provider Configuration (GitHub, Jira, GitLab, Local)
 provider:
   github:
     owner: "my-organization"
     repository: "my-application"
-    projectId: 12
+    project_number: 12
     token_env: "GITHUB_TOKEN"
+
+# 2. Input Variables and Local Values
+variable:
+  app_url:
+    type: string
+    description: "Base application URL"
+    default: "https://www.saucedemo.com"
+  environment:
+    type: string
+    default: "dev"
+
+locals:
+  base_url: "${var.app_url}"
+  api_health: "${local.base_url}/health"
 
 # 3. Global and Resource Scopes
 scopes:

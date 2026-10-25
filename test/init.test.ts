@@ -40,18 +40,18 @@ describe('Comando initCmd', () => {
         mockError.mockRestore();
     });
 
-    it('no debe continuar el proceso ni generar testform.yml si el directorio está vacío', async () => {
+    it('no debe continuar el proceso ni generar main.yml si el directorio está vacío', async () => {
         rmSync(join(tmpDir, 'sample.case.feature'));
         await initCmd({ dir: tmpDir, lock: true, lockTimeout: '0s', isJson: false });
 
-        // En un empty directory, no debe generar testform.yml ni state
+        // En un empty directory, no debe generar main.yml ni state
         expect(existsSync(join(tmpDir, FILE_CONFIG))).toBe(false);
         expect(existsSync(join(tmpDir, FILE_STATE))).toBe(false);
         const calls = mockLog.mock.calls.flat().join(' ');
         expect(calls).toContain('initialized in an empty directory');
     });
 
-    it('debe fallar si el archivo testform.yml no tiene una versión válida', async () => {
+    it('debe fallar si el archivo de configuración no tiene una versión válida', async () => {
         // Crear configuración sin versión
         const configPath = join(tmpDir, FILE_CONFIG);
         require('fs').writeFileSync(configPath, JSON.stringify({ backend: 'local' }));
@@ -59,12 +59,14 @@ describe('Comando initCmd', () => {
         await expect(initCmd({ dir: tmpDir, lock: true })).rejects.toThrow();
     });
 
-    it('debe inicializarse correctamente si testform.yml es válido (Camino Feliz)', async () => {
+    it('debe inicializarse correctamente si main.yml es válido con bloque testform (Camino Feliz)', async () => {
         // Crear archivo de configuración válido
         const configPath = join(tmpDir, FILE_CONFIG);
         const configData = {
-            version: '1.0',
-            backend: 'local'
+            testform: {
+                required_version: '>= 1.0.0',
+                backend: 'local'
+            }
         };
         require('fs').writeFileSync(configPath, JSON.stringify(configData));
 
@@ -175,7 +177,7 @@ describe('Comando initCmd', () => {
         expect(existsSync(configPath)).toBe(true);
 
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
-        expect(parsed.backend).toEqual({
+        expect(parsed.testform.backend).toEqual({
             github: {
                 branch: 'testform-state',
                 path: 'state/testform.state'
@@ -190,9 +192,9 @@ describe('Comando initCmd', () => {
         expect(existsSync(configPath)).toBe(true);
 
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
-        expect(parsed.backend.s3).toBeDefined();
-        expect(parsed.backend.s3.bucket).toBe('<required>');
-        expect(parsed.backend.s3.region).toBe('us-east-1');
+        expect(parsed.testform.backend.s3).toBeDefined();
+        expect(parsed.testform.backend.s3.bucket).toBe('<required>');
+        expect(parsed.testform.backend.s3.region).toBe('us-east-1');
     });
 
     it('debe crear plantilla para backend oci con namespace cuando se pasa backendType="oci"', async () => {
@@ -202,10 +204,10 @@ describe('Comando initCmd', () => {
         expect(existsSync(configPath)).toBe(true);
 
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
-        expect(parsed.backend.oci).toBeDefined();
-        expect(parsed.backend.oci.bucket).toBe('<required_oci_bucket>');
-        expect(parsed.backend.oci.namespace).toBe('<required_namespace>');
-        expect(parsed.backend.oci.region).toBe('us-ashburn-1');
+        expect(parsed.testform.backend.oci).toBeDefined();
+        expect(parsed.testform.backend.oci.bucket).toBe('<required_oci_bucket>');
+        expect(parsed.testform.backend.oci.namespace).toBe('<required_namespace>');
+        expect(parsed.testform.backend.oci.region).toBe('us-ashburn-1');
     });
 
     it('debe crear plantilla para backend azurerm cuando se pasa backendType="azurerm"', async () => {
@@ -215,8 +217,8 @@ describe('Comando initCmd', () => {
         expect(existsSync(configPath)).toBe(true);
 
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
-        expect(parsed.backend.azurerm).toBeDefined();
-        expect(parsed.backend.azurerm.resource_group_name).toBe('<required>');
+        expect(parsed.testform.backend.azurerm).toBeDefined();
+        expect(parsed.testform.backend.azurerm.resource_group_name).toBe('<required>');
     });
 
     it('debe crear plantilla para backend gcs cuando se pasa backendType="gcs"', async () => {
@@ -226,8 +228,8 @@ describe('Comando initCmd', () => {
         expect(existsSync(configPath)).toBe(true);
 
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
-        expect(parsed.backend.gcs).toBeDefined();
-        expect(parsed.backend.gcs.bucket).toBe('<required>');
+        expect(parsed.testform.backend.gcs).toBeDefined();
+        expect(parsed.testform.backend.gcs.bucket).toBe('<required>');
     });
 
     it('debe usar backend local por defecto si se pasa un backendType desconocido', async () => {
@@ -237,7 +239,7 @@ describe('Comando initCmd', () => {
         expect(existsSync(configPath)).toBe(true);
 
         const parsed = YAML.parse(readFileSync(configPath, 'utf8'));
-        expect(parsed.backend).toBe('local');
+        expect(parsed.testform.backend).toBe('local');
     });
 
     it('debe mostrar mensaje de empty directory si no hay archivos .feature con @testcase', async () => {

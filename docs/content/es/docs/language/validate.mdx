@@ -13,7 +13,7 @@ testform validate
 ```
 
 ### Verificaciones Realizadas:
-- **Sintaxis YAML:** Valida la estructura de `testform.yml`, `data.yml`, `vars.yml`, `local.yml` y `outputs.yml`.
+- **Sintaxis YAML:** Valida la estructura de `main.yml`, `data.yml`, `variables.yml`, `locals.yml` y `outputs.yml`.
 - **Estructura Gherkin:** Comprueba que todos los archivos `.feature` tengan sintaxis BDD válida.
 - **Detección de Ciclos Circulares:** Analiza el grafo de `@depends_on` y previene bucles infinitos ($A \rightarrow B \rightarrow A$).
 - **Resolución de Módulos:** Verifica que los archivos referenciados en `@module(source="...")` existan y sean accesibles.

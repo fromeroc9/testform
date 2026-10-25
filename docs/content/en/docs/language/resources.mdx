@@ -1,45 +1,108 @@
-# Resources (Declarative Testing Resources)
+import { Callout, Steps, Tabs } from 'nextra/components'
 
-In Testform, **Resources** are the primary building block of your test suites. While in Terraform a resource models a cloud infrastructure component (an EC2 instance, an S3 bucket), in Testform a resource models a **managed test specification or execution**.
+# Resources (Declarative Resources & Customization)
+
+In Testform, **Resources** are the primary building block of your test suites. While in Terraform a resource models a cloud infrastructure component (an EC2 instance, an S3 bucket), in Testform a resource models a **managed BDD test specification or execution**.
+
+<Callout type="info">
+**BDD as Code:** In Testform, tests live in human-readable Gherkin files (`.feature`), never in YAML blocks. The internal `resource.ts` engine automatically maps BDD scenarios to remote provider APIs (GitHub, Jira, TestRail, etc.).
+</Callout>
 
 ---
 
-## Resource Types in Testform
+## Canonical Resource Types
 
-Testform defines four canonical resource types:
+Testform includes built-in declarative templates for quality management entities:
 
 | Resource | Purpose | Format / Location |
 |---|---|---|
-| **`testcase`** | Individual test specification | `Scenario:` in `*.case.feature` |
-| **`testrun`** | Immutable test run against a build | `*.run.feature` |
-| **`testsuite`** | Logical grouping of test cases | `*.suite.feature` |
-| **`testplan`** | Orchestration and execution schedule | `*.plan.feature` |
+| **`github_testcase`** | Individual test specification | `Scenario:` in `*.case.feature` |
+| **`github_testrun`** | Immutable test execution tracking | `*.run.feature` |
+| **`github_testplan`** | Orchestration and execution schedule | `*.plan.feature` |
+| **Custom Resources** | Custom resources for Jira, TestRail, etc. | Registered via `registerResource()` |
 
 ---
 
-## 1. The `testcase` Resource
+## 1. Modifying Declared Resources
 
-Every `Scenario` inside a specification file represents a declarative `testcase` resource.
+Built-in resources (`github_testcase`, `github_testrun`, etc.) **are not closed black boxes**. Any team can modify or override fields, markdown body formatting, or labels using `registerResource()`.
 
-- **Ledger Address:** `tests/features/orders.case.feature.@tc-cancel-001`
-- **Identity Tag:** `@tc-*` placed directly above the `Scenario:`.
-- **Lifecycle:** `draft` $\rightarrow$ `active` $\rightarrow$ `deprecated` $\rightarrow$ `archived`.
+User definitions automatically take precedence over system templates, preserving unmentioned fields:
 
-```gherkin
-Feature: Order Cancellation
-  As a customer with a pending order
-  I want to cancel my purchase from the dashboard
+<Tabs items={['TypeScript', 'JavaScript']}>
+<Tabs.Tab>
+```typescript
+import { registerResource } from 'testform';
 
-  @high @tc-cancel-001
-  Scenario: Cancel before item packaging
-    Given order "ORD-9912" is in "Pending" status
-    When user clicks "Cancel Order"
-    Then order status changes to "Cancelled"
+// Customize the built-in github_testcase resource
+registerResource({
+    type: 'github_testcase',
+    fields: [
+        // Prefix test title with team tag
+        { name: 'title', value: (s) => `[QA-CORE] ${s.name}` },
+        
+        // Custom Markdown body format
+        { 
+            name: 'body', 
+            value: (s) => `## 📋 Test Case: ${s.name}\n\n### Steps:\n` + 
+                          s.steps.map(step => `- **${step.keyword}** ${step.text}`).join('\n') 
+        },
+
+        // Custom automated labels
+        { 
+            name: 'labels', 
+            value: (s) => [...new Set(['automated', ...(s.tags || []).map(t => t.replace('@', ''))])] 
+        }
+    ]
+});
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```javascript
+const { registerResource } = require('testform');
+
+registerResource({
+    type: 'github_testcase',
+    fields: [
+        { name: 'title', value: (s) => `[QA-CORE] ${s.name}` },
+        { 
+            name: 'body', 
+            value: (s) => `## Test Case: ${s.name}\n\n` + s.steps.map(st => `${st.keyword}${st.text}`).join('\n') 
+        }
+    ]
+});
+```
+</Tabs.Tab>
+</Tabs>
+
+---
+
+## 2. Registering Custom Providers
+
+To connect Testform to external platforms (Jira, TestRail, Zephyr, or proprietary tools), simply register new resources:
+
+```typescript
+import { registerResource } from 'testform';
+
+registerResource({
+    type: 'jira_testcase',
+    fields: [
+        { name: 'summary', value: (s) => s.name },
+        { 
+            name: 'description', 
+            value: (s) => s.steps.map(st => `${st.keyword} ${st.text}`).join('\n') 
+        },
+        { 
+            name: 'priority', 
+            value: (s) => s.custom?.fields?.priority || 'Medium' 
+        }
+    ]
+});
 ```
 
 ---
 
-## 2. Canonical Resource Addresses
+## 3. Canonical Resource Addresses
 
 Just as Terraform uniquely identifies resources (e.g., `aws_instance.web`), Testform addresses resources using **pure dot notation**:
 
@@ -48,19 +111,14 @@ Just as Terraform uniquely identifies resources (e.g., `aws_instance.web`), Test
 ```
 
 Examples:
-- `auth/login.feature.@login_success`
-- `modules/checkout/payment.feature.@stripe_charge`
-
-These addresses are used across the engine:
-- In dependency declarations: `@depends_on("auth/login.feature.@login_success")`
-- In the state ledger: `testform.state`
-- In CLI commands: `testform state show <address>`
+- `features/auth/login.case.feature.@tc-001`
+- `features/checkout/payment.case.feature.@tc-stripe`
 
 ---
 
-## 3. Resource Reconciliation
+## 4. Resource Reconciliation
 
-During `testform plan`, Testform compares declared scenarios against the records in `testform.state`:
+During `testform plan`, Testform compares declared BDD scenarios against the records in `testform.state`:
 
 - **`+ create`**: A new test scenario has been added to the codebase.
 - **`~ update`**: Steps, tags, or variables in an existing scenario changed.

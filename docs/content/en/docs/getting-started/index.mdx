@@ -50,7 +50,7 @@ Actual terminal output:
 ```text
 Initializing the backend...
 Initializing Testform configuration...
-- Configuration: testform.yml (v1.0)
+- Configuration: main.yml (v1.0)
 - State backend: ready
 
 Testform has been successfully initialized!
@@ -68,7 +68,7 @@ Following Terraform's architecture, **`testform init` generates only the configu
 
 ```text
 my-project/
-└── testform.yml            # Primary workspace configuration manifest
+└── main.yml            # Primary workspace configuration manifest
 ```
 
 ### Lifecycle in Local Backend (`backend: local`)
@@ -76,7 +76,7 @@ my-project/
 When using the default local backend, state files are created dynamically as you progress through the workflow:
 
 1. **After `testform init`:**
-   - Only `testform.yml` exists. Neither `testform.state` nor backup files are created.
+   - Only `main.yml` exists. Neither `testform.state` nor backup files are created.
 2. **During `testform plan`:**
    - If `testform.state` does not yet exist on disk, Testform evaluates an in-memory empty state (0 resources) and calculates planned additions (`+ create`) in read-only mode, without touching disk.
 3. **After the first `testform apply`:**
@@ -86,18 +86,18 @@ When using the default local backend, state files are created dynamically as you
 
 ```text
 my-project/
-├── testform.yml            # Primary workspace configuration manifest
+├── main.yml            # Primary workspace configuration manifest
 ├── testform.state          # Active state (created after first apply)
 └── testform.state.backup   # Automatic snapshot backup (created from second apply onwards)
 ```
 
 ### Lifecycle in Remote Cloud Backends (`s3`, `oci`, `azurerm`, `gcs`)
 
-When configuring a remote cloud backend in `testform.yml`:
+When configuring a remote cloud backend in `main.yml`:
 
 ```text
 my-project/
-└── testform.yml            # Primary workspace configuration manifest
+└── main.yml            # Primary workspace configuration manifest
 ```
 
 - **No local state files:** At no point are `testform.state` or `testform.state.backup` written to your local disk.

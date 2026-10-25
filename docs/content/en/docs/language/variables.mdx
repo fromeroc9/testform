@@ -1,71 +1,173 @@
-# Variables (`vars:`)
+import { Callout, Steps, Tabs } from 'nextra/components'
 
-**Input Variables** in Testform allow you to parameterize your test suites and modules without hardcoding URLs, test credentials, or environment-specific values in Gherkin feature files.
+# Variables (`variable:`)
 
-Directly mirroring Terraform's `variable` block, variables are cleanly declared in YAML and evaluated in Gherkin steps via `${var.<name>}`.
+**Input Variables** in Testform allow you to parameterize test suites and modules without hardcoding URLs, credentials, or environment details inside test specification files.
+
+Just like the `variable` block in Terraform, variables in Testform are declared cleanly in YAML using the official **`variable:`** key and referenced inside Gherkin steps via `${var.<name>}`.
 
 ---
 
-## Declaring Variables
+## 1. Variable Declaration (`variables.yml`)
 
-Variables are declared in `vars.yml`, `testform.yml`, or domain files:
+Variables are declared in `variables.yml` (or `main.yml`). You can define data types, descriptions, default values, allowed value sets (`enum`), and validation rules evaluated by the AST engine:
 
 ```yaml
-# vars.yml
-vars:
+# variables.yml
+variable:
+  environment:
+    type: string
+    default: "staging"
+    description: "Target environment for test execution"
+    enum:
+      - "dev"
+      - "staging"
+      - "prod"
+    validation:
+      condition: "${contains(['dev', 'staging', 'prod'], var.environment)}"
+      error_message: "The environment variable must be 'dev', 'staging', or 'prod'."
+
   base_url:
     type: string
-    description: "Base URL for the system under test"
     default: "https://staging.app.com"
-
-  test_user:
-    type: string
-    default: "standard_user"
+    description: "Base URL of the application under test"
 
   timeout_ms:
     type: number
     default: 5000
+    description: "Execution timeout in milliseconds"
+    validation:
+      condition: "${var.timeout_ms > 0 && var.timeout_ms <= 60000}"
+      error_message: "Timeout must be greater than 0 and not exceed 60000 ms."
 ```
 
 ---
 
-## Usage in Gherkin Scenarios
+## 2. Type System and Current Limitations
+
+Like Terraform, Testform classifies data types into **primitive** and **complex** types. Below is the active capability matrix:
+
+| Type | Category | Testform Support | Active Validation |
+| :--- | :--- | :--- | :--- |
+| **`string`** | Primitive | ✅ **100% Supported** | Direct string interpolation and injection. |
+| **`number`** | Primitive | ✅ **100% Supported** | Strict numeric check; fails if non-numeric. |
+| **`boolean`** | Primitive | ✅ **100% Supported** | Strict check to `true` or `false`. |
+| **`enum`** | Restriction | ✅ **100% Supported** | Fails with structured diagnostic if value is not allowed. |
+| **`validation`** | AST Logic | ✅ **100% Supported** | Evaluated via sandboxed AST expression engine with custom message. |
+| **`list(...)`** | Collection | ⚠️ **Partial / Limitation** | Stored flattened as string (`"a,b"`). Does not validate element types. |
+| **`map(...)`** | Collection | ⚠️ **Partial / Limitation** | Does not validate homogeneous value types. |
+| **`object`** | Structural | ⚠️ **Partial / Limitation** | Does not validate nested property schemas or required fields. |
+
+### Practical Examples of Primitive Types
+
+```yaml
+variable:
+  # 1. Simple String
+  app_url:
+    type: string
+    default: "https://demo.playwright.dev/todomvc"
+
+  # 2. Number with range validation
+  retries:
+    type: number
+    default: 3
+    validation:
+      condition: "${var.retries >= 1 && var.retries <= 10}"
+      error_message: "Retries must be between 1 and 10."
+
+  # 3. Strict Boolean
+  headless_mode:
+    type: boolean
+    default: true
+
+  # 4. Enum with allowed value catalog
+  target_env:
+    type: string
+    default: "staging"
+    enum: ["dev", "staging", "prod"]
+```
+
+### Current Limitations in Complex Types & Recommended Usage
+
+<Callout type="warning" emoji="⚠️">
+**Current Technical Limitations:**
+1. **No direct bracket or dot indexing:** Syntax like `${var.browsers[0]}` or `${var.database.host}` **is not yet supported directly in the parser syntax tree**.
+2. **Access via HCL Functions:** To work with lists or maps in the current version, use the built-in AST functions:
+   * **`contains(list, val)`**: Checks if an item exists in a list or string.
+   * **`element(list, index)`**: Gets the element by zero-based index.
+   * **`length(list)`**: Returns collection length.
+   * **`lookup(map, key, default)`**: Safely looks up a key in a map.
+</Callout>
+
+```yaml
+# Recommended approach in the current version for collections:
+variable:
+  allowed_browsers:
+    default: ["chromium", "firefox", "webkit"]
+
+locals:
+  # Access first element using element()
+  default_browser: "${element(var.allowed_browsers, 0)}"
+  
+  # Count elements with length()
+  total_browsers: "${length(var.allowed_browsers)}"
+```
+
+---
+
+## 3. Assigning Values: `*.vars.yml` Files
+
+Concrete variable values are placed in files with the **`*.vars.yml`** (or `*.vars.yaml`) extension:
+
+### Automatic Auto-Loading
+Any file matching the **`*.vars.yml`** pattern inside the workspace root (e.g., `testform.vars.yml`, `default.vars.yml`) is **automatically loaded** in alphabetical order when running `testform plan` and `testform apply`:
+
+```yaml
+# testform.vars.yml (Auto-loaded by default)
+environment: "staging"
+base_url: "https://staging-api.company.com"
+timeout_ms: 10000
+```
+
+### Environment-Specific Injection (`-var-file`)
+For specific environments like production or CI/CD pipelines, create dedicated files and inject them explicitly:
+
+```yaml
+# prod.vars.yml
+environment: "prod"
+base_url: "https://api.company.com"
+timeout_ms: 30000
+```
+
+```bash
+testform plan -var-file=prod.vars.yml
+testform apply -var-file=prod.vars.yml
+```
+
+---
+
+## 4. Usage in Gherkin Scenarios
 
 Variables can be interpolated inside any Gherkin step using `${var.<name>}`:
 
 ```gherkin
-Scenario: Dynamic user authentication
+Scenario: Dynamic authentication
   Given browser navigates to "${var.base_url}/login"
-  When user inputs username "${var.test_user}"
-  Then page loads within ${var.timeout_ms} milliseconds
+  When user inputs credentials for "qa-tester"
+  Then session starts in under ${var.timeout_ms} milliseconds
 ```
 
 ---
 
-## 5-Level Precedence Hierarchy
+## 5. Precedence Hierarchy
 
-Testform determines the final value of a variable using a strict precedence order:
+Testform resolves variable values according to strict precedence:
 
 ```text
 ▲ HIGHEST PRECEDENCE
-│  [Level 5] CLI Flags:            testform plan -var "base_url=https://prod.app.com"
-│  [Level 4] CLI Files:            testform apply -var-file="production.yml"
-│  [Level 3] Environment:          TF_VAR_base_url="https://ci.app.com"
-│  [Level 2] Domain Files:         modules/auth/vars.yml
-│  [Level 1] Root Files:           vars.yml
-│  [Level 0] Monolith Base:        testform.yml (default values)
+│  [Priority 1] Direct CLI Flags:          testform plan -var "timeout_ms=15000"
+│  [Priority 2] Explicit Var Files:        testform plan -var-file=prod.vars.yml
+│  [Priority 3] Workspace Auto-load:       *.vars.yml (e.g., testform.vars.yml)
+│  [Priority 4] Declared Defaults:         variables.yml (default:)
 ▼ LOWEST PRECEDENCE
-```
-
-### 1. Environment Variables (`TF_VAR_*`)
-Any environment variable with the `TF_VAR_` prefix is automatically captured:
-```bash
-export TF_VAR_base_url="https://qa-sandbox.app.com"
-testform plan
-```
-
-### 2. CLI Flags (`--var` / `-var`)
-Override variables on the fly in terminal or CI/CD pipelines:
-```bash
-testform plan -var "base_url=https://dev.app.com" -var "timeout_ms=10000"
 ```

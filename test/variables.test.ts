@@ -4,7 +4,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { VariableParser } from '../src/core/variables';
 
-describe('VariableParser 5-Tier Priority Hierarchy', () => {
+describe('VariableParser Hierarchy, Auto-load *.vars.yml and AST Engine', () => {
     let tmpDir: string;
 
     beforeEach(() => {
@@ -15,13 +15,13 @@ describe('VariableParser 5-Tier Priority Hierarchy', () => {
         rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it('should load Nivel 0 (Monolito Base testform.yml)', () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), `
-vars:
+    it('should load Base main.yml with variable: and locals: blocks', () => {
+        writeFileSync(join(tmpDir, 'main.yml'), `
+variable:
   app_url:
     default: "https://base.local"
   env: "dev"
-local:
+locals:
   api: "\${var.app_url}/api"
 `);
 
@@ -31,132 +31,140 @@ local:
         expect(parser.getLocals().api).toBe('https://base.local/api');
     });
 
-    it('should override Nivel 0 with Nivel 1 (vars.yml / local.yml)', () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), `
-vars:
+    it('should override base with variables.yml and locals.yml', () => {
+        writeFileSync(join(tmpDir, 'main.yml'), `
+variable:
   app_url:
     default: "https://base.local"
   timeout: 5000
-local:
+locals:
   api: "\${var.app_url}/v0"
 `);
 
-        writeFileSync(join(tmpDir, 'vars.yml'), `
-vars:
+        writeFileSync(join(tmpDir, 'variables.yml'), `
+variable:
   timeout: 8000
   new_var: "hello"
 `);
 
-        writeFileSync(join(tmpDir, 'local.yml'), `
-local:
+        writeFileSync(join(tmpDir, 'locals.yml'), `
+locals:
   api: "\${var.app_url}/v1"
   extra_local: "extra"
 `);
 
         const parser = new VariableParser(undefined, undefined, tmpDir);
-        // app_url retained from Nivel 0
         expect(parser.getVars().app_url).toBe('https://base.local');
-        // timeout overridden by Nivel 1
         expect(parser.getVars().timeout).toBe('8000');
         expect(parser.getVars().new_var).toBe('hello');
-        // local.api overridden by Nivel 1
         expect(parser.getLocals().api).toBe('https://base.local/v1');
         expect(parser.getLocals().extra_local).toBe('extra');
     });
 
-    it('should override Nivel 0 & 1 with Nivel 2 (Funcionalidad / Dominio auth.yml, checkout.yml)', () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), `
-vars:
-  app_url:
-    default: "https://base.local"
-  timeout: 5000
-local:
-  auth_endpoint: "\${var.app_url}/auth"
+    it('should auto-load *.vars.yml files automatically in workspace', () => {
+        writeFileSync(join(tmpDir, 'variables.yml'), `
+variable:
+  environment:
+    default: "dev"
+  concurrency:
+    default: 10
 `);
 
-        writeFileSync(join(tmpDir, 'vars.yml'), `
-vars:
-  timeout: 8000
-`);
-
-        // Create domain folder and file: auth/auth.yml
-        const authDir = join(tmpDir, 'auth');
-        mkdirSync(authDir);
-        writeFileSync(join(authDir, 'auth.yml'), `
-vars:
-  timeout: 12000
-  auth_retries: 3
-local:
-  auth_endpoint: "\${var.app_url}/custom-auth/login"
-  auth_cookie: "session_token"
+        // testform.vars.yml auto-loaded!
+        writeFileSync(join(tmpDir, 'testform.vars.yml'), `
+environment: "staging"
+concurrency: 25
 `);
 
         const parser = new VariableParser(undefined, undefined, tmpDir);
-        // app_url retained from Nivel 0
-        expect(parser.getVars().app_url).toBe('https://base.local');
-        // timeout overridden by Nivel 2 domain file (12000 beats 8000 and 5000)
-        expect(parser.getVars().timeout).toBe('12000');
-        expect(parser.getVars().auth_retries).toBe('3');
-        // local.auth_endpoint overridden by Nivel 2
-        expect(parser.getLocals().auth_endpoint).toBe('https://base.local/custom-auth/login');
-        expect(parser.getLocals().auth_cookie).toBe('session_token');
+        expect(parser.getVars().environment).toBe('staging');
+        expect(parser.getVars().concurrency).toBe('25');
     });
 
-    it('should override Nivel 0, 1, 2 with Nivel 4 (-var-file) and Nivel 5 (-var)', () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), `
-vars:
-  app_url:
-    default: "https://base.local"
+    it('should allow -var-file to override auto-loaded *.vars.yml, and -var to override -var-file', () => {
+        writeFileSync(join(tmpDir, 'variables.yml'), `
+variable:
+  environment:
+    default: "dev"
   timeout: 5000
-  env: "dev"
 `);
 
-        // Nivel 2 domain file
-        writeFileSync(join(tmpDir, 'checkout.yml'), `
-vars:
-  timeout: 10000
-  env: "qa"
+        // Auto-loaded *.vars.yml
+        writeFileSync(join(tmpDir, 'default.vars.yml'), `
+environment: "staging"
+timeout: 8000
 `);
 
-        // Nivel 4: var file passed via -var-file
-        const varFile = join(tmpDir, 'staging.yml');
-        writeFileSync(varFile, `
-vars:
-  timeout: 15000
-  env: "staging"
+        // Explicit -var-file
+        const prodVarFile = join(tmpDir, 'prod.vars.yml');
+        writeFileSync(prodVarFile, `
+environment: "prod"
+timeout: 15000
 `);
 
-        // Nivel 5: -var CLI flag (env=production)
+        // CLI: -var-file=prod.vars.yml and -var="timeout=20000"
         const parser = new VariableParser(
-            ['env=production'], // Nivel 5
-            [varFile],          // Nivel 4
+            ['timeout=20000'],
+            [prodVarFile],
             tmpDir
         );
 
-        // timeout is taken from Nivel 4 (-var-file) over Nivel 2 and Nivel 0
-        expect(parser.getVars().timeout).toBe('15000');
-        // env is taken from Nivel 5 (-var CLI flag) over Nivel 4, 2, 0
-        expect(parser.getVars().env).toBe('production');
-        // app_url retained from Nivel 0
-        expect(parser.getVars().app_url).toBe('https://base.local');
+        expect(parser.getVars().environment).toBe('prod');
+        expect(parser.getVars().timeout).toBe('20000');
     });
 
-    it('should evaluate multi-pass nested local expressions and template interpolation', () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), `
-vars:
-  host: "api.midominio.com"
-local:
-  base: "https://\${var.host}"
-  v1: "\${local.base}/v1"
-  users_url: "\${local.v1}/users"
+    it('should evaluate AST functions in locals (lower, format, replace)', () => {
+        writeFileSync(join(tmpDir, 'main.yml'), `
+variable:
+  host: "api.miempresa.com"
+  env_raw: "STAGING"
+locals:
+  env: "\${lower(var.env_raw)}"
+  full_url: "\${format('https://%s.%s/v1', local.env, var.host)}"
 `);
 
         const parser = new VariableParser(undefined, undefined, tmpDir);
-        expect(parser.getLocals().base).toBe('https://api.midominio.com');
-        expect(parser.getLocals().v1).toBe('https://api.midominio.com/v1');
-        expect(parser.getLocals().users_url).toBe('https://api.midominio.com/v1/users');
+        expect(parser.getLocals().env).toBe('staging');
+        expect(parser.getLocals().full_url).toBe('https://staging.api.miempresa.com/v1');
+    });
 
-        const templated = parser.applyToTemplate('GET \${local.users_url}?env=\${var.host}');
-        expect(templated).toBe('GET https://api.midominio.com/v1/users?env=api.midominio.com');
+    it('should validate enum restriction on variable declaration', () => {
+        writeFileSync(join(tmpDir, 'variables.yml'), `
+variable:
+  environment:
+    type: string
+    default: "staging"
+    enum: ["dev", "staging", "prod"]
+`);
+
+        // Passing default "staging" should succeed
+        const validParser = new VariableParser(undefined, undefined, tmpDir);
+        expect(validParser.getVars().environment).toBe('staging');
+
+        // Invalid value provided via CLI should throw Error with enum details
+        expect(() => {
+            new VariableParser(['environment=qa'], undefined, tmpDir);
+        }).toThrow(/Variable enum validation error/);
+    });
+
+    it('should evaluate custom validation condition and throw error_message when condition fails', () => {
+        writeFileSync(join(tmpDir, 'variables.yml'), `
+variable:
+  image_tag:
+    type: string
+    default: "v1.2.0"
+    validation:
+      condition: "\${startswith(var.image_tag, 'v')}"
+      error_message: "The image_tag value must start with 'v'."
+`);
+
+        // Valid default "v1.2.0" should succeed
+        const validParser = new VariableParser(undefined, undefined, tmpDir);
+        expect(validParser.getVars().image_tag).toBe('v1.2.0');
+
+        // Invalid value without 'v' prefix should throw error_message
+        expect(() => {
+            new VariableParser(['image_tag=latest'], undefined, tmpDir);
+        }).toThrow(/The image_tag value must start with 'v'/);
     });
 });

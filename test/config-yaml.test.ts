@@ -88,18 +88,55 @@ provider:
         expect(config.getResolvedPath()).toBe(join(tmpDir, 'testform.yml'));
     });
 
-    it('should generate testform.yml by default on initCmd', async () => {
+    it('should generate main.yml by default on initCmd with testform block', async () => {
         writeFileSync(join(tmpDir, 'sample.case.feature'), '@testcase\nFeature: Test\nScenario: One\nGiven step');
         await initCmd({ dir: tmpDir, lock: false });
 
-        const expectedYmlPath = join(tmpDir, 'testform.yml');
+        const expectedYmlPath = join(tmpDir, 'main.yml');
         expect(existsSync(expectedYmlPath)).toBe(true);
 
         const content = readFileSync(expectedYmlPath, 'utf8');
-        expect(content).toContain('version: "1.0"');
+        expect(content).toContain('testform:');
+        expect(content).toContain('required_version:');
         expect(content).toContain('provider:');
         expect(content).toContain('github:');
         expect(content).toContain('scopes:');
+    });
+
+    it('should respect and load existing testform.yml for backward compatibility', async () => {
+        writeFileSync(join(tmpDir, 'sample.case.feature'), '@testcase\nFeature: Test\nScenario: One\nGiven step');
+        writeFileSync(join(tmpDir, 'testform.yml'), 'version: "1.0"\nprovider: local\nbackend: local\n');
+        await initCmd({ dir: tmpDir, lock: false });
+
+        expect(existsSync(join(tmpDir, 'testform.yml'))).toBe(true);
+        expect(existsSync(join(tmpDir, 'main.yml'))).toBe(false);
+    });
+
+    it('should support main.yml with root testform block', () => {
+        const yamlContent = `
+testform:
+  required_version: ">= 1.0"
+  backend:
+    local:
+      path: ./testform.state
+
+providers:
+  github:
+    owner: terraform-style
+    repository: my-repo
+
+scopes:
+  testcase:
+    match: "*.case.feature"
+`;
+        writeFileSync(join(tmpDir, 'main.yml'), yamlContent, 'utf8');
+
+        const config = new Config(tmpDir);
+        expect(config.getResolvedPath()).toBe(join(tmpDir, 'main.yml'));
+        expect(config.getRequiredVersion()).toBe('>= 1.0');
+        expect(config.getBackend()?.type).toBe('local');
+        expect(config.getProviderType()).toBe('github');
+        expect(config.getGitHub()?.owner).toBe('terraform-style');
     });
 
     it('should support Propuesta A: scopes, match, scaffold, and fields object map', () => {

@@ -1,4 +1,4 @@
-﻿# Test Suite Automation
+# Test Suite Automation
 
 Connect your declarative test cases with real test automation runners including Playwright, Cypress, and Vitest using the `testform suite` command.
 
@@ -34,12 +34,14 @@ Testform does not replace specialized test runners like Playwright or Vitest; it
 +-----------------------+
 ```
 
-## Runner Configuration in testform.yml
+## Runner Configuration in main.yml
 
-Declare your runner binary and execution flags in `testform.yml`:
+Declare your runner binary and execution flags in `main.yml`:
 
 ```yaml
-version: "1.0"
+testform:
+  required_version: ">= 1.0"
+  backend: local
 
 suite:
   runner: "playwright"
@@ -65,8 +67,8 @@ Testform Suite Orchestrator v1.0.0
 Filter criteria: @smoke
 
 Resolved test cases:
-  - tests/features/auth.case.feature::@tc-auth-001
-  - tests/features/checkout.case.feature::@tc-checkout-001
+  - tests/features/auth.case.feature.@tc-auth-001
+  - tests/features/checkout.case.feature.@tc-checkout-001
 
 Invoking underlying runner: npx playwright test...
 

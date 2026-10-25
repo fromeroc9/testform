@@ -5,6 +5,7 @@ import { IdGenerator } from '@cucumber/messages';
 import YAML from 'yaml';
 import { ParserStep } from './types';
 import { findDomainConfigFiles, reassembleSplitTags, sanitizeTagsWithSpaces, restoreTagsWithSpaces } from './utils';
+import { CONFIG_FILE_NAMES } from './const';
 
 export interface ModuleTarget {
     name?: string;
@@ -33,8 +34,8 @@ export class ModuleRegistry {
     }
 
     public loadDeclarations(): void {
-        // 1. Root testform.yml / testform.yaml
-        for (const name of ['testform.yml', 'testform.yaml']) {
+        // 1. Root main.yml / CONFIG_FILE_NAMES
+        for (const name of CONFIG_FILE_NAMES) {
             const p = resolve(this.workDir, name);
             if (existsSync(p)) {
                 try {
@@ -377,13 +378,14 @@ function loadModuleDirectoryDefaults(moduleFilePath: string): Record<string, any
     const dir = dirname(moduleFilePath);
     const defaults: Record<string, any> = {};
 
-    for (const name of ['vars.yml', 'vars.yaml', 'testform.yml', 'testform.yaml']) {
+    for (const name of ['variables.yml', 'variables.yaml', 'vars.yml', 'vars.yaml', ...CONFIG_FILE_NAMES]) {
         const p = join(dir, name);
         if (existsSync(p)) {
             try {
                 const parsed = YAML.parse(readFileSync(p, 'utf-8'));
-                if (parsed && typeof parsed.vars === 'object') {
-                    for (const [k, v] of Object.entries(parsed.vars)) {
+                const varsBlock = parsed?.variable || parsed?.vars;
+                if (varsBlock && typeof varsBlock === 'object') {
+                    for (const [k, v] of Object.entries(varsBlock)) {
                         if (v && typeof v === 'object' && 'default' in (v as any)) {
                             defaults[k] = (v as any).default;
                         } else if (v !== undefined) {

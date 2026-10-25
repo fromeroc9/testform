@@ -108,7 +108,7 @@
 
 See how a technical specification in Git transforms into a speculative reconciliation plan and automated test runner execution:
 
-<Tabs items={['features/auth.case.feature', 'testform.yml', 'testform plan', 'testform suite (Runners)']}>
+<Tabs items={['features/auth.case.feature', 'main.yml', 'testform plan', 'testform suite (Runners)']}>
   <Tabs.Tab>
 ```gherkin
 Feature: Access Control and Authentication
@@ -123,7 +123,7 @@ Feature: Access Control and Authentication
   Scenario: Successful login to the dashboard
     Given the user navigates to "/login"
     When the user enters email "admin@company.com"
-    And the user enters password "${vars.admin_pass}"
+    And the user enters password "${var.admin_pass}"
     And clicks the "Sign In" button
     Then the system redirects to "/dashboard"
     And the banner displays "Welcome, Administrator"
@@ -132,20 +132,17 @@ Feature: Access Control and Authentication
 
   <Tabs.Tab>
 ```yaml
-backend:
-  local:
-    path: "./testform.state"
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "./testform.state"
 
-providers:
+provider:
   github:
     owner: "company"
-    repo: "web-portal"
-
-vars:
-  admin_pass: "Secret123!"
-
-outputs:
-  total_scenarios: "${testcase.*.count}"
+    repository: "web-portal"
+    token_env: "GITHUB_TOKEN"
 ```
   </Tabs.Tab>
 
@@ -157,7 +154,7 @@ Acquiring state lock... [OK]
 
 Calculating DAG graph and reconciliation plan:
 
-  + resource "testcase" "features/auth.case.feature::@tc-auth-001" {
+  + resource "testcase" "features/auth.case.feature.@tc-auth-001" {
       + title       = "Successful login to the dashboard"
       + feature     = "Access Control and Authentication"
       + priority    = "high"
@@ -240,9 +237,11 @@ Organize your tests, fixtures, runners, and configuration with a clean, modular 
       <FileTree.File name="todo_perf_runner.js" />
     </FileTree.Folder>
   </FileTree.Folder>
-  <FileTree.File name="testform.yml" />
+  <FileTree.File name="main.yml" />
+  <FileTree.File name="variables.yml" />
+  <FileTree.File name="testform.vars.yml" />
+  <FileTree.File name="locals.yml" />
   <FileTree.File name="testform.state" />
-  <FileTree.File name="testform.state.lock" />
 </FileTree>
 
 <Callout type="info" emoji="⚡">

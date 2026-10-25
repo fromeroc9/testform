@@ -1,34 +1,40 @@
+import { Callout } from 'nextra/components'
+
 # Configure Providers
 
-Los **Providers** en Testform son plugins modulares desacoplados que conectan la especificación declarativa de pruebas con las **plataformas de gestión de calidad y estado** (GitHub Issues / Projects, GitLab, Jira o Ledger Local).
+Los **Providers** en Testform son plugins modulares desacoplados que conectan la especificación declarativa de pruebas BDD con las **plataformas de gestión de calidad y estado** (GitHub Issues / Projects, GitLab, Jira o Ledger Local).
 
 Al igual que en Terraform un provider gestiona la comunicación con la API de un proveedor de nube (AWS, Azure, GCP) para registrar el estado de la infraestructura, en Testform un provider gestiona la comunicación con el issue tracker o el almacenamiento de estado para **crear, actualizar, cerrar y versionar casos de prueba y ejecuciones como código en Git**.
 
-> [!IMPORTANT]
-> **Diferencia Clave: Providers vs Test Runners**  
-> - **Provider (`provider`):** Plataforma de gestión y trazabilidad donde residen los casos de prueba y el ledger de estado (`local`, `github`, `gitlab`, `jira`).  
-> - **Test Runner:** Motor de automatización que ejecuta el código en navegadores, APIs o sockets (`Playwright`, `Cypress`, `Supertest`, `K6`).
+<Callout type="warning">
+**Diferencia Clave: Providers vs Test Runners**  
+- **Provider (`provider`):** Plataforma de gestión y trazabilidad donde residen los casos de prueba y el ledger de estado (`local`, `github`, `gitlab`, `jira`).  
+- **Test Runner:** Motor de automatización que ejecuta el código en navegadores, APIs o sockets (`Playwright`, `Cypress`, `Supertest`, `K6`).
+</Callout>
 
 ---
 
-## Declaración en `testform.yml`
+## Declaración en `main.yml`
 
-Los providers se configuran en el archivo principal `testform.yml`:
+Los providers se configuran en el archivo principal **`main.yml`**:
 
 ```yaml
-version: "1.0"
+# main.yml
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "./testform.state"
 
-# Provider activo para el ciclo de vida de los casos y el ledger de estado
-provider: "github" # o "local", "gitlab", "jira"
-
-github:
-  owner: "mi-organizacion"
-  repo: "mi-sistema-web"
-  project_number: 12 # GitHub Projects v2
-  labels:
-    testcase: "testcase"
-    testrun: "testrun"
-    testplan: "testplan"
+provider:
+  github:
+    owner: "mi-organizacion"
+    repository: "mi-sistema-web"
+    token_env: "GITHUB_TOKEN"
+  jira:
+    host: "mi-empresa.atlassian.net"
+    project_key: "QA"
+    email: "qa-team@empresa.com"
 ```
 
 ---
@@ -37,10 +43,10 @@ github:
 
 | Provider | Tipo de Almacenamiento | Uso Recomendado |
 |---|---|---|
-| **`local`** | Archivo JSON local `testform.state` | Proyectos ágiles, pruebas locales y suites autónomas en Git sin dependencias externas. |
+| **`local`** | Archivo local `testform.state` | Proyectos ágiles, pruebas locales y suites autónomas en Git sin dependencias externas. |
 | **`github`** | GitHub Issues + GitHub Projects (GraphQL) | Equipos que centralizan sus especificaciones y ejecuciones en GitHub Enterprise / Cloud. |
 | **`gitlab`** | GitLab Issues + Scoped Labels | Pipelines de GitLab CI/CD con trazabilidad en tableros de GitLab. |
-| **`custom`** | Conectores HTTP / Webhook | Integraciones a medida con herramientas propietarias de QA o TestRail/Xray. |
+| **Custom Providers** | Conectores propios registrados vía `registerResource()` | Integraciones a medida con herramientas propietarias de QA o TestRail/Xray. |
 
 ---
 

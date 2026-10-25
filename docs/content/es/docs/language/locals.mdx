@@ -1,48 +1,69 @@
-# Locals (`locals:`)
+import { Callout, Tabs } from 'nextra/components'
 
-Los **Valores Locales** en Testform permiten asignar un nombre a expresiones o valores computados repetitivos, evitando la duplicación de código y facilitando el mantenimiento de las suites de prueba.
+# Locals (`locals:`) y Motor AST
 
-Al igual que el bloque `locals` en Terraform, en Testform se declaran en `local.yml` (o `testform.yml`) y se referencian mediante `${local.<nombre>}`.
+Los **Valores Locales** en Testform permiten asignar nombres a expresiones computadas y transformaciones de datos repetitivas, evitando duplicación y facilitando el mantenimiento de las suites de prueba.
+
+Al igual que el bloque `locals` en Terraform, en Testform se declaran en `locals.yml` (o en `main.yml`) y se referencian mediante `${local.<nombre>}`.
 
 ---
 
-## Declaración de Locales
+## 1. Declaración de Locales y Funciones AST
 
-Los valores locales pueden declararse bajo la clave `local:` o `locals:`:
+Testform cuenta con un **motor de expresiones AST sandboxed** propio que soporta funciones estándar de transformación:
 
 ```yaml
-# local.yml
+# locals.yml
 locals:
-  base_url: "${var.app_url}"
-  login_url: "${local.base_url}/auth/v1/login"
-  checkout_api: "${local.base_url}/api/checkout"
-  env_tag: "@env-${var.environment}"
+  # Transformación de texto
+  env_clean: "${lower(trim(var.environment))}"
+  
+  # Formato con argumentos
+  base_url: "${format('https://%s.%s', local.env_clean, var.domain)}"
+  login_endpoint: "${local.base_url}/auth/v1/login"
+
+  # Colecciones y fallbacks
+  default_tags: "${split(',', 'e2e,smoke,regression')}"
+  api_key: "${coalesce(env('CI_API_KEY'), 'local-dev-key')}"
 ```
 
 ---
 
-## Resolución en Cascada y Referencias Recursivas
+## 2. Catálogo de Funciones Soportadas
 
-Testform resuelve dependencias transitivas (locales que referencian a otros locales o a variables) mediante un evaluador de múltiples pasadas:
-
-1. `${var.app_url}` se resuelve a `"https://staging.app.com"`.
-2. `${local.base_url}` toma dicho valor.
-3. `${local.login_url}` se evalúa finalmente a `"https://staging.app.com/auth/v1/login"`.
+| Categoría | Funciones | Descripción / Ejemplo |
+|---|---|---|
+| **Texto** | `lower`, `upper` | Conversión a minúsculas o mayúsculas: `${lower(var.env)}` |
+| | `trim`, `trimprefix`, `trimsuffix` | Limpieza de espacios o prefijos: `${trimprefix(var.url, 'https://')}` |
+| | `format`, `replace`, `substr` | Formato y reemplazo: `${format('%s/v1', var.host)}`, `${replace(var.str, 'a', 'b')}` |
+| | `split`, `join` | División y unión: `${split(',', 'a,b')}`, `${join('-', ['x', 'y'])}` |
+| **Colecciones** | `contains` | Comprobación de existencia: `${contains(['dev', 'staging'], var.env)}` |
+| | `length` | Longitud de array, mapa o texto: `${length(var.tags)}` |
+| | `element`, `slice` | Acceso a elementos por índice y recortes: `${element(var.list, 0)}` |
+| | `coalesce` | Retorna el primer valor no nulo ni vacío: `${coalesce(env('TOKEN'), 'default')}` |
+| | `lookup`, `merge` | Búsqueda en mapas y fusión de objetos |
+| **Sistema y Entorno** | `env` | Lectura de variables de entorno del sistema: `${env('GITHUB_TOKEN')}` |
+| | `uuid`, `timestamp` | Generación de UUIDs y marcas de tiempo ISO |
+| | `jsonencode`, `jsondecode` | Serialización y deserialización de JSON |
+| | `file` | Lectura de contenido de archivos locales: `${file('fixtures/user.json')}` |
 
 ---
 
-## Uso en Escenarios
+## 3. Resolución en Cascada
+
+Testform resuelve dependencias transitivas mediante un evaluador de múltiples pasadas:
+
+1. `${var.domain}` se resuelve a `"empresa.com"`.
+2. `${local.base_url}` toma dicho valor y evalúa la función `${format(...)}`.
+3. `${local.login_endpoint}` se resuelve finalmente a `"https://staging.empresa.com/auth/v1/login"`.
+
+---
+
+## 4. Uso en Escenarios Gherkin
 
 ```gherkin
-Scenario: Login centralizado
-  Given el usuario abre la URL "${local.login_url}"
+Scenario: Login centralizado en entorno dinámico
+  Given el usuario abre la URL "${local.login_endpoint}"
   When envía credenciales válidas
   Then es redirigido al dashboard principal
 ```
-
----
-
-## ¿Cuándo usar Variables vs Locals?
-
-- **Usa Variables (`vars:`):** Para valores que cambian según el entorno de ejecución, el pipeline de CI/CD o que se configuran externamente por el usuario.
-- **Usa Locals (`locals:`):** Para constantes internas derivadas, concatenaciones de URLs o selectores repetitivos que no deben exponerse como parámetros de entrada externos.

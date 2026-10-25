@@ -15,7 +15,7 @@ Es completamente seguro ejecutar `testform init` de forma reiterada para resincr
 | `-provider=<tipo>` | `github` | Tipo de provider a configurar (`github`, `local`, `gitlab`). |
 | `-backend-type=<tipo>` | `local` | Tipo de backend a generar al crear una configuración nueva (`local`, `github`, `s3`, `azurerm`, `gcs`, `oci`). |
 | `-backend=false` | `true` | Desactiva la inicialización del backend en esta ejecución y reutiliza la configuración previa. |
-| `-backend-config=path` | — | Configuración para combinar o sobrescribir el bloque `backend` de `testform.yml`. Puede especificarse como cadena `clave=valor` o como ruta a un archivo. Admite múltiples declaraciones. |
+| `-backend-config=path` | — | Configuración para combinar o sobrescribir el bloque `backend` de `main.yml`. Puede especificarse como cadena `clave=valor` o como ruta a un archivo. Admite múltiples declaraciones. |
 | `-reconfigure` | `false` | Reconfigura el backend desde cero, ignorando cualquier configuración en caché. |
 | `-migrate-state` | `false` | Reconfigura el backend y migra automáticamente cualquier estado previo a la nueva ubicación. |
 | `-lock=false` | `true` | Desactiva el bloqueo de estado durante la migración (usar con precaución). |
@@ -66,7 +66,7 @@ commands will detect it and remind you to do so if necessary.
 
 ### Inicialización en Directorio Vacío
 
-Al igual que Terraform cuando no existen archivos `.tf`, si Testform se ejecuta en un directorio donde aún no existen archivos `.feature` válidos con el tag reservado obligatorio `@testcase`, el proceso **se detiene inmediatamente y no genera `testform.yml`**, reportando:
+Al igual que Terraform cuando no existen archivos `.tf`, si Testform se ejecuta en un directorio donde aún no existen archivos `.feature` válidos con el tag reservado obligatorio `@testcase`, el proceso **se detiene inmediatamente y no genera `main.yml`**, reportando:
 
 ```text
 Testform initialized in an empty directory!
@@ -75,7 +75,7 @@ The directory has no Testform feature files. You may begin working
 with Testform immediately by creating Gherkin feature files.
 ```
 
-Una vez creado tu primer archivo de especificación Gherkin con `@testcase`, las subsecuentes ejecuciones de `testform init` generarán `testform.yml` (si aún no existe), inicializarán el backend y reportarán `Testform has been successfully initialized!`.
+Una vez creado tu primer archivo de especificación Gherkin con `@testcase`, las subsecuentes ejecuciones de `testform init` generarán `main.yml` (si aún no existe), inicializarán el backend y reportarán `Testform has been successfully initialized!`.
 
 ## Validación de Argumentos de Backend
 
@@ -90,11 +90,11 @@ Cuando se especifica `-backend-config`, Testform valida de forma estricta los ar
   │ expected for the selected backend type.
   ╵
   ```
-- **Sin bloque backend:** Si se invoca `-backend-config` sin un bloque `backend` declarado en `testform.yml`, Testform emite la advertencia `Warning: Missing backend configuration` para recordarte definir explícitamente el backend o agregarlo para limpiar el aviso.
+- **Sin bloque backend:** Si se invoca `-backend-config` sin un bloque `backend` declarado en `main.yml`, Testform emite la advertencia `Warning: Missing backend configuration` para recordarte definir explícitamente el backend o agregarlo para limpiar el aviso.
 
 ## Cambio en la Configuración del Backend
 
-Testform realiza un seguimiento continuo de la configuración activa del backend en `.testform/backend.json`. Si modificas el bloque `backend` en `testform.yml` o proporcionas un valor distinto mediante `-backend-config`, Testform detecta la discrepancia antes de inicializar y solicita definir cómo proceder:
+Testform realiza un seguimiento continuo de la configuración activa del backend en `.testform/backend.json`. Si modificas el bloque `backend` en `main.yml` o proporcionas un valor distinto mediante `-backend-config`, Testform detecta la discrepancia antes de inicializar y solicita definir cómo proceder:
 
 ```text
 ╷
@@ -145,7 +145,7 @@ Si la configuración del backend carece de campos obligatorios, Testform valida 
 ## Uso Avanzado y Escenarios
 
 ### Inyección Dinámica de Backends en CI/CD
-Suministra credenciales sensibles o nombres de buckets de forma dinámica sin exponerlos en `testform.yml`:
+Suministra credenciales sensibles o nombres de buckets de forma dinámica sin exponerlos en `main.yml`:
 ```bash
 testform init \
   -backend-config="bucket=mis-estados-testform" \
