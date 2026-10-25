@@ -1,0 +1,72 @@
+﻿---
+title: "Locals ("
+---
+
+# Locals (`locals:`) and AST Functions
+
+**Local Values** in Testform assign names to computed expressions and data transformations, reducing repetition and keeping test suites maintainable.
+
+Just like the `locals` block in Terraform, local values in Testform are declared in `locals.yml` (or `main.yml`) and referenced via `${local.<name>}`.
+
+---
+
+## 1. Local Declarations & AST Expressions
+
+Testform includes a built-in **sandboxed AST expression engine** supporting standard HCL transformation functions:
+
+```yaml
+# locals.yml
+locals:
+  # Text transformation
+  env_clean: "${lower(trim(var.environment))}"
+  
+  # Format with placeholders
+  base_url: "${format('https://%s.%s', local.env_clean, var.domain)}"
+  login_endpoint: "${local.base_url}/auth/v1/login"
+
+  # Collections & fallbacks
+  default_tags: "${split(',', 'e2e,smoke,regression')}"
+  api_key: "${coalesce(env('CI_API_KEY'), 'local-dev-key')}"
+```
+
+---
+
+## 2. Supported Functions Catalog
+
+| Category | Functions | Description / Example |
+|---|---|---|
+| **String** | `lower`, `upper` | Case conversion: `${lower(var.env)}` |
+| | `trim`, `trimprefix`, `trimsuffix` | Strip whitespace or affixes: `${trimprefix(var.url, 'https://')}` |
+| | `format`, `replace`, `substr` | Formatting & substring: `${format('%s/v1', var.host)}`, `${substr(var.name, 0, 4)}` |
+| | `split`, `join` | Delimiter split & join: `${split(',', 'a,b')}`, `${join('-', ['x', 'y'])}` |
+| **Collections** | `contains` | Element check: `${contains(['dev', 'staging'], var.env)}` |
+| | `length` | Size of array, map, or string: `${length(var.tags)}` |
+| | `element`, `slice` | Index element retrieval and slicing: `${element(var.list, 0)}` |
+| | `coalesce` | Returns first non-null/non-empty value: `${coalesce(env('TOKEN'), 'default')}` |
+| | `lookup`, `merge` | Map lookup and object merging |
+| **System & Env** | `env` | Read environment variables: `${env('GITHUB_TOKEN')}` |
+| | `uuid`, `timestamp` | Generate UUIDs and ISO timestamps |
+| | `jsonencode`, `jsondecode` | JSON serialization and parsing |
+| | `file` | Read local file contents: `${file('fixtures/user.json')}` |
+
+---
+
+## 3. Multi-Pass Resolution
+
+Testform resolves transitive dependencies across locals and variables up to 3 passes:
+
+1. `${var.domain}` evaluates to `"company.com"`.
+2. `${local.base_url}` evaluates using `${format(...)}`.
+3. `${local.login_endpoint}` evaluates to `"https://staging.company.com/auth/v1/login"`.
+
+---
+
+## 4. Usage in Gherkin Scenarios
+
+```gherkin
+Scenario: Dynamic endpoint test
+  Given browser opens "${local.login_endpoint}"
+  When user submits valid credentials
+  Then user is redirected to the main dashboard
+```
+

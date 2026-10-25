@@ -1,0 +1,144 @@
+﻿---
+title: "CLI Helper:"
+---
+
+# CLI Helper: `testform functions`
+
+El CLI de Testform cuenta con un comando dedicado para explorar y poner a prueba las funciones de expresiones directamente en la consola. Esto te permite verificar la salida exacta de una expresiÃ³n antes de incorporarla en tus archivos `locals.yml` o `variables.yml`.
+
+---
+
+## 1. Listar el CatÃ¡logo Completo
+
+Ejecutar `testform functions` imprime el Ã­ndice de todas las funciones disponibles con su firma y resumen:
+
+```bash
+testform functions
+```
+
+Salida:
+```text
+Testform Expression Engine â€” Built-in Functions Catalog
+
+â€¢ String & Text:
+  lower(string)                          â†’ Converts all letters in a string to lowercase.
+  upper(string)                          â†’ Converts all letters in a string to uppercase.
+  trim(string, [cutset])                 â†’ Removes leading and trailing whitespace or specified characters.
+  trimprefix(string, prefix)             â†’ Removes the specified prefix from the beginning of a string.
+  trimsuffix(string, suffix)             â†’ Removes the specified suffix from the end of a string.
+  startswith(string, prefix)             â†’ Returns true if the string begins with the specified prefix.
+  endswith(string, suffix)               â†’ Returns true if the string ends with the specified suffix.
+  replace(string, search, replacement)   â†’ Replaces all occurrences of a search string.
+  split(separator, string)               â†’ Divides a string into a list of substrings.
+  join(separator, list)                  â†’ Concatenates elements of a list into a single string.
+  format(format, ...args)                â†’ Formats a string using verbs (%s, %d, %j, %%).
+  substr(string, offset, length)         â†’ Extracts a substring from offset up to length characters.
+
+â€¢ Collections & Logic:
+  coalesce(...args)                      â†’ Returns the first argument that is not null or empty.
+  lookup(map, key, [default])            â†’ Retrieves the value of a key from a map.
+  contains(list_or_string, value)        â†’ Checks whether a list or string contains a value.
+  length(value)                          â†’ Returns the number of elements, keys, or characters.
+  element(list, index)                   â†’ Retrieves an element at the specified index.
+  slice(list, start, [end])              â†’ Returns a sublist of elements.
+  merge(...maps)                         â†’ Merges multiple maps into a single map.
+
+â€¢ System & Encoding:
+  env(name)                              â†’ Reads an environment variable from the host process.
+  uuid()                                 â†’ Generates a random RFC 4122 version 4 UUID.
+  timestamp()                            â†’ Returns current UTC date and time formatted in ISO 8601.
+  jsonencode(value)                      â†’ Serializes a value into a standard JSON string.
+  jsondecode(string)                     â†’ Parses a JSON string into its native data structure.
+  file(path)                             â†’ Reads the contents of a local file as UTF-8 text.
+```
+
+---
+
+## 2. Obtener Ayuda de una FunciÃ³n EspecÃ­fica
+
+Indica el nombre de cualquier funciÃ³n para inspeccionar sus argumentos esperados y ejemplos de uso:
+
+```bash
+testform functions format
+```
+
+Salida:
+```text
+Testform Expression Function: format
+  Category:    String & Text
+  Signature:   format(format, ...args) -> string
+  Description: Formats a string using verbs (%s for string, %d for integer, %j for JSON, %% for literal %).
+
+Arguments:
+  - format [string]: Format string containing placeholders.
+  - args [any...]: Values to interpolate.
+
+Examples:
+  $ format("%s/%s", var.base_url, "api/v1")
+    => "https://example.com/api/v1"
+  $ format("run-%03d", 5)
+    => "run-5"
+```
+
+Otro ejemplo para colecciones:
+```bash
+testform functions coalesce
+```
+
+---
+
+## 3. Evaluar Expresiones en Vivo (`--eval`)
+
+La opciÃ³n `--eval` procesa cualquier expresiÃ³n vÃ¡lida a travÃ©s del lexer, parser y evaluador AST de Testform, mostrando el resultado formateado y su tipo de dato correspondiente:
+
+### Formateo de Cadenas Compuestas
+```bash
+testform functions --eval "format('https://%s.empresa.com/api/%s', lower('STAGING'), 'v2')"
+```
+Salida:
+```text
+Expression Evaluation:
+  Input:  format('https://%s.empresa.com/api/%s', lower('STAGING'), 'v2')
+  Type:   string
+  Result: "https://staging.empresa.com/api/v2"
+```
+
+### ComprobaciÃ³n de Pertenencia en Listas
+```bash
+testform functions --eval "contains(['dev', 'staging', 'prod'], 'dev')"
+```
+Salida:
+```text
+Expression Evaluation:
+  Input:  contains(['dev', 'staging', 'prod'], 'dev')
+  Type:   boolean
+  Result: true
+```
+
+### Operaciones de LÃ³gica Ternaria
+```bash
+testform functions --eval "length('test') > 2 ? 'largo' : 'corto'"
+```
+Salida:
+```text
+Expression Evaluation:
+  Input:  length('test') > 2 ? 'largo' : 'corto'
+  Type:   string
+  Result: "largo"
+```
+
+### TransformaciÃ³n de Objetos JSON
+```bash
+testform functions --eval "jsondecode('{\"enabled\": true, \"retries\": 3}')"
+```
+Salida:
+```text
+Expression Evaluation:
+  Input:  jsondecode('{"enabled": true, "retries": 3}')
+  Type:   object
+  Result: {
+  "enabled": true,
+  "retries": 3
+}
+```
+

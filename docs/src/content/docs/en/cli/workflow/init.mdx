@@ -1,0 +1,170 @@
+﻿---
+title: "testform init"
+---
+
+# `testform init`
+
+```bash
+testform [global options] init [options]
+```
+
+The `testform init` command initializes a working directory containing Testform configuration files. This is the first command that should be run for any new or cloned repository.
+
+It is always safe to run `testform init` multiple times to re-synchronize backend settings or install updated providers.
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-provider=<type>` | `github` | Provider type to scaffold (`github`, `local`, `gitlab`). |
+| `-backend-type=<type>` | `local` | Backend type to scaffold when creating a new configuration (`local`, `github`, `s3`, `azurerm`, `gcs`, `oci`). |
+| `-backend=false` | `true` | Disables backend initialization for this run and uses the previously initialized configuration. |
+| `-backend-config=path` | â€” | Configuration to merge with or override the `backend` block in `main.yml`. Can be a `key=value` string or a file path. May be specified multiple times. |
+| `-reconfigure` | `false` | Reconfigures a backend from scratch, ignoring any cached configuration. |
+| `-migrate-state` | `false` | Reconfigures a backend and automatically migrates any existing state to the new location. |
+| `-lock=false` | `true` | Disables holding a state lock during migration (use with caution). |
+| `-lock-timeout=0s` | `0s` | Duration to retry acquiring a state lock if another process holds it. |
+| `-no-color` | `false` | Disables color escape codes in output. |
+| `-json` | `false` | Emits output in machine-readable JSON format. |
+
+## Real Execution Example
+
+### Standard Initialization
+
+```bash
+$ testform init
+Initializing the backend...
+
+Successfully configured the backend "local"! Testform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources. All Testform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Testform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+```
+
+### Initialization without Backend (`-backend=false`)
+
+```bash
+$ testform init -backend=false
+Initializing provider plugins...
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources. All Testform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Testform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+```
+
+### Initializing in an Empty Directory
+
+Just like Terraform when no `.tf` files are present, if Testform is executed in a directory where no valid `.feature` files with the mandatory reserved tag `@testcase` exist, the process **stops immediately and does not generate `main.yml`**, reporting:
+
+```text
+Testform initialized in an empty directory!
+
+The directory has no Testform feature files. You may begin working
+with Testform immediately by creating Gherkin feature files.
+```
+
+Once you author your first Gherkin specification file with `@testcase`, subsequent executions of `testform init` will generate `main.yml` (if not already present), initialize the backend, and report `Testform has been successfully initialized!`.
+
+## Backend Argument Validation
+
+When `-backend-config` is supplied, Testform strictly validates the arguments against the target backend schema:
+
+- **Invalid argument:** If an unexpected argument is passed for the configured backend type (for example `-backend-config="bucket=..."` when backend is `local`), Testform aborts initialization with a formatted error:
+  ```text
+  â•·
+  â”‚ Error: Invalid backend configuration argument
+  â”‚
+  â”‚ The backend configuration argument "bucket" given on the command line is not
+  â”‚ expected for the selected backend type.
+  â•µ
+  ```
+- **Missing backend block:** If `-backend-config` is used without a declared `backend` block in `main.yml`, Testform outputs `Warning: Missing backend configuration` to remind you to declare the backend block or clear the warning.
+
+## Backend Configuration Changed
+
+Testform continuously tracks the active backend configuration inside `.testform/backend.json`. If you alter the `backend` block in `main.yml` or provide differing overrides via `-backend-config`, Testform detects the mismatch before running and halts execution:
+
+```text
+â•·
+â”‚ Error: Backend configuration changed
+â”‚ 
+â”‚ A change in the backend configuration has been detected, which may require migrating existing
+â”‚ state.
+â”‚ 
+â”‚ If you wish to attempt automatic migration of the state, run "testform init -migrate-state".
+â”‚ If you wish to store the current configuration with no changes to the state, run "testform
+â”‚ init -reconfigure".
+â•µ
+```
+
+- `-migrate-state`: Reads the existing state from the old backend and transfers it to the new remote backend.
+- `-reconfigure`: Overwrites the active configuration with the new settings without attempting state migration.
+
+## Required Attribute Validation
+
+If the backend configuration lacks mandatory parameters, Testform enforces provider requirements:
+
+- **Interactive prompts:** If `key` is omitted, Testform prompts interactively on the terminal:
+  ```text
+  key
+    The path to the state file inside the bucket
+
+    Enter a value: 
+  ```
+- **Missing region:** If `region` is omitted and neither `AWS_REGION` nor `AWS_DEFAULT_REGION` is set:
+  ```text
+  â•·
+  â”‚ Error: Missing region value
+  â”‚ 
+  â”‚ The "region" attribute or the "AWS_REGION" or "AWS_DEFAULT_REGION" environment variables must
+  â”‚ be set.
+  â•µ
+  ```
+- **Missing bucket:** If the destination bucket name is omitted:
+  ```text
+  â•·
+  â”‚ Error: Missing bucket value
+  â”‚ 
+  â”‚ The "bucket" attribute must be set for the s3 backend.
+  â•µ
+  ```
+
+
+## Advanced Usage & Scenarios
+
+### Dynamic CI/CD Backend Injection
+Pass sensitive tokens or bucket names dynamically without hardcoding them in `main.yml`:
+```bash
+testform init \
+  -backend-config="bucket=my-company-test-states" \
+  -backend-config="region=eu-central-1"
+```
+
+### Migrating State to Cloud Storage
+When moving from local development (`testform.state`) to AWS S3:
+```bash
+testform init -migrate-state
+```
+Testform prompts for confirmation, verifies the destination bucket, uploads the state file, and releases any locks cleanly.
+
+## Exit Codes
+
+- `0`: Initialization succeeded.
+- `1`: An error occurred (invalid configuration, missing backend credentials, or network failure).
+

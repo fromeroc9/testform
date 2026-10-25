@@ -1,0 +1,67 @@
+﻿---
+title: "Test and Validate"
+---
+
+# Test and Validate
+
+Testform provides static analysis and predictive verification tools before launching browsers or firing API traffic: `testform validate` and `testform plan`.
+
+---
+
+## 1. Static Validation (`testform validate`)
+
+The `testform validate` command verifies the syntax, schema consistency, and internal relationships across all project files without touching browser engines or reading state:
+
+```bash
+testform validate
+```
+
+### Static Checks Performed:
+- **YAML Syntax:** Checks structure of `main.yml`, `data.yml`, `variables.yml`, `locals.yml`, and `outputs.yml`.
+- **Gherkin Lexer:** Ensures all `.feature` files comply with BDD syntax.
+- **Circular Cycle Prevention:** Analyzes `@depends_on` directed graphs to detect cycles ($A \rightarrow B \rightarrow A$).
+- **Module Target Resolution:** Confirms paths referenced in `@module(source="...")` exist and resolve cleanly.
+- **Interpolation Syntax:** Validates `${var.*}`, `${data.*}`, and `${local.*}` expression grammar.
+
+When successful:
+```text
+Success! The configuration is valid.
+```
+
+---
+
+## 2. Predictive Planning (`testform plan`)
+
+Before updating state or triggering test executions, `testform plan` produces an execution preview:
+
+```bash
+testform plan
+```
+
+The planner reconciles declared code against the stored ledger (`testform.state`) and outputs exact planned actions:
+
+```text
+Testform will perform the following actions:
+
+  # auth/login.feature.@login_success will be created
+  + testcase "auth/login.feature.@login_success" {
+      + title       = "Successful user login"
+      + provider    = "playwright"
+    }
+
+  # checkout/payment.feature.@stripe will be updated
+  ~ testcase "checkout/payment.feature.@stripe" {
+      ~ steps       = 5 -> 6
+    }
+
+Plan: 1 to create, 1 to update, 0 to destroy.
+```
+
+### Freezing Plans with Files (`-out`)
+Freeze planned executions to guarantee that CI/CD pipelines run the exact approved plan:
+
+```bash
+testform plan -out=testform.plan.binary
+testform apply testform.plan.binary
+```
+

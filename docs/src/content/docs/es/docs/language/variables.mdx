@@ -1,0 +1,180 @@
+---
+title: "Variables ("
+---
+
+# Variables (`variable:`)
+
+Las **Variables de Entrada** en Testform permiten parametrizar suites de prueba y mÃ³dulos sin necesidad de hardcodear URLs, credenciales o datos de entorno dentro de los archivos de prueba.
+
+Al igual que el bloque `variable` en Terraform, en Testform se declaran de manera limpia en YAML mediante la clave oficial **`variable:`** y se resuelven en expresiones Gherkin mediante `${var.<nombre>}`.
+
+---
+
+## 1. DeclaraciÃ³n de Variables (`variables.yml`)
+
+Las variables se declaran en `variables.yml` (o en `main.yml`). Puedes definir tipos, descripciones, valores por defecto, listas de valores permitidos (`enum`) y reglas de validaciÃ³n evaluadas por el motor AST:
+
+```yaml
+# variables.yml
+variable:
+  environment:
+    type: string
+    default: "staging"
+    description: "Entorno destino para la ejecuciÃ³n de pruebas"
+    enum:
+      - "dev"
+      - "staging"
+      - "prod"
+    validation:
+      condition: "${contains(['dev', 'staging', 'prod'], var.environment)}"
+      error_message: "La variable environment debe ser 'dev', 'staging' o 'prod'."
+
+  base_url:
+    type: string
+    default: "https://staging.app.com"
+    description: "URL base de la aplicaciÃ³n bajo prueba"
+
+  timeout_ms:
+    type: number
+    default: 5000
+    description: "Tiempo lÃ­mite de espera en milisegundos"
+    validation:
+      condition: "${var.timeout_ms > 0 && var.timeout_ms <= 60000}"
+      error_message: "El timeout debe ser mayor a 0 y no superar los 60000 ms."
+```
+
+---
+
+## 2. Sistema de Tipos y Limitaciones Actuales
+
+Al igual que Terraform, Testform clasifica los tipos de datos en **primitivos** y **complejos**. Esta es la matriz tÃ©cnica del estado de soporte actual:
+
+| Tipo | CategorÃ­a | Estado en Testform | ValidaciÃ³n Activa |
+| :--- | :--- | :--- | :--- |
+| **`string`** | Primitivo | âœ… **100% Soportado** | InyecciÃ³n e interpolaciÃ³n directa en texto. |
+| **`number`** | Primitivo | âœ… **100% Soportado** | VerificaciÃ³n estricta con error si no es numÃ©rico. |
+| **`boolean`** | Primitivo | âœ… **100% Soportado** | RestricciÃ³n estricta a `true` o `false`. |
+| **`enum`** | RestricciÃ³n | âœ… **100% Soportado** | Bloqueo si el valor no estÃ¡ en la lista permitida. |
+| **`validation`** | LÃ³gica AST | âœ… **100% Soportado** | EvaluaciÃ³n de expresiones booleanas y mensaje de error. |
+| **`list(...)`** | ColecciÃ³n | âš ï¸ **Parcial / LimitaciÃ³n** | Se almacena aplanado a string (`"a,b"`). No valida tipo de hijos. |
+| **`map(...)`** | ColecciÃ³n | âš ï¸ **Parcial / LimitaciÃ³n** | No valida esquemas homogÃ©neos de valores. |
+| **`object`** | Estructural | âš ï¸ **Parcial / LimitaciÃ³n** | No valida esquemas recursivos ni atributos requeridos. |
+
+### Ejemplos PrÃ¡cticos de Tipos Primitivos
+
+```yaml
+variable:
+  # 1. String simple
+  app_url:
+    type: string
+    default: "https://demo.playwright.dev/todomvc"
+
+  # 2. Number con validaciÃ³n de rango
+  retries:
+    type: number
+    default: 3
+    validation:
+      condition: "${var.retries >= 1 && var.retries <= 10}"
+      error_message: "Los reintentos deben estar entre 1 y 10."
+
+  # 3. Boolean estricto
+  headless_mode:
+    type: boolean
+    default: true
+
+  # 4. Enum con catÃ¡logo cerrado de valores
+  target_env:
+    type: string
+    default: "staging"
+    enum: ["dev", "staging", "prod"]
+```
+
+### Limitaciones Actuales en Tipos Complejos y CÃ³mo Operar Hoy
+
+:::caution
+**LimitaciÃ³n TÃ©cnica Actual:**
+1. **Sin indexaciÃ³n por corchetes:** Sintaxis como `${var.browsers[0]}` o `${var.database.host}` **no estÃ¡n soportadas directamente en el parser sintÃ¡ctico**.
+2. **Acceso mediante Funciones HCL:** Para trabajar con colecciones o listas en la versiÃ³n actual, utiliza las funciones del motor AST:
+   * **`contains(list, val)`**: Verifica si un elemento existe en una lista.
+   * **`element(list, index)`**: Obtiene el elemento por Ã­ndice numÃ©rico.
+   * **`length(list)`**: Cuenta la cantidad de elementos.
+   * **`lookup(map, key, default)`**: Busca una clave en un mapa.
+:::
+
+```yaml
+# Forma recomendada en la versiÃ³n actual para colecciones:
+variable:
+  allowed_browsers:
+    default: ["chromium", "firefox", "webkit"]
+
+locals:
+  # Acceder al primer elemento usando la funciÃ³n element()
+  default_browser: "${element(var.allowed_browsers, 0)}"
+  
+  # Contar elementos con length()
+  total_browsers: "${length(var.allowed_browsers)}"
+```
+
+---
+
+## 3. AsignaciÃ³n de Valores: Archivos `*.vars.yml`
+
+Los valores concretos para las variables se definen en archivos con extensiÃ³n **`*.vars.yml`** (o `*.vars.yaml`):
+
+### Auto-Cargado AutomÃ¡tico
+Cualquier archivo que coincida con el patrÃ³n **`*.vars.yml`** dentro del workspace (por ejemplo, `testform.vars.yml`, `default.vars.yml`) **se carga automÃ¡ticamente** en orden alfabÃ©tico al ejecutar `testform plan` y `testform apply`:
+
+```yaml
+# testform.vars.yml (Auto-cargado por defecto)
+environment: "staging"
+base_url: "https://staging-api.empresa.com"
+timeout_ms: 10000
+```
+
+### InyecciÃ³n por Entorno (`-var-file`)
+Para entornos especÃ­ficos como producciÃ³n o CI/CD, puedes crear archivos dedicados e inyectarlos explÃ­citamente:
+
+```yaml
+# prod.vars.yml
+environment: "prod"
+base_url: "https://api.empresa.com"
+timeout_ms: 30000
+```
+
+```bash
+testform plan -var-file=prod.vars.yml
+testform apply -var-file=prod.vars.yml
+```
+
+---
+
+## 4. Uso en Escenarios Gherkin
+
+Dentro de cualquier paso de prueba puedes interpolar variables usando `${var.<nombre>}`:
+
+```gherkin
+Scenario: AutenticaciÃ³n con credenciales dinÃ¡micas
+  Given el navegador se dirige a "${var.base_url}/login"
+  When ingresa el usuario "qa-tester"
+  Then la sesiÃ³n se inicia en menos de ${var.timeout_ms} milisegundos
+```
+
+---
+
+## 5. JerarquÃ­a de Precedencia
+
+Testform resuelve el valor final de cada variable evaluando las fuentes de menor a mayor prioridad:
+
+```text
+â–² MÃXIMA PRIORIDAD
+â”‚  [Prioridad 1] Flags CLI directos:       testform plan -var "timeout_ms=15000"
+â”‚  [Prioridad 2] Archivo explÃ­cito CLI:    testform plan -var-file=prod.vars.yml
+â”‚  [Prioridad 3] Auto-cargado workspace:   *.vars.yml (ej. testform.vars.yml)
+â”‚  [Prioridad 4] Defaults declarados:      variables.yml (default:)
+â–¼ MENOR PRIORIDAD
+```
+
+:::tip
+**Control total en CI/CD:** Puedes fijar defaults comunes en `testform.vars.yml` para los desarrolladores locales y sobreescribir variables en el runner de GitHub Actions con `-var-file=ci.vars.yml` o `-var="environment=prod"`.
+:::
+

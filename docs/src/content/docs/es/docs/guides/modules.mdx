@@ -1,0 +1,181 @@
+﻿---
+title: "Arquitectura Modular (@module)"
+---
+
+# Arquitectura Modular (@module)
+
+Testform implementa un sistema modular completo con paridad funcional a los mÃ³dulos de Terraform, permitiendo empaquetar, parametrizar y reutilizar flujos de prueba en Gherkin y YAML.
+
+---
+
+## 1. El Problema de la DuplicaciÃ³n en Testing
+
+Flujos esenciales como autenticaciÃ³n, aprovisionamiento de carritos o navegaciÃ³n inicial se repiten en decenas de archivos de prueba. Duplicar estos pasos manualmente genera cÃ³digo frÃ¡gil ante cambios de diseÃ±o y rompe el principio DRY.
+
+Con los **MÃ³dulos de Testform**, puedes encapsular un flujo completo o un escenario especÃ­fico y componerlo dinÃ¡micamente con parÃ¡metros de entrada (`vars`) y valores de retorno (`outputs`).
+
+---
+
+## 2. DeclaraciÃ³n de un MÃ³dulo
+
+### A. MÃ³dulo en Archivo Feature (`.case.feature`)
+
+Crea un archivo de mÃ³dulo bajo `modules/auth/login.case.feature`:
+
+```gherkin
+@testcase
+Feature: MÃ³dulo de AutenticaciÃ³n
+  @tc-login
+  Scenario: Login con credenciales
+    Given el usuario navega a "<base_url>"
+    When ingresa el usuario "<user>" y contraseÃ±a "<password>"
+    Then la sesiÃ³n queda activa con perfil "<role>"
+```
+
+Los pasos pueden utilizar comodines de Ã¡ngulo `<param>` o sintaxis de variable `${var.param}` que serÃ¡n inyectados dinÃ¡micamente durante la invocaciÃ³n.
+
+### B. DeclaraciÃ³n en `testform.yml`
+
+Puedes registrar mÃ³dulos reutilizables centralmente con sus variables por defecto:
+
+```yaml
+modules:
+  auth_standard:
+    source: "./modules/auth/login.case.feature"
+    vars:
+      base_url: "${var.app_url}"
+      user: "standard_user"
+      password: "${var.default_password}"
+      role: "viewer"
+    outputs:
+      session_id:
+        value: "${testrun.modules/auth/login.case.feature.@tr-1.issueNumber}"
+```
+
+### C. MÃ³dulos Remotos (Git Registry)
+
+Testform soporta repositorios Git remotos para compartir mÃ³dulos entre diferentes proyectos u organizaciones:
+
+```yaml
+modules:
+  auth_shared:
+    source: "git::https://github.com/mi-org/qa-modules.git//auth?ref=v1.2.0"
+    vars:
+      base_url: "https://staging.empresa.com"
+```
+
+Durante `testform init`, los mÃ³dulos remotos se descargan automÃ¡ticamente en `.testform/modules/`.
+
+---
+
+## 3. InvocaciÃ³n y ParÃ¡metros (`vars`)
+
+### A. InvocaciÃ³n Directa con `vars`
+
+Invoca el mÃ³dulo pasando parÃ¡metros de entrada especÃ­ficos:
+
+```gherkin
+@tc-checkout-admin
+@module(source="./modules/auth/login.case.feature", vars={user: "admin", role: "superuser"})
+Scenario: Pago ejecutado con credenciales administrativas
+  When el usuario pulsa "Confirmar Pago"
+  Then la transacciÃ³n es aprobada
+```
+
+Los parÃ¡metros declarados en `vars={...}` sustituyen los valores `<user>` y `<role>` en los pasos heredados antes de ejecutar el escenario.
+
+### B. InvocaciÃ³n por Nombre de MÃ³dulo
+
+Si el mÃ³dulo fue registrado en `testform.yml`, puedes invocarlo directamente por su nombre o sobreescribir variables:
+
+```gherkin
+@tc-checkout-standard
+@module("auth_standard")
+Scenario: Pago con usuario estÃ¡ndar
+  When el usuario pulsa "Confirmar Pago"
+  Then la transacciÃ³n es aprobada
+```
+
+O con variables especÃ­ficas:
+
+```gherkin
+@tc-checkout-custom
+@module(name="auth_standard", vars={user: "custom_qa_user"})
+Scenario: Pago con usuario de control de calidad
+  When el usuario pulsa "Confirmar Pago"
+  Then la transacciÃ³n es aprobada
+```
+
+### C. SelecciÃ³n de Escenario EspecÃ­fico
+
+Si un archivo de mÃ³dulo contiene mÃºltiples escenarios, puedes seleccionar Ãºnicamente el que necesitas mediante `scenario` o notaciÃ³n de puntos:
+
+```gherkin
+# OpciÃ³n 1: Argumento scenario
+@module(source="./modules/auth/login.case.feature", scenario="@tc-login", vars={user: "demo"})
+
+# OpciÃ³n 2: NotaciÃ³n canÃ³nica de punto
+@module(source="./modules/auth/login.case.feature.tc-login", vars={user: "demo"})
+```
+
+---
+
+## 4. Scoping Estricto de Outputs (`${module.<name>.<output>}`)
+
+> **Regla de Aislamiento:** Si un output se define dentro de un mÃ³dulo, el output pertenece **exclusivamente al espacio de nombres del mÃ³dulo** y no contamina el Ã¡mbito global.
+
+### A. DeclaraciÃ³n dentro del MÃ³dulo
+
+Dentro de `modules/auth/outputs.yml`:
+
+```yaml
+outputs:
+  session_token:
+    description: "Token generado por el flujo de autenticaciÃ³n"
+    value: "tok_secure_active_session"
+  user_id:
+    value: "${testcase.modules/auth/login.case.feature.@tc-login.remoteId}"
+```
+
+### B. Consumo desde el Proyecto RaÃ­z
+
+El proyecto principal o cualquier escenario que consuma el mÃ³dulo accede al output utilizando el prefijo `module.<nombre>.<output>`:
+
+```yaml
+# testform.yml
+outputs:
+  active_admin_token:
+    description: "Token de sesiÃ³n del mÃ³dulo de autenticaciÃ³n"
+    value: "${module.auth.session_token}"
+```
+
+Y en pasos de prueba Gherkin:
+
+```gherkin
+Scenario: OperaciÃ³n autenticada
+  When ejecuta operaciÃ³n usando token "${module.auth.session_token}"
+```
+
+---
+
+## 5. InicializaciÃ³n (`testform init`)
+
+Al ejecutar `testform init`, Testform detecta los mÃ³dulos configurados y los prepara:
+
+```bash
+$ testform init
+Initializing the backend...
+Successfully configured the backend "local"!
+
+Initializing modules...
+- Using local module auth_standard from ./modules/auth/login.case.feature
+- Downloading git::https://github.com/mi-org/qa-modules.git//auth?ref=v1.2.0 for auth_shared...
+- Installed auth_shared to .testform/modules/auth_shared
+
+Initializing provider plugins...
+- Finding fromeroc9/github versions matching "1.0.0"...
+- Installed fromeroc9/github v1.0.0
+
+Testform has been successfully initialized!
+```
+

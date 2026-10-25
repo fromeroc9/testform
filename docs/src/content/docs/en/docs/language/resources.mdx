@@ -1,0 +1,130 @@
+---
+title: "Resources (Declarative Resources & Customization)"
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Resources (Declarative Resources & Customization)
+
+In Testform, **Resources** are the primary building block of your test suites. While in Terraform a resource models a cloud infrastructure component (an EC2 instance, an S3 bucket), in Testform a resource models a **managed BDD test specification or execution**.
+
+:::note
+**BDD as Code:** In Testform, tests live in human-readable Gherkin files (`.feature`), never in YAML blocks. The internal `resource.ts` engine automatically maps BDD scenarios to remote provider APIs (GitHub, Jira, TestRail, etc.).
+:::
+
+---
+
+## Canonical Resource Types
+
+Testform includes built-in declarative templates for quality management entities:
+
+| Resource | Purpose | Format / Location |
+|---|---|---|
+| **`github_testcase`** | Individual test specification | `Scenario:` in `*.case.feature` |
+| **`github_testrun`** | Immutable test execution tracking | `*.run.feature` |
+| **`github_testplan`** | Orchestration and execution schedule | `*.plan.feature` |
+| **Custom Resources** | Custom resources for Jira, TestRail, etc. | Registered via `registerResource()` |
+
+---
+
+## 1. Modifying Declared Resources
+
+Built-in resources (`github_testcase`, `github_testrun`, etc.) **are not closed black boxes**. Any team can modify or override fields, markdown body formatting, or labels using `registerResource()`.
+
+User definitions automatically take precedence over system templates, preserving unmentioned fields:
+
+<Tabs>
+<TabItem label="TypeScript">
+```typescript
+import { registerResource } from 'testform';
+
+// Customize the built-in github_testcase resource
+registerResource({
+    type: 'github_testcase',
+    fields: [
+        // Prefix test title with team tag
+        { name: 'title', value: (s) => `[QA-CORE] ${s.name}` },
+        
+        // Custom Markdown body format
+        { 
+            name: 'body', 
+            value: (s) => `## ðŸ“‹ Test Case: ${s.name}\n\n### Steps:\n` + 
+                          s.steps.map(step => `- **${step.keyword}** ${step.text}`).join('\n') 
+        },
+
+        // Custom automated labels
+        { 
+            name: 'labels', 
+            value: (s) => [...new Set(['automated', ...(s.tags || []).map(t => t.replace('@', ''))])] 
+        }
+    ]
+});
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const { registerResource } = require('testform');
+
+registerResource({
+    type: 'github_testcase',
+    fields: [
+        { name: 'title', value: (s) => `[QA-CORE] ${s.name}` },
+        { 
+            name: 'body', 
+            value: (s) => `## Test Case: ${s.name}\n\n` + s.steps.map(st => `${st.keyword}${st.text}`).join('\n') 
+        }
+    ]
+});
+```
+</TabItem>
+</Tabs>
+
+---
+
+## 2. Registering Custom Providers
+
+To connect Testform to external platforms (Jira, TestRail, Zephyr, or proprietary tools), simply register new resources:
+
+```typescript
+import { registerResource } from 'testform';
+
+registerResource({
+    type: 'jira_testcase',
+    fields: [
+        { name: 'summary', value: (s) => s.name },
+        { 
+            name: 'description', 
+            value: (s) => s.steps.map(st => `${st.keyword} ${st.text}`).join('\n') 
+        },
+        { 
+            name: 'priority', 
+            value: (s) => s.custom?.fields?.priority || 'Medium' 
+        }
+    ]
+});
+```
+
+---
+
+## 3. Canonical Resource Addresses
+
+Just as Terraform uniquely identifies resources (e.g., `aws_instance.web`), Testform addresses resources using **pure dot notation**:
+
+```text
+<relative_file_path>.<identifier_tag>
+```
+
+Examples:
+- `features/auth/login.case.feature.@tc-001`
+- `features/checkout/payment.case.feature.@tc-stripe`
+
+---
+
+## 4. Resource Reconciliation
+
+During `testform plan`, Testform compares declared BDD scenarios against the records in `testform.state`:
+
+- **`+ create`**: A new test scenario has been added to the codebase.
+- **`~ update`**: Steps, tags, or variables in an existing scenario changed.
+- **`- destroy`**: A previously recorded scenario was deleted.
+

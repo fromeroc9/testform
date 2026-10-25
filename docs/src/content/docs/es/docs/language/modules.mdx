@@ -1,0 +1,80 @@
+﻿---
+title: "Modules (Arquitectura Modular)"
+---
+
+# Modules (Arquitectura Modular)
+
+Los **MÃ³dulos** en Testform permiten empaquetar, parametrizar y reutilizar flujos de prueba complejos (autenticaciÃ³n, checkout, sembrado de datos) a travÃ©s de mÃºltiples suites y proyectos, siguiendo exactamente el modelo de mÃ³dulos de **Terraform**.
+
+---
+
+## Modos de InvocaciÃ³n
+
+Testform ofrece dos modalidades complementarias para modularizar pruebas:
+
+### 1. InvocaciÃ³n Directa en Gherkin (`@module`)
+
+Puedes invocar un mÃ³dulo directamente sobre un paso de fondo (`Background:`) o un escenario mediante el tag `@module`:
+
+```gherkin
+Feature: GestiÃ³n de Inventario
+
+  Background:
+    @module(source="./modules/auth/login.feature", scenario="Login de Administrador", vars={user: "admin", role: "SuperAdmin"})
+    Given que la sesiÃ³n de administrador estÃ¡ iniciada
+
+  Scenario: Crear nuevo producto en catÃ¡logo
+    When el administrador registra el producto "SKU-991"
+    Then el stock muestra 100 unidades
+```
+
+### 2. Registro Central en `main.yml`
+
+Puedes registrar mÃ³dulos con alias reutilizables y parÃ¡metros por defecto:
+
+```yaml
+# main.yml
+modules:
+  auth_staging:
+    source: "./modules/auth/login.feature"
+    vars:
+      base_url: "${var.app_url}"
+      user: "staging_tester"
+      password: "${var.test_password}"
+    outputs:
+      token:
+        value: "${testcase.modules/auth/login.feature.@login.token}"
+```
+
+---
+
+## MÃ³dulos Remotos (Git Module Registry)
+
+Testform soporta la descarga e inicializaciÃ³n automÃ¡tica de mÃ³dulos alojados en repositorios Git remotos durante `testform init`:
+
+```yaml
+modules:
+  shared_auth:
+    source: "git::https://github.com/mi-org/test-modules.git//auth?ref=v1.2.0"
+    vars:
+      base_url: "https://qa.empresa.com"
+```
+
+El formato de URL sigue la convenciÃ³n estÃ¡ndar de Terraform:
+- **Prefijo:** `git::https://...`
+- **Subdirectorio:** `//ruta/subdirectorio`
+- **VersiÃ³n o Tag:** `?ref=v1.2.0` o `?ref=main`
+
+---
+
+## Outputs Aislados de MÃ³dulos
+
+Los valores exportados por un mÃ³dulo hijo quedan registrados bajo el namespace del mÃ³dulo (`module.<nombre>.<output>`):
+
+```gherkin
+Scenario: Consumir token generado por mÃ³dulo
+  Given configuro el encabezado "Authorization: Bearer ${module.shared_auth.token}"
+  When consulto la lista de usuarios
+  Then el cÃ³digo HTTP es 200
+```
+

@@ -1,0 +1,118 @@
+---
+title: Testform - Test Management as Code
+description: El Terraform de tu QA para Git y Testing Platforms
+template: splash
+hero:
+  tagline: Codifica tus especificaciones en Gherkin, concilia el estado en cada Pull Request y elimina para siempre el Test Drift. Sin hojas de cálculo ni licencias por asiento.
+  actions:
+    - text: Comenzar en 60 Segundos
+      link: /testform/es/docs/getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: Ver en GitHub
+      link: https://github.com/fromeroc9/testform
+      icon: external
+---
+
+import PeleDiagram from '../../../components/PeleDiagram.astro';
+import PipelineFlow from '../../../components/PipelineFlow.astro';
+
+<div class="hero-stats-row">
+  <div class="hero-stat-cell">
+    <span class="hero-stat-val">0%</span>
+    <span class="hero-stat-lbl">Test Drift</span>
+  </div>
+  <div class="hero-stat-cell">
+    <span class="hero-stat-val">80%</span>
+    <span class="hero-stat-lbl">Ahorro en Licencias</span>
+  </div>
+  <div class="hero-stat-cell">
+    <span class="hero-stat-val">100%</span>
+    <span class="hero-stat-lbl">GitOps en PRs</span>
+  </div>
+  <div class="hero-stat-cell">
+    <span class="hero-stat-val">&lt; 60s</span>
+    <span class="hero-stat-lbl">Tiempo de Adopción</span>
+  </div>
+</div>
+
+## Flujo de Conciliación Interactivo
+
+<PipelineFlow />
+
+## Arquitectura de Estado y Bucket de GitHub (Renderizado con Pele)
+
+<PeleDiagram
+  title="Arquitectura de Conciliación TMaC & State Ledger"
+  caption="Renderizado nativo en SVG mediante Pele (obsidianmd/pele) con variables CSS de tema."
+  chart={`
+flowchart LR
+    subgraph Git ["Git (Source of Truth)"]
+        A["specs/*.case.feature"]
+        B["main.yml + *.vars.yml"]
+    end
+
+    subgraph Engine ["Testform CLI Core"]
+        C["testform plan"]
+        D["DAG Resolver & Diff"]
+        E["testform apply"]
+    end
+
+    subgraph StateStore ["State Backend (GitHub Bucket / S3)"]
+        F[("testform.state\nSHA-256 Verified")]
+        G[("Distributed Lock")]
+    end
+
+    subgraph Platforms ["Target Platforms"]
+        H["GitHub Projects V2"]
+        I["GitLab Issues"]
+    end
+
+    A & B --> C --> D --> E
+    E <--> G
+    E --> F
+    E --> H & I
+    H -.->|"testform diff --remote"| D
+`}
+/>
+
+## ¿Por Qué Testform Frente al Enfoque Tradicional?
+
+<div class="matrix-container">
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th>Dimensión</th>
+        <th>Herramientas Tradicionales (TestRail / Zephyr / Jira)</th>
+        <th class="matrix-highlight">Testform (TMaC)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Fuente de Verdad</strong></td>
+        <td><span class="pill-bad">Desacoplada</span> Servidores web aislados</td>
+        <td class="matrix-highlight"><span class="pill-good">Git Nativo</span> Archivos <code>.feature</code> versionados con el código</td>
+      </tr>
+      <tr>
+        <td><strong>Control de Cambios</strong></td>
+        <td><span class="pill-bad">Manual</span> Ediciones ticket por ticket</td>
+        <td class="matrix-highlight"><span class="pill-good">Pull Requests</span> Code Reviews y aprobación colaborativa</td>
+      </tr>
+      <tr>
+        <td><strong>Detección de Deriva</strong></td>
+        <td><span class="pill-bad">Inexistente</span> Desincronizaciones tardías</td>
+        <td class="matrix-highlight"><span class="pill-good">Automática</span> <code>testform diff --remote</code> reconcilia en vivo</td>
+      </tr>
+      <tr>
+        <td><strong>Costo de Licencia</strong></td>
+        <td><span class="pill-bad">$$$ Recurrente</span> $35 - $70 USD por usuario al mes</td>
+        <td class="matrix-highlight"><span class="pill-good">0$ Por Asiento</span> Binario Open-Source sin límites</td>
+      </tr>
+      <tr>
+        <td><strong>CI/CD Integration</strong></td>
+        <td><span class="pill-bad">Compleja</span> Depende de plugins frágiles</td>
+        <td class="matrix-highlight"><span class="pill-good">100% Nativa</span> <code>plan</code> y <code>apply</code> en pipelines</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

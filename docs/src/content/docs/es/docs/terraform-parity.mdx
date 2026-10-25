@@ -1,0 +1,654 @@
+﻿---
+title: "Matriz CuÃ¡ntica de Paridad: Terraform Language vs Testform"
+---
+
+# Matriz CuÃ¡ntica de Paridad: Terraform Language vs Testform
+
+> **Documento Interno de Arquitectura y Paridad (MenÃº Oculto)**  
+> Este documento desglosa **punto por punto** y de manera exhaustiva cada concepto, bloque, expresiÃ³n y funciÃ³n de la especificaciÃ³n oficial de [Terraform Language](https://developer.hashicorp.com/terraform/language) frente a la arquitectura de **Testform (Test-as-Code)**.
+
+---
+
+## Ãndice General
+1. [MetodologÃ­a de Paridad](#metodologÃ­a-de-paridad)
+2. [Parte I: Componentes Principales del Lenguaje (1 al 14)](#parte-i-componentes-principales-del-lenguaje)
+3. [Parte II: Bloques Especiales de ConfiguraciÃ³n](#parte-ii-bloques-especiales-de-configuraciÃ³n)
+4. [Parte III: Motor de Expresiones y Operadores](#parte-iii-motor-de-expresiones-y-operadores)
+5. [Parte IV: CatÃ¡logo Exhaustivo de Funciones Punto por Punto](#parte-iv-catÃ¡logo-exhaustivo-de-funciones-punto-por-punto)
+   - [Overview de Funciones](#overview-de-funciones)
+   - [Numeric Functions](#1-numeric-functions)
+   - [String Functions](#2-string-functions)
+   - [Collection Functions](#3-collection-functions)
+   - [Encoding Functions](#4-encoding-functions)
+   - [Filesystem Functions](#5-filesystem-functions)
+   - [Date and Time Functions](#6-date-and-time-functions)
+   - [Hash and Crypto Functions](#7-hash-and-crypto-functions)
+   - [IP Network Functions](#8-ip-network-functions)
+   - [Type Conversion & Control Functions](#9-type-conversion--control-functions)
+   - [Provider-Defined Functions](#10-provider-defined-functions)
+6. [Parte V: Roadmap EstratÃ©gico de ImplementaciÃ³n](#parte-v-roadmap-estratÃ©gico-de-implementaciÃ³n)
+7. [CÃ³mo acceder y navegar este documento](#cÃ³mo-acceder-y-navegar-este-documento)
+
+---
+
+## MetodologÃ­a de Paridad
+
+Cada punto analizado evalÃºa cuatro dimensiones:
+- **Estado en Testform:** `Implementado`, `Parcial`, `No implementado` o `Alternativa Nativa`.
+- **Motivo en Terraform:** JustificaciÃ³n del concepto en Infraestructura como CÃ³digo (IaC).
+- **Comparado / Faltante (Gap):** QuÃ© capacidad exacta le falta a Testform para equipararse.
+- **Â¿Aplica a Testform?:** EvaluaciÃ³n de viabilidad y ROI tÃ©cnico en Pruebas Automatizadas (E2E/API).
+
+---
+
+## Parte I: Componentes Principales del Lenguaje
+
+### 1. Configure Provider
+- **Estado en Testform:** `Implementado` (vÃ­a `main.yml` con plugins Playwright, Cypress, Appium, Artillery, K6).
+- **Motivo en Terraform:** Conectar Terraform con APIs externas (AWS, Azure, GCP, GitHub) mediante binarios gRPC desacoplados.
+- **Comparado / Faltante (Gap):** Terraform soporta mÃºltiples instancias del mismo provider mediante alias (`provider "aws" { alias = "west" }`). En Testform, la configuraciÃ³n de providers es global o por step; falta soporte para alias de provider (`provider: playwright.firefox` vs `provider: playwright.chrome` dentro del mismo feature).
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. PermitirÃ­a pruebas multi-navegador o multi-tenant simultÃ¡neas en un solo escenario.
+
+### 2. Resources (`resource`)
+- **Estado en Testform:** `Implementado` (Los Scenarios de Gherkin y Steps son recursos de testing declarativos con ID de direcciÃ³n `feature.tag`).
+- **Motivo en Terraform:** Representa componentes de infraestructura con ciclo de vida CRUD gestionado por el state.
+- **Comparado / Faltante (Gap):** Terraform maneja estado de atributos individuales post-creaciÃ³n (`resource.server.private_ip`). En Testform, el recurso es un escenario de prueba cuyo estado es `passed`, `failed`, `skipped` y sus `outputs` generados.
+- **Â¿Aplica a Testform?:** **Adaptado e Implementado**. El recurso en Testform es la aserciÃ³n y el paso de ejecuciÃ³n.
+
+### 3. Data Sources (`data`)
+- **Estado en Testform:** `Implementado` (vÃ­a `data:` en `data.yml` o inline, fixtures JSON/YAML, resoluciÃ³n `${data.<source>.<key>}`).
+- **Motivo en Terraform:** Leer informaciÃ³n de recursos externos sin gestionarlos ni destruirlos (ej. consultar AMI ID existente).
+- **Comparado / Faltante (Gap):** Terraform soporta Data Sources dinÃ¡micos provistos por plugins (`data "aws_ami" "ubuntu" { filter {...} }`). En Testform los Data Sources actuales son estÃ¡ticos (archivos JSON/YAML/CSV locales). Falta soporte para Data Sources dinÃ¡micos vÃ­a Provider (ej. `data: api_query` que ejecute un GET previo para alimentar el test).
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Data Sources dinÃ¡micos vÃ­a API antes del plan.
+
+### 4. Variables (`variable`)
+- **Estado en Testform:** `Implementado` (vÃ­a `vars.yml`, variables de entorno `TF_VAR_*`, CLI `--var` y flags).
+- **Motivo en Terraform:** Parametrizar mÃ³dulos y configuraciones sin hardcodear credenciales ni URLs.
+- **Comparado / Faltante (Gap):** Terraform soporta bloque `validation { condition = ... error_message = ... }` y tipos estrictos (`type = list(string)`). En Testform las variables son tipadas dinÃ¡micamente segÃºn YAML. Falta bloque `validation` nativo en `vars.yml`.
+- **Â¿Aplica a Testform?:** **SÃ­ (Media prioridad)**. ValidaciÃ³n declarativa de variables antes de correr las pruebas.
+
+### 5. Locals (`locals`)
+- **Estado en Testform:** `Implementado` (vÃ­a `local.yml` y bloque `locals:`, evaluados con interpolaciÃ³n `${local.<name>}`).
+- **Motivo en Terraform:** Evitar repeticiÃ³n de expresiones complejas asignÃ¡ndoles un nombre reutilizable local.
+- **Comparado / Faltante (Gap):** Terraform permite que un local referencie a otro local en cascada (`local.b = "${local.a}/path"`). En Testform ya se resuelven recursivamente, logrando paridad casi total.
+- **Â¿Aplica a Testform?:** **Implementado al 100%**.
+
+### 6. Outputs (`output`)
+- **Estado en Testform:** `Implementado` (vÃ­a `outputs:`, `outputs.yml`, CLI `testform output [name] [-raw] [-json]`, persistencia en `testform.state`).
+- **Motivo en Terraform:** Exportar valores de un mÃ³dulo a la raÃ­z o compartir datos entre infraestructuras.
+- **Comparado / Faltante (Gap):** Terraform soporta `precondition` en outputs y marcado `sensitive = true`. En Testform falta el flag `sensitive: true` para ocultar tokens en consola.
+- **Â¿Aplica a Testform?:** **Parcialmente implementado**. Agregar soporte de enmascaramiento para outputs sensibles.
+
+### 7. Meta-arguments
+- **`depends_on`:**
+  - **Estado:** `Implementado` (vÃ­a `@depends_on("feature.tag")`, DAG topolÃ³gico, detecciÃ³n de ciclos circulares, visualizaciÃ³n en `testform graph`).
+  - **Gap:** Paridad completa alcanzada.
+- **`lifecycle`:**
+  - **Estado:** `Implementado` (`prevent_destroy`, `ignore_changes` en steps/escenarios).
+  - **Gap:** Falta `create_before_destroy` (en testing: ejecutar nuevo test de verificaciÃ³n antes de invalidar el anterior) y `replace_triggered_by`.
+- **`count`:**
+  - **Estado:** `No implementado`.
+  - **Motivo:** Multiplicar instancias de un recurso N veces.
+  - **Gap:** Generar N repeticiones de un escenario de prueba en base a un nÃºmero entero.
+  - **Â¿Aplica?:** **SÃ­ (Alta prioridad)**. Stress tests o repeticiÃ³n de tests flaky.
+- **`for_each`:**
+  - **Estado:** `No implementado`.
+  - **Motivo:** Crear recursos iterando sobre un map o set.
+  - **Gap:** Data-driven testing declarativo masivo sobre listas/maps de `vars.yml`.
+  - **Â¿Aplica?:** **SÃ­ (MÃ¡xima prioridad)**. Equivalente nativo a Scenario Outlines pero a nivel de orquestaciÃ³n global.
+- **`provider`:**
+  - **Estado:** `No implementado`.
+  - **Motivo:** Asignar un alias especÃ­fico de provider a un recurso.
+  - **Gap:** Selector de browser/device en el tag (`@provider("playwright.webkit")`).
+  - **Â¿Aplica?:** **SÃ­**.
+
+### 8. Sensitive Data
+- **Estado en Testform:** `Parcial` (Soporte de variables de entorno seguras, pero no redacciÃ³n en logs).
+- **Motivo en Terraform:** Ocultar contraseÃ±as, tokens y claves en el output del CLI y en logs de plan/apply.
+- **Comparado / Faltante (Gap):** En Testform, si un step usa `${var.password}`, el valor puede quedar visible en el trace o reporte HTML. Falta filtro de enmascaramiento `***` para valores marcados como sensibles.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Seguridad y cumplimiento regulatorio en reportes CI/CD.
+
+### 9. Backends
+- **Estado en Testform:** `Parcial` (Backend local con `testform.state` y `testform.state.lock`).
+- **Motivo en Terraform:** Almacenar el archivo de estado en almacenamiento remoto compartido (S3, Azure Blob, GCS, HTTP, Terraform Cloud) con bloqueo concurrente.
+- **Comparado / Faltante (Gap):** Falta backend remoto nativo (`backend "s3"` o `backend "http"` en `main.yml`) para compartir estado entre agentes de CI/CD paralelos.
+- **Â¿Aplica a Testform?:** **SÃ­ (Media prioridad)**. Vital para pipelines distribuidos en Jenkins / GitHub Actions.
+
+### 10. Search and Import
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Incorporar infraestructura creada manualmente al control de estado (`terraform import aws_s3_bucket.bucket my-bucket`).
+- **Comparado / Faltante (Gap):** En Testform, importar resultados de pruebas de herramientas externas (ej. importar un reporte JUnit/Cucumber JSON previo al estado de Testform para no re-ejecutar pruebas pasadas).
+- **Â¿Aplica a Testform?:** **SÃ­ (Interesante)**. `testform import <feature.tag> <junit_result.xml>`.
+
+### 11. State & State Management
+- **Estado en Testform:** `Implementado` (GestiÃ³n de estado JSON, locking `.lock`, drift detection en `refresh`, comandos de inspecciÃ³n).
+- **Motivo en Terraform:** Mapeo de recursos declarados contra la realidad fÃ­sica.
+- **Comparado / Faltante (Gap):** Falta el set completo de comandos `testform state list`, `testform state rm <address>`, `testform state show <address>`.
+- **Â¿Aplica a Testform?:** **SÃ­ (FÃ¡cil implementaciÃ³n)**. Permite a los QAs manipular el estado de suites sin editar JSON a mano.
+
+### 12. Stacks (Terraform Stacks)
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Nueva funcionalidad (Terraform Cloud Stacks) para gestionar despliegues multi-mÃ³dulo y multi-entorno con dependencias entre pilas completas.
+- **Comparado / Faltante (Gap):** En Testform equivaldrÃ­a a un "Suite of Suites" o "Test Pipeline Stack" que orquesta la suite de Smoke, luego Regression, luego Performance pasando outputs entre ellas.
+- **Â¿Aplica a Testform?:** **SÃ­ (VisiÃ³n enterprise a largo plazo)**.
+
+### 13. Validate
+- **Estado en Testform:** `Implementado` (`testform validate` verifica sintaxis YAML, tags de mÃ³dulo, dependencias circulares y rutas de features).
+- **Motivo en Terraform:** Verificar coherencia del cÃ³digo sin consultar infraestructura ni alterar el estado.
+- **Comparado / Faltante (Gap):** Terraform valida tipos de expresiones y nombres de argumentos de providers. En Testform falta validar que las variables requeridas en `${var.name}` existan en `vars.yml`.
+- **Â¿Aplica a Testform?:** **SÃ­**.
+
+### 14. Extend CRUD Operations
+- **Estado en Testform:** `Parcial` (Hooks de test `Before`, `After`, pero no ciclo CRUD formal de datos de prueba).
+- **Motivo en Terraform:** Providers implementan Create, Read, Update, Delete para cada recurso.
+- **Comparado / Faltante (Gap):** En Testform, permitir a los tests declarar entidades auxiliares con ciclo de vida (ej. crear usuario en BD antes del test, leerlo, actualizar su rol, y destruirlo en `testform destroy`).
+- **Â¿Aplica a Testform?:** **SÃ­ (AltÃ­simo valor en Test-as-Code)**. Sembrado y limpieza automÃ¡tica de datos de prueba.
+
+---
+
+## Parte II: Bloques Especiales de ConfiguraciÃ³n
+
+| Bloque HCL | Estado en Testform | Â¿Aplica a Testform? | Equivalente / Propuesta en Testform |
+|---|---|---|---|
+| `check "health_check"` | `No implementado` | **SÃ­ (Muy Alto)** | Permite aserciones continuas post-plan sin detener el pipeline (ej. verificar que el endpoint `/health` responda 200 antes de correr la suite E2E). |
+| `ephemeral "resource"` | `No implementado` | **SÃ­ (Medio)** | Recursos volÃ¡tiles (como tokens JWT temporales) que no deben persistirse en el archivo de estado. |
+| `import { to = ... id = ... }` | `No implementado` | **Bajo** | Declarar importaciones de pruebas previas en YAML. |
+| `removed { from = ... }` | `No implementado` | **Medio** | Marcar tests deprecados sin fallar el plan ni dejar recursos huÃ©rfanos. |
+| `query "data"` | `No implementado` | **Bajo** | Consultas reactivas complejas de configuraciÃ³n. |
+
+---
+
+## Parte III: Motor de Expresiones y Operadores
+
+### 1. Tipos y Literales
+- **Terraform:** `string`, `number`, `bool`, `list`, `map`, `object`, `tuple`, `null`.
+- **Testform:** Tipado heredado de YAML + strings interpolados.
+- **Gap:** CoerciÃ³n de tipos explÃ­cita en expresiones (ej. convertir `"123"` a nÃºmero para comparar).
+
+### 2. Operador Ternario (`condition ? true_val : false_val`)
+- **Estado:** `No implementado`.
+- **Motivo:** Asignar valores dinÃ¡micos segÃºn el ambiente (`var.env == "prod" ? "https://app.com" : "https://staging.app.com"`).
+- **Â¿Aplica?:** **SÃ­ (MÃ¡xima prioridad)**. Vital para suites de pruebas multi-ambiente.
+
+### 3. Directivas de Plantilla (`%{if ...}`, `%{for ...}`)
+- **Estado:** `No implementado`.
+- **Motivo:** Generar strings complejos o payloads JSON mediante condicionales embebidos.
+- **Â¿Aplica?:** **Medio**. Los fixtures JSON/YAML suelen resolver esto en testing.
+
+### 4. For Expressions y Splat (`[*]`)
+- **Estado:** `No implementado`.
+- **Motivo:** Extraer atributos de listas de objetos (`[for u in var.users : u.id]` o `var.users[*].id`).
+- **Â¿Aplica?:** **SÃ­**. Especialmente Ãºtil cuando un step API retorna una lista de IDs y el step UI necesita validar que todos existan.
+
+---
+
+## Parte IV: CatÃ¡logo Exhaustivo de Funciones Punto por Punto
+
+### Overview de Funciones
+En Terraform, las funciones son utilidades puras y deterministas invocables dentro de expresiones `${...}`. No existen funciones definidas por el usuario en HCL puro (hasta Terraform 1.8 con provider functions).
+En Testform, actualmente la interpolaciÃ³n resuelve identificadores simples (`${var.x}`, `${local.x}`, `${data.x.y}`, `${module.x.y}`). Implementar un evaluador de funciones transformarÃ¡ a Testform en un motor de automatizaciÃ³n de nivel Turing-complete.
+
+---
+
+### 1. Numeric Functions
+
+#### `abs(number)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Obtiene el valor absoluto de un nÃºmero.
+- **Comparado / Faltante:** No hay motor de expresiones matemÃ¡ticas en Testform.
+- **Â¿Aplica a Testform?:** **SÃ­ (Adaptado)**. CÃ¡lculo de deltas y tolerancias en aserciones de testing (ej. verificar que el tiempo de respuesta estÃ© dentro de $\pm 200$ ms del baseline: `abs(actual_ms - expected_ms) < 200`).
+
+#### `ceil(number)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Redondea hacia arriba al entero mÃ¡s cercano.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **SÃ­**. CÃ¡lculo de pÃ¡ginas en pruebas de paginaciÃ³n UI (`ceil(total_records / page_size)`).
+
+#### `floor(number)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Redondea hacia abajo al entero mÃ¡s cercano.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **SÃ­**. Ãndices de matrices de prueba y selecciÃ³n de elementos aleatorios en rangos.
+
+#### `log(number, base)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Calcula logaritmos matemÃ¡ticos.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **No (Muy bajo valor en testing funcional)**.
+
+#### `max(numbers...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Devuelve el mayor de un conjunto de nÃºmeros.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **SÃ­**. Determinar timeouts dinÃ¡micos o verificar valores topes en reportes de rendimiento.
+
+#### `min(numbers...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Devuelve el menor de un conjunto de nÃºmeros.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **SÃ­**. Timeouts mÃ­nimos y umbrales de alerta.
+
+#### `parseint(string, base)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Convierte un string en nÃºmero segÃºn la base dada.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **SÃ­**. Parsear textos extraÃ­dos de elementos web (ej. `"Total: 45 items"` $\rightarrow$ `45`).
+
+#### `pow(number, exponent)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** PotenciaciÃ³n exponencial.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **No prioritario**.
+
+#### `signum(number)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Retorna -1, 0 o 1 segÃºn el signo del nÃºmero.
+- **Comparado / Faltante:** No disponible.
+- **Â¿Aplica a Testform?:** **No prioritario**.
+
+---
+
+### 2. String Functions
+
+#### `chomp(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Remueve saltos de lÃ­nea al final de un string.
+- **Â¿Aplica a Testform?:** **SÃ­**. Limpieza de strings leÃ­dos de archivos de fixtures o salidas de comandos CLI.
+
+#### `endswith(string, suffix)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Valida si un string termina con un sufijo dado.
+- **Â¿Aplica a Testform?:** **SÃ­**. Validaciones de URLs (ej. verificar que la URL termine en `/dashboard`).
+
+#### `format(format, values...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Formatea un string estilo `printf`.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. ConstrucciÃ³n dinÃ¡mica de selectores CSS/XPath y mensajes de error (`format("user_%03d@test.com", var.index)`).
+
+#### `formatlist(format, list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Aplica formato a cada elemento de una lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. GeneraciÃ³n masiva de URLs de prueba a partir de listas de IDs.
+
+#### `indent(spaces, string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Indenta cada lÃ­nea de un string.
+- **Â¿Aplica a Testform?:** **Bajo**.
+
+#### `join(separator, list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Concatena elementos de una lista con un separador.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Unir tags, query parameters o listas de resultados para aserciones.
+
+#### `lower(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Convierte texto a minÃºsculas.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Aserciones insensibles a mayÃºsculas/minÃºsculas en UI testing.
+
+#### `upper(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Convierte texto a mayÃºsculas.
+- **Â¿Aplica a Testform?:** **SÃ­**. NormalizaciÃ³n de cÃ³digos de paÃ­s o estados en formularios.
+
+#### `regex(pattern, string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Extrae capturas de expresiones regulares.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Extraer cÃ³digos de verificaciÃ³n (OTP), tokens o IDs de URLs o textos de respuesta.
+
+#### `regexall(pattern, string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Extrae todas las coincidencias regex en una lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. Extraer todas las URLs o correos encontrados en un cuerpo de respuesta.
+
+#### `replace(string, substr, replacement)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Reemplaza subcadenas o patrones regex.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. SanitizaciÃ³n de textos para selectores dinÃ¡micos.
+
+#### `split(separator, string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Divide un string en lista segÃºn un delimitador.
+- **Â¿Aplica a Testform?:** **SÃ­**. Parsear encabezados HTTP o filas de tablas web.
+
+#### `startswith(string, prefix)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Valida si un string comienza con un prefijo.
+- **Â¿Aplica a Testform?:** **SÃ­**. Aserciones en prefijos de tokens (`Bearer `) o URLs.
+
+#### `strrev(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Invierte los caracteres de un string.
+- **Â¿Aplica a Testform?:** **Bajo**. Casos de prueba especÃ­ficos de algoritmos.
+
+#### `substr(string, offset, length)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Extrae una subcadena por posiciÃ³n y longitud.
+- **Â¿Aplica a Testform?:** **SÃ­**. Recortar timestamps o cÃ³digos de referencia.
+
+#### `title(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Convierte a formato tÃ­tulo (Title Case).
+- **Â¿Aplica a Testform?:** **Medio**. ValidaciÃ³n de nombres en interfaces de usuario.
+
+#### `trim(string, chars)` / `trimspace(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Remueve caracteres o espacios en blanco de los extremos.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Limpieza de texto capturado por Playwright/Cypress antes de la aserciÃ³n.
+
+#### `trimprefix(string, prefix)` / `trimsuffix(string, suffix)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Remueve prefijos o sufijos especÃ­ficos de forma segura.
+- **Â¿Aplica a Testform?:** **SÃ­**. Limpieza de precios (`"$ 120.00"` $\rightarrow$ `"120.00"`).
+
+---
+
+### 3. Collection Functions
+
+#### `alltrue(list)` / `anytrue(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** EvalÃºa si todos o al menos un booleano en una lista son verdaderos.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Aserciones compuestas sobre listas de checkboxes o estados de microservicios.
+
+#### `chunklist(list, size)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Divide una lista en fragmentos de tamaÃ±o fijo.
+- **Â¿Aplica a Testform?:** **SÃ­**. EjecuciÃ³n de pruebas por lotes (batching) en data-driven testing.
+
+#### `coalesce(vals...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Retorna el primer valor no nulo ni vacÃ­o.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Fallbacks de variables de configuraciÃ³n (`coalesce(var.custom_url, var.default_url, "http://localhost")`).
+
+#### `coalescelist(lists...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Retorna la primera lista no vacÃ­a.
+- **Â¿Aplica a Testform?:** **Medio**.
+
+#### `compact(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Elimina strings vacÃ­os de una lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. Filtrado de inputs en formularios.
+
+#### `concat(lists...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Une dos o mÃ¡s listas.
+- **Â¿Aplica a Testform?:** **SÃ­**. Combinar datasets de prueba de usuarios y administradores.
+
+#### `contains(list, value)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Verifica si un elemento existe en una lista.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Aserciones de membresÃ­a en opciones de selects dropdowns.
+
+#### `distinct(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Elimina duplicados de una lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. NormalizaciÃ³n de listas de etiquetas o IDs.
+
+#### `element(list, index)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Retorna el elemento en la posiciÃ³n dada con wrap-around seguro.
+- **Â¿Aplica a Testform?:** **SÃ­**. Acceso seguro a resultados de consultas.
+
+#### `flatten(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Aplana listas anidadas.
+- **Â¿Aplica a Testform?:** **SÃ­**. Desanidar respuestas de APIs JSON complejas.
+
+#### `index(list, value)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Retorna la posiciÃ³n de un elemento en una lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. Encontrar la fila de una tabla que contiene determinado texto.
+
+#### `keys(map)` / `values(map)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Extrae las claves o los valores de un mapa como lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. IteraciÃ³n y aserciones sobre mapas de configuraciÃ³n.
+
+#### `length(collection_or_string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Determina el tamaÃ±o de una lista, mapa o string.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Verificar conteo de elementos en listas (`length(rows) == 10`).
+
+#### `lookup(map, key, default)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Busca una clave en un mapa con valor por defecto seguro.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Lectura segura de configuraciones por ambiente sin lanzar error de clave inexistente.
+
+#### `merge(maps...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Combina mÃºltiples mapas en uno solo.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. FusiÃ³n de headers HTTP globales con headers especÃ­ficos del test.
+
+#### `one(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Convierte una lista de 0 o 1 elementos en un valor escalar o null.
+- **Â¿Aplica a Testform?:** **Medio**.
+
+#### `range(start, limit, step)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Genera una lista de nÃºmeros sucesivos.
+- **Â¿Aplica a Testform?:** **SÃ­**. GeneraciÃ³n de Ã­ndices para repeticiÃ³n de pruebas.
+
+#### `reverse(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Invierte el orden de una lista.
+- **Â¿Aplica a Testform?:** **Medio**. Validar ordenamiento descendente en interfaces de usuario.
+
+#### `slice(list, start, end)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Extrae una sub-lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. Pruebas de lÃ­mites de paginaciÃ³n.
+
+#### `sort(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Ordena alfabÃ©ticamente una lista de strings.
+- **Â¿Aplica a Testform?:** **SÃ­**. Validar que una columna de la tabla UI estÃ© ordenada correctamente comparÃ¡ndola con `sort(column_data)`.
+
+#### `sum(list)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Suma todos los elementos numÃ©ricos de una lista.
+- **Â¿Aplica a Testform?:** **SÃ­**. Validar totales en carritos de compra (`sum(item_prices) == cart_total`).
+
+#### `zipmap(keys, values)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Construye un mapa a partir de una lista de claves y una de valores.
+- **Â¿Aplica a Testform?:** **SÃ­**. Mapear encabezados de tabla con celdas de fila para crear objetos legibles.
+
+---
+
+### 4. Encoding Functions
+
+#### `base64encode(string)` / `base64decode(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** CodificaciÃ³n y decodificaciÃ³n Base64 para userdata o certificados.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. CreaciÃ³n de encabezados `Authorization: Basic ...` o payloads binarios en tests de API.
+
+#### `jsonencode(value)` / `jsondecode(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** SerializaciÃ³n y deserializaciÃ³n nativa de JSON.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Manipular payloads REST y respuestas API dentro de expresiones del feature.
+
+#### `yamlencode(value)` / `yamldecode(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** SerializaciÃ³n y deserializaciÃ³n YAML.
+- **Â¿Aplica a Testform?:** **SÃ­**. Compatibilidad directa con el ecosistema YAML de Testform.
+
+#### `csvdecode(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Parsea un archivo o texto CSV en lista de mapas.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Importar datasets tabulares clÃ¡sicos de testing QA para alimentar Data-Driven tests.
+
+#### `urlencode(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Codifica caracteres especiales para parÃ¡metros de URL.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Generar URLs con query parameters que contienen espacios o caracteres especiales.
+
+---
+
+### 5. Filesystem Functions
+
+#### `file(path)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Lee el contenido de un archivo de texto como string.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Cargar payloads de solicitud, scripts SQL o archivos de prueba.
+
+#### `fileexists(path)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Comprueba si un archivo existe en el disco.
+- **Â¿Aplica a Testform?:** **SÃ­**. Aserciones en pruebas de descarga de archivos (`fileexists("downloads/report.pdf")`).
+
+#### `filebase64(path)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Lee un archivo binario y lo retorna en Base64.
+- **Â¿Aplica a Testform?:** **SÃ­**. Pruebas de upload de archivos (imÃ¡genes, PDFs) vÃ­a API o Playwright.
+
+#### `fileset(path, pattern)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Enumera archivos que coinciden con un patrÃ³n glob.
+- **Â¿Aplica a Testform?:** **SÃ­**. Ejecutar pruebas dinÃ¡micas sobre todos los archivos de una carpeta (`fixtures/*.json`).
+
+#### `templatefile(path, vars)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Renderiza una plantilla de archivo interpolando un mapa de variables.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Plantillas de mensajes de correo electrÃ³nico, contratos o payloads GraphQL parametrizados.
+
+#### `abspath(path)` / `dirname(path)` / `basename(path)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** ManipulaciÃ³n segura de rutas del sistema operativo.
+- **Â¿Aplica a Testform?:** **SÃ­**. NormalizaciÃ³n de paths multiplataforma (Windows/Linux/macOS) en fixtures.
+
+---
+
+### 6. Date and Time Functions
+
+#### `timestamp()`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Retorna la fecha y hora UTC actual en formato RFC 3339.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Generar nombres de usuarios o emails Ãºnicos por ejecuciÃ³n (`"user_" + timestamp() + "@test.com"`).
+
+#### `formatdate(spec, timestamp)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Formatea timestamps en diversos estilos de fecha.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Validar campos de fecha en formularios web que exigen formatos regionales (`DD/MM/YYYY`, `YYYY-MM-DD`).
+
+#### `timeadd(timestamp, duration)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Suma o resta duraciones (ej. `"24h"`, `"-10m"`) a un timestamp.
+- **Â¿Aplica a Testform?:** **SÃ­**. Pruebas de vencimiento de tarjetas, expiraciÃ³n de tokens o reservas futuras.
+
+#### `timecmp(timestamp_a, timestamp_b)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Compara dos marcas de tiempo (-1, 0, 1).
+- **Â¿Aplica a Testform?:** **SÃ­**. Aserciones temporales (verificar que `created_at < updated_at`).
+
+---
+
+### 7. Hash and Crypto Functions
+
+#### `uuid()` / `uuidv5(namespace, name)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Genera identificadores Ãºnicos universales (UUID v4 o v5 determinista).
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. CreaciÃ³n de registros Ãºnicos en bases de datos y headers de correlaciÃ³n de pruebas (`X-Request-ID: uuid()`).
+
+#### `sha256(string)` / `sha1(string)` / `md5(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Calcula hashes criptogrÃ¡ficos de strings.
+- **Â¿Aplica a Testform?:** **SÃ­**. Aserciones de integridad en archivos descargados o firmas de payloads.
+
+#### `base64sha256(string)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Hash SHA256 codificado en Base64.
+- **Â¿Aplica a Testform?:** **SÃ­**. VerificaciÃ³n de hashes en headers HTTP (ej. Subresource Integrity o firmas AWS).
+
+#### `bcrypt(string, cost)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Genera hashes Blowfish/bcrypt para contraseÃ±as.
+- **Â¿Aplica a Testform?:** **Medio**. Pruebas directas de sembrado en BD que requieren contraseÃ±as hasheadas.
+
+---
+
+### 8. IP Network Functions
+
+#### `cidrhost(prefix, hostnum)` / `cidrsubnet(prefix, newbits, netnum)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** CÃ¡lculos de direccionamiento de redes CIDR (IPv4/IPv6).
+- **Â¿Aplica a Testform?:** **No (BajÃ­simo valor)**. Testform se enfoca en testing de aplicaciones y APIs, no en asignaciÃ³n de subredes VPC. No se justifica implementar estas funciones salvo casos ultra especializados de testing de red.
+
+---
+
+### 9. Type Conversion & Control Functions
+
+#### `can(expression)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** EvalÃºa si una expresiÃ³n puede ejecutarse sin lanzar error (retorna `true` o `false`).
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Manejo defensivo de respuestas de prueba (`can(data.user.profile.avatar) ? data.user.profile.avatar : "default.png"`).
+
+#### `try(expressions...)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** EvalÃºa una lista de expresiones y devuelve la primera que no falle.
+- **Â¿Aplica a Testform?:** **SÃ­ (MÃ¡xima prioridad)**. Fallback resiliente ante datos ausentes en respuestas JSON.
+
+#### `sensitive(value)` / `nonsensitive(value)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** Marca o desmarca explÃ­citamente un valor para ocultarlo de la consola y logs.
+- **Â¿Aplica a Testform?:** **SÃ­**. Proteger contraseÃ±as en tiempo de ejecuciÃ³n.
+
+#### `tostring(v)`, `tonumber(v)`, `tobool(v)`, `tolist(v)`, `tomap(v)`
+- **Estado en Testform:** `No implementado`.
+- **Motivo en Terraform:** CoerciÃ³n explÃ­cita de tipos.
+- **Â¿Aplica a Testform?:** **SÃ­ (Alta prioridad)**. Indispensable al transformar datos leÃ­dos de selectores web (`"true"` $\rightarrow$ `true`).
+
+---
+
+### 10. Provider-Defined Functions
+
+- **En Terraform:** A partir de Terraform 1.8, los providers pueden exportar funciones personalizadas accesibles como `provider::aws::arn_parse(arn)`.
+- **En Testform:**
+  - **Estado:** `No implementado`.
+  - **Potencial:** Los plugins de Testform podrÃ­an exportar funciones nativas (ej. `provider::playwright::selector_escape(sel)` o `provider::faker::credit_card()`).
+  - **Â¿Aplica?:** **SÃ­ (VisiÃ³n a medio plazo)**.
+
+---
+
+## Parte V: Roadmap EstratÃ©gico de ImplementaciÃ³n
+
+Para llevar a Testform a una paridad Ã³ptima con el lenguaje de Terraform maximizando el valor para QA y DevOps, se recomienda el siguiente orden de fases:
+
+```mermaid
+graph TD
+    A[Fase 1: Motor de Expresiones y Funciones Core] --> B[Fase 2: Meta-argumentos for_each y count]
+    B --> C[Fase 3: Bloque check y Validaciones Previas]
+    C --> D[Fase 4: Seguridad y Enmascaramiento Sensitive]
+    D --> E[Fase 5: Ciclo de Vida CRUD de Datos y Backends Remotos]
+```
+
+### Detalle de Fases Recomendadas
+1. **Fase 1: Motor de Expresiones y Funciones Core**
+   - Evaluar expresiones complejas `${fn(...)}` y operador ternario `${cond ? a : b}`.
+   - Implementar el paquete esencial de testing: `uuid()`, `timestamp()`, `lower()`, `upper()`, `replace()`, `trim()`, `jsonencode()`, `jsondecode()`, `length()`, `lookup()`, `try()`, `file()`.
+2. **Fase 2: Meta-argumentos `for_each` y `count`**
+   - Habilitar `for_each` en escenarios de prueba para Data-Driven Testing masivo directo desde `vars.yml` o archivos CSV/JSON.
+3. **Fase 3: Bloque `check` (Health Checks & Asserts Previos)**
+   - Permitir bloques declarativos `check:` que verifiquen el estado del sistema o de la API antes de disparar el plan de pruebas.
+4. **Fase 4: Seguridad y RedacciÃ³n (`sensitive`)**
+   - Enmascaramiento automÃ¡tico de secretos en logs de terminal, traces y reportes HTML.
+5. **Fase 5: Ciclo de Vida CRUD y Remote Backends**
+   - Sembrado y limpieza automÃ¡tica de entidades (`before_apply`, `on_destroy`).
+   - SincronizaciÃ³n de estado en S3 / HTTP para pipelines distribuidos de CI/CD.
+
+---
+
+## CÃ³mo acceder y navegar este documento
+
+Este documento estÃ¡ configurado intencionalmente en la documentaciÃ³n oficial de Testform con la propiedad `display: 'hidden'`, lo que lo mantiene **oculto de la barra lateral de navegaciÃ³n** para no saturar al usuario final con anÃ¡lisis internos de arquitectura.
+
+### Rutas de Acceso Directo:
+- **EspaÃ±ol (En desarrollo local):**  
+  `http://localhost:3000/docs/terraform-parity` o `http://localhost:3000/es/docs/terraform-parity`
+- **InglÃ©s (En desarrollo local):**  
+  `http://localhost:3000/en/docs/terraform-parity`
+- **Archivo fuente Markdown en el repositorio:**  
+  `docs/content/es/docs/terraform-parity.mdx` y `docs/content/en/docs/terraform-parity.mdx`
+- **Copia interna en raÃ­z del repo:**  
+  `docs/README.md`
+

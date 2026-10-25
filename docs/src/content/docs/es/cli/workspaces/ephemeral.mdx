@@ -1,0 +1,39 @@
+﻿---
+title: "testform ephemeral"
+---
+
+# `testform ephemeral`
+
+```bash
+testform ephemeral <subcomando> [opciones] [argumentos]
+```
+
+El comando `testform ephemeral` gestiona entornos de prueba descartables y temporales (sandboxes). Permite a los desarrolladores y a los pipelines de CI levantar ejecuciones de prueba aisladas, ejecutar las suites, registrar mÃ©tricas y destruir el entorno limpiamente al concluir, sin contaminar los tableros productivos.
+
+## Subcomandos
+
+### 1. `testform ephemeral up`
+Aprovisiona un sandbox de pruebas efÃ­mero:
+```bash
+testform ephemeral up -name="pr-412-sandbox" -ttl="2h"
+```
+
+### 2. `testform ephemeral list`
+Enumera los sandboxes efÃ­meros activos y su tiempo de vida restante (TTL):
+```bash
+$ testform ephemeral list
+SANDBOX ID       NAME               CREATED         TTL REMAINING
+eph-9812         pr-412-sandbox     25m ago         1h 35m
+```
+
+### 3. `testform ephemeral down`
+Desmantela y destruye un sandbox efÃ­mero activo:
+```bash
+testform ephemeral down eph-9812
+```
+
+## CÃ³digos de Salida
+
+- `0`: OperaciÃ³n completada exitosamente.
+- `1`: Sandbox no encontrado o fallo al desmantelar el entorno.
+

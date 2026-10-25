@@ -1,0 +1,124 @@
+﻿---
+title: "Ejecucion y Conciliacion del Estado"
+---
+
+# Ejecucion y Conciliacion del Estado
+
+Aprende a ejecutar `testform plan` y `testform apply` para calcular diferencias entre tus archivos locales y el estado remoto, aplicando cambios de forma segura y reproducible.
+
+## El Ciclo Plan y Apply
+
+Testform separa el analisis de cambios de su ejecucion fisica:
+
+1. **`testform plan` (Solo Lectura):** Compara el codigo local contra el ledger de estado y la API remota. Genera una vista previa exacta de los recursos que seran creados, actualizados o destruidos sin alterar nada.
+2. **`testform apply` (Mutacion Segura):** Adquiere un bloqueo distribuido en el backend, ejecuta las mutaciones necesarias a traves de las APIs de los proveedores configurados y confirma el nuevo estado en el ledger.
+
+## Paso 1: Ejecutar `testform plan`
+
+Ejecuta el planificador en tu terminal:
+
+```bash
+testform plan
+```
+
+### Interpretacion de la Salida
+
+```text
+Testform v1.0.0
+Backend configurado: local (testform.state)
+Adquiriendo bloqueo de estado... Bloqueo adquirido con exito.
+
+Calculando grafo de dependencias y plan de conciliacion...
+
+Testform realizara las siguientes acciones:
+
+  # tests/features/checkout.case.feature.@tc-checkout-001 sera creado
+  + resource "testcase" "tests/features/checkout.case.feature.@tc-checkout-001" {
+      + title       = "Transaccion aprobada con fondos suficientes"
+      + feature     = "Proceso de Pago en Linea"
+      + component   = "billing"
+      + priority    = "Critical"
+      + suite       = "smoke"
+      + steps_count = 8
+      + status      = "draft"
+    }
+
+  # tests/features/auth.case.feature.@tc-auth-001 sera actualizado en el lugar
+  ~ resource "testcase" "tests/features/auth.case.feature.@tc-auth-001" {
+        title       = "Inicio de sesion exitoso con correo y contrasena"
+      ~ priority    = "Medium" => "High"
+      ~ steps_count = 5 => 6
+    }
+
+Plan: 1 para agregar, 1 para cambiar, 0 para destruir.
+Liberando bloqueo de estado... Bloqueo liberado.
+```
+
+### Simbolos de Diff
+
+| Simbolo | Accion | Descripcion |
+| :--- | :--- | :--- |
+| `+` | **create** | El recurso fue declarado en Git pero aun no existe en el ledger ni en la plataforma remota. |
+| `~` | **update** | El recurso existe y sus campos seran modificados en el lugar sin alterar su identificador. |
+| `-` | **destroy** | El archivo fue eliminado de Git; Testform archivara o eliminara el recurso remoto. |
+| `- / +` | **replace** | Un cambio estructural obliga a destruir y recrear el recurso desde cero. |
+
+## Paso 2: Guardar el Plan en un Archivo Binario
+
+En flujos de integracion continua (CI/CD), es una practica recomendada guardar el plan especulativo para garantizar que el comando `apply` ejecute exactamente lo planeado:
+
+```bash
+# Guardar el plan
+testform plan -out=testform.plan.bin
+
+# Aplicar el plan exacto guardado
+testform apply testform.plan.bin
+```
+
+## Paso 3: Ejecutar `testform apply`
+
+Aplica los cambios directamente confirmando la ejecucion interactiva:
+
+```bash
+testform apply
+```
+
+Se te solicitara confirmacion en terminal:
+
+```text
+Deseas aplicar estas acciones?
+  Solo 'yes' sera aceptado para confirmar.
+
+  Introduce un valor: yes
+```
+
+Para entornos automatizados de CI/CD, puedes omitir la confirmacion interactiva con `-auto-approve`:
+
+```bash
+testform apply -auto-approve
+```
+
+## Filtrado de Recursos (-target)
+
+Puedes limitar la planificacion o aplicacion a un unico recurso o archivo mediante la bandera `-target`:
+
+```bash
+# Planificar solo un caso de prueba especifico
+testform plan -target="tests/features/auth.case.feature.@tc-auth-001"
+
+# Aplicar cambios unicamente a ese recurso
+testform apply -target="tests/features/auth.case.feature.@tc-auth-001" -auto-approve
+```
+
+## Codigos de Salida para CI/CD
+
+El comando `plan` admite la bandera `-detailed-exitcode` para compuertas de calidad automatizadas:
+
+```bash
+testform plan -detailed-exitcode
+```
+
+- **Codigo `0`:** Plan exitoso sin diferencias detectadas (el estado local y remoto coinciden 100%).
+- **Codigo `1`:** Error de ejecucion, fallo de sintaxis o backend inalcanzable.
+- **Codigo `2`:** Plan exitoso con cambios detectados pendientes de aplicar.
+

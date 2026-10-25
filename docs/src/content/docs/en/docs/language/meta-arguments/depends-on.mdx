@@ -1,0 +1,57 @@
+﻿---
+title: "Meta-argument"
+---
+
+# Meta-argument `depends_on`
+
+The `depends_on` meta-argument allows you to explicitly define execution dependencies between test scenarios, ensuring that prerequisites are executed in the correct sequence using a topological **Directed Acyclic Graph (DAG)**.
+
+---
+
+## Gherkin Declaration (`@depends_on`)
+
+Dependencies are declared as tags directly above a `Scenario:`:
+
+```gherkin
+@checkout @e2e
+@depends_on("auth/login.feature.@login_success", "inventory/cart.feature.@add_item")
+Scenario: User completes checkout successfully
+  Given shopping cart contains selected products
+  When user confirms shipping and billing details
+  Then order confirmation receipt is issued
+```
+
+---
+
+## Topological DAG Ordering
+
+During `testform plan` and `testform apply`:
+1. Testform builds a Directed Acyclic Graph (**DAG**) of all planned test resources.
+2. Applies **Kahn's algorithm** to resolve the exact linear execution sequence.
+3. Prerequisite scenarios (`auth/login`) are verified **before** downstream scenarios (`checkout/order`).
+
+---
+
+## Circular Dependency Prevention
+
+If a circular dependency cycle is declared ($A \rightarrow B \rightarrow A$), Testform aborts during static analysis before executing any tests:
+
+```text
+[ERROR] Circular dependency detected in DAG:
+  auth/login.feature.@login_success -> checkout/order.feature.@checkout -> auth/login.feature.@login_success
+```
+
+---
+
+## Visualizing the Graph: `testform graph`
+
+Output the complete dependency DAG in standard Graphviz DOT format:
+
+```bash
+testform graph
+```
+```bash
+# Render to image using Graphviz:
+testform graph | dot -Tpng -o dependencies.png
+```
+

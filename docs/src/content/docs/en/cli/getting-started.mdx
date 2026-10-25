@@ -1,0 +1,78 @@
+﻿---
+title: "Getting Started with the CLI"
+---
+
+# Getting Started with the CLI
+
+Learn how to install the Testform CLI binary, enable shell autocompletion, and execute your first operational commands.
+
+## CLI Installation
+
+### Package Managers
+
+Install the Testform CLI globally or locally within your development repository:
+
+```bash
+# Global installation via npm
+npm install -g @fromeroc9/testform
+
+# Global installation via pnpm
+pnpm add -g @fromeroc9/testform
+
+# On-demand execution via npx
+npx testform --help
+```
+
+## Verifying Installation
+
+Execute the version command to verify that the binary is available in your `$PATH`:
+
+```bash
+testform -version
+```
+
+Expected terminal output:
+
+```text
+Testform v1.0.0
+Platform: darwin/arm64
+Build: commit 4f9a12c
+```
+
+## Shell Autocompletion
+
+Testform includes native command autocompletion for Bash, Zsh, and PowerShell.
+
+### Bash
+
+```bash
+testform -install-autocomplete
+# or manually:
+eval "$(testform completion bash)"
+```
+
+### Zsh
+
+Add the following directive to your `~/.zshrc`:
+
+```zsh
+eval "$(testform completion zsh)"
+```
+
+### PowerShell (Windows)
+
+Add the following line to your `$PROFILE`:
+
+```powershell
+Invoke-Expression (&testform completion powershell | Out-String)
+```
+
+## First Commands
+
+Following installation, the primary operational lifecycle comprises:
+
+1. `testform init`: Scaffolds workspace configuration and directory trees.
+2. `testform validate`: Checks syntactic validity and governance policies.
+3. `testform plan`: Computes speculative diffs against remote state.
+4. `testform apply`: Reconciles planned mutations with external providers.
+

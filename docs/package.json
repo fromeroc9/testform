@@ -1,24 +1,19 @@
 {
   "name": "testform-docs",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "postinstall": "node scripts/fix-nextra.mjs"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
   },
   "dependencies": {
-    "next": "^15.2.0",
-    "nextra": "^4.6.1",
-    "nextra-theme-docs": "^4.6.1",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@astrojs/starlight": "^0.32.0",
+    "astro": "^5.0.0",
+    "pele": "^1.10.0"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
     "typescript": "^5.8.2"
   }
 }

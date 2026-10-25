@@ -1,0 +1,44 @@
+﻿---
+title: "Custom Providers and Webhooks"
+---
+
+# Custom Providers and Webhooks
+
+Extend Testform to broadcast state reconciliation and suite execution events to third-party endpoints and Slack channels.
+
+## Webhook Configuration in testform.yml
+
+```yaml
+version: "1.0"
+
+notifications:
+  webhooks:
+    - name: "slack-notifications"
+      url: "https://hooks.slack.com/services/T00/B00/XXXX"
+      events:
+        - "apply.completed"
+        - "drift.detected"
+        - "suite.failed"
+      headers:
+        Authorization: "Bearer ${SLACK_WEBHOOK_TOKEN}"
+```
+
+## Webhook Payload Schema
+
+Each registered lifecycle hook emits a structured JSON payload:
+
+```json
+{
+  "event": "apply.completed",
+  "timestamp": "2026-10-21T14:35:10Z",
+  "workspace": "production",
+  "summary": {
+    "added": 3,
+    "updated": 1,
+    "destroyed": 0
+  },
+  "commit": "a1b2c3d4",
+  "actor": "flavi"
+}
+```
+

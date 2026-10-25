@@ -1,0 +1,272 @@
+﻿---
+title: "main.yml Specification"
+---
+
+# main.yml Specification
+
+The `main.yml` file is the central workspace configuration manifest. It configures the required Testform version, state storage backend, external providers, artifact scopes, and custom metadata fields schema.
+
+## Schema Overview
+
+```yaml
+# main.yml
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "testform.state"
+
+# 1. Provider Configuration (GitHub, Jira, GitLab, Local)
+provider:
+  github:
+    owner: "my-organization"
+    repository: "my-application"
+    project_number: 12
+    token_env: "GITHUB_TOKEN"
+
+# 2. Input Variables and Local Values
+variable:
+  app_url:
+    type: string
+    description: "Base application URL"
+    default: "https://www.saucedemo.com"
+  environment:
+    type: string
+    default: "dev"
+
+locals:
+  base_url: "${var.app_url}"
+  api_health: "${local.base_url}/health"
+
+# 3. Global and Resource Scopes
+scopes:
+  global:
+    directory: "tests"
+  testcase:
+    directory: "tests/features"
+    pattern: "*.case.feature"
+  testrun:
+    directory: "tests/runs"
+    pattern: "*.run.feature"
+  testplan:
+    directory: "tests/plans"
+    pattern: "*.plan.feature"
+
+# 4. Custom Metadata Fields and Validation Policies
+fields:
+  priority:
+    type: "enum"
+    source: "tag"
+    enum: ["Low", "Medium", "High", "Critical"]
+    default: "Medium"
+  component:
+    type: "string"
+    source: "tag"
+    required: false
+  automated:
+    type: "boolean"
+    source: "step"
+    default: false
+```
+
+## Compilation and Configuration Processing Pipeline
+
+Testform compiles and resolves all configuration layers via a sequential in-memory pipeline:
+
+```text
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚    main.yml    â”‚   â”‚ variables.yml  â”‚   â”‚   scopes.yml   â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â””â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â””â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+         â”‚                    â”‚                    â”‚
+         â–¼                    â–¼                    â–¼
+   [PHASE 1: IN-MEMORY DISCOVERY & SYMBOL SCHEMA MERGE]
+         â”‚
+         â–¼
+   [PHASE 2: VALUE INGESTION & PRECEDENCE (*.vars.yml, CLI)]
+         â”‚
+         â–¼
+   [PHASE 3: STATIC TYPE & AST VALIDATION (enum, condition)]
+         â”‚
+         â–¼
+   [PHASE 4: LOCALS & HCL FUNCTION EVALUATION]
+         â”‚
+         â–¼
+   [PHASE 5: INJECTION INTO GHERKIN RESOURCES (*.case.feature) + DAG]
+         â”‚
+         â–¼
+   [PHASE 6: RECONCILIATION DIFF AGAINST testform.state (plan / apply)]
+```
+
+---
+
+## 1. `backend` Block
+
+Defines where the state ledger (`testform.state`) resides and how distributed mutex locks are acquired:
+
+| Type (`type`) | Description | Required Parameters |
+| :--- | :--- | :--- |
+| `local` | Local file storage (intended for solo development and testing). | `path` |
+| `oci` | Oracle Cloud Infrastructure Object Storage with ETag conditional locking. | `namespace`, `bucket`, `object_name`, `tenancy_id` |
+| `s3` | Amazon S3 with distributed mutex locking via Amazon DynamoDB. | `bucket`, `key`, `dynamodb_table`, `region` |
+| `azure` | Azure Blob Storage with exclusive lease locking. | `storage_account`, `container`, `blob_name` |
+| `gcs` | Google Cloud Storage with object generation preconditions. | `bucket`, `prefix` |
+
+---
+
+## 2. `scopes` Block: Gherkin Resource Governance
+
+To prevent `main.yml` from becoming bloated, Testform supports declaring the `scopes:` block directly in `main.yml` or inside an independent modular file **`scopes.yml`** (or `scopes.yaml`).
+
+### Data Flow: From Gherkin to `resource.ts` and the Remote Provider
+
+The declared `fields` are not direct API attributes, but the **quality contract for the Gherkin author**. The `resource.ts` adapter maps and extracts those fields to feed the remote Provider:
+
+```text
+  Gherkin (.feature)            scopes.yml                     resource.ts                   Provider (GitHub/Jira)
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”      â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚ @high @tc-login-001  â”‚      â”‚ scope:                 â”‚     â”‚ resource.registry({   â”‚     â”‚ GitHub Project V2    â”‚
+ â”‚ Scenario: Login      â”‚ â”€â”€â–º  â”‚   global:              â”‚ â”€â”€â–º â”‚   fields: [           â”‚ â”€â”€â–º â”‚   Status: "Done"     â”‚
+ â”‚   * field module =   â”‚      â”‚     fields: [module,   â”‚     â”‚     custom_fields:    â”‚     â”‚   Project: "HT 360"  â”‚
+ â”‚     "auth"           â”‚      â”‚       priority, Status]â”‚     â”‚       s.custom.fields â”‚     â”‚   Module: "auth"     â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜      â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â”‚   Priority: "high"   â”‚
+                                                                                            â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+```
+
+### Modular Structure in `scopes.yml`
+
+```yaml
+# scopes.yml
+scope:
+  # 1. Workspace-wide rules inherited by ALL resources
+  global:
+    convention:
+      filename: "{YYYYMMDD}_{HHmmss}"
+    fields:
+      - name: project
+        type: keywords
+        required: true
+        default: "Hirent Talent 360"
+      - name: assignees
+        type: keywords
+        required: true
+        default: "fromeroc9"
+      - name: priority
+        type: tags
+        values: ["@low", "@medium", "@high"]
+        default: "@medium"
+      - name: Status
+        type: keywords
+        required: true
+        default: "Done"
+
+  # 2. testcase Resource (*.case.feature)
+  testcase:
+    match: "*.case.feature"
+    identity: "tc-*"
+    fields:
+      - name: module
+        type: keywords
+        required: true
+      - name: functional
+        type: keywords
+        required: true
+
+  # 3. testrun Resource (*.run.feature)
+  testrun:
+    match: "*.run.feature"
+    identity: "tr-*"
+    fields:
+      - name: startDate
+        type: keywords
+      - name: endDate
+        type: keywords
+
+  # 4. testplan Resource (*.plan.feature)
+  testplan:
+    match: "*.plan.feature"
+    identity: "tp-*"
+    fields: []
+```
+
+## 3. `fields` Block: Understanding `type` vs `source`
+
+In the custom fields schema, `type` and `source` serve distinct, complementary purposes:
+
+- **`type` (Data Validation Type):** Specifies the required data structure and validation constraints:
+  - `string`: Arbitrary text (e.g., `"billing"`).
+  - `enum`: Value constrained to an allowed list (e.g., `["Low", "Medium", "High", "Critical"]`).
+  - `boolean`: Boolean flag (`true` or `false`).
+  - `number`: Integer or floating-point number.
+- **`source` (Extraction Origin):** Instructs Testform where in the Gherkin file to look for this value:
+  - `tag`: Extracted from feature or scenario tags (e.g., `@priority-high` -> field `priority` gets `"High"`).
+  - `step`: Inferred based on step presence (e.g., matching a step mentioning `"automated"` -> field `automated: true`).
+  - `header`: Extracted from the Feature metadata header lines.
+
+Both parameters are required: `source` defines **where to read** the value, and `type` defines **how to validate** it.
+
+## 4. Provider Configuration (`provider`)
+
+Testform supports remote issue trackers (such as GitHub and GitLab) as well as a completely offline local provider (`local`).
+
+### Local Provider (`provider: local`)
+
+The local provider allows managing testcases, runs, and plans without relying on any external cloud service or network credentials. All simulated issues, comments, and project fields are saved locally into `testform.data`.
+
+This is ideal for offline development, air-gapped environments, or solo verification:
+
+```yaml
+# Direct scalar mode
+provider: local
+```
+
+Or using dictionary syntax:
+
+```yaml
+provider:
+  local: {}
+```
+
+When using `provider: local`, `testform plan` and `testform apply` assign local IDs prefixed with `local:<number>` (such as `local:1`, `local:2`), guaranteeing complete offline reproducibility.
+
+### GitHub Provider (`provider.github`)
+
+Synchronizes test resources as issues and project items in GitHub Projects V2. Testform supports both human-readable project numbers (`projectId: 12`) and GraphQL node IDs (`projectId: "PVT_kwDOB12345"`).
+
+```yaml
+provider:
+  github:
+    owner: "my-organization"
+    repository: "my-application"
+    projectId: 12
+    token_env: "GITHUB_TOKEN"
+```
+
+| Parameter | Description | Required |
+| :--- | :--- | :--- |
+| `owner` | GitHub organization or username owning the repository. | Yes |
+| `repository` | GitHub repository name. | Yes |
+| `projectId` | Numeric or GraphQL project ID in GitHub Projects V2. | No |
+| `token_env` | Environment variable name providing the personal access token (default `GITHUB_TOKEN`). | No |
+
+Authentication tokens are securely injected via the `GITHUB_TOKEN` environment variable or the custom variable designated in `token_env`.
+
+### GitLab Provider (`provider.gitlab`)
+
+Synchronizes test resources with issues in GitLab projects:
+
+```yaml
+provider:
+  gitlab:
+    projectId: 12345678
+    token_env: "GITLAB_TOKEN"
+```
+
+## 5. Input Variables (`variable:`) and Local Values (`locals:`)
+
+Testform allows parameterizing both Gherkin step texts and tag metadata through input variables and locally computed values:
+
+- **`variable:`**: Variable declaration with data type (`string`, `number`, `boolean`), description, allowed catalog `enum: [...]`, `validation:` constraints, and default values.
+- **`locals:`**: Computed values and derived expressions evaluated via the sandboxed AST engine (`${var.name}`, `${local.name}`, `${lower()}`, `${format()}`).
+
+For further information on precedence hierarchies and type rules, refer to the [Variables and Types Guide](/docs/language/variables).
+

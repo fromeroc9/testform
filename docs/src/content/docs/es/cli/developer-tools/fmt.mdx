@@ -1,0 +1,44 @@
+﻿---
+title: "testform fmt"
+---
+
+# `testform fmt`
+
+```bash
+testform fmt [opciones] [directorio-objetivo]
+```
+
+El comando `testform fmt` formatea y reescribe los archivos Gherkin `.feature` para ajustarlos a las pautas de estilo canÃ³nicas. Normaliza la indentaciÃ³n, alinea las palabras clave de los pasos (`Given`/`When`/`Then`), formatea las tablas de datos y elimina espacios en blanco al final de las lÃ­neas.
+
+## Opciones del Comando
+
+| OpciÃ³n | Por Defecto | DescripciÃ³n |
+| :--- | :--- | :--- |
+| `-check` | `false` | Comprueba si los archivos estÃ¡n formateados sin modificarlos en disco. Devuelve cÃ³digo de salida `3` si detecta cambios necesarios (ideal para linters de CI). |
+| `-diff` | `false` | Muestra diffs unificados con los cambios de formateo aplicables. |
+| `-recursive` | `true` | Formatea de forma recursiva todos los subdirectorios. |
+
+## Ejemplo de EjecuciÃ³n Real
+
+```bash
+$ testform fmt
+tests/auth/login.case.feature
+tests/checkout/cart.case.feature
+
+2 files reformatted.
+```
+
+## Modo Linter para CI/CD (`-check`)
+
+En los flujos automatizados de revisiÃ³n de Pull Requests, ejecuta:
+```bash
+testform fmt -check
+```
+Si algÃºn desarrollador introdujo archivos Gherkin sin formatear, el comando finaliza con cÃ³digo de error `3` e imprime las rutas de los archivos afectados.
+
+## CÃ³digos de Salida
+
+- `0`: Todos los archivos formateados correctamente (o ya formateados al usar `-check`).
+- `1`: Error al procesar los archivos.
+- `3`: Se requieren cambios de formato (Ãºnicamente al ejecutar con `-check`).
+

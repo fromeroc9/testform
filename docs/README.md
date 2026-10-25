@@ -7,15 +7,15 @@
 
 ## Cómo acceder a este documento en la Web de Documentación
 
-Esta página está registrada en Nextra con la propiedad `display: 'hidden'`, lo que significa que **no aparece en el menú lateral ni en el árbol visible de navegación**, manteniéndose accesible como una página interna/oculta mediante su URL directa:
+Esta página está registrada en la documentación con la propiedad `display: 'hidden'`, lo que significa que **no aparece en el menú lateral ni en el árbol visible de navegación**, manteniéndose accesible como una página interna/oculta mediante su URL directa:
 
-- **Español (Servidor local Nextra):**  
-  👉 [http://localhost:3000/docs/terraform-parity](http://localhost:3000/docs/terraform-parity) o `http://localhost:3000/es/docs/terraform-parity`
-- **Inglés (Servidor local Nextra):**  
-  👉 [http://localhost:3000/en/docs/terraform-parity](http://localhost:3000/en/docs/terraform-parity)
+- **Español (Servidor local):**  
+  👉 [http://localhost:4321/testform/es/docs/terraform-parity](http://localhost:4321/testform/es/docs/terraform-parity)
+- **Inglés (Servidor local):**  
+  👉 [http://localhost:4321/testform/en/docs/terraform-parity](http://localhost:4321/testform/en/docs/terraform-parity)
 - **Archivos MDX fuente:**  
-  - Español: `docs/content/es/docs/terraform-parity.mdx`  
-  - English: `docs/content/en/docs/terraform-parity.mdx`
+  - Español: `docs/src/content/docs/es/docs/terraform-parity.mdx`  
+  - English: `docs/src/content/docs/en/docs/terraform-parity.mdx`
 
 Para iniciar el servidor de documentación y consultarlo visualmente:
 ```bash

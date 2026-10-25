@@ -1,0 +1,68 @@
+﻿---
+title: "testform validate"
+---
+
+# `testform validate`
+
+```bash
+testform [opciones globales] validate [opciones]
+```
+
+El comando `testform validate` comprueba la sintaxis y coherencia de tus archivos de configuraciÃ³n (tanto los archivos `.feature` como `testform.yml`). Valida que los pasos cumplan con la gramÃ¡tica de Gherkin, que los campos personalizados coincidan con los esquemas declarados y que no existan transgresiones de polÃ­ticas.
+
+La validaciÃ³n se realiza a nivel estrictamente local y **no** realiza peticiones a APIs remotas ni valida credenciales externas.
+
+## Opciones del Comando
+
+| OpciÃ³n | Por Defecto | DescripciÃ³n |
+| :--- | :--- | :--- |
+| `-json` | `false` | Emite diagnÃ³sticos en formato de objeto JSON, idÃ³neo para linters de CI y Checks de GitHub. |
+| `-no-color` | `false` | Desactiva colores en la salida de consola. |
+
+## Ejemplos de EjecuciÃ³n Real
+
+### ValidaciÃ³n Exitosa
+```bash
+$ testform validate
+
+Success! The configuration is valid.
+```
+
+### Advertencias de Esquema (Warnings)
+```bash
+$ testform validate
+â•·
+â”‚ Warning: Undeclared field 'tipo_prueba'
+â”‚ 
+â”‚   in tests/cart.case.feature:
+â”‚ The field 'tipo_prueba' is used but not declared in testform.yml schema.
+â•µ
+Success! The configuration is valid, but there were some warnings.
+```
+
+### Fallo por Error SintÃ¡ctico o de PolÃ­tica
+```bash
+$ testform validate
+â•·
+â”‚ Error: Every scenario must have an identity tag matching the configured identity pattern.
+â”‚ 
+â”‚   in tests/login.case.feature:14
+â”‚ Add the identity tag (e.g. @tc-1) to each scenario.
+â•µ
+Error: The configuration contains errors.
+```
+
+## IntegraciÃ³n en Pre-Commit y Verificaciones de PR en CI/CD
+
+Incorpora `testform validate -json` en tu flujo de trabajo de Pull Requests en GitHub Actions para prevenir el merge de sintaxis Gherkin defectuosa en las ramas principales:
+
+```yaml
+- name: Validar ConfiguraciÃ³n Test-as-Code
+  run: testform validate -json
+```
+
+## CÃ³digos de Salida
+
+- `0`: ConfiguraciÃ³n vÃ¡lida (pueden existir advertencias).
+- `1`: La configuraciÃ³n contiene errores de validaciÃ³n.
+

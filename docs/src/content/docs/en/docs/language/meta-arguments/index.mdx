@@ -1,0 +1,26 @@
+﻿---
+title: "Meta-arguments in Testform"
+---
+
+# Meta-arguments in Testform
+
+**Meta-arguments** are special directives applicable to test resources (`Scenario:`, `Feature:`) that alter the default behavior of Testform's planner and execution engine.
+
+Directly mirroring Terraform meta-arguments, these directives manage execution ordering and lifecycle constraints across test suites.
+
+---
+
+## Active Meta-arguments
+
+Testform currently supports two core meta-arguments:
+
+### 1. [`depends_on`](./meta-arguments/depends-on)
+Declares explicit dependencies between test scenarios. Builds a topological **Directed Acyclic Graph (DAG)** to guarantee execution order and skip downstream tests if prerequisites fail.
+- **Syntax:** `@depends_on("path/feature.feature.@tag")`
+
+### 2. [`lifecycle`](./meta-arguments/lifecycle)
+Manages lifecycle protection and drift suppression rules:
+- **`prevent_destroy`:** Blocks critical scenarios from being removed during `testform destroy` or reconciliation plans.
+- **`ignore_changes`:** Suppresses drift detection on dynamic assertions or flaky steps.
+- **Syntax:** `@lifecycle(prevent_destroy=true)` or `@lifecycle(ignore_changes=["selector"])`
+

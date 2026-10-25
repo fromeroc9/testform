@@ -1,0 +1,103 @@
+/* Custom Starlight Styling for Testform */
+:root {
+  --sl-color-accent-low: #0c4a6e;
+  --sl-color-accent: #0284c7;
+  --sl-color-accent-high: #bae6fd;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #082f49;
+  --sl-color-accent: #38bdf8;
+  --sl-color-accent-high: #e0f2fe;
+}
+
+/* Landing Specific Styles */
+.hero-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2.5rem;
+  margin: 2rem auto;
+  padding: 1.25rem 2rem;
+  border-radius: 1rem;
+  background: var(--sl-color-bg-inline-code);
+  border: 1px solid var(--sl-color-hairline);
+  max-width: 52rem;
+}
+
+.hero-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.hero-stat-val {
+  font-size: 1.8rem;
+  font-weight: 850;
+  color: var(--sl-color-accent);
+}
+
+.hero-stat-lbl {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-3);
+  margin-top: 0.2rem;
+}
+
+/* Matrix Table */
+.matrix-container {
+  width: 100%;
+  margin: 2.5rem 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--sl-color-hairline);
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  margin: 0 !important;
+}
+
+.matrix-table th {
+  padding: 1rem !important;
+  background: var(--sl-color-gray-6) !important;
+  font-size: 0.8rem !important;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--sl-color-hairline) !important;
+}
+
+.matrix-table td {
+  padding: 1rem !important;
+  border-bottom: 1px solid var(--sl-color-hairline) !important;
+  font-size: 0.88rem !important;
+}
+
+.matrix-highlight {
+  font-weight: 700;
+  color: var(--sl-color-accent) !important;
+  background: rgba(56, 189, 248, 0.05) !important;
+}
+
+.pill-good {
+  display: inline-flex;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.pill-bad {
+  display: inline-flex;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 600;
+}

@@ -1,0 +1,67 @@
+﻿---
+title: "Politicas y Quality Gates"
+---
+
+# Politicas y Quality Gates
+
+Asegura el cumplimiento de estandares de calidad y gobernanza antes de que los cambios se apliquen a tus sistemas de prueba.
+
+## Por Que Politicas como Codigo?
+
+En equipos grandes, es comun que los casos de prueba carezcan de campos criticos (como prioridad, modulo o componentes responsables), dificultando la generacion de metricas de cobertura.
+
+Testform permite definir reglas y compuertas de calidad (*quality gates*) que validan los archivos Gherkin localmente y en pipelines de CI/CD mediante `testform validate`.
+
+## Reglas de ValidaciÃ³n en main.yml
+
+Puedes configurar restricciones estrictas en el bloque `fields` de `main.yml`:
+
+```yaml
+fields:
+  priority:
+    type: "enum"
+    source: "tag"
+    enum: ["Low", "Medium", "High", "Critical"]
+    required: true
+
+  component:
+    type: "string"
+    source: "tag"
+    required: true
+    regex: "^(auth|billing|search|settings|reporting)$"
+
+  automated:
+    type: "boolean"
+    source: "step"
+    default: false
+```
+
+- **`required: true`:** El caso de prueba sera rechazado si no declara este campo.
+- **`enum`:** El valor debe pertenecer exactamente a la lista permitida.
+- **`regex`:** El valor debe cumplir con la expresion regular especificada.
+
+## Validacion en Linea de Comandos
+
+Ejecuta la validacion en tu maquina o en un hook de pre-commit:
+
+```bash
+npx testform validate
+```
+
+Si un caso de prueba incumple una politica, Testform detalla el archivo, linea y motivo:
+
+```text
+Validando casos de prueba contra politicas configuradas...
+
+[ERROR] tests/features/cart.case.feature:1:1
+  Caso de prueba "@tc-cart-004" no cumple la politica de campos requeridos:
+  - El campo "priority" es obligatorio y no fue declarado mediante tag (@priority-*).
+  - El campo "component" no coincide con la expresion regular "^(auth|billing|search|settings|reporting)$". Valor encontrado: "checkout_v2".
+
+Fallo de validacion: 2 infracciones encontradas. Codigo de salida 1.
+```
+
+## Bloqueo en Pull Requests
+
+Al integrar `testform validate` en tu pipeline de GitHub Actions o GitLab CI, ningun Pull Request podra fusionarse si introduce casos de prueba que violen las directrices de calidad de la organizacion.
+

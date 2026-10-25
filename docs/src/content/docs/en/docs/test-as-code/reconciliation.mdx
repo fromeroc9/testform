@@ -1,0 +1,50 @@
+﻿---
+title: "Reconciliation Engine"
+---
+
+# Reconciliation Engine
+
+The reconciliation engine is the algorithmic core of Testform. It builds dependency graphs, compares desired state with recorded state, and orchestrates mutations in topological order.
+
+## Reconciliation Lifecycle
+
+When executing `testform plan` or `testform apply`, the engine executes the following phases:
+
+1. **State Lock Acquisition:** Acquires a distributed mutex on the configured backend to prevent concurrent mutations.
+2. **Discovery & Parsing:** Parses all `.feature` files across paths declared in `scopes`.
+3. **Ledger Deserialization:** Downloads and verifies the `testform.state` ledger.
+4. **Remote Refresh (Optional):** Unless `-refresh=false` is passed, polls remote provider APIs (GitHub, GitLab, Jira) to detect out-of-band drifts.
+5. **Diff Computation:** Compares SHA-256 hashes and declared attributes against state snapshots.
+6. **DAG Construction:** Constructs a Directed Acyclic Graph based on declared dependencies (`depends_on`, `suite`).
+7. **Execution & Commit:** Executes operations in topological order and atomically writes the updated state ledger with an incremented serial number.
+8. **Lock Release:** Relinquishes the distributed mutex, guaranteeing state integrity.
+
+## Dependency Graph (DAG)
+
+Testform organizes operations into a Directed Acyclic Graph:
+
+```text
+       [ testplan: @tp-release-v2.5 ]
+                   |
+        +----------+----------+
+        |                     |
+        v                     v
+ [ testcase: @tc-auth ]  [ testcase: @tc-checkout ]
+        |                     |
+        +----------+----------+
+                   |
+                   v
+       [ testrun: @tr-build-412 ]
+```
+
+- `testcase` resources are reconciled first to guarantee their identifiers and metadata are established.
+- `testplan` resources are reconciled next, binding referenced test cases.
+- `testrun` resources execute last, linking execution metrics to established cases.
+
+## Conflict Resolution and Drift Handling
+
+If a team member alters a test case directly in Jira or GitHub Projects without updating Git:
+
+- **Detection Mode (`plan`):** Testform flags that the remote hash diverged from the state ledger and reports the out-of-band mutation.
+- **Restoration Mode (`apply`):** Testform overwrites the remote mutation with the authoritative version declared in Git, eliminating drift and enforcing Git as the single source of truth.
+

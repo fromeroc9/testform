@@ -1,0 +1,68 @@
+﻿---
+title: "Output Values (outputs:) & testform output"
+---
+
+# Output Values (outputs:) & testform output
+
+Output values allow you to extract and export critical attributes from your managed test resources (such as issue numbers, URLs, and IDs) to make them easily consumable by CI/CD pipelines, Pull Request comments, or subsequent stages.
+
+---
+
+## 1. Declaring Outputs in `testform.yml`
+
+Outputs can be declared in `testform.yml`, `outputs.yml`, or domain files:
+
+```yaml
+outputs:
+  # 1. Provider-computed attribute
+  smoke_issue_number:
+    description: "Issue number of the generated Test Run in GitHub/GitLab"
+    value: "${testrun.suites/smoke.run.feature.@tr-1.issueNumber}"
+
+  # 2. Report web URL
+  report_web_url:
+    description: "Web link to attach to Pull Request comments"
+    value: "${testrun.suites/smoke.run.feature.@tr-1.url}"
+
+  # 3. Universal resource identifier
+  auth_testcase_id:
+    value: "${testcase.auth/login.case.feature.@tc-1.remoteId}"
+
+  # 4. Sensitive output
+  ci_token:
+    value: "${var.secret_token}"
+    sensitive: true
+```
+
+---
+
+## 2. Reading Outputs with `testform output`
+
+After running `testform apply`, output values are persisted in the state file and can be queried via CLI:
+
+### Standard Display
+```bash
+$ testform output
+auth_testcase_id   = "local:25"
+report_web_url     = "https://github.com/my-org/qa-repo/issues/29"
+smoke_issue_number = 29
+```
+
+### JSON Format (CI/CD)
+```bash
+$ testform output -json
+{
+  "smoke_issue_number": {
+    "sensitive": false,
+    "type": "number",
+    "value": 29
+  }
+}
+```
+
+### Raw Value (Pipelines)
+```bash
+$ ISSUE_ID=$(testform output smoke_issue_number -raw)
+$ echo "Test run issue: $ISSUE_ID"
+```
+

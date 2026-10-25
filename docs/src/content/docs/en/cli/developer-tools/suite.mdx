@@ -1,0 +1,133 @@
+﻿---
+title: "testform suite"
+---
+
+# `testform suite`
+
+```bash
+testform suite <subcommand> [options] [args]
+```
+
+The `testform suite` command automates the lifecycle of test suites (`testrun` and `testplan`), enabling QA leads and analysts to structure, populate, link, and mark test collections rapidly, without having to write Gherkin syntax by hand.
+
+## Interactive Self-Help
+
+All `testform suite` subcommands include built-in **interactive self-help**:
+
+- Running simply `testform suite` without any subcommand opens an interactive menu to choose an operation (`init`, `fill`, `link`, `mark`).
+- If you omit `-target` in `fill`, `link`, or `mark`, the CLI lists the available suites in your workspace with their identity tags and feature titles so you can pick one from a numbered list.
+- If you omit the scope or title in `init`, the CLI guides you step-by-step through creating it.
+- If you omit the testcase to link or mark, the CLI lets you select between implicit and explicit linking and pick the file and scenario interactively.
+
+## Subcommands
+
+### 1. `testform suite init`
+Creates a new execution suite (`testrun`) or planning suite (`testplan`):
+```bash
+testform suite init -scope=testrun -title="Sprint 42 Regression"
+testform suite init -scope=testplan -title="Q3 Release Plan"
+```
+If you run `testform suite init` without `-scope`, the interactive prompt will ask for the suite scope and title.
+
+### 2. `testform suite fill` (alias: `expand`)
+Expands empty or implicit `Rule:` blocks in a `testrun` file with concrete scenarios in initial `pending` status:
+```bash
+testform suite fill -target="sprint42.run.feature"
+testform suite fill -target="@tr-42"
+```
+> [!NOTE]
+> This subcommand is exclusive to the `testrun` scope. Each expanded scenario is generated with the step:
+> `* mark status = pending`
+
+### 3. `testform suite link`
+Directly writes Gherkin structure into the target suite file (`testrun` or `testplan`), supporting both **implicit** and **explicit** linking.
+
+#### In `testrun` Scope
+- **Implicit Linking (whole file):** Links an entire testcase file by adding `Rule: <file.case.feature>`.
+  ```bash
+  testform suite link "checkout.case.feature" -target="@tr-42"
+  ```
+  Produces in the `.run.feature` file:
+  ```gherkin
+  Rule: checkout.case.feature
+  ```
+
+- **Explicit Linking (specific scenario):** Links a specific scenario under its rule, injecting the step `* mark status = <status>` (defaults to `pending` if no status is provided):
+  ```bash
+  # With default status (pending)
+  testform suite link "@tc-1" -target="@tr-42"
+
+  # With explicit status
+  testform suite link "@tc-1=passed" -target="@tr-42"
+  testform suite link "checkout.case.feature.@tc-1=failed" -target="@tr-42"
+  ```
+  Produces in the `.run.feature` file:
+  ```gherkin
+  Rule: checkout.case.feature
+    Scenario: @tc-1
+      * mark status = passed
+  ```
+
+#### In `testplan` Scope
+Links execution suites (`testrun`) into the test plan by adding `Rule: <file.run.feature>`:
+```bash
+testform suite link "sprint42.run.feature" -target="@tp-1"
+testform suite link "@tr-42" -target="@tp-1"
+```
+Produces in the `.plan.feature` file:
+```gherkin
+@testplan
+Feature: Q3 Release Plan
+
+  Rule: sprint42.run.feature
+```
+> [!IMPORTANT]
+> Test plans (`testplan`) only link entire execution suites (`testrun`). By Testform specification and policy, `.plan.feature` files **must not contain explicit Scenario blocks**.
+
+### 4. `testform suite mark`
+Records or updates the execution status (`passed`, `failed`, `pending`, `skipped`) of an existing testcase in a test run (`testrun`), synchronizing both the local Gherkin file (`* mark status = <status>`) and the remote issue comment:
+```bash
+testform suite mark "@tc-1=passed" -target="@tr-42"
+testform suite mark "checkout.case.feature.@tc-1=failed" -target="@tr-42"
+testform suite mark "Credit card payment=passed" -target="@tr-42"
+```
+
+> [!WARNING]
+> **Requirement for Implicit Rules:**
+> If a testcase belongs to a rule that is still implicit (`Rule: file.case.feature`) and has not yet been expanded into the suite file, `suite mark` will not modify state and will emit an error requiring you to first run:
+> ```bash
+> testform suite fill -target="@tr-42"
+> ```
+> This ensures that all scenarios explicitly exist in the file before recording execution outcomes against them.
+
+## Testcase Identity Strategies
+
+Both `link` and `mark` support three flexible strategies to identify testcases:
+
+1. **Identity Tag Only:** `"@tc-1=passed"` (or `"tc-1=passed"`): Matches the case in workspace or testrun by its unique tag.
+2. **File + Tag (or Name):** `"checkout.case.feature.@tc-1=passed"` (or `"checkout.case.feature@tc-1=passed"`): Disambiguates cases when multiple files share similar tags.
+3. **Scenario Name/Title Only:** `"Successful user login=passed"`: Resolves directly against the Gherkin scenario name.
+
+## Target Resolution (`-target`)
+
+The `fill`, `link`, and `mark` subcommands operate on a specific suite or test run specified via `-target`.
+
+### Why does `-target` exist?
+A test case (`@tc-1`) is a specification executed across multiple different runs over time (Sprint 41, Sprint 42, Nightly Regression). To link or mark the result of `@tc-1`, the system needs to know **which specific run or suite this action belongs to**.
+- **`-target` identifies the container** (the Test Run or Test Plan, e.g. `@tr-42`, `@tp-1`, or `sprint42.run.feature`).
+- **The positional argument identifies the inner element and its outcome** (the Test Case or Test Run to link).
+
+### Accepted formats for `-target`
+You can reference the target suite using any of these 3 forms:
+1. **Identity Tag (`@tr-*` / `@tp-*`):** `-target="@tr-42"` or `-target="@tp-1"` (resolved automatically from the state).
+2. **File name or fragment:** `-target="sprint42.run.feature"` or `-target="sprint42"`.
+3. **Relative or absolute path:** `-target="tests/testrun/sprint42.run.feature"`.
+
+> [!TIP]
+> If you omit `-target`, Testform does not immediately fail: it launches interactive self-help showing all available suites so you can pick one.
+
+## Exit Codes
+
+- `0`: Suite operation succeeded.
+- `1`: Invalid arguments, file error, or resource not found.
+

@@ -1,0 +1,54 @@
+﻿---
+title: "testform taint"
+---
+
+# `testform taint` y `untaint`
+
+```bash
+testform taint [opciones] <direccion>
+testform untaint [opciones] <direccion>
+```
+
+El comando `testform taint` marca manualmente un recurso gestionado como **daÃ±ado (tainted)** en el archivo de estado. Un recurso marcado de esta forma se considera corrompido, parcialmente fallido o necesitado de una reconstrucciÃ³n completa.
+
+Durante la siguiente ejecuciÃ³n de `testform apply`, Testform aplicarÃ¡ una **operaciÃ³n de reemplazo** (`-/+`), destruyendo el issue remoto actual y creando uno nuevo desde cero.
+
+## CuÃ¡ndo Marcar un Recurso con Taint
+
+1. El hilo de comentarios de un Issue en GitHub se volviÃ³ ilegible o caÃ³tico y se requiere reiniciar su historial de forma limpia.
+2. Un issue remoto fue desconfigurado o alterado por una herramienta de automatizaciÃ³n externa.
+3. Se alteraron propiedades inmutables que exigen recreaciÃ³n obligatoria.
+
+## Ejemplo de EjecuciÃ³n Real
+
+```bash
+# Marcar recurso como daÃ±ado
+$ testform taint "login.case.feature.@tc-1"
+Resource instance github_testcase.login_case_feature__1 has been marked as tainted.
+
+# Ejecutar plan para verificar el reemplazo
+$ testform plan
+Testform will perform the following actions:
+
+  # login.case.feature.@tc-1 is tainted, so must be replaced
+-/+ resource "testcase" "login_valid" {
+      ~ id = 104 -> (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+```
+
+## Revertir Taint con `untaint`
+
+Si marcaste un recurso por error, puedes revertir la acciÃ³n antes de ejecutar `apply`:
+
+```bash
+$ testform untaint "login.case.feature.@tc-1"
+Resource instance github_testcase.login_case_feature__1 has been successfully untainted.
+```
+
+## CÃ³digos de Salida
+
+- `0`: Estado de taint actualizado exitosamente.
+- `1`: DirecciÃ³n del recurso no encontrada en el archivo de estado.
+

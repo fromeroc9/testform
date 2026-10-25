@@ -1,0 +1,68 @@
+﻿---
+title: "testform validate"
+---
+
+# `testform validate`
+
+```bash
+testform [global options] validate [options]
+```
+
+The `testform validate` command validates the syntax and consistency of your configuration files (both `.feature` files and `testform.yml`). It verifies that all steps conform to the Gherkin grammar, custom fields match declared schemas, and no policy violations exist.
+
+Validation runs locally and does **not** access remote APIs or verify credentials.
+
+## Command Options
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `-json` | `false` | Emits validation diagnostics as a JSON object, ideal for CI linters and GitHub Checks. |
+| `-no-color` | `false` | Disables colored console output. |
+
+## Real Execution Examples
+
+### Success Output
+```bash
+$ testform validate
+
+Success! The configuration is valid.
+```
+
+### Warning Diagnostics (Schema Warnings)
+```bash
+$ testform validate
+â•·
+â”‚ Warning: Undeclared field 'type_of_test'
+â”‚ 
+â”‚   in tests/cart.case.feature:
+â”‚ The field 'type_of_test' is used but not declared in testform.yml schema.
+â•µ
+Success! The configuration is valid, but there were some warnings.
+```
+
+### Error Output (Syntax or Required Policy Failure)
+```bash
+$ testform validate
+â•·
+â”‚ Error: Every scenario must have an identity tag matching the configured identity pattern.
+â”‚ 
+â”‚   in tests/login.case.feature:14
+â”‚ Add the identity tag (e.g. @tc-1) to each scenario.
+â•µ
+Error: The configuration contains errors.
+```
+
+## Integration in CI/CD Pre-Commit & PR Checks
+
+Add `testform validate -json` to your GitHub Actions pull request checks to prevent invalid Gherkin syntax from being merged into main branches:
+
+```yaml
+- name: Validate Test-as-Code Configuration
+  run: testform validate -json
+```
+
+## Exit Codes
+
+- `0`: Configuration is valid (warnings may be present).
+- `1`: Configuration contains validation errors.
+

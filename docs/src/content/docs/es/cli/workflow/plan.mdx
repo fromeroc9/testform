@@ -1,0 +1,82 @@
+﻿---
+title: "testform plan"
+---
+
+# `testform plan`
+
+```bash
+testform [opciones globales] plan [opciones]
+```
+
+El comando `testform plan` genera un plan de ejecuciÃ³n. EvalÃºa tus archivos `.feature` locales contra el archivo de estado actual (`testform.state`) y la infraestructura remota, calculando con exactitud el conjunto de acciones necesarias para alinear las incidencias remotas con el cÃ³digo local.
+
+Es una **operaciÃ³n especulativa y de solo lectura** que no altera ningÃºn recurso remoto.
+
+## Opciones del Comando
+
+| OpciÃ³n | Por Defecto | DescripciÃ³n |
+| :--- | :--- | :--- |
+| `-out=path` | â€” | Escribe el plan de ejecuciÃ³n resultante en un archivo binario. Puede suministrarse a `apply` para garantizar una ejecuciÃ³n idÃ©ntica y reproducible. |
+| `-destroy` | `false` | Genera un plan para destruir todos los recursos gestionados en lugar de aplicar actualizaciones. |
+| `-refresh=false` | `true` | Omite la consulta a la API remota para detectar desviaciones fuera de banda antes de planificar. |
+| `-target=address` | â€” | Limita la planificaciÃ³n a una Ãºnica identidad de recurso (por ejemplo: `login.case.feature.@tc-1`). Admite mÃºltiples declaraciones. |
+| `-json` | `false` | Emite el plan en formato estructurado JSON. |
+| `-detailed-exitcode` | `false` | Devuelve cÃ³digos de salida detallados (`0` = plan vacÃ­o sin cambios, `2` = cambios pendientes de aplicar). |
+
+## Indicadores de Diff
+
+Las acciones se representan mediante los sÃ­mbolos estÃ¡ndar de diff de Terraform:
+- `+` **create**: El recurso existe localmente pero aÃºn no ha sido aprovisionado de forma remota.
+- `~` **update in-place**: El recurso existe remotamente, pero sus propiedades locales (tÃ­tulo, pasos, etiquetas, campos) han cambiado.
+- `-` **destroy**: El recurso existe en el estado pero ha sido eliminado del cÃ³digo local.
+- `-/+` **replace**: El recurso estÃ¡ marcado como daÃ±ado (tainted) o su identidad fundamental cambiÃ³; serÃ¡ destruido y recreado.
+
+## Ejemplo de EjecuciÃ³n Real
+
+```bash
+$ testform plan
+
+Testform used the selected Provider to generate the following execution plan.
+Resource actions are indicated with the following symbols:
+  + create
+  ~ update in-place
+  - destroy
+
+Testform will perform the following actions:
+
+  # login.case.feature.@tc-1 will be updated in-place
+  ~ resource "testcase" "login_valid" {
+        id        = 104
+      ~ labels    = ["login", "smoke"] -> ["login", "smoke", "high"]
+      ~ milestone = "Sprint 41" -> "Sprint 42"
+    }
+
+  # checkout.case.feature.@tc-3 will be created
+  + resource "testcase" "checkout_coupon" {
+      + title     = "Aplicar cupÃ³n promocional vÃ¡lido"
+      + labels    = ["checkout", "promotions"]
+      + state     = "open"
+    }
+
+Plan: 1 to add, 1 to change, 0 to destroy.
+```
+
+## Buena PrÃ¡ctica: Guardar Planes en CI/CD
+
+En pipelines automatizados, guarda siempre el plan con `-out` y transfiÃ©relo al comando `apply` para eliminar condiciones de carrera:
+
+```bash
+# En la fase de Pull Request:
+testform plan -out=testform.plan.bin
+
+# En la fase de Merge / Despliegue:
+testform apply testform.plan.bin
+```
+
+## CÃ³digos de Salida
+
+Al ejecutarse con `-detailed-exitcode`:
+- `0`: EjecuciÃ³n exitosa con diff vacÃ­o (no hay cambios requeridos).
+- `1`: OcurriÃ³ un error.
+- `2`: EjecuciÃ³n exitosa con diff no vacÃ­o (existen cambios pendientes de aplicar).
+

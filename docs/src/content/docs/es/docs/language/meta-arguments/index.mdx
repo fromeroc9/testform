@@ -1,0 +1,26 @@
+﻿---
+title: "Meta-arguments en Testform"
+---
+
+# Meta-arguments en Testform
+
+Los **Meta-arguments** son directivas especiales aplicables sobre recursos de prueba (`Scenario:`, `Feature:`) que alteran el comportamiento estÃ¡ndar del planificador y del motor de ejecuciÃ³n de Testform.
+
+Al igual que en Terraform los meta-argumentos cambian cÃ³mo se instancian o destruyen los recursos de infraestructura, en Testform los meta-argumentos permiten controlar dependencias y polÃ­ticas de ciclo de vida.
+
+---
+
+## Meta-arguments Disponibles
+
+Testform soporta actualmente dos meta-argumentos fundamentales:
+
+### 1. [`depends_on`](./meta-arguments/depends-on)
+Declara dependencias explÃ­citas entre casos de prueba. Construye un **Grafo AcÃ­clico Dirigido (DAG)** topolÃ³gico que asegura el orden de ejecuciÃ³n y aborta o salta pruebas derivadas si un prerrequisito falla.
+- **Sintaxis:** `@depends_on("ruta/archivo.feature.@tag")`
+
+### 2. [`lifecycle`](./meta-arguments/lifecycle)
+Controla las polÃ­ticas de modificaciÃ³n y destrucciÃ³n de casos de prueba:
+- **`prevent_destroy`:** Protege escenarios crÃ­ticos para que nunca sean eliminados accidentalmente en `testform destroy` o `testform apply`.
+- **`ignore_changes`:** Suprime falsos positivos y detecciÃ³n de deriva (drift) en atributos dinÃ¡micos o pasos inestables.
+- **Sintaxis:** `@lifecycle(prevent_destroy=true)` o `@lifecycle(ignore_changes=["paso_flaky"])`
+

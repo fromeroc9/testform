@@ -1,0 +1,54 @@
+﻿---
+title: "testform force-unlock"
+---
+
+# `testform force-unlock`
+
+```bash
+testform force-unlock [opciones] <id-bloqueo>
+```
+
+El comando `testform force-unlock` elimina forzosamente un bloqueo distribuido de estado que haya quedado huÃ©rfano o bloqueado en el espacio de trabajo actual.
+
+## CuÃ¡ndo Utilizar `force-unlock`
+
+El bloqueo de estado previene que dos miembros del equipo o pipelines de CI muten el estado simultÃ¡neamente. Sin embargo, si un runner de CI colapsa abruptamente, se corta la energÃ­a o se finaliza el proceso (`kill -9`), el bloqueo puede permanecer retenido en DynamoDB, Azure Blob leases o GCS, impidiendo la ejecuciÃ³n de comandos posteriores:
+
+```
+Error: Error acquiring the state lock
+  Lock Info:
+    ID:        b7c93e41-0f82-498b-9d22-123456789abc
+    Path:      mi-bucket/testform.state
+    Owner:     ci-runner-ip-10-0-2-44
+    Created:   2026-10-19 15:20:00 UTC
+```
+
+## Opciones del Comando
+
+| OpciÃ³n | Por Defecto | DescripciÃ³n |
+| :--- | :--- | :--- |
+| `-force` | `false` | Omite la confirmaciÃ³n interactiva antes de desbloquear. |
+
+## Ejemplo de EjecuciÃ³n Real
+
+```bash
+$ testform force-unlock b7c93e41-0f82-498b-9d22-123456789abc
+
+Do you really want to force-unlock?
+  Testform will remove the lock on the current state.
+  Please ensure that no other process is actively running against this state.
+
+  Enter a value: yes
+
+Testform state lock b7c93e41-0f82-498b-9d22-123456789abc successfully released!
+```
+
+## Advertencia: Riesgos de Concurrencia
+
+Utiliza `force-unlock` Ãºnicamente tras verificar con total certeza que el proceso que originÃ³ el bloqueo ya no se encuentra en ejecuciÃ³n. Liberar un estado mientras un comando apply estÃ¡ activo puede generar corrupciÃ³n irreversible en el archivo de estado.
+
+## CÃ³digos de Salida
+
+- `0`: Bloqueo liberado exitosamente.
+- `1`: ID de bloqueo no vÃ¡lido o error de comunicaciÃ³n con el backend.
+

@@ -1,7 +1,8 @@
 node_modules
-scripts
+dist
+.astro
+docs/dist
+docs/.astro
+docs/node_modules
 bin
 **/testform.json
-.next
-docs/.next
-docs/out

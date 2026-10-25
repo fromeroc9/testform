@@ -1,0 +1,64 @@
+﻿---
+title: "testform apply"
+---
+
+# `testform apply`
+
+```bash
+testform [opciones globales] apply [opciones] [archivo-de-plan]
+```
+
+El comando `testform apply` ejecuta las acciones propuestas en un plan de Testform. Sincroniza el estado deseado con el Provider activo (creando, modificando o cerrando incidencias en GitHub, Jira, etc.) y actualiza `testform.state` al finalizar.
+
+## Opciones del Comando
+
+| OpciÃ³n | Por Defecto | DescripciÃ³n |
+| :--- | :--- | :--- |
+| `-auto-approve` | `false` | Omite la solicitud interactiva de aprobaciÃ³n previa (imprescindible en CI/CD). |
+| `-destroy` | `false` | Destruye todos los recursos gestionados dentro del alcance activo. |
+| `-target=address` | â€” | Limita la ejecuciÃ³n a una identidad de recurso especÃ­fica. |
+| `-lock=false` | `true` | Desactiva el bloqueo de estado durante la ejecuciÃ³n. |
+| `-lock-timeout=0s` | `0s` | Tiempo de reintento para adquirir el bloqueo de estado. |
+| `-json` | `false` | Emite eventos de ejecuciÃ³n y avance en formato JSON. |
+
+## Flujo Interactivo (Por Defecto)
+
+Al ejecutarse sin un archivo de plan previo, `testform apply` calcula primero el plan, muestra el diferencial y solicita confirmaciÃ³n expresa:
+
+```bash
+$ testform apply
+
+Plan: 1 to add, 1 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Testform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+testcase.checkout_coupon: Creating...
+testcase.checkout_coupon: Creation complete after 1s [id=105]
+testcase.login_valid: Modifying... [id=104]
+testcase.login_valid: Modifications complete after 1s [id=104]
+
+Apply complete! Resources: 1 added, 1 changed, 0 destroyed.
+```
+
+## Flujo No Interactivo en CI/CD
+
+Para pipelines automÃ¡ticos, utiliza un archivo de plan previamente generado o el flag `-auto-approve`:
+
+```bash
+# Utilizando el plan guardado:
+testform apply -auto-approve testform.plan.bin
+
+# AplicaciÃ³n directa:
+testform apply -auto-approve
+```
+
+## CÃ³digos de Salida
+
+- `0`: Comando apply finalizado exitosamente con cero errores.
+- `1`: FallÃ³ una o mÃ¡s mutaciones, o no fue posible adquirir el bloqueo de estado.
+
+

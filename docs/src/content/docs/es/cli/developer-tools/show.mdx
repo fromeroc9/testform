@@ -1,0 +1,62 @@
+﻿---
+title: "testform show"
+---
+
+# `testform show`
+
+```bash
+testform [opciones globales] show [opciones] [ruta]
+```
+
+El comando `testform show` presenta una representaciÃ³n legible o estructurada de un archivo de estado (`testform.state`) o de un plan de ejecuciÃ³n guardado.
+
+Es un comando de solo lectura utilizado para inspeccionar el estado actual de la infraestructura sin riesgo de inducir alteraciones.
+
+## Opciones del Comando
+
+| OpciÃ³n | Por Defecto | DescripciÃ³n |
+| :--- | :--- | :--- |
+| `-json` | `false` | Emite la totalidad del estado o plan en formato de objeto JSON estructurado. |
+| `-no-color` | `false` | Desactiva colores en la salida de consola. |
+
+## Ejemplos de EjecuciÃ³n Real
+
+### InspecciÃ³n del Estado Actual
+```bash
+$ testform show
+
+# testcase.login_valid:
+resource "testcase" "login_valid" {
+    id        = 104
+    title     = "Valid credentials allow login"
+    labels    = ["auth", "smoke", "regression"]
+    milestone = "Sprint 42"
+    url       = "https://github.com/mi-org/web-app/issues/104"
+    state     = "open"
+}
+```
+
+### InspecciÃ³n de un Archivo de Plan Guardado
+```bash
+$ testform show testform.plan.bin
+
+Testform will perform the following actions:
+
+  # checkout.case.feature::@tc-3 will be created
+  + resource "testcase" "checkout_coupon" {
+      + title = "Aplicar cupÃ³n promocional vÃ¡lido"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+### InspecciÃ³n en JSON (para AutomatizaciÃ³n con Scripts)
+```bash
+testform show -json | jq '.resources[].instances[].attributes.title'
+```
+
+## CÃ³digos de Salida
+
+- `0`: InspecciÃ³n completada exitosamente.
+- `1`: No fue posible leer el archivo de estado o de plan.
+

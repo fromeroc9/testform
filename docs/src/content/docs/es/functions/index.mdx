@@ -1,0 +1,83 @@
+﻿---
+title: "API de Funciones y Expresiones"
+---
+
+# API de Funciones y Expresiones
+
+Testform incorpora un **motor nativo de anÃ¡lisis sintÃ¡ctico (AST)** que permite evaluar expresiones computadas y reglas de validaciÃ³n sin dependencias externas inseguras ni uso de `eval()`. La sintaxis y la biblioteca de funciones siguen el estÃ¡ndar de Terraform HCL, ofreciendo familiaridad y determinismo.
+
+---
+
+## Â¿DÃ³nde se utilizan las funciones?
+
+Las funciones de Testform se evalÃºan en dos Ã¡reas fundamentales de tu configuraciÃ³n:
+
+### 1. Variables Locales (`locals.yml`)
+Permiten transformar datos, componer URLs dinÃ¡micas y normalizar cadenas sin duplicar valores:
+
+```yaml
+# locals.yml
+locals:
+  raw_env: "${lower(var.environment)}"
+  api_prefix: "${format('https://api.%s.empresa.com/v1', local.raw_env)}"
+  admin_tags: "${split(',', var.tag_list)}"
+  session_id: "${uuid()}"
+```
+
+### 2. Reglas de ValidaciÃ³n (`variables.yml`)
+Permiten asegurar que los valores proporcionados en `testform.tfvars.yml` o vÃ­a `--var` cumplan con las restricciones del proyecto antes de ejecutar cualquier plan:
+
+```yaml
+# variables.yml
+variable:
+  environment:
+    type: string
+    default: "dev"
+    validation:
+      condition: "${contains(['dev', 'staging', 'production'], var.environment)}"
+      error_message: "El entorno debe ser 'dev', 'staging' o 'production'."
+
+  project_code:
+    type: string
+    validation:
+      condition: "${startswith(var.project_code, 'TF-') && length(var.project_code) >= 6}"
+      error_message: "El cÃ³digo de proyecto debe iniciar con 'TF-' y tener al menos 6 caracteres."
+```
+
+---
+
+## CaracterÃ­sticas del Motor de Expresiones
+
+| Propiedad | DescripciÃ³n |
+| :--- | :--- |
+| **Sandboxed AST** | Cada expresiÃ³n es tokenizada y analizada en un Ã¡rbol de sintaxis abstracta; no se utiliza `eval()` de JavaScript ni ejecuciÃ³n arbitraria de cÃ³digo. |
+| **Tipado Seguro** | CoerciÃ³n predecible entre tipos primitivos (`string`, `number`, `boolean`, `list`, `map`). |
+| **InterpolaciÃ³n Limpia** | Cadenas que contienen `${...}` resuelven la expresiÃ³n interna; si la cadena es Ãºnicamente `${...}`, preserva el tipo nativo resultante (ej. listas u objetos). |
+| **Manejo de Errores Descriptivo** | Si una funciÃ³n recibe argumentos incompatibles o una variable no existe, el motor reporta la lÃ­nea y el motivo exacto. |
+
+---
+
+## Asistente CLI Integrado
+
+Para explorar la documentaciÃ³n o probar expresiones de forma interactiva sin modificar archivos, puedes usar el comando [`testform functions`](/es/functions/cli-helper):
+
+```bash
+# Ver el catÃ¡logo completo
+testform functions
+
+# Consultar ayuda detallada de una funciÃ³n
+testform functions format
+
+# Evaluar una expresiÃ³n en vivo
+testform functions --eval "format('%s/%s', 'https://api.test.com', lower('V1'))"
+```
+
+---
+
+## CategorÃ­as de Funciones
+
+- [**CLI Helper (`testform functions`)**](/es/functions/cli-helper): GuÃ­a de ayuda interactiva y pruebas en terminal.
+- [**Funciones de Texto (String)**](/es/functions/string): `lower`, `upper`, `trim`, `format`, `replace`, `split`, `join`, `substr`, etc.
+- [**Colecciones y LÃ³gica**](/es/functions/collections): `contains`, `coalesce`, `lookup`, `length`, `element`, `slice`, `merge`.
+- [**Sistema y CodificaciÃ³n**](/es/functions/system): `env`, `uuid`, `timestamp`, `jsonencode`, `jsondecode`, `file`.
+

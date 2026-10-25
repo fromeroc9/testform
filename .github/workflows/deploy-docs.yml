@@ -27,35 +27,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
+          cache-dependency-path: 'docs/package-lock.json'
 
-      - name: Install root & docs dependencies
-        run: |
-          npm ci
-          npm --prefix docs ci
+      - name: Install docs dependencies
+        run: npm --prefix docs ci
 
       - name: Build docs
         run: npm --prefix docs run build
 
-      - name: Prepare static export artifact
-        run: |
-          mkdir -p out/_next
-          cp -r docs/.next/static out/_next/
-          cp -r docs/public/* out/ 2>/dev/null || true
-          cp -r docs/.next/server/app/es out/
-          cp -r docs/.next/server/app/en out/
-          cp docs/.next/server/app/es.html out/es/index.html 2>/dev/null || true
-          cp docs/.next/server/app/en.html out/en/index.html 2>/dev/null || true
-          # Redirección raíz a español
-          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=./es/"></head><body></body></html>' > out/index.html
-          # Deshabilitar Jekyll para que GitHub Pages sirva la carpeta _next
-          touch out/.nojekyll
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: out
+          path: docs/dist
 
   deploy:
     environment:

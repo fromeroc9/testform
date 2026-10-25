@@ -1,0 +1,60 @@
+﻿---
+title: "Meta-argument"
+---
+
+# Meta-argument `lifecycle`
+
+The `lifecycle` meta-argument in Testform customizes the default lifecycle management of test resources, protecting them against accidental destruction and suppressing unwanted state drift.
+
+---
+
+## Active `lifecycle` Directives
+
+Testform implements two primary controls:
+
+### 1. `prevent_destroy`
+Strictly halts any execution plan attempting to delete or archive critical test specifications during `testform destroy` or reconciliation plans:
+
+```gherkin
+@auth @critical
+@prevent_destroy
+Scenario: High-value bank fund transfer
+  Given user has sufficient account balance
+  When user authorizes transfer with multi-factor authentication
+  Then transaction receipt is generated
+```
+
+If an operator or pipeline attempts to destroy this scenario:
+```text
+[ERROR] Cannot destroy resource protected by prevent_destroy:
+  auth/payment.feature.@transfer_funds
+  The resource is configured with prevent_destroy = true.
+```
+
+### 2. `ignore_changes`
+Suppresses drift detection when external edits occur (e.g. labels, assignees, or priority fields modified in issue trackers):
+
+```gherkin
+@ignore_changes("labels", "assignees", "priority")
+Scenario: User profile inspection
+  Given user navigates to settings dashboard
+  Then personal information is displayed
+```
+
+---
+
+## Centralized YAML Configuration
+
+Lifecycle rules can also be declared in `main.yml`:
+
+```yaml
+# main.yml
+lifecycle:
+  resources:
+    "auth/payment.feature.@transfer_funds":
+      prevent_destroy: true
+      ignore_changes:
+        - labels
+        - assignees
+```
+

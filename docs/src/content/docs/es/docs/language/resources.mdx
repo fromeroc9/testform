@@ -1,0 +1,135 @@
+---
+title: "Resources (Recursos Declarativos y PersonalizaciÃ³n)"
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Resources (Recursos Declarativos y PersonalizaciÃ³n)
+
+En Testform, los **Recursos** son el bloque de construcciÃ³n fundamental del testing. Mientras que en Terraform un recurso modela un componente de infraestructura (una instancia EC2, un bucket S3), en Testform un recurso modela una **especificaciÃ³n BDD de prueba o una ejecuciÃ³n** con ciclo de vida gestionado.
+
+:::note
+**BDD as Code:** En Testform las pruebas viven en archivos Gherkin (`.feature`), no en bloques YAML. El motor interno de `resource.ts` traduce automÃ¡ticamente los escenarios a los objetos de las APIs remotas de los proveedores.
+:::
+
+---
+
+## Tipos CanÃ³nicos de Recursos
+
+Testform define internamente plantillas declarativas para los recursos de gestiÃ³n de calidad:
+
+| Recurso | PropÃ³sito | Formato / UbicaciÃ³n |
+|---|---|---|
+| **`github_testcase`** | EspecificaciÃ³n unitaria de prueba individual | `Scenario:` en archivos `*.case.feature` |
+| **`github_testrun`** | EjecuciÃ³n inmutable de pruebas contra un build | `*.run.feature` |
+| **`github_testplan`** | Plan de orquestaciÃ³n y alcance de pruebas | `*.plan.feature` |
+| **Custom Resources** | Recursos personalizados para Jira, TestRail, etc. | Definidos mediante `registerResource()` |
+
+---
+
+## 1. ModificaciÃ³n de Recursos ya Declarados por el Usuario
+
+Los recursos predefinidos en `resource.ts` (`github_testcase`, `github_testrun`, etc.) **no son cajas negras cerradas**. Cualquier equipo puede modificar o sobreescribir los campos, el formato del body o las etiquetas generadas utilizando `registerResource()`.
+
+Las definiciones del usuario toman precedencia automÃ¡tica sobre las plantillas del sistema, preservando los campos no modificados:
+
+<Tabs>
+<TabItem label="TypeScript">
+```typescript
+import { registerResource } from 'testform';
+
+// Sobreescribir el recurso ya declarado github_testcase
+registerResource({
+    type: 'github_testcase',
+    fields: [
+        // Personalizamos el tÃ­tulo con un prefijo corporativo
+        { name: 'title', value: (s) => `[QA-CORE] ${s.name}` },
+        
+        // Formato Markdown personalizado para el cuerpo del Issue
+        { 
+            name: 'body', 
+            value: (s) => `## ðŸ“‹ Caso de Prueba: ${s.name}\n\n### Pasos a Ejecutar:\n` + 
+                          s.steps.map(step => `- **${step.keyword}** ${step.text}`).join('\n') 
+        },
+
+        // Etiquetas automÃ¡ticas personalizadas
+        { 
+            name: 'labels', 
+            value: (s) => [...new Set(['automated', ...(s.tags || []).map(t => t.replace('@', ''))])] 
+        }
+    ]
+});
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const { registerResource } = require('testform');
+
+registerResource({
+    type: 'github_testcase',
+    fields: [
+        { name: 'title', value: (s) => `[QA-CORE] ${s.name}` },
+        { 
+            name: 'body', 
+            value: (s) => `## Caso: ${s.name}\n\n` + s.steps.map(st => `${st.keyword}${st.text}`).join('\n') 
+        }
+    ]
+});
+```
+</TabItem>
+</Tabs>
+
+---
+
+## 2. Registro de Nuevos Proveedores (Custom Providers)
+
+Para conectar Testform con plataformas externas (Jira, TestRail, Zephyr o herramientas propietarias), se registran recursos adicionales mediante la misma API pÃºblica:
+
+```typescript
+import { registerResource } from 'testform';
+
+registerResource({
+    type: 'jira_testcase',
+    fields: [
+        { name: 'summary', value: (s) => s.name },
+        { 
+            name: 'description', 
+            value: (s) => s.steps.map(st => `${st.keyword} ${st.text}`).join('\n') 
+        },
+        { 
+            name: 'priority', 
+            value: (s) => s.custom?.fields?.priority || 'Medium' 
+        }
+    ]
+});
+```
+
+---
+
+## 3. Direcciones CanÃ³nicas de Recursos (Resource Addresses)
+
+Al igual que en Terraform cada recurso posee un identificador universal Ãºnico (ej. `aws_instance.web`), en Testform cada recurso se direcciona mediante **notaciÃ³n por puntos pura**:
+
+```text
+<ruta_archivo_relativa>.<tag_identificador>
+```
+
+Ejemplos:
+- `features/auth/login.case.feature.@tc-001`
+- `features/checkout/payment.case.feature.@tc-stripe`
+
+Estas direcciones son utilizadas por:
+- El motor de dependencias `@depends_on("features/auth/login.case.feature.@tc-001")`
+- El ledger inmutable de estado `testform.state`
+- Comandos CLI como `testform state show <address>` y `testform taint <address>`
+
+---
+
+## 4. Estado y ConciliaciÃ³n
+
+Durante `testform plan`, el motor compara los recursos declarados en el cÃ³digo BDD con el estado actual registrado en `testform.state`:
+
+- **`+ create`**: Se ha creado un nuevo escenario de prueba.
+- **`~ update`**: Se han modificado pasos, tags o variables de un escenario existente.
+- **`- destroy`**: Se ha eliminado un escenario del cÃ³digo.
+

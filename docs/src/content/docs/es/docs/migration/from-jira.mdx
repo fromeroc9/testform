@@ -1,0 +1,40 @@
+﻿---
+title: "Migracion desde Jira / Zephyr / QMetry"
+---
+
+# Migracion desde Jira / Zephyr / QMetry
+
+Aprende a importar incidencias y casos de prueba ya existentes en Jira o GitHub Projects hacia el ledger de Testform sin recrear identificadores.
+
+## El Comando `testform import`
+
+El comando `import` vincula un caso de prueba declarado en un archivo `.feature` local con una entidad existente en el proveedor externo:
+
+```bash
+testform import <direccion_recurso> <id_remoto>
+```
+
+## Paso a Paso: Importar un Caso desde GitHub Issues
+
+1. **Declarar el Caso Local:** Crea el archivo `tests/features/login.case.feature` con el tag `@tc-login-001`.
+2. **Ejecutar el Import:**
+   ```bash
+   npx testform import "tests/features/login.case.feature.@tc-login-001" "142"
+   ```
+3. **Confirmacion:**
+   ```text
+   Importando recurso remoto #142 como 'tests/features/login.case.feature.@tc-login-001'...
+   Descargando metadatos de GitHub Issues...
+   Calculando hash SHA-256...
+   Recurso importado exitosamente en el ledger de estado.
+   ```
+4. **Verificar el Plan:**
+   ```bash
+   npx testform plan
+   ```
+   Salida esperada:
+   ```text
+   Plan: 0 para agregar, 0 para cambiar, 0 para destruir.
+   Tu infraestructura de pruebas esta completamente sincronizada con el estado remoto.
+   ```
+

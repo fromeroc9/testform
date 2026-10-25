@@ -1,0 +1,67 @@
+﻿---
+title: "Test and Validate"
+---
+
+# Test and Validate
+
+Testform proporciona herramientas de anÃ¡lisis estÃ¡tico y verificaciÃ³n predictiva antes de ejecutar cualquier prueba en el navegador o enviar trÃ¡fico a una API: `testform validate` y `testform plan`.
+
+---
+
+## 1. ValidaciÃ³n EstÃ¡tica (`testform validate`)
+
+El comando `testform validate` verifica la sintaxis, coherencia y relaciones de todos los archivos del proyecto sin requerir conexiÃ³n a navegadores ni consultar el estado:
+
+```bash
+testform validate
+```
+
+### Verificaciones Realizadas:
+- **Sintaxis YAML:** Valida la estructura de `main.yml`, `data.yml`, `variables.yml`, `locals.yml` y `outputs.yml`.
+- **Estructura Gherkin:** Comprueba que todos los archivos `.feature` tengan sintaxis BDD vÃ¡lida.
+- **DetecciÃ³n de Ciclos Circulares:** Analiza el grafo de `@depends_on` y previene bucles infinitos ($A \rightarrow B \rightarrow A$).
+- **ResoluciÃ³n de MÃ³dulos:** Verifica que los archivos referenciados en `@module(source="...")` existan y sean accesibles.
+- **Tipado e Interpolaciones:** Valida que las expresiones `${var.*}`, `${data.*}` y `${local.*}` tengan sintaxis correcta.
+
+Si el proyecto es vÃ¡lido:
+```text
+Success! The configuration is valid.
+```
+
+---
+
+## 2. PlanificaciÃ³n Predictiva (`testform plan`)
+
+Antes de realizar cambios en el estado o ejecutar suites de prueba, `testform plan` genera un resumen de acciones:
+
+```bash
+testform plan
+```
+
+El planificador compara el cÃ³digo declarado contra el estado guardado (`testform.state`) y muestra exactamente quÃ© pruebas se ejecutarÃ¡n:
+
+```text
+Testform will perform the following actions:
+
+  # auth/login.feature.@login_success will be created
+  + testcase "auth/login.feature.@login_success" {
+      + title       = "Inicio de sesiÃ³n exitoso"
+      + provider    = "playwright"
+    }
+
+  # checkout/payment.feature.@stripe will be updated
+  ~ testcase "checkout/payment.feature.@stripe" {
+      ~ steps       = 5 -> 6
+    }
+
+Plan: 1 to create, 1 to update, 0 to destroy.
+```
+
+### Guardar un Plan en Archivo (`-out`)
+Permite congelar un plan para garantizar que `testform apply` ejecute exactamente lo validado en pipelines de CI/CD:
+
+```bash
+testform plan -out=testform.plan.binary
+testform apply testform.plan.binary
+```
+

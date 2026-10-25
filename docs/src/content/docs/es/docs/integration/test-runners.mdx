@@ -1,0 +1,36 @@
+﻿---
+title: "Integracion con Test Runners"
+---
+
+# Integracion con Test Runners
+
+Conecta casos de prueba declarativos con herramientas de ejecucion end-to-end y unitarias como Playwright, Cypress y Vitest.
+
+## Integracion con Playwright
+
+Playwright es el ejecutor recomendado para pruebas end-to-end en navegadores web:
+
+```typescript
+// tests/e2e/auth.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('@tc-auth-001 Inicio de sesion de usuarios', () => {
+  test('Inicio de sesion exitoso con credenciales validas', async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'admin@empresa.com');
+    await page.fill('input[type="password"]', 'Secret123!');
+    await page.click('button:has-text("Iniciar Sesion")');
+
+    await expect(page).toHaveURL('/dashboard');
+    await expect(page.locator('.welcome-banner')).toContainText('Bienvenido');
+  });
+});
+```
+
+## Orquestacion con `testform suite`
+
+Al ejecutar `testform suite -tags="@smoke"`, Testform:
+1. Mapea la etiqueta `@smoke` a los casos correspondientes.
+2. Invoca `npx playwright test --grep "@tc-auth-001"`.
+3. Captura la tasa de exito, trazas de error y capturas de pantalla, asociandolas al artefacto `@tr-[id]`.
+

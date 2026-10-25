@@ -1,0 +1,49 @@
+﻿---
+title: "CLI Overview & Global Options"
+---
+
+# CLI Overview & Global Options
+
+The Testform Command Line Interface (CLI) is the central operational tool for managing your testing infrastructure. Designed following the conventions of HashiCorp's Terraform, it provides an intuitive, predictable workflow.
+
+## Command Syntax
+
+```bash
+testform [global options] <subcommand> [options] [arguments]
+```
+
+## Global Options
+
+Global options can be provided before any subcommand:
+
+| Global Option | Alias | Description |
+| :--- | :--- | :--- |
+| `-chdir=DIR` | `-C` | Switches working directory to `DIR` before executing the command. |
+| `-scope=SCOPE` | `-s` | Limits execution to `testcase`, `testrun`, or `testplan`. |
+| `-projectId=ID`| â€” | Overrides the default GitHub Projects V2 ID configured in `testform.yml`. |
+| `-no-color` | â€” | Disables ANSI color escapes (ideal for plain log aggregators). |
+| `-json` | â€” | Emits machine-readable JSON output for automated scripting and CI/CD pipelines. |
+| `-help` | `-h` | Displays detailed usage and help text for any command. |
+| `-version` | `-v` | Prints the installed Testform version. |
+
+## Scope-First Syntax
+
+Testform allows placing the scope identifier before the command for a more natural CLI syntax:
+
+```bash
+# Standard syntax:
+testform plan -scope=testcase
+
+# Equivalent scope-first syntax:
+testform testcase plan
+testform testrun apply
+testform testplan destroy
+```
+
+## Subcommand Categories
+
+- **[Core Workflow Commands](./cli/commands)**: `init`, `validate`, `plan`, `apply`, `destroy`.
+- **[Inspection Commands](./cli/inspection)**: `show`, `diff`, `graph`, `report`, `query`.
+- **[State Operations](./cli/state-ops)**: `state`, `refresh`, `taint`, `import`, `force-unlock`.
+- **[Workspaces & Utilities](./cli/utilities)**: `workspace`, `fmt`, `login`, `suite`, `ephemeral`.
+

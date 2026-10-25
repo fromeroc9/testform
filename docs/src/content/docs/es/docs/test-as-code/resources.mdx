@@ -1,0 +1,109 @@
+﻿---
+title: "Recursos Declarativos"
+---
+
+# Recursos Declarativos
+
+Testform define cuatro tipos de recursos fundamentales para modelar la estrategia de calidad de extremo a extremo: `testcase`, `testrun`, `testplan` y `testsuite`.
+
+## 1. El Recurso `testcase`
+
+El recurso `testcase` representa una especificacion de prueba individual. En Testform, **cada `Scenario` dentro de un archivo `.case.feature` constituye un caso de prueba independiente**.
+
+- **Ubicacion Estandar:** `tests/features/*.case.feature`
+- **Ubicacion de Identidad:** Directamente sobre el `Scenario:` con prefijo `@tc-*` (ejemplo: `@tc-cancel-001` o `@tc-cancel-order`).
+- **Nivel de Unicidad:** Unico dentro del mismo archivo `.case.feature`. La direccion completa en el ledger es `ruta/archivo.case.feature.@tc-cancel-001` (o con namespace de provider: `github_testcase.ruta/archivo.case.feature.@tc-cancel-001`).
+- **Ciclo de Vida:** `draft` -> `active` -> `deprecated` -> `archived`
+
+### Ejemplo de Archivo con Multiples Casos
+
+```gherkin
+Feature: Cancelacion de Pedidos Pendientes
+  Como cliente con un pedido pendiente de envio
+  Quiero cancelar mi compra desde el panel de ordenes
+  Para recibir el reembolso inmediato
+
+  Background:
+    * field automate = apply
+
+  @high @tc-cancel-001
+  Scenario: Cancelacion antes del empaque del producto
+    Given el pedido "ORD-9912" se encuentra en estado "Pendiente"
+    When el usuario pulsa "Cancelar Pedido"
+    And confirma el motivo "Cambio de opinion"
+    Then el estado del pedido cambia a "Cancelado"
+    And se emite una solicitud de reembolso por el total de la orden
+
+  @medium @tc-cancel-002
+  Scenario: Intento de cancelacion de un pedido ya despachado
+    Given el pedido "ORD-8810" se encuentra en estado "Enviado"
+    When el usuario pulsa "Cancelar Pedido"
+    Then el sistema muestra la alerta "El pedido ya fue despachado y no puede cancelarse"
+```
+
+## 2. El Recurso `testrun`
+
+El recurso `testrun` captura la ejecucion historica e inmutable de un conjunto de pruebas contra una version especifica de la aplicacion.
+
+- **Ubicacion Estandar:** `tests/runs/*.run.feature`
+- **Ubicacion de Identidad:** Sobre el `Feature:` con prefijo `@tr-*` (ejemplo: `@tr-regression-build-412`). **1 archivo `.run.feature` = 1 ejecucion completa**.
+- **Nivel de Unicidad:** Globalmente unico en todo el repositorio.
+- **Estructura Interna:** Utiliza bloques `Rule:` para apuntar a archivos `.case.feature` y bloques `Scenario:` para seleccionar los tags de los casos incluidos.
+
+### Ejemplo
+
+```gherkin
+@tr-regression-build-412 @high
+Feature: Registro de Ejecucion de Regresion Build 412
+  Fecha: 2026-10-21T14:30:00Z
+  Ejecutor: GitHub Actions (#8912)
+
+  Background:
+    * field descripcion = "Validacion de flujos criticos de compras"
+
+  Rule: orders.case.feature
+
+  Scenario: @tc-cancel-001
+
+  Rule: auth.case.feature
+
+  Scenario: @tc-login-001
+```
+
+## 3. El Recurso `testplan`
+
+El recurso `testplan` modela matrices de certificacion, requisitos de cobertura y alcance de pruebas para un hito o lanzamiento.
+
+- **Ubicacion Estandar:** `tests/plans/*.plan.feature`
+- **Ubicacion de Identidad:** Sobre el `Feature:` con prefijo `@tp-*` (ejemplo: `@tp-release-v250`). **1 archivo `.plan.feature` = 1 plan de pruebas completo**.
+- **Nivel de Unicidad:** Globalmente unico en todo el repositorio.
+- **Estructura Interna:** Utiliza bloques `Rule:` para agrupar las ejecuciones (`*.run.feature`) asociadas al plan. No debe contener bloques `Scenario` explicitos.
+
+### Ejemplo
+
+```gherkin
+@tp-release-v250 @high
+Feature: Plan de Certificacion Release v2.5.0
+  Objetivo: Validar los flujos de autenticacion y facturacion antes del paso a produccion.
+
+  Background:
+    * field descripcion = "Release v2.5.0 QA Sign-off"
+
+  Rule: smoke.run.feature
+
+  Rule: regression.run.feature
+```
+
+## 4. El Recurso `testsuite`
+
+El recurso `testsuite` agrupa dinamicamente casos de prueba segun expresiones de tags (`@smoke`, `@billing`) para su despacho y orquestacion con herramientas de automatizacion (Playwright, Cypress, Vitest).
+
+## Matriz Comparativa de Recursos
+
+| Recurso | Alcance | Ubicacion de Identidad | Unicidad | Estructura Interna |
+| :--- | :--- | :--- | :--- | :--- |
+| **`testcase`** | 1 archivo = N casos | Sobre cada `Scenario:` | Unica en el archivo | `Scenario` individuales con `Given`, `When`, `Then` |
+| **`testrun`** | 1 archivo = 1 corrida | Sobre el `Feature:` | Global en el repositorio | `Rule: archivo.case.feature` + `Scenario: @tc-*` |
+| **`testplan`** | 1 archivo = 1 plan | Sobre el `Feature:` | Global en el repositorio | `Rule: archivo.run.feature` (sin Scenarios explicitos) |
+| **`testsuite`**| Conjunto logico | En memoria / query | Dinamica por filtro | Resuelve casos segun consulta de tags booleanos |
+

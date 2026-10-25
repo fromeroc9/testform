@@ -1,0 +1,67 @@
+---
+title: "Configure Providers"
+---
+
+# Configure Providers
+
+Los **Providers** en Testform son plugins modulares desacoplados que conectan la especificaciÃ³n declarativa de pruebas BDD con las **plataformas de gestiÃ³n de calidad y estado** (GitHub Issues / Projects, GitLab, Jira o Ledger Local).
+
+Al igual que en Terraform un provider gestiona la comunicaciÃ³n con la API de un proveedor de nube (AWS, Azure, GCP) para registrar el estado de la infraestructura, en Testform un provider gestiona la comunicaciÃ³n con el issue tracker o el almacenamiento de estado para **crear, actualizar, cerrar y versionar casos de prueba y ejecuciones como cÃ³digo en Git**.
+
+:::caution
+**Diferencia Clave: Providers vs Test Runners**  
+- **Provider (`provider`):** Plataforma de gestiÃ³n y trazabilidad donde residen los casos de prueba y el ledger de estado (`local`, `github`, `gitlab`, `jira`).  
+- **Test Runner:** Motor de automatizaciÃ³n que ejecuta el cÃ³digo en navegadores, APIs o sockets (`Playwright`, `Cypress`, `Supertest`, `K6`).
+:::
+
+---
+
+## DeclaraciÃ³n en `main.yml`
+
+Los providers se configuran en el archivo principal **`main.yml`**:
+
+```yaml
+# main.yml
+testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "./testform.state"
+
+provider:
+  github:
+    owner: "mi-organizacion"
+    repository: "mi-sistema-web"
+    token_env: "GITHUB_TOKEN"
+  jira:
+    host: "mi-empresa.atlassian.net"
+    project_key: "QA"
+    email: "qa-team@empresa.com"
+```
+
+---
+
+## Providers Disponibles
+
+| Provider | Tipo de Almacenamiento | Uso Recomendado |
+|---|---|---|
+| **`local`** | Archivo local `testform.state` | Proyectos Ã¡giles, pruebas locales y suites autÃ³nomas en Git sin dependencias externas. |
+| **`github`** | GitHub Issues + GitHub Projects (GraphQL) | Equipos que centralizan sus especificaciones y ejecuciones en GitHub Enterprise / Cloud. |
+| **`gitlab`** | GitLab Issues + Scoped Labels | Pipelines de GitLab CI/CD con trazabilidad en tableros de GitLab. |
+| **Custom Providers** | Conectores propios registrados vÃ­a `registerResource()` | Integraciones a medida con herramientas propietarias de QA o TestRail/Xray. |
+
+---
+
+## InicializaciÃ³n del Provider (`testform init`)
+
+Antes de ejecutar un plan, `testform init` autentica y valida el provider configurado:
+
+```bash
+testform init
+```
+
+Durante el `init`:
+1. Verifica las credenciales de acceso (tokens de entorno como `GITHUB_TOKEN` o `GITLAB_TOKEN`).
+2. Configura el backend de estado y el archivo de bloqueo concurrente (`.lock`).
+3. Comprueba el acceso al repositorio y a los tableros del proyecto.
+

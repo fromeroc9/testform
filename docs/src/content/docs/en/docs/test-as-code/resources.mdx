@@ -1,0 +1,109 @@
+﻿---
+title: "Declarative Resources"
+---
+
+# Declarative Resources
+
+Testform defines four fundamental declarative resource primitives to model your end-to-end quality engineering strategy: `testcase`, `testrun`, `testplan`, and `testsuite`.
+
+## 1. The `testcase` Resource
+
+The `testcase` resource represents an isolated test specification. In Testform, **each `Scenario` inside a `.case.feature` file represents an independent test case**.
+
+- **Standard Location:** `tests/features/*.case.feature`
+- **Identity Tag Placement:** Directly above the `Scenario:` with `@tc-*` prefix (e.g. `@tc-cancel-001` or `@tc-cancel-order`).
+- **Uniqueness Scope:** Unique within that `.case.feature` file. Resolved as `path/to/file.case.feature.@tc-cancel-001`.
+- **Lifecycle:** `draft` -> `active` -> `deprecated` -> `archived`
+
+### Multi-Testcase Feature File Example
+
+```gherkin
+Feature: Cancel Pending Purchase Orders
+  As a customer with a pending shipment order
+  I want to cancel my purchase order from the dashboard
+  In order to receive an immediate refund
+
+  Background:
+    * field automate = apply
+
+  @high @tc-cancel-001
+  Scenario: Cancellation before product fulfillment
+    Given order "ORD-9912" is in "Pending" status
+    When the customer clicks "Cancel Order"
+    And confirms reason "Changed mind"
+    Then the order status updates to "Cancelled"
+    And a full refund request is submitted
+
+  @medium @tc-cancel-002
+  Scenario: Cancellation attempt on already shipped order
+    Given order "ORD-8810" is in "Shipped" status
+    When the customer clicks "Cancel Order"
+    Then the system displays warning "Shipped orders cannot be cancelled"
+```
+
+## 2. The `testrun` Resource
+
+The `testrun` resource captures an immutable historical execution of a test set against a specific build or commit.
+
+- **Standard Location:** `tests/runs/*.run.feature`
+- **Identity Tag Placement:** Above the `Feature:` with `@tr-*` prefix (e.g. `@tr-regression-build-412`). **1 `.run.feature` file = 1 complete execution run**.
+- **Uniqueness Scope:** Globally unique across the entire repository.
+- **Internal Structure:** Uses `Rule:` blocks targeting `.case.feature` files and `Scenario:` selectors matching included test cases.
+
+### Example
+
+```gherkin
+@tr-regression-build-412 @high
+Feature: Regression Test Run Build 412
+  Timestamp: 2026-10-21T14:30:00Z
+  Triggered By: GitHub Actions (#8912)
+
+  Background:
+    * field description = "Critical purchase flow validation"
+
+  Rule: orders.case.feature
+
+  Scenario: @tc-cancel-001
+
+  Rule: auth.case.feature
+
+  Scenario: @tc-login-001
+```
+
+## 3. The `testplan` Resource
+
+The `testplan` resource models certification matrices, coverage thresholds, and milestone release readiness.
+
+- **Standard Location:** `tests/plans/*.plan.feature`
+- **Identity Tag Placement:** Above the `Feature:` with `@tp-*` prefix (e.g. `@tp-release-v250`). **1 `.plan.feature` file = 1 complete certification plan**.
+- **Uniqueness Scope:** Globally unique across the entire repository.
+- **Internal Structure:** Uses `Rule:` blocks binding referenced runs (`*.run.feature`). Must not contain explicit `Scenario` blocks.
+
+### Example
+
+```gherkin
+@tp-release-v250 @high
+Feature: Release v2.5.0 Certification Matrix
+  Objective: Validate authentication and billing flows prior to production deployment.
+
+  Background:
+    * field description = "Release v2.5.0 QA Sign-off"
+
+  Rule: smoke.run.feature
+
+  Rule: regression.run.feature
+```
+
+## 4. The `testsuite` Resource
+
+The `testsuite` resource dynamically groups test cases based on boolean tag queries (`@smoke`, `@billing`) for execution and orchestration with automated test runners (Playwright, Cypress, Vitest).
+
+## Resource Comparison Matrix
+
+| Resource | File Scope | Identity Tag Placement | Uniqueness | Internal Structure |
+| :--- | :--- | :--- | :--- | :--- |
+| **`testcase`** | 1 file = N test cases | Above each `Scenario:` | Unique within file | Isolated `Scenario` blocks with `Given`, `When`, `Then` |
+| **`testrun`** | 1 file = 1 test run | Above the `Feature:` | Global across repo | `Rule: file.case.feature` + `Scenario: @tc-*` |
+| **`testplan`** | 1 file = 1 test plan | Above the `Feature:` | Global across repo | `Rule: file.run.feature` (no explicit Scenarios) |
+| **`testsuite`**| Logical grouping | In-memory / runtime | Dynamic query | Evaluates scenarios matching boolean tag filter |
+

@@ -1,0 +1,54 @@
+﻿---
+title: "testform taint"
+---
+
+# `testform taint` & `untaint`
+
+```bash
+testform taint [options] <address>
+testform untaint [options] <address>
+```
+
+The `testform taint` command manually marks a managed resource as **tainted** in the state file. A tainted resource is considered corrupted, partially failed, or in need of fresh recreation.
+
+During the next `testform apply`, Testform will execute a **replace operation** (`-/+`), destroying the current remote issue and creating a brand new one from scratch.
+
+## When to Taint a Resource
+
+1. A GitHub Issue's thread or comments became cluttered and you need a completely clean slate.
+2. A remote issue was corrupted by an external automation tool.
+3. You changed immutable project settings that require recreation.
+
+## Real Execution Example
+
+```bash
+# Mark resource as tainted
+$ testform taint "login.case.feature.@tc-1"
+Resource instance github_testcase.login_case_feature__1 has been marked as tainted.
+
+# Run plan to verify replacement
+$ testform plan
+Testform will perform the following actions:
+
+  # login.case.feature.@tc-1 is tainted, so must be replaced
+-/+ resource "testcase" "login_valid" {
+      ~ id = 104 -> (known after apply)
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+```
+
+## Reversing Taint with `untaint`
+
+If you tainted a resource by mistake, you can undo it before running `apply`:
+
+```bash
+$ testform untaint "login.case.feature.@tc-1"
+Resource instance github_testcase.login_case_feature__1 has been successfully untainted.
+```
+
+## Exit Codes
+
+- `0`: Resource taint state updated successfully.
+- `1`: Resource address not found in state.
+
