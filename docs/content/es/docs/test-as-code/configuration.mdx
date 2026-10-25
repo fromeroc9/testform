@@ -65,6 +65,36 @@ fields:
     default: false
 ```
 
+## Pipeline de Compilación y Procesamiento de Configuración
+
+Testform procesa las diferentes capas de configuración mediante un motor secuencial en memoria:
+
+```text
+ ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+ │    main.yml    │   │ variables.yml  │   │   scopes.yml   │
+ └───────┬────────┘   └───────┬────────┘   └───────┬────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+   [FASE 1: DESCUBRIMIENTO Y FUSIÓN DE ESQUEMA EN MEMORIA]
+         │
+         ▼
+   [FASE 2: INGESTA DE VALORES Y PRECEDENCIA (*.vars.yml, CLI)]
+         │
+         ▼
+   [FASE 3: VALIDACIÓN ESTÁTICA Y MOTOR AST (enum, condition)]
+         │
+         ▼
+   [FASE 4: EVALUACIÓN DE LOCALS Y FUNCIONES HCL]
+         │
+         ▼
+   [FASE 5: INYECCIÓN EN RECURSOS GHERKIN (*.case.feature) + DAG]
+         │
+         ▼
+   [FASE 6: CONCILIACIÓN DIFF CONTRA testform.state (plan / apply)]
+```
+
+---
+
 ## 1. Bloque `backend`
 
 Determina donde se almacena el ledger de estado (`testform.state`) y como se gestiona el bloqueo concurrente:
@@ -77,14 +107,82 @@ Determina donde se almacena el ledger de estado (`testform.state`) y como se ges
 | `azure` | Azure Blob Storage con arrendamiento exclusivo de blobs (*leases*). | `storage_account`, `container`, `blob_name` |
 | `gcs` | Google Cloud Storage con generacion condicional de objetos. | `bucket`, `prefix` |
 
-## 2. Bloque `scopes`
+---
 
-El bloque `scopes` organiza los directorios y patrones de busqueda de tus artefactos:
+## 2. Bloque `scopes`: Gobierno de Recursos Gherkin
 
-- `scopes.global`: Define configuraciones transversales aplicables a todos los tipos de recursos.
-- `scopes.testcase`: Ubicacion y patrones para los casos de prueba (`*.case.feature`).
-- `scopes.testrun`: Ubicacion para los registros de ejecucion (`*.run.feature`).
-- `scopes.testplan`: Ubicacion para las matrices de certificacion (`*.plan.feature`).
+Para evitar que `main.yml` sea excesivamente largo, Testform soporta definir el bloque `scopes:` directamente en `main.yml` o en un archivo modular independiente **`scopes.yml`** (o `scopes.yaml`).
+
+### Flujo de Datos: De Gherkin a `resource.ts` y al Provider
+
+Los `fields` no son campos directos de la API remota, sino el **contrato de calidad para el autor de Gherkin**. El componente `resource.ts` es el adaptador que extrae esos datos y los entrega al Provider:
+
+```text
+  Gherkin (.feature)            scopes.yml                     resource.ts                   Provider (GitHub/Jira)
+ ┌──────────────────────┐      ┌────────────────────────┐     ┌───────────────────────┐     ┌──────────────────────┐
+ │ @high @tc-login-001  │      │ scope:                 │     │ resource.registry({   │     │ GitHub Project V2    │
+ │ Scenario: Login      │ ──►  │   global:              │ ──► │   fields: [           │ ──► │   Status: "Done"     │
+ │   * field module =   │      │     fields: [module,   │     │     custom_fields:    │     │   Project: "HT 360"  │
+ │     "auth"           │      │       priority, Status]│     │       s.custom.fields │     │   Module: "auth"     │
+ └──────────────────────┘      └────────────────────────┘     └───────────────────────┘     │   Priority: "high"   │
+                                                                                            └──────────────────────┘
+```
+
+### Estructura en `scopes.yml`
+
+```yaml
+# scopes.yml
+scope:
+  # 1. Reglas comunes heredadas por TODOS los recursos
+  global:
+    convention:
+      filename: "{YYYYMMDD}_{HHmmss}"
+    fields:
+      - name: project
+        type: keywords
+        required: true
+        default: "Hirent Talent 360"
+      - name: assignees
+        type: keywords
+        required: true
+        default: "fromeroc9"
+      - name: priority
+        type: tags
+        values: ["@low", "@medium", "@high"]
+        default: "@medium"
+      - name: Status
+        type: keywords
+        required: true
+        default: "Done"
+
+  # 2. Recurso testcase (*.case.feature)
+  testcase:
+    match: "*.case.feature"
+    identity: "tc-*"
+    fields:
+      - name: module
+        type: keywords
+        required: true
+      - name: functional
+        type: keywords
+        required: true
+
+  # 3. Recurso testrun (*.run.feature)
+  testrun:
+    match: "*.run.feature"
+    identity: "tr-*"
+    fields:
+      - name: startDate
+        type: keywords
+      - name: endDate
+        type: keywords
+
+  # 4. Recurso testplan (*.plan.feature)
+  testplan:
+    match: "*.plan.feature"
+    identity: "tp-*"
+    fields: []
+```
 
 ## 3. Bloque `fields`: Entendiendo `type` vs `source`
 
@@ -159,12 +257,12 @@ provider:
     token_env: "GITLAB_TOKEN"
 ```
 
-## 5. Variables (`vars:`) y Valores Locales (`local:`)
+## 5. Variables (`variable:`) y Valores Locales (`locals:`)
 
 Testform permite parametrizar tanto el texto de los pasos Gherkin como las etiquetas mediante variables de entrada e interpolación local:
 
-- **`vars:`**: Declaración de variables con tipo (`string`, `number`, `boolean`), descripción y valor por defecto.
-- **`local:`**: Constantes computadas y derivadas, resueltas dinámicamente mediante expresiones `${var.nombre}` y `${local.nombre}` en múltiples pasadas.
+- **`variable:`**: Declaración de variables con tipo (`string`, `number`, `boolean`), descripción, lista permitida `enum: [...]`, reglas `validation:` y valor por defecto.
+- **`locals:`**: Expresiones computadas y derivadas, resueltas dinámicamente mediante el motor AST sandboxed (`${var.nombre}`, `${local.nombre}`, `${lower()}`, `${format()}`).
 
-Para más detalles sobre la precedencia de 5 niveles (CLI, archivos modulares por dominio, etc.), consulta la [Guía de Variables y Locales](/docs/guides/variables-and-locals).
+Para más detalles sobre la precedencia y el sistema de tipos, consulta la [Guía de Variables y Tipos](/docs/language/variables).
 

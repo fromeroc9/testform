@@ -793,3 +793,192 @@ tr:last-child td {
 }
 
 
+
+/* ====================================================
+   EXTENDED ENTERPRISE LANDING SUITE
+==================================================== */
+
+.badge-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 1.15rem;
+  border-radius: 9999px;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  color: #0284c7;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(8px);
+}
+
+:is(.dark .badge-hero-pill) {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+
+.hero-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2.5rem;
+  margin: 1.5rem auto 2.5rem;
+  padding: 1.25rem 2rem;
+  border-radius: 1rem;
+  background: rgba(148, 163, 184, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  max-width: 52rem;
+}
+
+.hero-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.hero-stat-val {
+  font-size: 1.6rem;
+  font-weight: 850;
+  color: #0284c7;
+  letter-spacing: -0.03em;
+}
+
+:is(.dark .hero-stat-val) {
+  color: #38bdf8;
+}
+
+.hero-stat-lbl {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+:is(.dark .hero-stat-lbl) {
+  color: #94a3b8;
+}
+
+/* Comparison Matrix */
+.matrix-container {
+  width: 100%;
+  margin: 3.5rem auto;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04);
+}
+
+:is(.dark .matrix-container) {
+  background: #090d16;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.5);
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  margin: 0 !important;
+  border: none !important;
+}
+
+.matrix-table th {
+  padding: 1.15rem 1.25rem !important;
+  background: #f8fafc !important;
+  color: #334155;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+:is(.dark .matrix-table th) {
+  background: #0f172a !important;
+  color: #cbd5e1;
+  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.matrix-table td {
+  padding: 1.1rem 1.25rem !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  font-size: 0.9rem !important;
+  color: #475569;
+}
+
+:is(.dark .matrix-table td) {
+  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8;
+}
+
+.matrix-table tr:hover td {
+  background: rgba(2, 132, 199, 0.02);
+}
+
+:is(.dark .matrix-table tr:hover td) {
+  background: rgba(56, 189, 248, 0.03);
+}
+
+.matrix-highlight {
+  font-weight: 700;
+  color: #0284c7 !important;
+  background: rgba(2, 132, 199, 0.04) !important;
+}
+
+:is(.dark .matrix-highlight) {
+  color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.06) !important;
+}
+
+.pill-good {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+:is(.dark .pill-good) {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.pill-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+:is(.dark .pill-bad) {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.bento-code-snippet {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.65rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+}

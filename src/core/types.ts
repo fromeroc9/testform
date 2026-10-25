@@ -43,6 +43,8 @@ export interface IScopeConfig {
     fields?: IField[] | Record<string, any>;
     scaffold?: IScaffold;
     convention?: IConvention;
+    directory?: string;
+    filename?: string;
 }
 
 export interface ITest {

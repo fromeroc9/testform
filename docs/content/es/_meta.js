@@ -18,5 +18,9 @@ export default {
   cli: {
     type: 'page',
     title: 'CLI'
+  },
+  functions: {
+    type: 'page',
+    title: 'Funciones'
   }
 };

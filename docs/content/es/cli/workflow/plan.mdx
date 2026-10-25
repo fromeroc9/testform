@@ -63,10 +63,10 @@ En pipelines automatizados, guarda siempre el plan con `-out` y transfiérelo al
 
 ```bash
 # En la fase de Pull Request:
-testform plan -out=tfplan.bin
+testform plan -out=testform.plan.bin
 
 # En la fase de Merge / Despliegue:
-testform apply tfplan.bin
+testform apply testform.plan.bin
 ```
 
 ## Códigos de Salida

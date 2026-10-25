@@ -1,0 +1,186 @@
+# Funciones de Texto (String)
+
+Las funciones de texto permiten manipular, normalizar, recortar y formatear cadenas de caracteres en expresiones de `locals.yml` y condiciones de validación en `variables.yml`.
+
+---
+
+## Índice de Funciones
+
+| Función | Firma | Descripción |
+| :--- | :--- | :--- |
+| [`lower`](#lower) | `lower(string)` | Convierte todos los caracteres a minúsculas. |
+| [`upper`](#upper) | `upper(string)` | Convierte todos los caracteres a mayúsculas. |
+| [`trim`](#trim) | `trim(string, [cutset])` | Elimina espacios o caracteres especificados al inicio y fin. |
+| [`trimprefix`](#trimprefix) | `trimprefix(string, prefix)` | Remueve el prefijo indicado si está presente. |
+| [`trimsuffix`](#trimsuffix) | `trimsuffix(string, suffix)` | Remueve el sufijo indicado si está presente. |
+| [`startswith`](#startswith) | `startswith(string, prefix)` | Retorna `true` si la cadena comienza con el prefijo. |
+| [`endswith`](#endswith) | `endswith(string, suffix)` | Retorna `true` si la cadena termina con el sufijo. |
+| [`replace`](#replace) | `replace(string, search, rep)` | Reemplaza todas las ocurrencias del patrón. |
+| [`split`](#split) | `split(separator, string)` | Divide una cadena en una lista según el separador. |
+| [`join`](#join) | `join(separator, list)` | Une los elementos de una lista en una cadena. |
+| [`format`](#format) | `format(format, ...args)` | Aplica formato con verbos (`%s`, `%d`, `%j`, `%%`). |
+| [`substr`](#substr) | `substr(string, offset, len)` | Extrae una subcadena desde una posición dada. |
+
+---
+
+## `lower`
+
+Convierte todas las letras de una cadena a minúsculas.
+
+```bash
+testform functions --eval "lower('STAGING-APP')"
+# => "staging-app"
+```
+
+```yaml
+# locals.yml
+locals:
+  canonical_env: "${lower(var.environment)}"
+```
+
+---
+
+## `upper`
+
+Convierte todas las letras de una cadena a mayúsculas.
+
+```bash
+testform functions --eval "upper('qa_suite')"
+# => "QA_SUITE"
+```
+
+---
+
+## `trim`
+
+Elimina espacios en blanco iniciales y finales. Opcionalmente acepta un segundo argumento con los caracteres a eliminar.
+
+```bash
+testform functions --eval "trim('   hola mundo   ')"
+# => "hola mundo"
+
+testform functions --eval "trim('---alerta---', '-')"
+# => "alerta"
+```
+
+---
+
+## `trimprefix`
+
+Elimina el prefijo especificado del inicio de la cadena si existe.
+
+```bash
+testform functions --eval "trimprefix('https://api.empresa.com', 'https://')"
+# => "api.empresa.com"
+```
+
+---
+
+## `trimsuffix`
+
+Elimina el sufijo especificado del final de la cadena si existe.
+
+```bash
+testform functions --eval "trimsuffix('tests/runs/suite.run.feature', '.run.feature')"
+# => "tests/runs/suite"
+```
+
+---
+
+## `startswith`
+
+Retorna `true` si la cadena inicia con el prefijo indicado. Es especialmente útil en validaciones de variables.
+
+```yaml
+# variables.yml
+variable:
+  api_endpoint:
+    type: string
+    validation:
+      condition: "${startswith(var.api_endpoint, 'https://')}"
+      error_message: "La URL de la API debe utilizar protocolo HTTPS seguro."
+```
+
+---
+
+## `endswith`
+
+Retorna `true` si la cadena finaliza con el sufijo indicado.
+
+```yaml
+# variables.yml
+variable:
+  spec_file:
+    type: string
+    validation:
+      condition: "${endswith(var.spec_file, '.case.feature')}"
+      error_message: "El archivo de especificación debe terminar en .case.feature."
+```
+
+---
+
+## `replace`
+
+Reemplaza todas las ocurrencias de una subcadena por otra.
+
+```bash
+testform functions --eval "replace('192.168.1.1', '.', '-')"
+# => "192-168-1-1"
+```
+
+---
+
+## `split`
+
+Divide una cadena en una lista de cadenas utilizando el delimitador indicado.
+
+```bash
+testform functions --eval "split(',', 'smoke,regression,e2e')"
+# => ["smoke", "regression", "e2e"]
+```
+
+---
+
+## `join`
+
+Concatena los elementos de una lista de cadenas utilizando un delimitador.
+
+```bash
+testform functions --eval "join(' / ', ['Checkout', 'Pagos', 'Tarjeta'])"
+# => "Checkout / Pagos / Tarjeta"
+```
+
+---
+
+## `format`
+
+Aplica formato a una cadena utilizando especificadores de formato al estilo C / Terraform:
+- `%s`: Sustitución como cadena de texto.
+- `%d`: Sustitución como entero.
+- `%j`: Sustitución como JSON serializado.
+- `%%`: Escapado literal de `%`.
+
+```bash
+testform functions --eval "format('https://%s.empresa.com:%d/v1', 'api', 8080)"
+# => "https://api.empresa.com:8080/v1"
+```
+
+```yaml
+# locals.yml
+locals:
+  service_url: "${format('https://%s.%s', var.subdomain, var.domain)}"
+```
+
+---
+
+## `substr`
+
+Extrae una subcadena de longitud `len` a partir del desplazamiento `offset`. Si `offset` es negativo, cuenta desde el final de la cadena.
+
+```bash
+testform functions --eval "substr('20261025_release', 0, 8)"
+# => "20261025"
+
+testform functions --eval "substr('archivo.json', -4, 4)"
+# => "json"
+```

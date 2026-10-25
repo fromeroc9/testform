@@ -109,7 +109,7 @@ export class Evaluator {
         // Handle var.NAME
         if (name.startsWith('var.')) {
             const key = name.slice(4);
-            return ctx.vars?.[key];
+            return (ctx.vars || ctx.variables)?.[key];
         }
 
         // Handle local.NAME

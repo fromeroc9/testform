@@ -1,8 +1,8 @@
-import { join, resolve, basename, relative } from 'path';
-import { readFileSync } from 'fs';
+import { join, resolve, basename, relative, dirname } from 'path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { bold, green, yellow, red } from 'chalk';
 import { generateCmd } from './generate';
-import { GherkinEditor } from '../core/editor';
+import { GherkinEditor, findNextIdentity } from '../core/editor';
 import { Parser } from '../core/parser';
 import { Config } from '../core/config';
 import { State } from '../core/state';
@@ -16,12 +16,62 @@ import { TITLE_CLI, SCOPE_CONFIG, TESTCASE_STATUSES } from '../core/const';
 import { askStatus, askSelect, askInput, isInteractive } from '../core/prompt';
 import {
     matchesScope,
+    matchesFeatureFile,
     resolveTargetScenario,
     promptTargetSuite,
     parseSpec,
     matchesScenarioSpec,
     matchesStateKey,
 } from '../core/selector';
+
+// ─── Standardized CLI Strategy Documentation Constants ───────────────────────
+
+export const TARGET_STRATEGIES_DETAIL = [
+    `Target strategies (-target):`,
+    `  1. Identity Tag (@tr-N / @tp-N):`,
+    `     Unique identifier across the workspace. Only valid for testrun and testplan`,
+    `     (testcase @tc-N tags can repeat across different files and cannot be used as target).`,
+    `     Example: -target="@tr-1" or -target="@tp-2"`,
+    ``,
+    `  2. Canonical Address:`,
+    `     Immutable full address binding the feature file and its identity tag.`,
+    `     Example: -target="tests/runs/20261024.run.feature.@tr-1"`,
+    ``,
+    `  3. Scoped File Path:`,
+    `     File path resolved against -test-directory.`,
+    `     - With -test-directory="tests/runs":  -target="20261024.run.feature"`,
+    `     - Without -test-directory:          -target="tests/runs/20261024.run.feature"`,
+];
+
+export const IDENTIFIER_STRATEGIES_DETAIL = [
+    `Identifier strategies (<identifier>=<status>):`,
+    `  1. Identity Tag:       "@tc-1=passed" (caution: if @tc-1 repeats across files, use strategy 2)`,
+    `  2. Canonical / File:   "checkout.case.feature.@tc-1=passed" (disambiguates across files)`,
+    `  3. Scenario Name:      "Pago con tarjeta=passed"`,
+];
+
+/**
+ * Parses bracketed tag expressions:
+ *   - "checkout.case.feature.[@smoke]" -> { filePattern: "checkout.case.feature", tags: ["@smoke"] }
+ *   - "[@smoke]" -> { filePattern: undefined, tags: ["@smoke"] }
+ *   - "checkout.case.feature.[@smoke,@critical]" -> { filePattern: "checkout.case.feature", tags: ["@smoke", "@critical"] }
+ */
+export function parseTagAddress(address: string): { filePattern?: string; tags: string[] } {
+    const trimmed = address.trim();
+    const bracketMatch = trimmed.match(/^(?:(.*)(?:\.|\b))?\[([^\]]+)\]$/);
+    if (!bracketMatch) {
+        throw new Error(`Invalid tag address format: "${address}". Expected format like "[@smoke]" or "checkout.case.feature.[@smoke]".`);
+    }
+
+    let filePattern = bracketMatch[1]?.trim() || undefined;
+    if (filePattern?.endsWith('.')) {
+        filePattern = filePattern.slice(0, -1).trim();
+    }
+    const rawTags = bracketMatch[2].split(',').map(t => t.trim()).filter(Boolean);
+    const tags = rawTags.map(t => t.startsWith('@') ? t : `@${t}`);
+
+    return { filePattern, tags };
+}
 
 // ---------------------------------------------------------------------------
 // test add  (formerly "generate", testrun and testplan only)
@@ -645,17 +695,173 @@ async function runState(options: {
 }
 
 // ---------------------------------------------------------------------------
+// suite tags  (generates .run.feature based on bracketed tag address)
+// ---------------------------------------------------------------------------
+
+async function runTagsSuite(options: {
+    dir: string;
+    tagExpression: string;
+    title?: string;
+    testDirectory?: string;
+    variables?: VariableParser;
+}) {
+    const { dir, tagExpression, title, testDirectory, variables } = options;
+    const searchDir = testDirectory ? join(dir, testDirectory) : dir;
+    const config = new Config(dir);
+
+    let parsedAddress: { filePattern?: string; tags: string[] };
+    try {
+        parsedAddress = parseTagAddress(tagExpression);
+    } catch {
+        Diag.error({
+            title: `Invalid tag address format: '${tagExpression}'`,
+            detail: [
+                `Expected bracket address format:`,
+                `  1. File specific:  "checkout.case.feature.[@smoke]"`,
+                `  2. Workspace-wide: "[@smoke]" or "[@smoke,@critical]"`,
+            ]
+        }).abort();
+        return;
+    }
+
+    const { filePattern, tags } = parsedAddress;
+
+    // Load all testcases
+    const parser = new Parser(searchDir, variables);
+    const documents = parser.content() || [];
+    const allCases = documents.filter(s => matchesScope(s, 'testcase'));
+
+    // Filter by filePattern if provided
+    let candidateCases = allCases;
+    if (filePattern) {
+        candidateCases = candidateCases.filter(s => matchesFeatureFile(s.uri, filePattern));
+        if (candidateCases.length === 0) {
+            Diag.error({
+                title: `No testcase files matched '${filePattern}'.`,
+                detail: [`Available files:`, ...Array.from(new Set(allCases.map(s => `  - ${s.uri}`))).slice(0, 10)]
+            }).abort();
+            return;
+        }
+    }
+
+    // Filter scenarios that contain ANY of the requested tags
+    const matchedScenarios = candidateCases.filter(s => {
+        const scenarioTags = [...(s.tags || []), ...(s.feature?.tags || [])].map(String);
+        return scenarioTags.some(t => tags.includes(t));
+    });
+
+    if (matchedScenarios.length === 0) {
+        Diag.error({
+            title: `No testcase scenarios found matching tag(s) [${tags.join(', ')}].`,
+            detail: [
+                filePattern ? `Searched within: ${filePattern}` : `Searched across all testcase files in workspace.`,
+                `Total testcases evaluated: ${candidateCases.length}`
+            ]
+        }).abort();
+        return;
+    }
+
+    // Group scenarios by source feature file URI
+    const grouped = new Map<string, typeof matchedScenarios>();
+    for (const s of matchedScenarios) {
+        const fileKey = s.uri;
+        if (!grouped.has(fileKey)) {
+            grouped.set(fileKey, []);
+        }
+        grouped.get(fileKey)!.push(s);
+    }
+
+    // Determine filename and directory using convention
+    const convention = config.getConvention('testrun');
+    const scopeConf = config.getScopeConf('testrun');
+    const identityPattern = config.getIdentity('testrun');
+    const outDir = convention?.directory || scopeConf?.directory || 'tests/runs';
+    const fileTpl = convention?.filename || `{YYYYMMDD}_{HHmmss}.run.feature`;
+
+    const now = new Date();
+    const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
+    const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
+    const timestamp = now.getTime().toString();
+    const cleanTagSlug = tags.map(t => t.replace('@', '')).join('_').toLowerCase();
+
+    let generatedTitle = title || `Suite ${tags.join(' ')}`;
+    let slug = cleanTagSlug;
+    if (filePattern) {
+        const baseName = basename(filePattern).replace(/\.feature$/i, '').replace(/\.case$/i, '');
+        slug = `${baseName}_${cleanTagSlug}`;
+    }
+
+    let filename = fileTpl
+        .replace(/{YYYYMMDD}/g, YYYYMMDD)
+        .replace(/{HHmmss}/g, HHmmss)
+        .replace(/{timestamp}/g, timestamp)
+        .replace(/{slug}/g, slug);
+
+    filename = filename.replace(/^[_\-]+/, '').replace(/[_\-]+(\.)/g, '$1');
+
+    const shortHash = Math.random().toString(16).substring(2, 8);
+    if (filename.endsWith('.feature')) {
+        if (filename.endsWith('.run.feature')) {
+            filename = filename.replace('.run.feature', `_${shortHash}.run.feature`);
+        } else {
+            filename = filename.replace('.feature', `_${shortHash}.feature`);
+        }
+    } else {
+        if (filename.endsWith('.run')) {
+            filename = filename.replace('.run', `_${shortHash}.run.feature`);
+        } else {
+            filename += `_${shortHash}.run.feature`;
+        }
+    }
+
+    const fullPath = join(dir, outDir, filename);
+    const parentDir = dirname(fullPath);
+    if (!existsSync(parentDir)) {
+        mkdirSync(parentDir, { recursive: true });
+    }
+
+    const nextIdentityTag = identityPattern ? findNextIdentity(dir, identityPattern) : null;
+
+    let content = `@testrun`;
+    if (nextIdentityTag) {
+        content += ` ${nextIdentityTag}`;
+    }
+    content += `\nFeature: ${generatedTitle}\n\n`;
+
+    let totalCases = 0;
+    for (const [fileUri, scenarios] of grouped.entries()) {
+        const ruleName = basename(fileUri);
+        content += `  Rule: ${ruleName}\n`;
+        for (const sc of scenarios) {
+            const scName = sc.name || 'Unnamed Scenario';
+            content += `    Scenario: ${scName}\n`;
+            content += `      * mark status = pending\n\n`;
+            totalCases++;
+        }
+    }
+
+    writeFileSync(fullPath, content.trim() + '\n', 'utf-8');
+
+    console.log(green(bold(`\nGenerated testrun suite file: ${fullPath}`)));
+    console.log(`  ${green('✓')} Included ${totalCases} scenario(s) matching tag(s) ${tags.join(', ')} across ${grouped.size} file(s).`);
+}
+
+// ---------------------------------------------------------------------------
 // Main Dispatcher
 // ---------------------------------------------------------------------------
 
 export interface SuiteCmdOptions {
     dir: string;
-    subCommand: string;
+    subCommand?: string;
     subArgs: string[];
     scope?: IScope;
     title?: string;
     rules?: string[];
     target?: string;
+    tags?: string;
+    fill?: boolean;
+    link?: string;
+    mark?: string;
     testDirectory?: string;
     statePath?: string;
     backupPath?: string;
@@ -666,26 +872,95 @@ export interface SuiteCmdOptions {
 export const suiteCmd = async (options: SuiteCmdOptions) => {
     const {
         dir, subCommand, subArgs, scope, title, rules,
-        target, testDirectory, statePath, backupPath, variables, verbose
+        target, tags, fill, link, mark, testDirectory, statePath, backupPath, variables, verbose
     } = options;
 
     let cmd = (subCommand || '').toLowerCase();
+    const effectiveArgs = [...subArgs];
+
+    if (fill) {
+        cmd = 'fill';
+    } else if (link) {
+        cmd = 'link';
+        if (effectiveArgs.length === 0) effectiveArgs.push(link);
+    } else if (mark) {
+        cmd = 'mark';
+        if (effectiveArgs.length === 0) effectiveArgs.push(mark);
+    } else if (tags) {
+        cmd = 'tags';
+    }
+
     let currentScope = scope;
     let currentTitle = title;
     let currentTarget = target;
+
+    // Check if tags flag or bracketed address was directly passed
+    const rawTagAddress = tags || (cmd.includes('[') && cmd.endsWith(']') ? cmd : (effectiveArgs.length > 0 && effectiveArgs[0].includes('[') ? effectiveArgs[0] : undefined));
+
+    if (cmd === 'tags' || (rawTagAddress && (!cmd || cmd === 'tags' || cmd === 'init' || cmd === 'run'))) {
+        const targetExpr = rawTagAddress || (effectiveArgs.length > 0 ? effectiveArgs[0] : undefined);
+        if (!targetExpr) {
+            Diag.usage({
+                syntax: `${TITLE_CLI} suite tags "<address>" [-title=<title>]`,
+                detail: [
+                    `Generates a new testrun suite (.run.feature) by extracting scenarios with matching tags.`,
+                    ``,
+                    `Address strategies:`,
+                    `  1. File-specific tag:  "checkout.case.feature.[@smoke]"  (only scenarios with @smoke from this file)`,
+                    `  2. Workspace-wide tag: "[@smoke]"                       (all scenarios with @smoke from any file)`,
+                    `  3. Multiple tags:      "[@smoke,@critical]"             (scenarios matching any of the specified tags)`,
+                    ``,
+                    `Examples:`,
+                    `  ${TITLE_CLI} suite -tags="[@smoke]"`,
+                    `  ${TITLE_CLI} suite -tags="checkout.case.feature.[@smoke]"`,
+                    `  ${TITLE_CLI} suite tags "[@smoke]" -title="Smoke Regression"`,
+                ],
+            }).abort();
+            return;
+        }
+
+        await runTagsSuite({
+            dir,
+            tagExpression: targetExpr,
+            title: currentTitle,
+            testDirectory,
+            variables
+        });
+        return;
+    }
 
     if (!cmd) {
         if (isInteractive()) {
             cmd = await askSelect('¿Qué operación de suite deseas realizar?', [
                 { label: 'init  - Crear un nuevo archivo de suite (.run.feature o .plan.feature)', value: 'init' },
+                { label: 'tags  - Generar un testrun a partir de tags con corchetes (ej: [@smoke])', value: 'tags' },
                 { label: 'fill  - Autocompletar reglas vacías de un testrun con sus casos', value: 'fill' },
                 { label: 'link  - Enlazar casos o runs en la suite (escribe Gherkin implícita/explícitamente)', value: 'link' },
                 { label: 'mark  - Registrar estado de ejecución de un testcase y sincronizar', value: 'mark' },
             ]);
         } else {
             Diag.usage({
-                syntax: `${TITLE_CLI} suite <init|fill|link|mark> [args...]`,
-                detail: [`Available subcommands: init, fill, link, mark`],
+                syntax: `${TITLE_CLI} suite [subcommand] [options]`,
+                detail: [
+                    `Subcommand:`,
+                    `  init                       Create a new suite file (.run.feature or .plan.feature)`,
+                    ``,
+                    `Options:`,
+                    `  -fill                      Autocomplete empty testrun rules with their testcases`,
+                    `  -link="<id>=<status>"      Link a testcase or testrun into a suite`,
+                    `  -mark="<id>=<status>"      Record execution status (* mark status = <status>) in a testrun`,
+                    `  -tags="<address>"          Generate a testrun suite from bracketed tag addresses (e.g. "[@smoke]")`,
+                    ``,
+                    `Other Options:`,
+                    `  -target=<resource>         Required for -fill, -link, -mark. Identifies the suite file:`,
+                    `                             • Identity tag: @tr-1, @tp-1 (unique for testrun and testplan)`,
+                    `                             • Canonical address: tests/runs/smoke.run.feature.@tr-1`,
+                    `                             • Scoped file path: smoke.run.feature (scoped to -test-directory)`,
+                    `  -test-directory=<dir>      Optional. Limits the search scope for .case.feature files and shortens target paths.`,
+                    `  -scope=<testrun|testplan>  Optional (global). Scope of the suite to generate.`,
+                    `  -title=<title>             Optional. Human-readable title of the suite.`,
+                    `  -rule=<rule>               Optional. Source .case.feature file(s) to include as Rule blocks.`,
+                ],
             }).abort();
         }
     }
@@ -702,8 +977,16 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                 }
             } else {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} suite init -scope=<testrun|testplan> [-title=<title>] [-rule=<rule>]`,
-                    detail: [`Note: 'suite init' applies to testrun or testplan scope.`],
+                    syntax: `${TITLE_CLI} suite init -scope=<testrun|testplan> [-title=<title>] [-rule=<rule>] [-tags=<expression>]`,
+                    detail: [
+                        `Note: 'suite init' applies to testrun or testplan scope.`,
+                        ``,
+                        `Options:`,
+                        `  -scope=<testrun|testplan>  Scope of the suite to generate`,
+                        `  -title=<title>             Human-readable title for the suite feature`,
+                        `  -rule=<rule>               Rule file name(s) to include (repeatable)`,
+                        `  -tags=<expression>         Generate a testrun filtered by tag address (e.g. "[@smoke]" or "file.case.feature.[@smoke]")`,
+                    ],
                 }).abort();
                 return;
             }
@@ -719,10 +1002,12 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                 currentTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
             } else {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} suite fill -target=<path|relative|@tr-N>`,
+                    syntax: `${TITLE_CLI} suite fill -target=<target>`,
                     detail: [
                         `This command is exclusive to testrun scope.`,
-                        `It expands empty Rule blocks using the source .case.feature file.`,
+                        `It expands empty Rule blocks using the source .case.feature scenarios.`,
+                        ``,
+                        ...TARGET_STRATEGIES_DETAIL,
                     ],
                 }).abort();
                 return;
@@ -739,15 +1024,21 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         }
         if (!currentTarget) {
             Diag.usage({
-                syntax: `${TITLE_CLI} suite link "<identifier>=<status>" -target=<path|relative|@tr-N>`,
-                detail: [`Specify -target to indicate which suite to link into.`],
+                syntax: `${TITLE_CLI} suite link "<identifier>=<status>" -target=<target>`,
+                detail: [
+                    `Links a testcase or testrun into the target suite file.`,
+                    ``,
+                    ...IDENTIFIER_STRATEGIES_DETAIL,
+                    ``,
+                    ...TARGET_STRATEGIES_DETAIL,
+                ],
             }).abort();
             return;
         }
         await runLink({
             dir,
             target: currentTarget,
-            linkArg: subArgs.length > 0 ? subArgs[0] : undefined,
+            linkArg: effectiveArgs.length > 0 ? effectiveArgs[0] : undefined,
             statePath,
             backupPath,
             testDirectory,
@@ -763,19 +1054,14 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                 currentTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
             } else {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} suite mark "<identifier>=<status>" -target=<path|relative|@tr-N>`,
+                    syntax: `${TITLE_CLI} suite mark "<identifier>=<status>" -target=<target>`,
                     detail: [
+                        `Updates the execution status (* mark status = <status>) of a testcase in a testrun.`,
                         `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
                         ``,
-                        `Identity strategies:`,
-                        `  1. Only tag:       "@tc-1=passed"`,
-                        `  2. File + tag:     "cuenta/inicio-sesion.feature@tc-1=passed"`,
-                        `  3. Scenario name:  "Pago con tarjeta=passed"`,
+                        ...IDENTIFIER_STRATEGIES_DETAIL,
                         ``,
-                        `Examples:`,
-                        `  ${TITLE_CLI} suite mark "@tc-1=passed" -target="@tr-2"`,
-                        `  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
-                        `  ${TITLE_CLI} suite mark "github_testcase.agencia/cuenta.feature.@tc-3=failed" -target="20260607.run.feature"`,
+                        ...TARGET_STRATEGIES_DETAIL,
                     ],
                 }).abort();
                 return;
@@ -786,7 +1072,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
             dir,
             target: currentTarget,
             subCommand: 'mark',
-            tcArg: subArgs.length > 0 ? subArgs[0] : undefined,
+            tcArg: effectiveArgs.length > 0 ? effectiveArgs[0] : undefined,
             statePath,
             backupPath,
             testDirectory,
@@ -798,8 +1084,8 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
 
     Diag.unknownSubcommand({
         command: 'suite',
-        subcommand: subCommand,
-        available: ['init', 'fill', 'link', 'mark'],
+        subcommand: subCommand || '',
+        available: ['init', 'fill', 'link', 'mark', 'tags'],
     }).abort();
 };
 

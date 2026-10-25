@@ -33,7 +33,8 @@ ${bold(`All other commands:`)}
   show          Show the current state or a saved plan
   state         Advanced state management
   taint         Mark a resource instance as not fully functional
-  suite         Manage test suites and execution files (init, fill, mark)
+  suite         Manage test suites and execution files (init, -fill, -link, -mark, -tags)
+  functions     Inspect and evaluate built-in expression functions
   untaint       Remove the 'tainted' state from a resource instance
   version       Show the current ${TITLE_APP} version
   workspace     Workspace management
@@ -1105,24 +1106,49 @@ ${bold(`Options:`)}
 `.trim();
 
 export const HELP_SUITE = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite <subcommand> [options] [args]
+${bold(`Usage:`)} ${TITLE_CLI} [global options] suite [subcommand] [options]
 
   Manage test suites and execution files (.run.feature and .plan.feature).
-  All subcommands feature interactive self-help if options or arguments are omitted.
 
-${bold(`Subcommands:`)}
-  init          Create a new testrun or testplan feature file
-  fill          Fill empty Rule blocks with testcase scenarios (testrun only)
-  link          Directly write Gherkin to link testcases or testruns (implicit or explicit)
-  mark          Record/update testcase execution status and sync remote issue comments
+${bold(`Subcommand:`)}
+  init                       Create a new suite file (.run.feature or .plan.feature)
 
-${bold(`Target Resolution (-target flag):`)}
-  All subcommands accept three forms to identify a testrun/testplan:
-    Full path:    tests/testrun/20260607_013738_ef7c0c.run.feature
-    Relative:     20260607_013738_ef7c0c.run.feature  (or fragment)
-    Identity:     @tr-2 / @tp-1  (resolved from ${FILE_STATE})
+${bold(`Options:`)}
+  -fill                      Autocomplete empty testrun rules with their testcases
+  -link="<id>=<status>"      Link a testcase or testrun into a suite
+  -mark="<id>=<status>"      Record execution status (* mark status = <status>) in a testrun
+  -tags="<address>"          Generate a testrun suite from bracketed tag addresses (e.g. "[@smoke]")
 
-  If -target is omitted, an interactive selection menu will guide you.
+${bold(`Other Options:`)}
+  -target=resource           Required for -fill, -link, -mark. Identifies the suite file:
+                             • Identity Tag (@tr-N / @tp-N):
+                               Unique identifier across workspace (only valid for testrun/testplan;
+                               testcase @tc-N tags can repeat across files).
+                             • Canonical Address:
+                               Immutable full address (e.g. tests/runs/20261024.run.feature.@tr-1).
+                             • Scoped File Path:
+                               File path resolved against -test-directory (e.g. 20261024.run.feature).
+  -test-directory=dir        Optional. Limits search scope for .case.feature files and shortens target paths.
+  -scope=scope               Optional (global). Scope of the suite (testrun | testplan).
+  -title=title               Optional. Human-readable title of the suite.
+  -rule=rule                 Optional. Source .case.feature file(s) to include as Rule blocks.
+`.trim();
+
+export const HELP_FUNCTIONS = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] functions [name] [options]
+
+  Inspect and evaluate built-in functions available in Testform expressions
+  (used in locals.yml expressions, variables.yml validation conditions, etc.).
+
+${bold(`Options:`)}
+  --eval="<expr>"            Evaluate an expression live in the terminal and display the result.
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} functions
+  ${TITLE_CLI} functions format
+  ${TITLE_CLI} functions lower
+  ${TITLE_CLI} functions --eval="format('%s/%s', 'https://api.dev.com', 'v1')"
+  ${TITLE_CLI} functions --eval="contains(['dev', 'staging'], 'dev')"
 `.trim();
 
 export const HELP_SUITE_INIT = `
@@ -1255,6 +1281,7 @@ export function getCommandHelp(command: string): string | null {
     case 'suite fill': return HELP_SUITE_FILL;
     case 'suite link': return HELP_SUITE_LINK;
     case 'suite mark': return HELP_SUITE_MARK;
+    case 'functions': return HELP_FUNCTIONS;
     case 'tool': return HELP_SUITE;
     case 'tool feature': return HELP_SUITE_INIT;
     case 'tool autocomplete': return HELP_SUITE_FILL;

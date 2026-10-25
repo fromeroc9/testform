@@ -1,107 +1,137 @@
-# Automatizacion de Suites de Pruebas
+# Gestión de Suites de Pruebas (`testform suite`)
 
-Conecta tus casos de prueba declarativos con ejecutores de pruebas reales como Playwright, Cypress y Vitest mediante el comando `testform suite`.
+El comando `testform suite` es el conjunto de herramientas de Testform para la creación, estructuración, filtrado y marcado declarativo de archivos de ejecución (`.run.feature`) y planes de prueba (`.plan.feature`).
 
-## Como Funciona
+## Filosofía: Separación entre Estado y Ejecución
 
-Testform no compite con los ejecutores de pruebas como Playwright o Vitest; actua como el **orquestador de control superior y la capa de persistencia de estado**.
+Testform **no es un ejecutor de pruebas ni compite con runners** como Playwright, Cypress o Vitest:
 
-1. **Definicion:** Los casos de prueba se redactan en `.feature` con tags funcionales (`@smoke`, `@auth`, `@billing`).
-2. **Seleccion:** `testform suite` evalua expresiones booleanas de tags para resolver el subconjunto de pruebas exacto.
-3. **Despacho:** Testform invoca el ejecutor de pruebas subyacente (por ejemplo, `npx playwright test`).
-4. **Registro:** El resultado de la ejecucion genera un artefacto de corrida declarativa (`@tr-[id]`) que se concilia con el ledger de estado y la plataforma remota.
+- **Los Runners (Playwright, Cypress, Vitest):** Se encargan de levantar navegadores, simular acciones de usuario y verificar aserciones en código.
+- **Testform:** Gestiona la infraestructura de pruebas como código (Test-as-Code), el catálogo de cobertura, el ledger de estado autorizado (`testform.state`) y la conciliación remota en Jira o GitHub Projects.
 
 ```text
-+-----------------------+
-|  testform suite       |
-|  -tags="@smoke"       |
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-|  Filtro y Resolucion  | ===> [auth.case.feature, checkout.case.feature]
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-|  Runner (Playwright)  | ===> npx playwright test tests/e2e/auth.spec.ts
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-|  Registro de Corrida  | ===> tests/runs/smoke-20261021.run.feature
-|  (@tr-smoke-run-001)  | ===> testform apply (Sincroniza Jira/GitHub)
-+-----------------------+
+ ┌────────────────────────────────────────────────────────┐
+ │  1. GENERACIÓN DECLARATIVA DE LA SUITE                 │
+ │     testform suite -tags="[@smoke]"                    │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ (Crea runs/20261024_smoke.run.feature con status=pending)
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │  2. EJECUCIÓN EXTERNA (Runner de Pruebas)              │
+ │     npx playwright test tests/e2e/                     │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ (Obtiene resultados: passed / failed)
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │  3. MARCADO DE RESULTADOS EN GHERKIN                   │
+ │     testform suite mark "@tc-login=passed" -target=... │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ (Actualiza línea "* mark status = passed")
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │  4. CONCILIACIÓN REMOTA CONTRA GITHUB / JIRA           │
+ │     testform apply -auto-approve                       │
+ └────────────────────────────────────────────────────────┘
 ```
 
-## Configuracion del Runner en main.yml
+---
 
-Define el runner y los comandos de ejecucion en tu archivo `main.yml`:
+## Generación de Suites por Tags (`suite tags` / `-tags`)
 
-```yaml
-testform:
-  required_version: ">= 1.0"
-  backend: local
+Permite generar instantáneamente un archivo de corrida de pruebas (`.run.feature`) a partir de expresiones de etiquetas con corchetes (`[...]`):
 
-suite:
-  runner: "playwright"
-  command: "npx playwright test"
-  options:
-    reporters: ["json", "list"]
-    timeout: 30000
-    parallel: true
-```
-
-## Ejecutar una Suite
-
-Para ejecutar todos los casos de prueba marcados con la etiqueta `@smoke`:
+### 1. Dirección a Nivel de Workspace (`[@tag]`)
+Busca en todos los archivos `.case.feature` del workspace y agrupa bajo un bloque `Rule:` cada archivo que contenga escenarios con esa etiqueta:
 
 ```bash
-npx testform suite -tags="@smoke"
+npx testform suite -tags="[@smoke]" -title="Smoke Suite Regresión"
 ```
 
-Salida esperada en consola:
+Genera automáticamente el archivo `.run.feature`:
 
-```text
-Testform Suite Orchestrator v1.0.0
-Criterio de seleccion: @smoke
+```gherkin
+@testrun @tr-1
+Feature: Smoke Suite Regresión
 
-Casos resueltos:
-  - tests/features/auth.case.feature.@tc-auth-001
-  - tests/features/checkout.case.feature.@tc-checkout-001
+  Rule: auth.case.feature
+    Scenario: Inicio de sesión exitoso
+      * mark status = pending
 
-Ejecutando runner subyacente: npx playwright test...
-
-Running 2 tests using 2 workers
-  [1/2] auth.case.feature:8:3 › Inicio de sesion exitoso (412ms)
-  [2/2] checkout.case.feature:10:3 › Transaccion aprobada con fondos suficientes (890ms)
-
-2 passed (1.4s)
-
-Generando registro de ejecucion declarativo:
-  + Creado: tests/runs/run-20261021-smoke.run.feature (@tr-smoke-20261021)
-  Estado de la corrida: PASSED (2/2 exitosos, 0 fallidos)
+  Rule: checkout.case.feature
+    Scenario: Pago con tarjeta de crédito
+      * mark status = pending
 ```
 
-## Filtrado Avanzado con Expresiones Booleanas
-
-El parametro `-tags` admite operadores booleanos completos (`and`, `or`, `not`):
+### 2. Dirección Específica de Archivo (`archivo.[@tag]`)
+Filtra únicamente los escenarios que posean la etiqueta indicada dentro de un archivo `.case.feature` específico:
 
 ```bash
-# Ejecutar pruebas criticas de autenticacion que no sean inestables
-npx testform suite -tags="(@priority-critical or @smoke) and not @flaky"
-
-# Ejecutar pruebas del modulo de facturacion en entorno de staging
-npx testform suite -tags="@component-billing and @staging"
+npx testform suite -tags="checkout.case.feature.[@smoke]"
 ```
 
-## Integracion en CI/CD
+### 3. Etiquetas Múltiples
+Admite combinar etiquetas separadas por comas. Se incluirá cualquier escenario que cumpla con al menos una de ellas:
 
-Agrega el comando en tu pipeline de integracion continua para automatizar la ejecucion y la conciliacion en cada pull request:
+```bash
+npx testform suite -tags="[@smoke,@critical]"
+```
+
+---
+
+## Subcomandos de `testform suite`
+
+El comando dispone de 5 operaciones estandarizadas:
+
+| Subcomando | Descripción | Sintaxis Principal |
+| :--- | :--- | :--- |
+| `tags` | Genera una suite `.run.feature` a partir de direcciones de tags entre corchetes. | `testform suite tags "<address>"` o `testform suite -tags="<address>"` |
+| `init` | Crea el esqueleto base de una suite `.run.feature` o `.plan.feature`. | `testform suite init -scope=<testrun\|testplan> [-title=<title>]` |
+| `fill` | Autocompleta bloques `Rule` vacíos en un testrun con los casos de su `.case.feature`. | `testform suite fill -target=<target>` |
+| `link` | Vincula un caso o corrida de prueba dentro de una suite destino. | `testform suite link "<identifier>=<status>" -target=<target>` |
+| `mark` | Registra el estado de ejecución de un caso dentro de la corrida Gherkin. | `testform suite mark "<identifier>=<status>" -target=<target>` |
+
+---
+
+## Estrategias Unificadas de Identificación
+
+Para evitar inconsistencias, todos los subcomandos de `testform suite` implementan exactamente las mismas estrategias:
+
+### Estrategia de Target (`-target=<target>`)
+Determina la suite destino en `fill`, `link` y `mark`:
+1. **Canonical Address:** `tests/runs/smoke.run.feature.@tr-1` o `smoke.run.feature.@tr-1`
+2. **File Path:** `tests/runs/smoke.run.feature` (o relativo)
+3. **Identity Tag:** `@tr-1`
+
+### Estrategia de Identificador (`<identifier>=<status>`)
+Determina qué caso de prueba se está marcando o enlazando:
+1. **Identity Tag:** `"@tc-1=passed"`
+2. **Canonical / File:** `"checkout.case.feature.@tc-1=passed"`
+3. **Scenario Name:** `"Pago con tarjeta=passed"`
+
+**Estados de ejecución admitidos:**
+`pending`, `passed`, `failed`, `blocked`, `skipped`, `undefined`.
+
+---
+
+## Integración con Pipelines CI/CD
+
+En un pipeline de CI/CD (GitHub Actions, GitLab CI), puedes conectar tu runner automatizado con Testform de manera declarativa:
 
 ```yaml
-- name: Ejecutar Suite de Certificacion
+- name: Generar Suite Smoke
+  run: npx testform suite -tags="[@smoke]" -title="CI PR #${{ github.event.number }}"
+
+- name: Ejecutar Pruebas Automatizadas
+  id: runner
+  run: npx playwright test --reporter=json > test-results.json
+
+- name: Marcar Resultados en la Suite
   run: |
-    npx testform suite -tags="@smoke" --ci
-    npx testform apply -auto-approve
+    # Script que lee test-results.json y actualiza Testform
+    npx testform suite mark "@tc-auth-001=passed" -target="@tr-1"
+    npx testform suite mark "@tc-checkout-001=failed" -target="@tr-1"
+
+- name: Conciliar Estado en GitHub Projects
+  run: npx testform apply -auto-approve
 ```
+

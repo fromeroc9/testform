@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "fs";
-import { resolve, basename } from "path";
+import { resolve, basename, dirname } from "path";
 import YAML from "yaml";
 import { CONFIG_FILE_NAMES, FILE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
 import { IConfig, IGitHubConfig, IField, IScope, ITest, IScopeConfig, IBackendConfig } from '../core/types';
@@ -54,6 +54,35 @@ export class Config {
     private load(resolvedPath: string) {
         const raw = readFileSync(resolvedPath, "utf-8");
         this.config = (YAML.parse(raw) || {}) as IConfig;
+
+        // Auto-load external scopes.yml / scopes.yaml / scope.yml / scope.yaml if present in the workspace
+        const dir = dirname(resolvedPath);
+        for (const scopeName of ['scopes.yml', 'scopes.yaml', 'scope.yml', 'scope.yaml']) {
+            const scopePath = resolve(dir, scopeName);
+            if (existsSync(scopePath)) {
+                try {
+                    const content = readFileSync(scopePath, 'utf-8');
+                    const parsed = YAML.parse(content) || {};
+                    const extScopes = parsed.scopes || parsed.scope || parsed;
+                    if (extScopes && typeof extScopes === 'object') {
+                        const currentScopes = (this.config.scopes || this.config.scope || {}) as Record<string, any>;
+                        const mergedScopes: Record<string, any> = { ...extScopes };
+                        for (const [key, val] of Object.entries(currentScopes)) {
+                            if (val && typeof val === 'object' && mergedScopes[key] && typeof mergedScopes[key] === 'object') {
+                                mergedScopes[key] = { ...mergedScopes[key], ...val };
+                            } else {
+                                mergedScopes[key] = val;
+                            }
+                        }
+                        this.config.scopes = mergedScopes;
+                    }
+                } catch {
+                    // Ignore parse error here; validated during validateCmd
+                }
+                break;
+            }
+        }
+
         return this.config;
     }
 

@@ -1,0 +1,117 @@
+# Sistema y Codificación
+
+Las funciones de sistema y codificación permiten interactuar con el entorno de ejecución del host, generar identificadores únicos, manejar fechas y serializar o deserializar formatos como JSON o archivos en disco.
+
+---
+
+## Índice de Funciones
+
+| Función | Firma | Descripción |
+| :--- | :--- | :--- |
+| [`env`](#env) | `env(name)` | Lee una variable de entorno del proceso anfitrión. |
+| [`uuid`](#uuid) | `uuid()` | Genera un identificador único aleatorio (UUID v4). |
+| [`timestamp`](#timestamp) | `timestamp()` | Retorna la fecha y hora UTC actual en formato ISO 8601. |
+| [`jsonencode`](#jsonencode) | `jsonencode(value)` | Serializa una estructura de datos en una cadena JSON válida. |
+| [`jsondecode`](#jsondecode) | `jsondecode(string)` | Parsea una cadena JSON en tipos nativos de Testform. |
+| [`file`](#file) | `file(path)` | Lee el contenido de un archivo de texto en disco (UTF-8). |
+
+---
+
+## `env`
+
+Lee el valor de una variable de entorno presente en el sistema operativo durante la ejecución del comando. Si la variable no está definida, retorna `null`.
+
+```yaml
+# locals.yml
+locals:
+  ci_job_id: "${coalesce(env('GITHUB_RUN_ID'), env('BUILD_NUMBER'), 'local')}"
+  api_key: "${env('TESTFORM_API_KEY')}"
+```
+
+```bash
+testform functions --eval "env('USER') || env('USERNAME')"
+# => "flavi"
+```
+
+---
+
+## `uuid`
+
+Genera un identificador único universal aleatorio (RFC 4122 versión 4). Ideal para asignar correlativos de sesión o identificadores efímeros de ejecución:
+
+```yaml
+# locals.yml
+locals:
+  execution_correlation_id: "${uuid()}"
+```
+
+```bash
+testform functions --eval "uuid()"
+# => "d1a7b4c2-9e81-4328-984f-e2c7f4618e90"
+```
+
+---
+
+## `timestamp`
+
+Devuelve la fecha y hora UTC actual formateada según el estándar ISO 8601 (`YYYY-MM-DDTHH:mm:ssZ`):
+
+```yaml
+# locals.yml
+locals:
+  started_at: "${timestamp()}"
+```
+
+```bash
+testform functions --eval "timestamp()"
+# => "2026-10-25T05:18:22Z"
+```
+
+---
+
+## `jsonencode`
+
+Transforma cualquier estructura de datos nativa (listas, objetos, números, booleanos) en una cadena de texto en formato JSON estándar:
+
+```yaml
+# locals.yml
+locals:
+  payload:
+    build: "${env('GITHUB_RUN_ID')}"
+    passed: true
+    tags: ["smoke", "regression"]
+
+  json_body: "${jsonencode(local.payload)}"
+```
+
+```bash
+testform functions --eval "jsonencode({ active: true, retries: 5 })"
+# => "{\"active\":true,\"retries\":5}"
+```
+
+---
+
+## `jsondecode`
+
+Interpreta y transforma una cadena JSON válida en objetos y tipos nativos dentro de las expresiones:
+
+```bash
+testform functions --eval "jsondecode('{\"db\": {\"host\": \"localhost\", \"port\": 5432}}').db.port"
+# => 5432
+```
+
+---
+
+## `file`
+
+Lee el contenido completo de un archivo de texto en el sistema de archivos local en codificación UTF-8.
+
+```yaml
+# locals.yml
+locals:
+  public_key: "${trim(file('~/.ssh/id_rsa.pub'))}"
+  schema_data: "${jsondecode(file('schemas/issue_payload.json'))}"
+```
+
+> [!NOTE]
+> Las rutas relativas pasadas a `file()` se resuelven contra el directorio de trabajo donde se ubica el archivo de configuración raíz (`main.yml`).

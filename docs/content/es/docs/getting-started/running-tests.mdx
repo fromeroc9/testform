@@ -65,10 +65,10 @@ En flujos de integracion continua (CI/CD), es una practica recomendada guardar e
 
 ```bash
 # Guardar el plan
-testform plan -out=tfplan.bin
+testform plan -out=testform.plan.bin
 
 # Aplicar el plan exacto guardado
-testform apply tfplan.bin
+testform apply testform.plan.bin
 ```
 
 ## Paso 3: Ejecutar `testform apply`

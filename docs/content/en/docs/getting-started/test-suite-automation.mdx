@@ -1,107 +1,136 @@
-# Test Suite Automation
+# Test Suite Management (`testform suite`)
 
-Connect your declarative test cases with real test automation runners including Playwright, Cypress, and Vitest using the `testform suite` command.
+The `testform suite` command provides a dedicated suite of tools for scaffolding, structuring, tag-based filtering, and recording execution outcomes in test runs (`.run.feature`) and test plans (`.plan.feature`).
 
-## How It Works
+## Philosophy: Separation Between State and Execution
 
-Testform does not replace specialized test runners like Playwright or Vitest; it serves as the **declarative orchestrator and state persistence layer**.
+Testform **is not a test runner and does not compete with test execution engines** like Playwright, Cypress, or Vitest:
 
-1. **Definition:** Test cases are authored in `.feature` files with behavioral tags (`@smoke`, `@auth`, `@billing`).
-2. **Selection:** `testform suite` resolves tag boolean logic to determine the exact set of scenarios to execute.
-3. **Dispatch:** Testform invokes your configured runner (e.g., `npx playwright test`).
-4. **Recording:** Test results produce an immutable declarative run artifact (`@tr-[id]`) reconciled with your state ledger and remote platforms.
+- **Test Runners (Playwright, Cypress, Vitest):** Responsible for spawning browsers, simulating user interactions, and evaluating assertions in runtime code.
+- **Testform:** Manages test infrastructure as code (Test-as-Code), coverage catalogs, the authoritative state ledger (`testform.state`), and remote reconciliation with Jira or GitHub Projects.
 
 ```text
-+-----------------------+
-|  testform suite       |
-|  -tags="@smoke"       |
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-|  Filter & Resolution  | ===> [auth.case.feature, checkout.case.feature]
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-|  Runner (Playwright)  | ===> npx playwright test tests/e2e/auth.spec.ts
-+-----------+-----------+
-            |
-            v
-+-----------------------+
-|  Test Run Artifact    | ===> tests/runs/smoke-20261021.run.feature
-|  (@tr-smoke-run-001)  | ===> testform apply (Syncs Jira/GitHub)
-+-----------------------+
+ ┌────────────────────────────────────────────────────────┐
+ │  1. DECLARATIVE SUITE GENERATION                       │
+ │     testform suite -tags="[@smoke]"                    │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ (Creates runs/20261024_smoke.run.feature with status=pending)
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │  2. EXTERNAL TEST EXECUTION (Runner)                   │
+ │     npx playwright test tests/e2e/                     │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ (Yields test outcomes: passed / failed)
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │  3. RECORDING RESULTS IN GHERKIN                       │
+ │     testform suite mark "@tc-login=passed" -target=... │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ (Updates "* mark status = passed" lines)
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │  4. REMOTE RECONCILIATION TO GITHUB / JIRA             │
+ │     testform apply -auto-approve                       │
+ └────────────────────────────────────────────────────────┘
 ```
 
-## Runner Configuration in main.yml
+---
 
-Declare your runner binary and execution flags in `main.yml`:
+## Tag-Based Suite Generation (`suite tags` / `-tags`)
 
-```yaml
-testform:
-  required_version: ">= 1.0"
-  backend: local
+Instantly generate a complete test run (`.run.feature`) from bracketed tag expressions (`[...]`):
 
-suite:
-  runner: "playwright"
-  command: "npx playwright test"
-  options:
-    reporters: ["json", "list"]
-    timeout: 30000
-    parallel: true
-```
-
-## Running a Suite
-
-To execute all test cases tagged with `@smoke`:
+### 1. Workspace-Wide Address (`[@tag]`)
+Scans all `.case.feature` files in the workspace and creates a `Rule:` block for each file containing matching scenarios:
 
 ```bash
-npx testform suite -tags="@smoke"
+npx testform suite -tags="[@smoke]" -title="Smoke Regression Suite"
 ```
 
-Expected terminal output:
+Generates the `.run.feature` artifact:
 
-```text
-Testform Suite Orchestrator v1.0.0
-Filter criteria: @smoke
+```gherkin
+@testrun @tr-1
+Feature: Smoke Regression Suite
 
-Resolved test cases:
-  - tests/features/auth.case.feature.@tc-auth-001
-  - tests/features/checkout.case.feature.@tc-checkout-001
+  Rule: auth.case.feature
+    Scenario: Successful login with valid credentials
+      * mark status = pending
 
-Invoking underlying runner: npx playwright test...
-
-Running 2 tests using 2 workers
-  [1/2] auth.case.feature:8:3 › Successful login with valid credentials (412ms)
-  [2/2] checkout.case.feature:10:3 › Successful transaction with sufficient funds (890ms)
-
-2 passed (1.4s)
-
-Generating declarative run artifact:
-  + Created: tests/runs/run-20261021-smoke.run.feature (@tr-smoke-20261021)
-  Run Status: PASSED (2/2 passed, 0 failed)
+  Rule: checkout.case.feature
+    Scenario: Credit card payment
+      * mark status = pending
 ```
 
-## Advanced Boolean Tag Filtering
-
-The `-tags` parameter supports full boolean logic (`and`, `or`, `not`):
+### 2. File-Specific Address (`file.[@tag]`)
+Restricts scenario matching to a single `.case.feature` file:
 
 ```bash
-# Run critical or smoke tests that are not flaky
-npx testform suite -tags="(@priority-critical or @smoke) and not @flaky"
-
-# Run billing component tests intended for staging
-npx testform suite -tags="@component-billing and @staging"
+npx testform suite -tags="checkout.case.feature.[@smoke]"
 ```
 
-## CI/CD Pipeline Automation
+### 3. Multiple Tags
+Supports comma-separated tags within brackets. Scenarios matching any of the specified tags are included:
 
-Add the suite command into your continuous delivery pipeline to execute and reconcile on every commit:
+```bash
+npx testform suite -tags="[@smoke,@critical]"
+```
+
+---
+
+## Standardized `testform suite` Subcommands
+
+The command features 5 standardized subcommands:
+
+| Subcommand | Description | Syntax |
+| :--- | :--- | :--- |
+| `tags` | Generates a `.run.feature` suite filtered by bracketed tag expressions. | `testform suite tags "<address>"` or `testform suite -tags="<address>"` |
+| `init` | Scaffolds the skeleton of a `.run.feature` or `.plan.feature` file. | `testform suite init -scope=<testrun\|testplan> [-title=<title>]` |
+| `fill` | Autocompletes empty `Rule` blocks in a testrun with their source `.case.feature` scenarios. | `testform suite fill -target=<target>` |
+| `link` | Links a testcase or testrun into a target suite. | `testform suite link "<identifier>=<status>" -target=<target>` |
+| `mark` | Updates execution outcomes (`* mark status = <status>`) inside a testrun. | `testform suite mark "<identifier>=<status>" -target=<target>` |
+
+---
+
+## Unified Identification Strategies
+
+All `testform suite` subcommands use consistent resolution strategies:
+
+### Target Strategy (`-target=<target>`)
+Used by `fill`, `link`, and `mark` to identify the destination suite:
+1. **Canonical Address:** `tests/runs/smoke.run.feature.@tr-1` (or `smoke.run.feature.@tr-1`)
+2. **File Path:** `tests/runs/smoke.run.feature` (or relative path)
+3. **Identity Tag:** `@tr-1`
+
+### Identifier Strategy (`<identifier>=<status>`)
+Used by `mark` and `link` to identify a specific test scenario:
+1. **Identity Tag:** `"@tc-1=passed"`
+2. **Canonical / File:** `"checkout.case.feature.@tc-1=passed"`
+3. **Scenario Name:** `"Credit card payment=passed"`
+
+**Supported statuses:**
+`pending`, `passed`, `failed`, `blocked`, `skipped`, `undefined`.
+
+---
+
+## CI/CD Pipeline Integration
+
+Connect your automated runner with Testform inside GitHub Actions or GitLab CI:
 
 ```yaml
-- name: Run Certification Suite
+- name: Generate Smoke Testrun
+  run: npx testform suite -tags="[@smoke]" -title="CI PR #${{ github.event.number }}"
+
+- name: Execute Automated Tests
+  id: runner
+  run: npx playwright test --reporter=json > test-results.json
+
+- name: Record Outcomes in Testform Suite
   run: |
-    npx testform suite -tags="@smoke" --ci
-    npx testform apply -auto-approve
+    # Script parsing test-results.json to update Testform
+    npx testform suite mark "@tc-auth-001=passed" -target="@tr-1"
+    npx testform suite mark "@tc-checkout-001=failed" -target="@tr-1"
+
+- name: Reconcile Remote State with GitHub Projects
+  run: npx testform apply -auto-approve
 ```

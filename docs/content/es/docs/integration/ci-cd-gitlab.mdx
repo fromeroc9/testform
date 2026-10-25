@@ -29,11 +29,11 @@ validate:
 plan:
   stage: plan
   script:
-    - npx testform plan -out=tfplan.bin
+    - npx testform plan -out=testform.plan.bin
   artifacts:
     name: "testform-plan-$CI_COMMIT_SHORT_SHA"
     paths:
-      - tfplan.bin
+      - testform.plan.bin
     expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

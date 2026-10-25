@@ -31,6 +31,7 @@ import { printCmd } from './commands/print';
 import { queryCmd } from './commands/query';
 import { ephemeralCmd } from './commands/ephemeral';
 import { providersCmd } from './commands/providers';
+import { functionsCmd } from './commands/functions';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
 import chalk from 'chalk';
@@ -549,10 +550,14 @@ export function createCli() {
         });
 
     // ─── suite ───────────────────────────────────────────────────────────
-    cli.command('suite <subcommand> [...args]', 'Manage test suites and execution files (init, fill, link)')
+    cli.command('suite [subcommand] [...args]', 'Manage test suites and execution files (init, fill, link, mark, tags)')
+        .option('--fill', 'Autocomplete empty testrun rules with their testcases')
+        .option('--link <id_status>', 'Link a testcase or testrun into a suite')
+        .option('--mark <id_status>', 'Record execution status in a testrun')
+        .option('--tags <tags>', 'Filter testcase scenarios by bracketed tag expression to generate testrun (e.g. "[@smoke]" or "file.case.feature.[@smoke]")')
         .option('--title <title>', 'Suite title')
         .option('--rule <rule>', 'Rule definitions')
-        .option('--target <target>', 'Target feature file')
+        .option('--target <target>', 'Target feature file (identity tag @tr-N/@tp-N, canonical address, or file path)')
         .option('--test-directory <dir>', 'Directory containing test files')
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
@@ -570,6 +575,10 @@ export function createCli() {
                 title: options.title,
                 rules: ruleArr,
                 target: options.target,
+                tags: options.tags,
+                fill: Boolean(options.fill),
+                link: typeof options.link === 'string' ? options.link : undefined,
+                mark: typeof options.mark === 'string' ? options.mark : undefined,
                 testDirectory: options.testDirectory,
                 statePath: options.state,
                 backupPath: options.backup,
@@ -720,6 +729,16 @@ export function createCli() {
                 args: Array.isArray(args) ? args : (args ? [args] : []),
                 testDirectory: options.testDirectory,
                 variables: variableParser
+            });
+        });
+
+    // ─── functions ────────────────────────────────────────────────────────
+    cli.command('functions [name]', 'Inspect and evaluate built-in expression functions')
+        .option('--eval <expr>', 'Evaluate expression live in terminal')
+        .action(async (name, options) => {
+            await functionsCmd({
+                name,
+                evalExpr: options.eval
             });
         });
 

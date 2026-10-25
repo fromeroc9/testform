@@ -310,5 +310,50 @@ provider: local
         expect(config.getIdentity('testrun')).toBe('tr-*');
         expect(config.getIdentity('testplan')).toBe('tp-*');
     });
+
+    it('should automatically load scopes from external scopes.yml when separated from main.yml', () => {
+        writeFileSync(join(tmpDir, 'main.yml'), `
+testform:
+  required_version: ">= 1.0.0"
+  backend: local
+provider: local
+`, 'utf8');
+
+        writeFileSync(join(tmpDir, 'scopes.yml'), `
+scope:
+  global:
+    convention:
+      filename: "{YYYYMMDD}_{HHmmss}"
+    fields:
+      - name: project
+        type: keywords
+        required: true
+        default: "Core Project"
+      - name: priority
+        type: tags
+        values: ["@low", "@medium", "@high"]
+        default: "@medium"
+  testcase:
+    match: "*.case.feature"
+    identity: "tc-*"
+    fields:
+      - name: module
+        type: keywords
+        required: true
+  testrun:
+    match: "*.run.feature"
+    identity: "tr-*"
+`, 'utf8');
+
+        const config = new Config(tmpDir);
+        expect(config.getIdentity('testcase')).toBe('tc-*');
+        expect(config.getIdentity('testrun')).toBe('tr-*');
+        expect(config.getConvention('testcase')?.filename).toBe('{YYYYMMDD}_{HHmmss}');
+
+        const tcFields = config.getFields('testcase');
+        expect(tcFields.some(f => f.name === 'project')).toBe(true);
+        expect(tcFields.some(f => f.name === 'priority')).toBe(true);
+        expect(tcFields.some(f => f.name === 'module')).toBe(true);
+    });
 });
 

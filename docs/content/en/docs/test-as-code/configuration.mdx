@@ -65,6 +65,36 @@ fields:
     default: false
 ```
 
+## Compilation and Configuration Processing Pipeline
+
+Testform compiles and resolves all configuration layers via a sequential in-memory pipeline:
+
+```text
+ ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+ │    main.yml    │   │ variables.yml  │   │   scopes.yml   │
+ └───────┬────────┘   └───────┬────────┘   └───────┬────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+   [PHASE 1: IN-MEMORY DISCOVERY & SYMBOL SCHEMA MERGE]
+         │
+         ▼
+   [PHASE 2: VALUE INGESTION & PRECEDENCE (*.vars.yml, CLI)]
+         │
+         ▼
+   [PHASE 3: STATIC TYPE & AST VALIDATION (enum, condition)]
+         │
+         ▼
+   [PHASE 4: LOCALS & HCL FUNCTION EVALUATION]
+         │
+         ▼
+   [PHASE 5: INJECTION INTO GHERKIN RESOURCES (*.case.feature) + DAG]
+         │
+         ▼
+   [PHASE 6: RECONCILIATION DIFF AGAINST testform.state (plan / apply)]
+```
+
+---
+
 ## 1. `backend` Block
 
 Defines where the state ledger (`testform.state`) resides and how distributed mutex locks are acquired:
@@ -77,14 +107,82 @@ Defines where the state ledger (`testform.state`) resides and how distributed mu
 | `azure` | Azure Blob Storage with exclusive lease locking. | `storage_account`, `container`, `blob_name` |
 | `gcs` | Google Cloud Storage with object generation preconditions. | `bucket`, `prefix` |
 
-## 2. `scopes` Block
+---
 
-The `scopes` block organizes discovery directories and glob patterns for test artifacts:
+## 2. `scopes` Block: Gherkin Resource Governance
 
-- `scopes.global`: Sets workspace-wide fallback configurations shared across all resources.
-- `scopes.testcase`: Target directory and file match patterns for test cases (`*.case.feature`).
-- `scopes.testrun`: Directory for execution run logs (`*.run.feature`).
-- `scopes.testplan`: Directory for certification matrices (`*.plan.feature`).
+To prevent `main.yml` from becoming bloated, Testform supports declaring the `scopes:` block directly in `main.yml` or inside an independent modular file **`scopes.yml`** (or `scopes.yaml`).
+
+### Data Flow: From Gherkin to `resource.ts` and the Remote Provider
+
+The declared `fields` are not direct API attributes, but the **quality contract for the Gherkin author**. The `resource.ts` adapter maps and extracts those fields to feed the remote Provider:
+
+```text
+  Gherkin (.feature)            scopes.yml                     resource.ts                   Provider (GitHub/Jira)
+ ┌──────────────────────┐      ┌────────────────────────┐     ┌───────────────────────┐     ┌──────────────────────┐
+ │ @high @tc-login-001  │      │ scope:                 │     │ resource.registry({   │     │ GitHub Project V2    │
+ │ Scenario: Login      │ ──►  │   global:              │ ──► │   fields: [           │ ──► │   Status: "Done"     │
+ │   * field module =   │      │     fields: [module,   │     │     custom_fields:    │     │   Project: "HT 360"  │
+ │     "auth"           │      │       priority, Status]│     │       s.custom.fields │     │   Module: "auth"     │
+ └──────────────────────┘      └────────────────────────┘     └───────────────────────┘     │   Priority: "high"   │
+                                                                                            └──────────────────────┘
+```
+
+### Modular Structure in `scopes.yml`
+
+```yaml
+# scopes.yml
+scope:
+  # 1. Workspace-wide rules inherited by ALL resources
+  global:
+    convention:
+      filename: "{YYYYMMDD}_{HHmmss}"
+    fields:
+      - name: project
+        type: keywords
+        required: true
+        default: "Hirent Talent 360"
+      - name: assignees
+        type: keywords
+        required: true
+        default: "fromeroc9"
+      - name: priority
+        type: tags
+        values: ["@low", "@medium", "@high"]
+        default: "@medium"
+      - name: Status
+        type: keywords
+        required: true
+        default: "Done"
+
+  # 2. testcase Resource (*.case.feature)
+  testcase:
+    match: "*.case.feature"
+    identity: "tc-*"
+    fields:
+      - name: module
+        type: keywords
+        required: true
+      - name: functional
+        type: keywords
+        required: true
+
+  # 3. testrun Resource (*.run.feature)
+  testrun:
+    match: "*.run.feature"
+    identity: "tr-*"
+    fields:
+      - name: startDate
+        type: keywords
+      - name: endDate
+        type: keywords
+
+  # 4. testplan Resource (*.plan.feature)
+  testplan:
+    match: "*.plan.feature"
+    identity: "tp-*"
+    fields: []
+```
 
 ## 3. `fields` Block: Understanding `type` vs `source`
 
@@ -158,3 +256,12 @@ provider:
     projectId: 12345678
     token_env: "GITLAB_TOKEN"
 ```
+
+## 5. Input Variables (`variable:`) and Local Values (`locals:`)
+
+Testform allows parameterizing both Gherkin step texts and tag metadata through input variables and locally computed values:
+
+- **`variable:`**: Variable declaration with data type (`string`, `number`, `boolean`), description, allowed catalog `enum: [...]`, `validation:` constraints, and default values.
+- **`locals:`**: Computed values and derived expressions evaluated via the sandboxed AST engine (`${var.name}`, `${local.name}`, `${lower()}`, `${format()}`).
+
+For further information on precedence hierarchies and type rules, refer to the [Variables and Types Guide](/docs/language/variables).

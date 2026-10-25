@@ -2,94 +2,138 @@
 
 import React, { useState } from 'react';
 
-const TABS = [
+export interface CodeTab {
+  id: string;
+  label: string;
+  lang: string;
+  type: string;
+  content: string;
+}
+
+const DEFAULT_TABS: CodeTab[] = [
   {
     id: 'feature',
-    label: 'auth.case.feature',
+    label: 'specs/auth.case.feature',
     lang: 'gherkin',
     type: 'spec',
-    content: `Feature: Control de Acceso y Autenticación
-  Como usuario registrado de la aplicación
-  Quiero autenticarme con credenciales válidas
-  Para acceder al panel de control protegido
+    content: `@testcase
+Feature: User Authentication & SSO
+  As a registered platform user
+  I want to securely authenticate into my account
+  So that I can access the engineering dashboard
 
-  Background:
-    * field automate = apply
-
-  @tc-auth-001 @high
-  Scenario: Inicio de sesión exitoso en el portal
-    Given el usuario navega a la URL "/login"
-    When introduce el correo "admin@empresa.com"
-    And introduce la contraseña "\${vars.admin_pass}"
-    And pulsa el botón "Iniciar Sesión"
-    Then el sistema debe redirigir a "/dashboard"
-    And el banner muestra "Bienvenido, Administrador"`
+  @tc-auth-01 @smoke @critical
+  Scenario: Valid enterprise OAuth login
+    Given the user navigates to "\${local.login_url}"
+    When the user submits credentials for "\${var.test_user}"
+    Then the system redirects to "\${var.app_url}/dashboard"
+    And the user role is verified as "Admin"`
   },
   {
     id: 'config',
-    label: 'testform.yml',
+    label: 'main.yml',
     lang: 'yaml',
     type: 'config',
-    content: `backend:
-  local:
-    path: "./testform.state"
+    content: `testform:
+  required_version: ">= 1.0.0"
+  backend:
+    local:
+      path: "./testform.state"
 
-providers:
+provider:
   github:
-    owner: "empresa"
-    repo: "portal-web"
+    owner: "enterprise-org"
+    repository: "core-platform"
+    token_env: "GITHUB_TOKEN"
 
 vars:
-  admin_pass: "Secret123!"
+  app_url:
+    type: string
+    default: "https://app.enterprise.io"
+  test_user:
+    type: string
+    default: "qa-automation@enterprise.io"
 
-outputs:
-  total_scenarios: "\${testcase.*.count}"`
+locals:
+  login_url: "\${var.app_url}/auth/login"
+
+scopes:
+  testcase:
+    directory: "specs/cases"
+  testrun:
+    directory: "specs/runs"`
   },
   {
     id: 'plan',
     label: 'testform plan',
     lang: 'bash',
     type: 'cli',
-    content: `Testform v1.0.17
-Backend: local (testform.state)
-Adquiriendo bloqueo de estado... [OK]
+    content: `$ testform plan
 
-Calculando grafo DAG y plan de conciliación:
+Initializing the backend...
+Successfully configured the backend "local"!
 
-  + resource "testcase" "features/auth.case.feature::@tc-auth-001" {
-      + title       = "Inicio de sesión exitoso en el portal"
-      + feature     = "Control de Acceso y Autenticación"
-      + priority    = "high"
-      + automate    = "apply"
-      + steps_count = 6
-      + status      = "draft"
+Testform will perform the following actions:
+
+  # github_testcase.specs/cases/auth.case.feature.@tc-auth-01 will be created
+  + resource "github_testcase" "specs/cases/auth.case.feature.@tc-auth-01" {
+      + title       = "Valid enterprise OAuth login"
+      + feature     = "User Authentication & SSO"
+      + priority    = "critical"
+      + labels      = ["smoke", "critical", "testcase"]
+      + state_hash  = "a7f891b2c4e5d6..."
+      + status      = "open"
     }
 
-Plan: 1 para agregar, 0 para cambiar, 0 para destruir.
-Estado: sin drift detectado. Bloqueo liberado.`
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+Note: You didn't use the -out option to save this plan, so Testform can't
+guarantee that exactly these actions will be performed if you run "apply".`
   },
   {
-    id: 'run',
-    label: 'testform suite (Runners)',
+    id: 'apply',
+    label: 'testform apply',
     lang: 'bash',
     type: 'cli',
-    content: `Ejecutando matriz de pruebas orquestadas...
+    content: `$ testform apply -auto-approve
 
-  ✔ [E2E] Playwright: Login en React TodoMVC (1.42s)
-  ✔ [API] Supertest: POST /auth/tokens [200 OK] (184ms)
-  ✔ [PERF] K6: 100 reqs concurrentes - p95: 142ms < SLA (200ms)
+Acquiring state lock... [OK]
+github_testcase.specs/cases/auth.case.feature.@tc-auth-01: Creating...
+github_testcase.specs/cases/auth.case.feature.@tc-auth-01: Creation complete after 1.2s [id=gh:1042]
 
-Matriz: 3 suites ejecutadas, 3 aprobadas (100% verde)
-Evidencias registradas en testform.state.`
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+State lock released. State written to testform.state (SHA-256 verified).`
+  },
+  {
+    id: 'drift',
+    label: 'testform diff --remote',
+    lang: 'bash',
+    type: 'cli',
+    content: `$ testform diff --remote -i
+
+Refreshing state against GitHub Projects API...
+Drift detected in: specs/cases/auth.case.feature.@tc-auth-01
+
+  ~ title: "Valid enterprise OAuth login" -> "Updated OAuth via Web UI"
+  ~ priority: "critical" -> "medium"
+
+? Remote drift resolution strategy for @tc-auth-01:
+  > 1. PULL      - Overwrite local .feature with remote changes
+    2. OVERWRITE - Enforce Git authority (re-apply local truth to cloud)
+    3. SKIP      - Ignore this discrepancy for now
+
+✔ Decision: Enforcing Git authority on next apply. Zero drift maintained.`
   }
 ];
 
-export function CodeShowcase() {
+export function CodeShowcase({ tabs = DEFAULT_TABS }: { tabs?: CodeTab[] }) {
   const [activeTab, setActiveTab] = useState(0);
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(TABS[activeTab].content);
+    navigator.clipboard.writeText(tabs[activeTab].content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -106,7 +150,7 @@ export function CodeShowcase() {
 
         {/* Navigation Tabs */}
         <div className="showcase-tabs">
-          {TABS.map((tab, idx) => (
+          {tabs.map((tab, idx) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(idx)}
@@ -118,7 +162,7 @@ export function CodeShowcase() {
         </div>
 
         {/* Copy Button */}
-        <button onClick={handleCopy} className="showcase-copy-btn" title="Copiar código">
+        <button onClick={handleCopy} className="showcase-copy-btn" title="Copiar al portapapeles">
           {copied ? '✓ Copiado' : 'Copiar'}
         </button>
       </div>
@@ -126,7 +170,7 @@ export function CodeShowcase() {
       {/* Code / Terminal Viewport */}
       <div className="showcase-body">
         <pre className="showcase-pre">
-          <code>{TABS[activeTab].content}</code>
+          <code>{tabs[activeTab].content}</code>
         </pre>
       </div>
     </div>

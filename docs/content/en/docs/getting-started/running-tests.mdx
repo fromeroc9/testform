@@ -65,10 +65,10 @@ In CI/CD environments, saving the speculative plan prevents race conditions betw
 
 ```bash
 # Save speculative plan
-testform plan -out=tfplan.bin
+testform plan -out=testform.plan.bin
 
 # Apply exact planned artifact
-testform apply tfplan.bin
+testform apply testform.plan.bin
 ```
 
 ## Step 3: Run `testform apply`

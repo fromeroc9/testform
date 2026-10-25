@@ -49,6 +49,7 @@ export interface MemberNode {
 
 export interface EvaluationContext {
     vars?: Record<string, any>;
+    variables?: Record<string, any>;
     locals?: Record<string, any>;
     data?: any;
     workDir?: string;

@@ -63,10 +63,10 @@ In automated pipelines, always save the plan with `-out` and pass it to `apply` 
 
 ```bash
 # In PR stage:
-testform plan -out=tfplan.bin
+testform plan -out=testform.plan.bin
 
 # In Merge stage:
-testform apply tfplan.bin
+testform apply testform.plan.bin
 ```
 
 ## Exit Codes
