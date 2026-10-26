@@ -20,6 +20,7 @@ ${bold(`All other commands:`)}
   ephemeral     Manage temporary CI/CD QA sandboxes (up, down, list, show)
   fmt           Reformat your configuration in the standard style
   force-unlock  Release a stuck lock on the current workspace
+  functions     Inspect and evaluate built-in expression functions
   graph         Generate a Graphviz graph of the steps in an operation
   import        Associate existing infrastructure with a ${TITLE_APP} resource
   login         Obtain and save credentials for a remote host
@@ -33,9 +34,8 @@ ${bold(`All other commands:`)}
   report        Generate multi-dimensional test execution reports
   show          Show the current state or a saved plan
   state         Advanced state management
-  taint         Mark a resource instance as not fully functional
   suite         Manage test suites and execution files (init, -fill, -link, -mark, -tags)
-  functions     Inspect and evaluate built-in expression functions
+  taint         Mark a resource instance as not fully functional
   untaint       Remove the 'tainted' state from a resource instance
   version       Show the current ${TITLE_APP} version
   workspace     Workspace management
