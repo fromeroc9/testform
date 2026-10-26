@@ -8,51 +8,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-10-26
 
 ### Added
-- **Quality Policy Governance (`testform policy`):**
-  - Dedicated CLI command without mandatory subcommands to list, audit, enable, and disable quality policies.
-  - Interactive management flags: `--enable <id>`, `--disable <id>`, `--show <id>`, `-s, --scope <scope>`, and `--json`.
-  - In-place modification of `main.yml` preserving YAML comments and formatting structure via AST manipulation.
-  - 7 built-in system policies with full descriptions: `identity-required`, `identity-unique`, `no-feature-tags`, `required-fields`, `required-gherkin`, `undeclared-fields`, and `duplicate-testruns-in-testplan`.
-  - Automatic discovery of custom policies from `.testform/policies/*.js` and shared modules `.testform/modules/**/policies/*.js`.
-  - Support for direct policy object exports, array exports, and factory functions (`({ registerPolicy }) => ...`).
-- **Native HTTP/REST & Custom Backends in Dictionary Mode:**
-  - Removed mandatory `type:` field requirement in `main.yml` in favor of clean, direct dictionary configuration (`backend.http:`, `backend.rest:`, `backend.custom:`, `backend.s3:`, etc.).
-  - Implemented native `HTTPBackend` with distributed locking, health checks, dynamic `{workspace}` interpolation, and configurable HTTP headers.
-  - Implemented `CustomBackend` with dynamic class loading from local files or npm packages via `source:` and arbitrary configuration options.
-  - Runtime backend configuration overrides via CLI flag `-backend-config="key=value"` and override files.
-- **Enterprise Governance & Resource Sharing via Modules:**
-  - Standardized enterprise-wide sharing of quality policies, custom resource templates, and backends across hundreds of microservices using native `modules:` definitions without redundant syntax.
+
+#### 🏛️ CLI Core & Terraform Parity
+- **Terraform Diagnostic Formatting:** Standardized all CLI error and warning outputs—including command-line syntax errors, unknown options, and missing arguments from the CAC parser—into HashiCorp Terraform diagnostic boxes (`╷ ... │ ... ╵`).
+- **Global Flag `-no-color`:** Implemented consistent color suppression across all output streams in every CLI command (`init`, `plan`, `apply`, `validate`, `refresh`, `graph`, `state`, etc.).
+- **Global Project Option Refactor:** Standardized the project identifier flag to `-project-id` across all commands (deprecating legacy `-projectId`).
+- **Canonical Address Syntax:** Refactored resource address resolution across the engine, replacing legacy `::` syntax with canonical dot/tag identifiers (`auth/login.case.feature.@tc-1`).
+- **Machine-Readable Version Inspection (`testform version -json`):** Enhanced the `version` command with a `-json` flag returning structured JSON containing `testform_version`, `platform`, `provider_selections`, and `testform_outdated` status.
+- **Provider Dependency Lock Recording:** Automatically generates `.testform.lock.hcl` during `testform init` to record and lock provider selections and versions.
+
+#### ⚙️ Configuration, Variables & Locals Engine
+- **First-Class Variables (`vars.yml` & CLI Flags):**
+  - Native loading of `vars.yml` and automatic discovery of `*.auto.vars.yml` / `*.vars.yml`.
+  - Supported `-var 'key=value'` and `-var-file=filename` flags across `validate`, `plan`, `apply`, `refresh`, `query`, and `taint`.
+  - Variable type enforcement, `enum` restriction validation, and custom declarative validations with `validation { condition = ..., error_message = ... }` blocks.
+- **Locals Management (`local.yml` & `locals:`):**
+  - Added support for reusable local values defined in `local.yml` or inline within `main.yml`.
+  - Implemented recursive and cascading resolution for local expressions (`${local.<name>}`).
+- **Interactive Variable Prompting (`-input=true`):**
+  - Added the `-input=true` flag to `testform plan` and `testform apply` to interactively prompt for missing required variables.
+  - Added `-detailed-exitcode` flag to return code `0` on no changes, `2` when changes are present, and `1` on error.
+
+#### 🪣 Multi-Cloud Backends & Dictionary Mode
+- **Zero-Type Dictionary Configuration:** Removed the mandatory `type:` field requirement in `main.yml`. Backends are now declared cleanly as dictionary keys: `backend.http:`, `backend.rest:`, `backend.custom:`, `backend.s3:`, `backend.azurerm:`, `backend.gcs:`, `backend.oci:`, `backend.github:`, `backend.local:`.
+- **Native HTTP/REST Backend (`HTTPBackend`):**
+  - Added native HTTP/REST remote state backend implementing distributed locking, health checks, dynamic `{workspace}` interpolation, and custom header authorization.
+- **Dynamic Custom Backend (`CustomBackend`):**
+  - Added dynamic backend loader capable of loading custom JavaScript/TypeScript classes from local files or npm packages via `source:`, passing free-form configuration options directly to the constructor.
+- **Backend CLI Overrides (`-backend-config`):**
+  - Added support for overriding backend settings via `-backend-config="key=value"` flags or external override files during `init`.
+- **Cloud Storage Credential Diagnostics:** Added informative error diagnostics when AWS S3, Azure Blob Storage, GCS, or OCI credentials fail to resolve.
+
+#### 🛡️ Quality Policy Governance (`testform policy`)
+- **Policy Management CLI:** Added dedicated `testform policy` command without mandatory subcommands to list, audit, enable, and disable quality policies in a formatted table.
+- **In-Place Configuration Persistence:** Flags `--enable <id>` and `--disable <id>` update `main.yml` in-place while preserving existing comments, indentation, and structure via AST document manipulation.
+- **Policy Inspection & Filtering:** Added `--show <id>` for detailed policy introspection, `-s, --scope <scope>` for filtering by `testcase`, `testrun`, or `testplan`, and `--json` for CI/CD automation pipelines.
+- **7 Built-in System Policies:**
+  - `identity-required`: Enforces identity tags (`@tc-*`, `@tr-*`, `@tp-*`).
+  - `identity-unique`: Verifies identity tag uniqueness within scope.
+  - `no-feature-tags`: Restricts non-standard tags at the Feature level.
+  - `required-fields`: Ensures required fields defined in configuration are present.
+  - `required-gherkin`: Validates required Gherkin structure and keywords (`Given`, `When`, `Then`).
+  - `undeclared-fields`: Warns about scenario fields not declared in configuration.
+  - `duplicate-testruns-in-testplan`: Validates against duplicate testruns inside the same or across testplans.
+- **Policy Auto-Discovery:** Automatically scans `.testform/policies/*.js` and shared modules `.testform/modules/**/policies/*.js`. Supports direct object exports, array exports, and factory functions (`({ registerPolicy }) => ...`).
+
+#### 🧩 Custom Resources & Enterprise Module Governance
+- **Enterprise Governance (200+ Projects):** Standardized cross-project sharing of policies, custom resource templates, and backends across hundreds of microservices using native `modules:` definitions, eliminating the need for custom `extends` syntax.
 - **Custom Resource Templates (`registerResource`):**
-  - Programmatic resource registration via `registerResource` and auto-discovery in `.testform/resources/*.js` and `.testform/modules/**/resources/*.js`.
+  - Programmatic resource registration via `registerResource` and automatic discovery from `.testform/resources/*.js` and `.testform/modules/**/resources/*.js`.
   - Extensible scenario-to-field mapping (`fields`), computed attributes (`knownAfterApply`), and execution report comment hooks (`comments`).
-- **Enhanced `graph` Command with Terraform Parity:**
-  - Output formats support: `-format=dot`, `-format=mermaid`, `-format=tree`, with user-friendly aliases `-format=console` and `-format=string`.
-  - Flag `-draw-cycles` for visual debugging and cycle detection in DAG dependency flows.
-  - Updated command help aligned with HashiCorp Terraform CLI conventions.
-- **Functions Command & Expression Evaluator:**
-  - CLI command `testform functions <name>` for offline manual inspection of built-in functions.
-  - Single-line expression evaluation flag `--eval "<expr>"`.
-  - Complete HCL-style expression engine supporting standard math, string manipulation (`lower`, `upper`, `trim`, `replace`, `split`, `join`), collection utilities (`length`, `contains`, `keys`, `values`), encoding/decoding (`jsonencode`, `jsondecode`, `base64encode`, `base64decode`), and system functions (`uuid`, `timestamp`, `try`, `coalesce`).
-  - Support for ternary conditionals `${cond ? a : b}`, logical operators (`&&`, `||`, `!`), and recursive symbol resolution.
-- **Lifecycle Meta-Arguments & Topological Execution:**
-  - Lifecycle rules: `prevent_destroy`, `ignore_changes`, and `create_before_destroy`.
-  - Execution order enforcement via `@depends_on("feature.tag")` with cycle detection.
-- **Ephemeral Workspaces (`testform ephemeral`):**
-  - Ephemeral sandbox lifecycle management (`up`, `down`, `list`, `show`) for automated CI/CD branch testing.
-- **Programmatic SDK Exports (`@fromeroc9/testform`):**
-  - Exported core SDK functions, classes, and types: `registerPolicy`, `policy`, `registerResource`, `resource`, `evaluateExpression`, `interpolateExpressions`, `Config`, `State`, and contracts `IBackend` and `IProvider`.
+
+#### 🗄️ State Management Suite (`testform state`, `taint`, `untaint`)
+- **Advanced State Management (`testform state`):**
+  - `identities`: Lists the identities of resources tracked in the state.
+  - `list`: Lists resources recorded in the state.
+  - `show <address>`: Displays detailed attributes of an instance in state.
+  - `rm <address>`: Removes resource instances from state without destroying remote items.
+  - `mv <src> <dst>`: Renames or moves a resource in state.
+  - `pull`: Streams the active state to stdout.
+  - `push`: Updates the remote state from a local file.
+  - `replace-provider`: Replaces provider bindings across resources in state.
+  - Automated timestamped backup generation before any state-modifying action.
+  - Output formatted for Unix utilities (`grep`, `awk`).
+- **Resource Tainting (`testform taint` & `testform untaint`):**
+  - Manually marks or unmarks resources for recreation during subsequent execution plans.
+  - Flags: `-allow-missing`, `-lock`, `-lock-timeout`, `-ignore-remote-version`, `-var`, `-var-file`.
+- **Force Unlock (`testform force-unlock`):**
+  - Safely breaks stuck distributed concurrency locks by lock ID.
+
+#### 🛠️ Developer Tools & Subcommands
+- **Graph Visualizer (`testform graph`):**
+  - Multiple output formats: Graphviz DOT (`-format=dot`), Mermaid (`-format=mermaid`), ASCII Tree (`-format=tree`), with readable aliases `-format=console` and `-format=string`.
+  - Added `-draw-cycles` flag for visual cycle detection in dependency DAGs.
+- **Functions Inspection & Evaluator (`testform functions`):**
+  - CLI documentation manual for built-in functions (`testform functions <name>`).
+  - Added single-line expression evaluator flag `--eval "<expr>"`.
+- **Code Formatter (`testform fmt`):**
+  - Added `-diff` flag displaying formatting diffs in unified diff format.
+- **Remote Infrastructure Querying (`testform query`):**
+  - Overhauled command options: added `-var`, `-var-file`, `-generate-config-out=path`, `-json`, and `-no-color`. Removed legacy scope and filtering flags.
+- **Provider Inspection (`testform providers`):**
+  - Added command displaying provider requirement trees across configuration and modules.
+  - Added subcommands: `lock`, `mirror`, and `schema`.
+- **Multi-Provider Authentication (`testform login` / `testform logout`):**
+  - Supported token acquisition and local secure credential storage for GitHub, GitLab, and custom providers.
+- **Ephemeral QA Sandboxes (`testform ephemeral`):**
+  - Ephemeral workspace lifecycle management: `up`, `down`, `list`, `show`.
+- **Targeted Refresh (`testform refresh`):**
+  - Added `-target=resource` flag for scoping refresh operations to specific resources and their dependencies.
+- **Interactive Diffing (`testform diff`):**
+  - Interactive prompt mode matching Terraform input queries; removed redundant `-scope` option.
+
+#### 🧮 HCL-Style Expression Engine & Built-in Functions
+- **Expression AST Evaluator:** Lexer, parser, and evaluator supporting `${...}` syntax, comparison operators, and ternary conditionals (`${cond ? a : b}`).
+- **Standard Function Catalog:**
+  - Strings: `lower`, `upper`, `trim`, `replace`, `split`, `join`.
+  - Collections: `length`, `contains`, `keys`, `values`.
+  - Encoding: `jsonencode`, `jsondecode`, `base64encode`, `base64decode`.
+  - System: `uuid`, `timestamp`, `try`, `coalesce`, `file`.
+
+#### 📦 Programmatic SDK (`@fromeroc9/testform`)
+- Exported core SDK functions, classes, and types for Node.js/TypeScript developers:
+  - Functions: `registerPolicy`, `registerResource`, `evaluateExpression`, `interpolateExpressions`.
+  - Classes: `Config`, `State`, `VariableParser`.
+  - Singletons: `policy`, `resource`.
+  - Interfaces: `IBackend`, `IProvider`, `PolicyDefinition`, `PolicyRule`, `ResourceTemplate`, `ResourceField`, `EvaluationContext`, `ParserScenario`.
+
+---
 
 ### Changed
-- **CLI Diagnostic Box Formatting:**
-  - Standardized all command and argument validation errors (including CAC parser errors for missing arguments or invalid options) into Terraform-style diagnostic boxes (`╷ ... │ ... ╵`).
-- **Provider Parallelism & Concurrency:**
-  - Tuned batch processing and concurrent operations to prevent API rate-limiting during large-scale apply and refresh phases.
+- **CLI Error Handling:** Replaced uncaught exception dumps with structured, colored diagnostic boxes across all commands.
+- **State Serialization Optimization:** Removed redundant body attributes and empty fields prior to persisting state, reducing file size and bandwidth consumption.
+- **Concurrency Rate-Limiting:** Optimized batching and parallelism defaults for cloud providers to avoid secondary rate limits.
+
+---
 
 ### Fixed
-- **Policy Registry Resilience:**
-  - Fixed defensive checks in `validate` and `plan` commands to prevent crashes when mock or partial policy objects are injected during unit testing.
-- **State Lookup & Serialization:**
-  - Optimized state serialization by cleaning empty attributes and removing redundant payload fields before disk writes.
+- **Policy Mock Compatibility:** Added defensive guards in `validate` and `plan` commands to prevent crashes when mock or partial policy objects are injected during testing.
+- **Scenario Scope Matching:** Resolved path resolution and normalization issues when executing commands across nested subdirectories or with `-chdir`.
+- **Provider Lock Resolution:** Fixed dependency recording during initialization to ensure lock files capture correct provider sources and version constraints.
 
 ## [1.0.17] - 2026-06-12
 
