@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/public/testform-logo.svg" alt="Testform Logo" width="80" height="80" />
+  <img src="assets/logo.svg" alt="Testform Logo" width="80" height="80" />
 </p>
 
 <h1 align="center">Testform</h1>
@@ -10,29 +10,33 @@
 
 ---
 
-**Testform** brings the **Test-as-Code** paradigm to your version control platforms. It transforms standard issue trackers (like GitHub) into full-fledged Test Management ecosystems. By treating your QA processes as code, it codifies issue APIs into declarative Gherkin (`.feature`) configurations that can be shared amongst team members, edited, reviewed in Pull Requests, and strictly versioned.
+**Testform** brings the **Test-as-Code** paradigm to your version control platforms. It transforms standard issue trackers (like GitHub) into full-fledged Test Management ecosystems. By treating your QA processes as code, it codifies test specifications into declarative Gherkin (`.feature`) configurations that can be shared amongst team members, edited, reviewed in Pull Requests, and strictly versioned.
 
 ---
 
 ## 📚 Documentation
 
-We have completely overhauled our documentation to be as intuitive and comprehensive as possible. 
+Comprehensive guides, API specifications, and interactive references are hosted at our documentation portal:
 
-**Start here:** 👉 **[Testform Documentation Portal (docs/index.md)](docs/index.md)** 👈
+👉 **[Official Testform Documentation Portal](https://fromeroc9.github.io/testform-docs/)**
+- **Repository:** [fromeroc9/testform-docs](https://github.com/fromeroc9/testform-docs)
+- **Quickstart & Guides:** Architecture, Providers, Multi-Cloud State, Target Scoping, and Modular Reporting.
+
+---
 
 ## Prerequisites
 
 Testform supports two operational modes depending on your team's workflow:
 
 ### 1. Local / Offline Mode (Zero Configuration)
-If you configure `provider: local` and `backend: local`, **no external services, tokens, or credentials are required**. Testform works 100% offline out-of-the-box, storing your test management state locally or committing it directly to Git.
+If you configure `provider: local` and `backend: local`, **no external services, tokens, or credentials are required**. Testform works 100% offline out-of-the-box, storing your test management state locally in `testform.state` or committing it directly to Git.
 
 ### 2. GitHub Provider Mode (`provider: github`)
 When synchronizing your test specifications with GitHub Issues and GitHub Projects, your repository and organization must meet the following prerequisites:
 
 1. **GitHub Project (Projects V2):**
    - An active GitHub Project (organization or user level) linked to your target repository.
-   - A single-select field named **`Status`** containing the following exact option values:
+   - A single-select field named strictly **`Status`** containing the following exact option values:
      - `Todo`
      - `Done`
      - `passed`
@@ -42,7 +46,7 @@ When synchronizing your test specifications with GitHub Issues and GitHub Projec
      - `unexecuted`
 
 2. **Repository Labels:**
-   - The repository requires the following labels to categorize issues:
+   - The repository requires the following 5 labels to categorize issues:
      - `bug`
      - `testcase`
      - `testplan`
@@ -54,7 +58,7 @@ When synchronizing your test specifications with GitHub Issues and GitHub Projec
      - **Classic PAT:** `repo` (Full control of private repositories) and `project` (Read and write projects) scopes.
      - **Fine-Grained PAT:** Repository permissions (`Issues: Read and write`) and Organization permissions (`Projects: Read and write`).
    - Exported as an environment variable (e.g. `export GITHUB_TOKEN="ghp_..."`) or provided via `testform login`.
-   - > **💡 GitHub Actions Note:** The default `GITHUB_TOKEN` provided by Actions lacks the necessary scopes to manipulate organization-level GitHub Projects (V2). Always configure a repository secret with a dedicated PAT so automated CI/CD pipelines can transition issues and sync project boards.
+   - > **💡 GitHub Actions Note:** The default `GITHUB_TOKEN` provided by Actions lacks the necessary scopes to manipulate organization-level GitHub Projects (V2). Always configure a repository secret with a dedicated PAT (e.g., `secrets.TESTFORM_GITHUB_TOKEN`) so automated CI/CD pipelines can transition issues and sync project boards.
 
 4. **🚀 Automated Setup Workflow (Recommended):**
    To automate the entire GitHub Project and label setup in seconds, we recommend using our automated **[Install Testform Labels and Project](.github/workflows/install.yml)** workflow. It will automatically:
@@ -72,23 +76,43 @@ npm install -g docx exceljs
 npm install --save-dev docx exceljs
 ```
 
+---
+
 ## Installation
 
-You can install Testform directly onto your system using npm. It is distributed as a global Node.js package:
+Testform is distributed as a global CLI tool via npm:
 
 ```bash
-npm install -g testform
+npm install -g @fromeroc9/testform@beta
 ```
 
-> **Note:** Testform requires Node.js v16 or higher to be installed on your system.
+Verify your installation:
+
+```bash
+testform -version
+```
+
+> **Note:** Testform requires **Node.js v18.0.0** or higher.
+
+---
 
 ## Quickstart (TL;DR)
 
-1. Create a `testform.yml` configuration file at the root of your project:
+1. Initialize your workspace (generates the `main.yml` manifest and backend ledger):
+   ```bash
+   testform init
+   ```
+
+   This produces the root `main.yml` configuration:
    ```yaml
-   version: "1.0"
-   provider: local
-   backend: local
+   testform:
+     required_version: ">= 1.0.0"
+     backend:
+       local:
+         path: "testform.state"
+
+   provider:
+     local: {}
 
    variable:
      app_url:
@@ -105,14 +129,13 @@ npm install -g testform
    scopes:
      testcase:
        match: "*.case.feature"
+     testrun:
+       match: "*.run.feature"
+     testplan:
+       match: "*.plan.feature"
    ```
 
-2. Initialize your workspace (backend ledger and providers):
-   ```bash
-   testform init
-   ```
-
-3. Write your Gherkin tests with variables and locals (e.g., `login.case.feature`):
+2. Write declarative BDD tests with variables and locals (e.g., `login.case.feature`):
    ```gherkin
    @testcase
    Feature: User Login
@@ -124,7 +147,7 @@ npm install -g testform
        Then the system redirects to "${var.app_url}/inventory.html"
    ```
 
-4. Validate, preview, and apply your test infrastructure:
+3. Validate, preview, apply, and report:
    ```bash
    # Validate syntax and configuration
    testform validate
@@ -161,5 +184,6 @@ npm install -g testform
 - **Terraform-grade State Management:** State locking, drift detection (`diff`), manual taint/untaint lifecycle, HCL resource display (`state show`), and dependency DAG rendering (`graph`).
 - **Global Flags:** `-chdir=<path>`, `-no-color`, and `-compact-warnings` supported universally across commands.
 
-For full details, please visit our **[Documentation Portal (docs/)](docs/)**.
+---
 
+For full documentation and API specifications, visit our **[Official Documentation Portal](https://fromeroc9.github.io/testform-docs/)**.

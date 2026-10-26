@@ -1,0 +1,20 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tf-stem-icon" x1="12.5" y1="15" x2="19.5" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="tf-top-icon" x1="12.5" y1="4" x2="19.5" y2="17" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+  </defs>
+  <!-- Top-Left Wing (Indigo/Violet) -->
+  <path d="M 3.5 13 L 10.5 9 L 10.5 18 L 3.5 22 Z" fill="#6366f1" />
+  <!-- Top-Center Tile (Gradient Deep Blue to Indigo) -->
+  <path d="M 12.5 8 L 19.5 4 L 19.5 13 L 12.5 17 Z" fill="url(#tf-top-icon)" />
+  <!-- Top-Right Wing (Sky Blue) -->
+  <path d="M 21.5 13 L 28.5 9 L 28.5 18 L 21.5 22 Z" fill="#38bdf8" />
+  <!-- Stem Lower Center Tile (Gradient Sky to Blue) -->
+  <path d="M 12.5 19 L 19.5 15 L 19.5 24 L 12.5 28 Z" fill="url(#tf-stem-icon)" />
+</svg>
