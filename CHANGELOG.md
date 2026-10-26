@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### 📊 Modular Reporting & Multi-Format Analytics Engine (`testform report`)
+- **Full Architecture Modularization:** Completely eradicated monolithic reporting code into an extensible, decoupled engine (`src/reports/`) separating data extraction (`collect`), formatting (`render`), and dynamic template patching.
+- **Core Analytics Catalog (9 Reports + Raw):**
+  - Scope Test Case: `testcase-summary`, `test-case-activity`.
+  - Scope Test Run: `testrun-summary` (with passRate), `testrun-detailed`.
+  - Scope Test Plan: `testplan-summary`.
+  - Multi-Dimensional & Quality: `defects`, `traceability`, `coverage`, `two-dimensional`, and `raw`.
+- **First-Class Core Formats:**
+  - Native generation of Markdown (`md`), JSON (`json`), CSV (`csv`), Word (`docx`), and Excel (`xlsx`).
+- **Standardized Dynamic Template Engine (`${...}`):**
+  - Standardized Word (`.docx`) and Excel (`.xlsx`) template interpolation with native `${var.*}`, `${report.title}`, `${date}`, and `${table}` dynamic anchors, matching Testform variable conventions without disruption.
+- **Unified Filtering & Grouping (`StateQuery`):**
+  - Unified `-filter` flag across `query` and `report` supporting attribute pairs (`status=failed`, `label=@smoke`), custom fields from `main.yml` (`priority=high`), and inferred free-text search.
+  - Added dynamic grouping via `-groupBy=<field>`.
+- **Zero-Pollution Autoloading:**
+  - Full Terraform parity with no config pollution in `main.yml`: automatically discovers and loads custom reports (`.testform/reports/*.ts`), custom formats (`.testform/reports/*.format.ts`), and project templates (`.testform/reports/report.docx`, `.testform/reports/report.xlsx`).
+- **Comprehensive Documentation & Test Suite:** Added `docs/reports.md`, `docs/index.md`, and 9 end-to-end unit tests (`test/modular-reports.test.ts`).
+
 #### 🏛️ CLI Core & Terraform Parity
 - **Terraform Diagnostic Formatting:** Standardized all CLI error and warning outputs—including command-line syntax errors, unknown options, and missing arguments from the CAC parser—into HashiCorp Terraform diagnostic boxes (`╷ ... │ ... ╵`).
 - **Global Flag `-no-color`:** Implemented consistent color suppression across all output streams in every CLI command (`init`, `plan`, `apply`, `validate`, `refresh`, `graph`, `state`, etc.).

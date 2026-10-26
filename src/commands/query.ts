@@ -1,11 +1,11 @@
 import { bold, green, yellow, red, cyan, gray, dim, magenta } from 'chalk';
-import { State } from '../core/state';
-import { Config } from '../core/config';
-import { IScope, StateResource } from '../core/types';
-import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
-import { resolve, join } from 'path';
-
+import { IScope } from '../core/types';
+import { TITLE_APP } from '../core/const';
+import { resolve } from 'path';
 import { writeFileSync } from 'fs';
+import { StateQuery, QueryResultItem } from '../core/query';
+
+export { QueryResultItem } from '../core/query';
 
 export interface QueryCmdOptions {
     dir?: string;
@@ -17,6 +17,8 @@ export interface QueryCmdOptions {
     milestone?: string;
     custom?: string | string[];
     search?: string;
+    filter?: string | string[];
+    target?: string | string[];
     json?: boolean;
     count?: boolean;
     verbose?: boolean;
@@ -24,22 +26,6 @@ export interface QueryCmdOptions {
     backupPath?: string;
     generateConfigOut?: string;
     variables?: any;
-}
-
-export interface QueryResultItem {
-    id: string;
-    type: string;
-    canonicalScope: string;
-    title: string;
-    status: string;
-    issueNumber?: number;
-    remoteId?: string;
-    labels: string[];
-    assignees: string[];
-    milestone?: string;
-    custom_fields: Record<string, string>;
-    lastApplied?: string;
-    tainted?: boolean;
 }
 
 export const queryCmd = async (options: QueryCmdOptions = {}) => {
@@ -53,6 +39,8 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
         milestone,
         custom,
         search,
+        filter,
+        target,
         json = false,
         count = false,
         verbose = false,
@@ -62,12 +50,10 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
     } = options;
 
     const targetDir = testDirectory ? resolve(dir, testDirectory) : resolve(dir);
-    const stateObj = new State(dir, statePath, backupPath);
-    await stateObj.init();
+    const stateQuery = new StateQuery(targetDir, statePath, backupPath);
+    await stateQuery.init();
 
-    const allResources = stateObj.getState().resources || [];
-
-    if (allResources.length === 0) {
+    if (stateQuery.getResources().length === 0) {
         console.error(red('╷'));
         console.error(`${red('│')} ${bold(red('Error:'))} ${bold('No resources to query')}`);
         console.error(red('│'));
@@ -76,130 +62,28 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
         process.exit(1);
     }
 
-    // Helper for canonical scope
-    const getCanonicalScope = (type: string): string => {
-        if (type.includes('_')) return type.split('_').slice(1).join('_');
-        return type;
-    };
+    // Apply target scoping first
+    const targetedItems = stateQuery.filterByTarget(target);
 
-    // Build latest status map from testruns for testcases
-    const testcaseStatusMap = new Map<string, string>();
-    const testruns = allResources.filter(r => getCanonicalScope(r.type) === 'testrun');
-    for (const tr of testruns) {
-        const statuses = tr.attributes.testcaseStatuses as Record<string, string> || {};
-        for (const [tcId, st] of Object.entries(statuses)) {
-            testcaseStatusMap.set(tcId, st);
-        }
+    // Unify all filters (legacy options + new unified -filter)
+    const filters: string[] = [];
+
+    if (filter) {
+        if (Array.isArray(filter)) filters.push(...filter);
+        else filters.push(filter);
     }
-
-    // Map resources to query items
-    let items: QueryResultItem[] = allResources.map(res => {
-        const cScope = getCanonicalScope(res.type);
-        let resStatus = 'unexecuted';
-
-        if (cScope === 'testcase') {
-            if (testcaseStatusMap.has(res.identity)) {
-                resStatus = testcaseStatusMap.get(res.identity)!;
-            } else if (res.attributes.status) {
-                resStatus = String(res.attributes.status);
-            }
-        } else if (res.attributes.status) {
-            resStatus = String(res.attributes.status);
-        } else if (res.attributes.issueNumber) {
-            resStatus = 'active';
-        }
-
-        const rawCustom = (res.attributes.custom_fields || {}) as Record<string, any>;
-        const customFields: Record<string, string> = {};
-        for (const [k, v] of Object.entries(rawCustom)) {
-            customFields[k.toLowerCase()] = String(v);
-        }
-
-        const labels = Array.isArray(res.attributes.labels)
-            ? res.attributes.labels.map(String)
-            : (res.attributes.labels ? String(res.attributes.labels).split(',') : []);
-
-        const assignees = Array.isArray(res.attributes.assignees)
-            ? res.attributes.assignees.map(String)
-            : (res.attributes.assignees ? String(res.attributes.assignees).split(',') : []);
-
-        return {
-            id: res.identity,
-            type: res.type,
-            canonicalScope: cScope,
-            title: String(res.attributes.title || ''),
-            status: resStatus,
-            issueNumber: res.attributes.issueNumber,
-            remoteId: res.attributes.remoteId,
-            labels,
-            assignees,
-            milestone: res.attributes.milestone ? String(res.attributes.milestone) : undefined,
-            custom_fields: customFields,
-            lastApplied: res.lastApplied,
-            tainted: Boolean(res.tainted)
-        };
-    });
-
-    // ── Apply Filters ──
-
-    // 1. Scope filter
-    if (scope && scope !== 'all') {
-        const targetScope = String(scope).toLowerCase();
-        items = items.filter(item => item.canonicalScope === targetScope || item.type.toLowerCase().includes(targetScope));
-    }
-
-    // 2. Status filter
-    if (status) {
-        const targetStatus = status.toLowerCase();
-        items = items.filter(item => item.status.toLowerCase() === targetStatus);
-    }
-
-    // 3. Label / Tag filter
-    if (label) {
-        const cleanTarget = label.startsWith('@') ? label.slice(1).toLowerCase() : label.toLowerCase();
-        items = items.filter(item => item.labels.some(l => {
-            const cleanL = l.startsWith('@') ? l.slice(1).toLowerCase() : l.toLowerCase();
-            return cleanL === cleanTarget;
-        }));
-    }
-
-    // 4. Assignee filter
-    if (assignee) {
-        const targetAssignee = assignee.toLowerCase();
-        items = items.filter(item => item.assignees.some(a => a.toLowerCase().includes(targetAssignee)));
-    }
-
-    // 5. Milestone filter
-    if (milestone) {
-        const targetMilestone = milestone.toLowerCase();
-        items = items.filter(item => item.milestone && item.milestone.toLowerCase().includes(targetMilestone));
-    }
-
-    // 6. Custom field filter (e.g. priority=high)
+    if (scope && scope !== 'all') filters.push(`scope=${scope}`);
+    if (status) filters.push(`status=${status}`);
+    if (label) filters.push(`label=${label}`);
+    if (assignee) filters.push(`assignee=${assignee}`);
+    if (milestone) filters.push(`milestone=${milestone}`);
     if (custom) {
-        const customFilters = Array.isArray(custom) ? custom : [custom];
-        for (const cf of customFilters) {
-            const eqIdx = cf.indexOf('=');
-            if (eqIdx !== -1) {
-                const k = cf.slice(0, eqIdx).trim().toLowerCase();
-                const v = cf.slice(eqIdx + 1).trim().toLowerCase();
-                items = items.filter(item => {
-                    const itemVal = item.custom_fields[k];
-                    return itemVal !== undefined && itemVal.toLowerCase() === v;
-                });
-            }
-        }
+        const customArr = Array.isArray(custom) ? custom : [custom];
+        filters.push(...customArr);
     }
+    if (search) filters.push(search);
 
-    // 7. Search filter (text in identity, title)
-    if (search) {
-        const targetSearch = search.toLowerCase();
-        items = items.filter(item =>
-            item.id.toLowerCase().includes(targetSearch) ||
-            item.title.toLowerCase().includes(targetSearch) ||
-            item.labels.some(l => l.toLowerCase().includes(targetSearch))
-        );
-    }
+    const items: QueryResultItem[] = filters.length > 0 ? stateQuery.filter(filters, targetedItems) : targetedItems;
 
     // ── Output ──
 

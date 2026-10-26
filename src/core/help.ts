@@ -982,26 +982,28 @@ ${bold(`Options:`)}
 
   -format=format      Output format.
                       Default is "md" (Markdown).
-                      Available formats: md, csv, json.
+                      Available formats: md, json, csv, xlsx, docx.
+                      Custom formats can be auto-loaded from .testform/reports/.
 
   -out=path           Path to save the generated report.
                       Default is stdout.
 
-  -filter=key=val     Filter data by any state attribute. Can be
-                      specified multiple times.
+  -filter=query       Filter data by attribute/field (key=val) or inferred
+                      free-text search (text). Can be specified multiple times.
+
+  -target=resource    Target a specific resource, testrun (@tr-N), or
+                      testplan (@tp-N). When targeting a testplan, reports
+                      automatically include all linked testruns and executions.
 
   -groupBy=field      Group results dynamically by a specific field
-                      using JSONPath (e.g. attributes.custom_fields.sprint).
-                      Default is "testcase" (testcase-summary) or "testrun" (testrun-summary).
-                      Other values: "testplan", "feature".
+                      (e.g. status, label, assignee, feature, priority).
 
-  -apply              Create a GitHub Issue for the report.
+  -template=path      Path to a custom template file (Word .docx, HTML, etc.).
 
-  -var=key=val        Set a custom field value to attach when -apply is used.
+  -var=key=val        Set a variable value to interpolate in report templates.
                       Use this option more than once to set more than one variable.
 
-  -var-file=filename  Load custom field values from the given file (.json or key=value format)
-                      to attach when -apply is used.
+  -var-file=filename  Load variable values from the given YAML/JSON file.
 `.trim();
 
 export const HELP_TEST = `

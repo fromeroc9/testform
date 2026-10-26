@@ -527,10 +527,12 @@ export function createCli() {
         });
 
     // ─── report ───────────────────────────────────────────────────────────
-    cli.command('report [type]', 'Generate test metrics and matrices (raw, matrix, summary)')
-        .option('--format <format>', 'Report output format (md, json, html)', { default: 'md' })
-        .option('--filter <filter>', 'Filter report items')
-        .option('--apply', 'Automatically apply execution reports to platform')
+    cli.command('report [type]', 'Generate test metrics and matrices (summary, traceability, coverage, etc.)')
+        .option('--format <format>', 'Report output format (md, json, csv, xlsx, docx)', { default: 'md' })
+        .option('--filter <filter>', 'Filter report items (key=value or inferred text search)')
+        .option('--target <target>', 'Target a specific resource, testrun (@tr-N), or testplan (@tp-N)')
+        .option('--group-by <field>', 'Group report items dynamically by field')
+        .option('--template <path>', 'Path to custom template file')
         .option('-o, --out <path>', 'Write report to destination file')
         .option('--state <path>', 'Path to state file')
         .action(async (type, options) => {
@@ -540,11 +542,13 @@ export function createCli() {
 
             await reportCmd({
                 dir: workDir,
-                type: type || 'raw',
+                type: type || 'testcase-summary',
                 format: options.format || 'md',
                 filter: filterArr,
+                target: options.target,
+                groupBy: options.groupBy || options['group-by'],
+                template: options.template,
                 variables: variableParser,
-                apply: options.apply,
                 out: options.out,
                 statePath: options.state
             });
@@ -643,6 +647,8 @@ export function createCli() {
 
     // ─── query ───────────────────────────────────────────────────────────
     cli.command('query', 'Query and filter managed test resources in state')
+        .option('--filter <filter>', 'Filter resources by key=value or inferred text search')
+        .option('--target <target>', 'Target a specific resource, testrun, or testplan')
         .option('--custom <custom>', 'Filter by custom field (key=value)')
         .option('--search <text>', 'Free-text search in title or labels')
         .option('--generate-config-out <path>', 'Generate import configuration blocks at PATH')
@@ -660,6 +666,8 @@ export function createCli() {
                 dir: workDir,
                 testDirectory: options.testDirectory,
                 scope,
+                filter: options.filter,
+                target: options.target,
                 custom: options.custom,
                 search: options.search,
                 generateConfigOut: options.generateConfigOut,

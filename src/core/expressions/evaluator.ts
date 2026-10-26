@@ -133,6 +133,21 @@ export class Evaluator {
             return ctx.data?.[key];
         }
 
+        // Handle report.PATH
+        if (name.startsWith('report.')) {
+            const key = name.slice(7);
+            const reportData = ctx.data?.report || ctx.data;
+            if (reportData) {
+                const parts = key.split('.');
+                let cur = reportData;
+                for (const part of parts) {
+                    if (cur === undefined || cur === null) return undefined;
+                    cur = cur[part];
+                }
+                return cur;
+            }
+        }
+
         // Fallback: direct name in vars or locals
         if (ctx.vars && name in ctx.vars) {
             return ctx.vars[name];

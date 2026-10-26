@@ -23,6 +23,17 @@ export function elapsedSeconds(startTime: number): string {
     return ((Date.now() - startTime) / 1000).toFixed(0);
 }
 
+export function resolvePath(obj: any, path: string): any {
+    if (!path || !obj) return undefined;
+    const parts = path.replace(/\[(\w+)\]/g, '.$1').split('.');
+    let current = obj;
+    for (const part of parts) {
+        if (current === undefined || current === null) return undefined;
+        current = current[part];
+    }
+    return current;
+}
+
 export function formatIdentityDisplay(identity: string): string {
     return identity;
 }

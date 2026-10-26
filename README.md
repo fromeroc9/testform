@@ -100,6 +100,10 @@ npm install -g testform
    # Inspect state resources using dot notation
    testform state list
    testform state show local_testcase.login.case.feature.@tc-1
+
+   # Generate multi-format execution reports (Markdown, Word, Excel, JSON, CSV)
+   testform report testrun-summary -format=md
+   testform report testcase-summary -format=docx -out=report.docx
    ```
 
 ---
@@ -107,6 +111,7 @@ npm install -g testform
 ## 🚀 Key Features
 
 - **Test-as-Code Engine:** Declarative management for Testcases, Testruns, and Testplans using Gherkin.
+- **Modular Reporting & Multi-Format Analytics (`testform report`):** Generates 9 multidimensional reports natively exported to Markdown, JSON, CSV, Word (`.docx`), and Excel (`.xlsx`) with `${...}` dynamic template markers, unified `-filter` queries, and zero-pollution autoloading from `.testform/reports/`.
 - **5-Tier Variables Precedence:** Hierarchy spanning base `main.yml`, `variable.yml`/`local.yml`, domain modules, `-var-file`, and `-var` flags with multi-pass recursive interpolation.
 - **100% Offline Capability:** Full local backend (`backend: local`) and mock provider (`provider: local`) for deterministic testing without external dependencies or tokens.
 - **Terraform-grade State Management:** State locking, drift detection (`diff`), manual taint/untaint lifecycle, HCL resource display (`state show`), and dependency DAG rendering (`graph`).
