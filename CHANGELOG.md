@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.1] - 2026-10-26
+
+### Added
+
+#### 🎯 Target Scoping for Reports (`testform report -target`)
+- **Granular Scoping:** Added `-target` option across the reporting engine to restrict outputs to a specific testrun (`-target=@tr-1` or `-target=sprint1.run.feature`) or an entire testplan (`-target=@tp-1`).
+- **Automated Testplan Expansion:** When targeting a test plan (`testplan`), `StateQuery.filterByTarget` inspects `attributes.testruns`, recursively discovers all linked runs, and scopes the report to include all associated test cases and execution outcomes.
+
+#### 📄 Dynamic Binary Reports: Word (`.docx`) & Excel (`.xlsx`)
+- **Native Document Generation:** First-class support for compiling report metrics and tabular data into `.docx` and `.xlsx` files via the `--format` flag.
+- **Dynamic Variable Syntax Parity (`${...}`):**
+  - **Word (`.docx`):** Standardized dynamic placeholder replacement supporting `${report.title}`, `${title}`, `${date}`, `${total}`, `${passed}`, `${failed}`, `${var.<name>}`, `${report.<metric>}`, and `${table}` (with styled tables, borders, and alternating cell padding).
+  - **Excel (`.xlsx`):** Dynamic cell interpolation for `${var.<name>}`, `${report.<metric>}`, and `${date}`, alongside automated `${table}` block anchoring with dynamic row and column generation.
+- **On-Demand Driver Loading & Bundle Optimization:** Moved heavy binary packages (`docx` and `exceljs`) to optional peer dependencies dynamically resolved via `loadDriver()`, maintaining a lightweight binary footprint (~1.00 MB).
+- **Official Testform Branded Word Template:** Built an official default Word template (`templates/report.docx`) featuring the Testform brand identity, vector-aligned logo, executive KPI metric summary cards, and clean table placeholders with zero external corporate data.
+
+#### 🛡️ Terraform Diagnostic Standard for Reports & Formats
+- **Standardized Error Diagnostics:** Replaced generic error text and raw exceptions across `formats.ts`, `loader.ts`, and `report.ts` with canonical HashiCorp Terraform diagnostic blocks (`logger.push` with `╷ ... │ Error: ... ╵`).
+- **Actionable Diagnostic Guidance:** Detailed diagnostic boxes for missing optional dependencies (`npm install -g docx` / `npm install -g exceljs`), unrecognized report types (listing all available catalog options), unsupported formats, and missing custom template files.
+
+#### 🌐 Provider URL Decoupling & English Catalog Descriptions
+- **Dynamic Provider Link Resolution:** Replaced hardcoded GitHub issue URLs in `raw` and `defects` reports with dynamic `resolveItemUrl()`. Inspects `attributes.html_url` and `attributes.url`, safely returning `undefined` for `local` providers to prevent artificial URLs (e.g. `https://github.com/issues/0`).
+- **Standardized English Catalog Descriptions:** All 10 core report descriptions in `src/reports/catalog.ts` translated to standard English for consistency with Testform CLI guidelines.
+
+### Changed
+- **CLI Reports Catch Block:** Integrated typed `TestformError` handling in `src/commands/report.ts` to prevent redundant error banners when diagnostics have already been pushed.
+- **Raw Export Schema:** In `raw` report metadata, `url` and `issueUrl` are omitted/undefined for local provider resources, while maintaining backwards compatibility for remote providers.
+
+### Fixed
+- **Uncaught ENOENT on Missing Template:** Added explicit filesystem existence checks with Terraform diagnostic output when user supplies a nonexistent path via `-template`.
+- **Casing Normalization in Metrics:** Preserved original key casing when generating markdown and text-based reports with custom KPI metrics.
+- **Git History Privacy Purge:** Expunged confidential corporate templates from past commit history and rebuilt with official open-source brand assets.
+
+---
+
 ## [1.1.0] - 2026-10-26
 
 ### Added
