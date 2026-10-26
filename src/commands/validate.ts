@@ -190,6 +190,13 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
 
     // Run policy validation (will print violations via notify or JSON)
     if (!noTests) {
+        if (policy && typeof policy.loadCustomPolicies === 'function') {
+            await policy.loadCustomPolicies(configDir);
+        }
+        const policiesConfig = (config && typeof config.getPolicies === 'function') ? config.getPolicies() : undefined;
+        if (policiesConfig && policy && typeof policy.configure === 'function') {
+            policy.configure(policiesConfig);
+        }
         const hasViolations = policy.scanner(filtered, scope, isJson);
         if (hasViolations) {
             const err = new Error("Please fix them before continuing.");

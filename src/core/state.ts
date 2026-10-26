@@ -11,6 +11,8 @@ import { S3Backend, S3BackendConfig } from '../backends/s3';
 import { AzureRMBackend, AzureRMBackendConfig } from '../backends/azurerm';
 import { GCSBackend, GCSBackendConfig } from '../backends/gcs';
 import { GitHubBackend, GitHubBackendConfig } from '../backends/github';
+import { HTTPBackend, HTTPBackendConfig } from '../backends/http';
+import { CustomBackend, CustomBackendConfig } from '../backends/custom';
 import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
@@ -108,6 +110,10 @@ export class State {
                 gh?.repository,
                 gh?.tokenEnv
             );
+        } else if (backendConfig?.type === 'http' || backendConfig?.type === 'rest') {
+            this.backend = new HTTPBackend(backendConfig.config as unknown as HTTPBackendConfig, currentWorkspace);
+        } else if (backendConfig?.type === 'custom') {
+            this.backend = new CustomBackend(backendConfig.config as unknown as CustomBackendConfig, currentWorkspace, dir);
         } else {
             this.backend = new LocalBackend(dir, customStatePath, customBackupPath, currentWorkspace);
         }

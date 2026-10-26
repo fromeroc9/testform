@@ -131,6 +131,13 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 
 
     // If refresh-only, policy scanning might not be relevant for empty local state, but we already filtered it.
+    if (policy && typeof policy.loadCustomPolicies === 'function') {
+        await policy.loadCustomPolicies(dir);
+    }
+    const policiesConfig = (config && typeof config.getPolicies === 'function') ? config.getPolicies() : undefined;
+    if (policiesConfig && policy && typeof policy.configure === 'function') {
+        policy.configure(policiesConfig);
+    }
     const hasViolations = policy.scanner(filtered, scope, false, compactWarnings);
     if (hasViolations) {
         const err = new Error("Please fix them before continuing.");

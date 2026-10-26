@@ -1,3 +1,6 @@
+import { existsSync, readdirSync } from 'fs';
+import { resolve, extname } from 'path';
+import { pathToFileURL } from 'url';
 import { TITLE_APP, TITLE_CLI } from '../core/const';
 import { logger as notify } from '../core/logger';
 import { bold, green, red, yellow, dim } from 'chalk';
@@ -66,6 +69,92 @@ class Resource {
                 };
             } else {
                 this.userTemplates[template.type] = template;
+            }
+        }
+    }
+
+    async loadCustomResources(dir: string): Promise<void> {
+        const candidateDirs = [
+            resolve(dir, '.testform', 'resources'),
+            resolve(dir, 'resources'),
+        ];
+
+        // Modules support: .testform/modules/*/resources and .testform/modules/*/.testform/resources
+        const modulesDir = resolve(dir, '.testform', 'modules');
+        if (existsSync(modulesDir)) {
+            try {
+                const entries = readdirSync(modulesDir, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (entry.isDirectory()) {
+                        candidateDirs.push(resolve(modulesDir, entry.name, 'resources'));
+                        candidateDirs.push(resolve(modulesDir, entry.name, '.testform', 'resources'));
+                    }
+                }
+            } catch {
+                // Ignore unreadable modules dir
+            }
+        }
+
+        const validExts = ['.js', '.mjs', '.cjs', '.ts'];
+        for (const cDir of candidateDirs) {
+            if (!existsSync(cDir)) continue;
+            try {
+                const files = readdirSync(cDir, { withFileTypes: true });
+                for (const file of files) {
+                    if (file.isFile()) {
+                        const ext = extname(file.name).toLowerCase();
+                        if (validExts.includes(ext)) {
+                            const fullPath = resolve(cDir, file.name);
+                            await this.loadResourceFile(fullPath);
+                        }
+                    }
+                }
+            } catch {
+                // Ignore read errors
+            }
+        }
+    }
+
+    private async loadResourceFile(filePath: string): Promise<void> {
+        let loadedModule: any;
+        try {
+            loadedModule = await import(pathToFileURL(filePath).href);
+        } catch {
+            try {
+                loadedModule = require(filePath);
+            } catch {
+                return;
+            }
+        }
+
+        const exported = loadedModule?.default || loadedModule;
+        if (!exported) return;
+
+        // 1. Direct template definition: { type, fields, comments }
+        if (exported.type && Array.isArray(exported.fields)) {
+            this.registry(exported, 'user');
+            return;
+        }
+
+        // 2. Array of template definitions: [{ type, ... }, { type, ... }]
+        if (Array.isArray(exported)) {
+            for (const item of exported) {
+                if (item?.type && Array.isArray(item.fields)) {
+                    this.registry(item, 'user');
+                }
+            }
+            return;
+        }
+
+        // 3. Factory function: (context) => void
+        if (typeof exported === 'function') {
+            try {
+                exported({
+                    registerResource: (t: ResourceTemplate) => this.registry(t, 'user'),
+                    resource: this
+                });
+            } catch {
+                // Ignore factory error
             }
         }
     }

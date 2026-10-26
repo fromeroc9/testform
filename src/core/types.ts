@@ -8,7 +8,7 @@ export interface IProviderConfig {
 }
 
 export interface IBackendConfig {
-    type: 'local' | 's3' | 'azurerm' | 'gcs' | 'github' | 'oci';
+    type: 'local' | 's3' | 'azurerm' | 'gcs' | 'github' | 'oci' | 'http' | 'rest' | 'custom';
     config: Record<string, any>;
 }
 
@@ -80,6 +80,11 @@ export interface IConfig {
     outputs?: Record<string, any>;
     data?: Record<string, any>;
     report_mapping?: Record<string, string>;
+    policies?: {
+        disabled?: string[];
+        enabled?: string[];
+        [key: string]: any;
+    } | Record<string, any>;
 }
 
 // ─── Parser ──────────────────────────────────────────────────────────────────
@@ -216,6 +221,7 @@ export type PolicyAction = (scenarios: ParserScenario[], rules: PolicyRule[], sc
 export interface PolicyDefinition {
     id: string;
     scope: IScope[];
+    description?: string;
     action: PolicyAction;
 }
 

@@ -1,15 +1,29 @@
+import { existsSync, readdirSync } from 'fs';
+import { resolve, extname } from 'path';
+import { pathToFileURL } from 'url';
 import { Logger, logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { IScope, ParserScenario, PolicyRule, PolicyAction, PolicyDefinition } from '../core/types';
 
+export interface PolicyInfo {
+    id: string;
+    type: 'system' | 'user';
+    scope: IScope[];
+    description: string;
+    enabled: boolean;
+}
+
 class Policy {
     private builtinPolicies: Record<string, PolicyDefinition> = {};
     private userPolicies: Record<string, PolicyDefinition> = {};
+    private disabledPolicies: Set<string> = new Set();
 
     private resolve(scope: IScope): PolicyDefinition[] {
         const system = Object.values(this.builtinPolicies);
         const user = Object.values(this.userPolicies);
-        return [...system, ...user].filter((policy) => policy.scope.includes(scope));
+        return [...system, ...user].filter(
+            (policy) => policy.scope.includes(scope) && !this.disabledPolicies.has(policy.id)
+        );
     }
 
     registry(policy: PolicyDefinition, type: 'system' | 'user' = 'system'): void {
@@ -19,6 +33,175 @@ class Policy {
 
         if (type === 'user') {
             this.userPolicies[policy.id] = policy;
+        }
+    }
+
+    enable(id: string): boolean {
+        this.disabledPolicies.delete(id);
+        return true;
+    }
+
+    disable(id: string): boolean {
+        this.disabledPolicies.add(id);
+        return true;
+    }
+
+    isEnabled(id: string): boolean {
+        return !this.disabledPolicies.has(id);
+    }
+
+    get(id: string): PolicyInfo | undefined {
+        const sys = this.builtinPolicies[id];
+        if (sys) {
+            return {
+                id: sys.id,
+                type: 'system',
+                scope: sys.scope,
+                description: sys.description || '',
+                enabled: this.isEnabled(sys.id)
+            };
+        }
+        const usr = this.userPolicies[id];
+        if (usr) {
+            return {
+                id: usr.id,
+                type: 'user',
+                scope: usr.scope,
+                description: usr.description || '',
+                enabled: this.isEnabled(usr.id)
+            };
+        }
+        return undefined;
+    }
+
+    getAll(): PolicyInfo[] {
+        const result: PolicyInfo[] = [];
+        for (const sys of Object.values(this.builtinPolicies)) {
+            result.push({
+                id: sys.id,
+                type: 'system',
+                scope: sys.scope,
+                description: sys.description || '',
+                enabled: this.isEnabled(sys.id)
+            });
+        }
+        for (const usr of Object.values(this.userPolicies)) {
+            result.push({
+                id: usr.id,
+                type: 'user',
+                scope: usr.scope,
+                description: usr.description || '',
+                enabled: this.isEnabled(usr.id)
+            });
+        }
+        return result.sort((a, b) => a.id.localeCompare(b.id));
+    }
+
+    configure(config?: any): void {
+        if (!config || typeof config !== 'object') return;
+        if (Array.isArray(config.disabled)) {
+            for (const id of config.disabled) {
+                if (typeof id === 'string') this.disable(id.trim());
+            }
+        }
+        if (Array.isArray(config.enabled)) {
+            for (const id of config.enabled) {
+                if (typeof id === 'string') this.enable(id.trim());
+            }
+        }
+        for (const [key, val] of Object.entries(config)) {
+            if (key === 'disabled' || key === 'enabled') continue;
+            if (val === false || (val && typeof val === 'object' && (val as any).enabled === false)) {
+                this.disable(key);
+            } else if (val === true || (val && typeof val === 'object' && (val as any).enabled === true)) {
+                this.enable(key);
+            }
+        }
+    }
+
+    async loadCustomPolicies(dir: string): Promise<void> {
+        const candidateDirs = [
+            resolve(dir, '.testform', 'policies'),
+            resolve(dir, 'policies'),
+        ];
+
+        // Modules support: .testform/modules/*/policies and .testform/modules/*/.testform/policies
+        const modulesDir = resolve(dir, '.testform', 'modules');
+        if (existsSync(modulesDir)) {
+            try {
+                const entries = readdirSync(modulesDir, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (entry.isDirectory()) {
+                        candidateDirs.push(resolve(modulesDir, entry.name, 'policies'));
+                        candidateDirs.push(resolve(modulesDir, entry.name, '.testform', 'policies'));
+                    }
+                }
+            } catch {
+                // Ignore unreadable modules dir
+            }
+        }
+
+        const validExts = ['.js', '.mjs', '.cjs', '.ts'];
+        for (const cDir of candidateDirs) {
+            if (!existsSync(cDir)) continue;
+            try {
+                const files = readdirSync(cDir, { withFileTypes: true });
+                for (const file of files) {
+                    if (file.isFile()) {
+                        const ext = extname(file.name).toLowerCase();
+                        if (validExts.includes(ext)) {
+                            const fullPath = resolve(cDir, file.name);
+                            await this.loadPolicyFile(fullPath);
+                        }
+                    }
+                }
+            } catch {
+                // Ignore read errors
+            }
+        }
+    }
+
+    private async loadPolicyFile(filePath: string): Promise<void> {
+        let loadedModule: any;
+        try {
+            loadedModule = await import(pathToFileURL(filePath).href);
+        } catch {
+            try {
+                loadedModule = require(filePath);
+            } catch {
+                return;
+            }
+        }
+
+        const exported = loadedModule?.default || loadedModule;
+        if (!exported) return;
+
+        // 1. Direct policy definition: { id, scope, action, description }
+        if (exported.id && Array.isArray(exported.scope) && typeof exported.action === 'function') {
+            this.registry(exported, 'user');
+            return;
+        }
+
+        // 2. Array of policy definitions: [{ id, ... }, { id, ... }]
+        if (Array.isArray(exported)) {
+            for (const item of exported) {
+                if (item?.id && Array.isArray(item.scope) && typeof item.action === 'function') {
+                    this.registry(item, 'user');
+                }
+            }
+            return;
+        }
+
+        // 3. Factory function: (context) => void
+        if (typeof exported === 'function') {
+            try {
+                exported({
+                    registerPolicy: (p: PolicyDefinition) => this.registry(p, 'user'),
+                    policy: this
+                });
+            } catch {
+                // Ignore factory error
+            }
         }
     }
 
@@ -99,6 +282,7 @@ export const registerPolicy = (policyDefinition: PolicyDefinition) => policy.reg
 
 policy.registry({
     id: "undeclared-fields",
+    description: "Warns about scenario fields not declared in configuration",
     scope: ["testcase"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         for (const scenario of scenarios) {
@@ -119,6 +303,7 @@ policy.registry({
 
 policy.registry({
     id: "required-fields",
+    description: "Ensures required fields defined in configuration are present",
     scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         for (const scenario of scenarios) {
@@ -138,6 +323,7 @@ policy.registry({
 
 policy.registry({
     id: "required-gherkin",
+    description: "Validates required Gherkin structure and keywords (Given, When, Then)",
     scope: ["testcase"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         const validKeywords = ["scenario", "scenario outline"];
@@ -196,6 +382,7 @@ policy.registry({
 
 policy.registry({
     id: "no-feature-tags",
+    description: "Restricts non-standard tags at the Feature level",
     scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         const expectedTag = `@${scope}`;
@@ -241,6 +428,7 @@ policy.registry({
 
 policy.registry({
     id: "identity-required",
+    description: "Enforces identity tags (@tc-X, @tr-X, @tp-X)",
     scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         for (const scenario of scenarios ?? []) {
@@ -282,6 +470,7 @@ policy.registry({
 
 policy.registry({
     id: "identity-unique",
+    description: "Verifies identity tag uniqueness within scope",
     scope: ["testcase", "testrun", "testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         const seen = new Map<string, { scenario: string; line?: number; keyword: string; uri: string }[]>();
@@ -375,6 +564,7 @@ policy.registry({
 
 policy.registry({
     id: "duplicate-testruns-in-testplan",
+    description: "Prevents duplicate testruns inside the same or across testplans",
     scope: ["testplan"],
     action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
         const globalSeen = new Map<string, { uri: string; scenario: string; line: number }[]>();

@@ -25,6 +25,7 @@ ${bold(`All other commands:`)}
   login         Obtain and save credentials for a remote host
   logout        Remove locally-stored credentials for a remote host
   output        Show output values from your root module or state
+  policy        Inspect, enable, or disable validation policies
   print         Parse a feature file and print the JSON AST
   providers     Show the providers required for this configuration
   query         Query and filter managed test resources in state
@@ -1268,8 +1269,31 @@ ${bold(`Options:`)}
                     the value will be printed without formatting or quotes.
 `.trim();
 
+export const HELP_POLICY = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] policy [options]
+
+  Inspects, enables, or disables validation policies defined for this
+  configuration, or loaded from local and shared modules.
+
+  By default, '${TITLE_CLI} policy' lists all available policies (both built-in
+  and custom) along with their current status, scope, and description.
+
+${bold(`Options:`)}
+
+  -enable=ID        Enable the specified policy and save to configuration.
+
+  -disable=ID       Disable the specified policy and save to configuration.
+
+  -show=ID          Show detailed information and rule definitions for a policy.
+
+  -scope=SCOPE      Filter policies by scope (testcase, testrun, testplan).
+
+  -json             Produce output in a machine-readable JSON format.
+`.trim();
+
 export function getCommandHelp(command: string): string | null {
   switch (command) {
+    case 'policy': return HELP_POLICY;
     case 'init': return HELP_INIT;
     case 'validate': return HELP_VALIDATE;
     case 'plan': return HELP_PLAN;

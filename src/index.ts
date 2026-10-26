@@ -32,6 +32,7 @@ import { queryCmd } from './commands/query';
 import { ephemeralCmd } from './commands/ephemeral';
 import { providersCmd } from './commands/providers';
 import { functionsCmd } from './commands/functions';
+import { policyCmd } from './commands/policy';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
 import chalk from 'chalk';
@@ -740,6 +741,28 @@ export function createCli() {
             });
         });
 
+    // ─── policy ───────────────────────────────────────────────────────────
+    cli.command('policy', 'Inspect, enable, or disable validation policies')
+        .option('--enable <id>', 'Enable a specific policy')
+        .option('--disable <id>', 'Disable a specific policy')
+        .option('--show <id>', 'Show detailed description of a policy')
+        .option('-s, --scope <scope>', 'Filter policies by scope (testcase, testrun, testplan)')
+        .option('--json', 'Output policies in JSON format')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            const { singleScope } = getScope(options);
+
+            await policyCmd({
+                dir: workDir,
+                scope: singleScope,
+                enable: options.enable,
+                disable: options.disable,
+                show: options.show,
+                json: Boolean(options.json),
+                verbose: Boolean(options.verbose)
+            });
+        });
+
     // ─── functions ────────────────────────────────────────────────────────
     cli.command('functions [name]', 'Inspect and evaluate built-in expression functions')
         .option('--eval <expr>', 'Evaluate expression live in terminal')
@@ -836,6 +859,7 @@ export const main = async () => {
 };
 
 export { resource, registerResource } from './core/resources';
+export { policy, registerPolicy } from './core/policy';
 export { evaluateExpression, interpolateExpressions } from './core/expressions/evaluator';
 export { VariableParser } from './core/variables';
 export { Config } from './core/config';

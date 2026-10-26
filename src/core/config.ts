@@ -218,7 +218,7 @@ export class Config {
         // backend:
         //   s3:
         //     bucket: my-bucket
-        const KNOWN_BACKENDS = ['local', 'github', 's3', 'azurerm', 'gcs', 'oci'];
+        const KNOWN_BACKENDS = ['local', 'github', 's3', 'azurerm', 'gcs', 'oci', 'http', 'rest', 'custom'];
         for (const type of KNOWN_BACKENDS) {
             if ((raw as any)[type] !== undefined && typeof (raw as any)[type] === 'object') {
                 return {
@@ -244,6 +244,10 @@ export class Config {
         }
 
         return raw as IBackendConfig;
+    }
+
+    getPolicies(): Record<string, any> | undefined {
+        return (this.config as any).policies || (this.config as any).policy;
     }
 
     getScopeConf(scope: IScope | 'global'): IScopeConfig | undefined {
