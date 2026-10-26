@@ -2,11 +2,21 @@ import { IReport, ReportContext, ReportData } from './types';
 import { QueryResultItem } from '../core/query';
 import { resolvePath } from '../core/utils';
 
+function resolveItemUrl(d: QueryResultItem): string | undefined {
+    const attrs = (d.originalResource?.attributes || {}) as Record<string, any>;
+    if (attrs.html_url) return String(attrs.html_url);
+    if (attrs.url) return String(attrs.url);
+    if (d.issueNumber && d.type.includes('github')) {
+        return `https://github.com/issues/${d.issueNumber}`;
+    }
+    return undefined;
+}
+
 export const builtinReports: Record<string, IReport> = {
     // ── 1. Resumen de Casos de Prueba ─────────────────────────────────────────
     'testcase-summary': {
         name: 'testcase-summary',
-        description: 'Informe de casos de prueba y su estado de ejecución',
+        description: 'Test case execution status and overview',
         collect(ctx: ReportContext): ReportData {
             const tcItems = ctx.items.filter(it => it.canonicalScope === 'testcase');
             const items = tcItems.length > 0 ? tcItems : ctx.items;
@@ -38,7 +48,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 2. Resumen de Ejecuciones (Test Runs) ─────────────────────────────────
     'testrun-summary': {
         name: 'testrun-summary',
-        description: 'Resumen de corridas de prueba y métricas de ejecución',
+        description: 'Summary of test runs and execution metrics',
         collect(ctx: ReportContext): ReportData {
             const runGroups = ctx.stateQuery.group(ctx.items.filter(i => i.testRunId), 'testrun');
             const rows: (string | number)[][] = [];
@@ -75,7 +85,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 3. Detalle de Ejecución de Corridas ───────────────────────────────────
     'testrun-detailed': {
         name: 'testrun-detailed',
-        description: 'Detalle de casos y prioridades por cada corrida de prueba',
+        description: 'Detailed test cases and priorities per test run',
         collect(ctx: ReportContext): ReportData {
             const executed = ctx.items.filter(i => i.canonicalScope === 'testcase' && i.testRunId);
             const items = executed.length > 0 ? executed : ctx.items.filter(i => i.canonicalScope === 'testcase');
@@ -107,7 +117,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 4. Resumen de Planes de Prueba ────────────────────────────────────────
     'testplan-summary': {
         name: 'testplan-summary',
-        description: 'Progreso y métricas de los planes de prueba',
+        description: 'Progress and metrics across test plans',
         collect(ctx: ReportContext): ReportData {
             const allPlans = ctx.stateQuery.getResources().filter(r => r.type.includes('testplan'));
             const planItems = ctx.items.filter(i => i.canonicalScope === 'testplan');
@@ -151,7 +161,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 5. Informe de Defectos ────────────────────────────────────────────────
     'defects': {
         name: 'defects',
-        description: 'Casos de prueba fallidos o bloqueados con sus referencias a issues',
+        description: 'Failed or blocked test cases with remote defect and issue tracking references',
         collect(ctx: ReportContext): ReportData {
             const failures = ctx.items.filter(d => ['failed', 'blocked'].includes(d.status.toLowerCase()));
 
@@ -164,14 +174,20 @@ export const builtinReports: Record<string, IReport> = {
                 },
                 headers: ['Run', 'Test Case', 'Título', 'Estado', 'Issue', 'Asignado'],
                 rows: failures.length > 0
-                    ? failures.map(d => [
-                        d.testRunId || '-',
-                        d.id,
-                        d.title,
-                        d.status,
-                        d.issueNumber ? `[#${d.issueNumber}](https://github.com/issues/${d.issueNumber})` : '-',
-                        d.assignees[0] || '-'
-                    ])
+                    ? failures.map(d => {
+                        const url = resolveItemUrl(d);
+                        const issueCell = d.issueNumber
+                            ? (url ? `[#${d.issueNumber}](${url})` : `#${d.issueNumber}`)
+                            : (d.remoteId && !d.remoteId.startsWith('local:') ? d.remoteId : '-');
+                        return [
+                            d.testRunId || '-',
+                            d.id,
+                            d.title,
+                            d.status,
+                            issueCell,
+                            d.assignees[0] || '-'
+                        ];
+                    })
                     : [['-', 'Sin defectos', 'No se encontraron pruebas fallidas o bloqueadas.', 'Passed', '-', '-']]
             };
         }
@@ -180,7 +196,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 6. Matriz de Trazabilidad de Requisitos ───────────────────────────────
     'traceability': {
         name: 'traceability',
-        description: 'Trazabilidad de requisitos / features contra casos de prueba y cobertura',
+        description: 'Requirement and feature traceability matrix against test coverage',
         collect(ctx: ReportContext): ReportData {
             const byReq = ctx.stateQuery.group(ctx.items, ctx.groupBy || 'feature');
             const rows: (string | number)[][] = [];
@@ -216,7 +232,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 7. Cobertura por Etiquetas (Tags) ─────────────────────────────────────
     'coverage': {
         name: 'coverage',
-        description: 'Porcentaje de cobertura y éxito agrupado por etiquetas (@tags)',
+        description: 'Coverage and pass rate distribution grouped by labels and tags',
         collect(ctx: ReportContext): ReportData {
             const byTag = ctx.stateQuery.group(ctx.items, 'labels');
             const rows: (string | number)[][] = [];
@@ -251,7 +267,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 8. Matriz Bidimensional de Estados ────────────────────────────────────
     'two-dimensional': {
         name: 'two-dimensional',
-        description: 'Matriz cruzada de etiquetas contra distribución de estados',
+        description: 'Cross-tabulation matrix of tags against execution status distribution',
         collect(ctx: ReportContext): ReportData {
             const byTag = ctx.stateQuery.group(ctx.items, 'labels');
             const statuses = ['passed', 'failed', 'pending', 'blocked', 'skipped', 'unexecuted'];
@@ -291,7 +307,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 9. Actividad y Automatización de Casos ─────────────────────────────────
     'test-case-activity': {
         name: 'test-case-activity',
-        description: 'Métricas de automatización, actividad y casos modificados',
+        description: 'Automation metrics, recent activity, and modified test cases',
         collect(ctx: ReportContext): ReportData {
             let automatedCount = 0;
             const items = ctx.items.filter(i => i.canonicalScope === 'testcase');
@@ -334,7 +350,7 @@ export const builtinReports: Record<string, IReport> = {
     // ── 10. Volcado en Crudo (Raw) ────────────────────────────────────────────
     'raw': {
         name: 'raw',
-        description: 'Volcado en crudo de todos los recursos filtrados sin agregación',
+        description: 'Raw unaggregated export of all filtered state resources',
         collect(ctx: ReportContext): ReportData {
             return {
                 title: 'Raw Data Export',
@@ -353,23 +369,27 @@ export const builtinReports: Record<string, IReport> = {
                     d.issueNumber ?? ''
                 ]),
                 metadata: {
-                    rawItems: ctx.items.map(d => ({
-                        id: d.id,
-                        type: d.type,
-                        title: d.title,
-                        status: d.status,
-                        labels: d.labels,
-                        assignees: d.assignees,
-                        milestone: d.milestone || '',
-                        testRunId: d.testRunId || '',
-                        testPlanId: d.testPlanId || '',
-                        issueNumber: d.issueNumber || 0,
-                        issueUrl: `https://github.com/issues/${d.issueNumber || 0}`,
-                        custom_fields: d.custom_fields,
-                        createdAt: d.createdAt,
-                        updatedAt: d.updatedAt,
-                        originalResource: d.originalResource
-                    }))
+                    rawItems: ctx.items.map(d => {
+                        const url = resolveItemUrl(d);
+                        return {
+                            id: d.id,
+                            type: d.type,
+                            title: d.title,
+                            status: d.status,
+                            labels: d.labels,
+                            assignees: d.assignees,
+                            milestone: d.milestone || '',
+                            testRunId: d.testRunId || '',
+                            testPlanId: d.testPlanId || '',
+                            issueNumber: d.issueNumber,
+                            url,
+                            issueUrl: url,
+                            custom_fields: d.custom_fields,
+                            createdAt: d.createdAt,
+                            updatedAt: d.updatedAt,
+                            originalResource: d.originalResource
+                        };
+                    })
                 }
             };
         }

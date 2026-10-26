@@ -393,4 +393,22 @@ module.exports = {
         }));
         expect(process.exitCode).toBe(1);
     });
+
+    it('should not emit github issueUrl in raw report when provider is local or has no remote url', async () => {
+        const outPath = join(tmpDir, 'raw-local.json');
+        await reportCmd({
+            dir: tmpDir,
+            type: 'raw',
+            format: 'json',
+            out: outPath
+        });
+
+        const rawItems = JSON.parse(readFileSync(outPath, 'utf8'));
+        expect(Array.isArray(rawItems)).toBe(true);
+        expect(rawItems.length).toBeGreaterThan(0);
+        for (const item of rawItems) {
+            expect(item.issueUrl).toBeUndefined();
+            expect(item.url).toBeUndefined();
+        }
+    });
 });
