@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-26
+
+### Added
+- **Quality Policy Governance (`testform policy`):**
+  - Dedicated CLI command without mandatory subcommands to list, audit, enable, and disable quality policies.
+  - Interactive management flags: `--enable <id>`, `--disable <id>`, `--show <id>`, `-s, --scope <scope>`, and `--json`.
+  - In-place modification of `main.yml` preserving YAML comments and formatting structure via AST manipulation.
+  - 7 built-in system policies with full descriptions: `identity-required`, `identity-unique`, `no-feature-tags`, `required-fields`, `required-gherkin`, `undeclared-fields`, and `duplicate-testruns-in-testplan`.
+  - Automatic discovery of custom policies from `.testform/policies/*.js` and shared modules `.testform/modules/**/policies/*.js`.
+  - Support for direct policy object exports, array exports, and factory functions (`({ registerPolicy }) => ...`).
+- **Native HTTP/REST & Custom Backends in Dictionary Mode:**
+  - Removed mandatory `type:` field requirement in `main.yml` in favor of clean, direct dictionary configuration (`backend.http:`, `backend.rest:`, `backend.custom:`, `backend.s3:`, etc.).
+  - Implemented native `HTTPBackend` with distributed locking, health checks, dynamic `{workspace}` interpolation, and configurable HTTP headers.
+  - Implemented `CustomBackend` with dynamic class loading from local files or npm packages via `source:` and arbitrary configuration options.
+  - Runtime backend configuration overrides via CLI flag `-backend-config="key=value"` and override files.
+- **Enterprise Governance & Resource Sharing via Modules:**
+  - Standardized enterprise-wide sharing of quality policies, custom resource templates, and backends across hundreds of microservices using native `modules:` definitions without redundant syntax.
+- **Custom Resource Templates (`registerResource`):**
+  - Programmatic resource registration via `registerResource` and auto-discovery in `.testform/resources/*.js` and `.testform/modules/**/resources/*.js`.
+  - Extensible scenario-to-field mapping (`fields`), computed attributes (`knownAfterApply`), and execution report comment hooks (`comments`).
+- **Enhanced `graph` Command with Terraform Parity:**
+  - Output formats support: `-format=dot`, `-format=mermaid`, `-format=tree`, with user-friendly aliases `-format=console` and `-format=string`.
+  - Flag `-draw-cycles` for visual debugging and cycle detection in DAG dependency flows.
+  - Updated command help aligned with HashiCorp Terraform CLI conventions.
+- **Functions Command & Expression Evaluator:**
+  - CLI command `testform functions <name>` for offline manual inspection of built-in functions.
+  - Single-line expression evaluation flag `--eval "<expr>"`.
+  - Complete HCL-style expression engine supporting standard math, string manipulation (`lower`, `upper`, `trim`, `replace`, `split`, `join`), collection utilities (`length`, `contains`, `keys`, `values`), encoding/decoding (`jsonencode`, `jsondecode`, `base64encode`, `base64decode`), and system functions (`uuid`, `timestamp`, `try`, `coalesce`).
+  - Support for ternary conditionals `${cond ? a : b}`, logical operators (`&&`, `||`, `!`), and recursive symbol resolution.
+- **Lifecycle Meta-Arguments & Topological Execution:**
+  - Lifecycle rules: `prevent_destroy`, `ignore_changes`, and `create_before_destroy`.
+  - Execution order enforcement via `@depends_on("feature.tag")` with cycle detection.
+- **Ephemeral Workspaces (`testform ephemeral`):**
+  - Ephemeral sandbox lifecycle management (`up`, `down`, `list`, `show`) for automated CI/CD branch testing.
+- **Programmatic SDK Exports (`@fromeroc9/testform`):**
+  - Exported core SDK functions, classes, and types: `registerPolicy`, `policy`, `registerResource`, `resource`, `evaluateExpression`, `interpolateExpressions`, `Config`, `State`, and contracts `IBackend` and `IProvider`.
+
+### Changed
+- **CLI Diagnostic Box Formatting:**
+  - Standardized all command and argument validation errors (including CAC parser errors for missing arguments or invalid options) into Terraform-style diagnostic boxes (`╷ ... │ ... ╵`).
+- **Provider Parallelism & Concurrency:**
+  - Tuned batch processing and concurrent operations to prevent API rate-limiting during large-scale apply and refresh phases.
+
+### Fixed
+- **Policy Registry Resilience:**
+  - Fixed defensive checks in `validate` and `plan` commands to prevent crashes when mock or partial policy objects are injected during unit testing.
+- **State Lookup & Serialization:**
+  - Optimized state serialization by cleaning empty attributes and removing redundant payload fields before disk writes.
+
 ## [1.0.17] - 2026-06-12
 
 ### Added
