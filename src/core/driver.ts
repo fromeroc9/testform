@@ -10,7 +10,9 @@ export const ALLOWED_DRIVERS: Record<string, string> = {
     '@aws-sdk/client-s3': 'Amazon S3 / OCI Storage Driver',
     '@aws-sdk/client-dynamodb': 'DynamoDB Distributed Lock Driver',
     '@azure/storage-blob': 'Azure Blob Storage Driver',
-    '@google-cloud/storage': 'Google Cloud Storage Driver'
+    '@google-cloud/storage': 'Google Cloud Storage Driver',
+    'docx': 'Word Document Report Generator',
+    'exceljs': 'Excel Spreadsheet Report Generator'
 };
 
 // In-memory cache for already loaded modules (0ms response time on subsequent calls)

@@ -29,7 +29,7 @@
 		"prebuild": "node -e \"const fs = require('fs'); if (fs.existsSync('dist')) fs.rmSync('dist', { recursive: true, force: true });\"",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit",
-		"build": "ncc build src/index.ts -m -e @aws-sdk/client-s3 -e @aws-sdk/client-dynamodb -e @azure/storage-blob -e @google-cloud/storage -o dist",
+		"build": "ncc build src/index.ts -m -e @aws-sdk/client-s3 -e @aws-sdk/client-dynamodb -e @azure/storage-blob -e @google-cloud/storage -e docx -e exceljs -o dist",
 		"dev": "tsx src/index.ts",
 		"docs:dev": "npm --prefix docs run dev",
 		"docs:build": "npm --prefix docs run build",
@@ -43,6 +43,8 @@
 		"@google-cloud/storage": "7.19.0",
 		"@types/node": "^24.12.4",
 		"@vercel/ncc": "0.38.4",
+		"docx": "^9.14.0",
+		"exceljs": "^4.4.0",
 		"prettier": "^3.5.0",
 		"tsx": "4.19.3",
 		"typescript": "5.8.2",
@@ -53,8 +55,6 @@
 		"@cucumber/messages": "30.1.0",
 		"cac": "^6.7.14",
 		"chalk": "4.1.2",
-		"docx": "^9.14.0",
-		"exceljs": "^4.4.0",
 		"gherkin-ast": "^3.4.2",
 		"gherkin-formatter": "^1.2.2",
 		"yaml": "^2.9.1"
@@ -63,7 +63,9 @@
 		"@aws-sdk/client-dynamodb": ">=3.0.0",
 		"@aws-sdk/client-s3": ">=3.0.0",
 		"@azure/storage-blob": ">=12.0.0",
-		"@google-cloud/storage": ">=7.0.0"
+		"@google-cloud/storage": ">=7.0.0",
+		"docx": ">=9.0.0",
+		"exceljs": ">=4.0.0"
 	},
 	"peerDependenciesMeta": {
 		"@aws-sdk/client-dynamodb": {
@@ -76,6 +78,12 @@
 			"optional": true
 		},
 		"@google-cloud/storage": {
+			"optional": true
+		},
+		"docx": {
+			"optional": true
+		},
+		"exceljs": {
 			"optional": true
 		}
 	},

@@ -2,12 +2,7 @@ import { IReportFormat, ReportContext, ReportData } from './types';
 import { interpolateExpressions } from '../core/expressions/evaluator';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { Workbook } from 'exceljs';
-import {
-    Document, Paragraph, Table, TableRow, TableCell,
-    TextRun, HeadingLevel, WidthType, BorderStyle,
-    VerticalAlign, PatchType, patchDocument, Packer, AlignmentType
-} from 'docx';
+import { loadDriver } from '../core/driver';
 
 const STATUS_ICONS: Record<string, string> = {
     passed: '✅',
@@ -152,6 +147,25 @@ export const DocxFormat: IReportFormat = {
     extension: '.docx',
     isBinary: true,
     async render(data: ReportData, context: ReportContext, template?: string | Buffer): Promise<Buffer> {
+        let docx: any;
+        try {
+            docx = loadDriver('docx');
+        } catch {
+            throw new Error(
+                `The "docx" package is required to generate Word reports.\n` +
+                `Please install it globally or locally in your project:\n\n` +
+                `  npm install -g docx\n` +
+                `  # or\n` +
+                `  npm install --save-dev docx\n`
+            );
+        }
+
+        const {
+            Document, Paragraph, Table, TableRow, TableCell,
+            TextRun, HeadingLevel, WidthType, BorderStyle,
+            VerticalAlign, PatchType, patchDocument, Packer, AlignmentType
+        } = docx;
+
         let templateBuffer: Buffer | null = null;
 
         if (template) {
@@ -311,7 +325,21 @@ export const XlsxFormat: IReportFormat = {
     extension: '.xlsx',
     isBinary: true,
     async render(data: ReportData, context: ReportContext, template?: string | Buffer): Promise<Buffer> {
-        const workbook = new Workbook();
+        let exceljs: any;
+        try {
+            exceljs = loadDriver('exceljs');
+        } catch {
+            throw new Error(
+                `The "exceljs" package is required to generate Excel reports.\n` +
+                `Please install it globally or locally in your project:\n\n` +
+                `  npm install -g exceljs\n` +
+                `  # or\n` +
+                `  npm install --save-dev exceljs\n`
+            );
+        }
+
+        const WorkbookClass = exceljs.Workbook || exceljs.default?.Workbook || exceljs.default;
+        const workbook = new WorkbookClass();
         let worksheet: any;
         const now = new Date();
         const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
