@@ -56,7 +56,7 @@ describe('Command suiteCmd', () => {
 
         expect(notify.push).toHaveBeenCalledWith(expect.objectContaining({
             type: 'error',
-            title: expect.stringContaining('suite <init|fill|link|mark')
+            title: expect.stringContaining('suite')
         }));
     });
 

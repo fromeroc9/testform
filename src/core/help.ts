@@ -424,23 +424,50 @@ ${bold(`Options:`)}
 export const HELP_GRAPH = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] graph [options]
 
-  Produces an ASCII tree representation of the dependency graph between
-  different objects in the current test configuration and state.
+  Produces a representation of the dependency graph between different
+  objects in the current configuration and state.
 
-  By default the graph shows the relationships between the hierarchical
-  components in your configuration: Test Plans -> Test Runs -> Test Cases.
+  By default the graph shows a summary only of the relationships between
+  resources in the configuration, since those are the main objects that
+  have side-effects whose ordering is significant. You can generate more
+  detailed graphs reflecting ${TITLE_APP}'s actual evaluation strategy
+  by specifying the -type=TYPE option to select an operation type.
+
+  The graph is presented in the DOT language by default. The typical program that can
+  read this format is GraphViz, but many web services are also available
+  to read this format.
 
 ${bold(`Options:`)}
 
-  -draw-cycles     Highlight the dependency links in the graph with colored
-                   edges to explicitly visualize the dependency between
-                   Plans, Runs, and Cases.
+  -plan=tfplan        Render graph using the specified plan file instead of the
+                      configuration in the current directory. Implies -type=apply.
 
-  -type=TYPE       (deprecated) In prior versions of Testform, specified the
-                   type of operation graph to output.
+  -draw-cycles        Highlight any cycles in the graph with colored edges.
+                      This helps when diagnosing cycle errors. This option is
+                      supported only when illustrating a real evaluation graph,
+                      selected using the -type=TYPE option.
 
-  -module-depth=n  (deprecated) In prior versions of Testform, specified the
-                   depth of modules to show in the output.
+  -type=TYPE          Type of operation graph to output. Can be: plan,
+                      plan-refresh-only, plan-destroy, or apply. By default
+                      ${TITLE_APP} just summarizes the relationships between the
+                      resources in your configuration, without any particular
+                      operation in mind. Full operation graphs are more detailed
+                      but therefore often harder to read.
+
+  -module-depth=n     (deprecated) In prior versions of ${TITLE_APP}, specified the
+                      depth of modules to show in the output.
+
+  -var 'foo=bar'      Set a value for one of the input variables in the root
+                      module of the configuration. Use this option more than
+                      once to set more than one variable.
+
+  -var-file=filename  Load variable values from the given file, in addition
+                      to the default files ${TITLE_APP.toLowerCase()}.vars.yml and *.auto.vars.yml.
+                      Use this option more than once to include more than one
+                      variables file.
+
+  -format=FORMAT      Output format for the graph. Supported values are
+                      dot (default) and mermaid.
 `.trim();
 
 export const HELP_LOGIN = `
@@ -1255,6 +1282,7 @@ export function getCommandHelp(command: string): string | null {
     case 'show': return HELP_SHOW;
     case 'output': return HELP_OUTPUT;
     case 'fmt': return HELP_FMT;
+    case 'graph': return HELP_GRAPH;
     case 'force-unlock': return HELP_FORCE_UNLOCK;
     case 'login': return HELP_LOGIN;
     case 'workspace': return HELP_WORKSPACE;

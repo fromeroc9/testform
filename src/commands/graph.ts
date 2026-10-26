@@ -5,18 +5,94 @@ import { VariableParser } from '../core/variables';
 import { DependencyResolver } from '../core/dependencies';
 import { normalizeAddress, addressesMatch } from '../core/utils';
 
-interface GraphCmdOptions {
+export interface GraphCmdOptions {
     dir?: string;
     scope?: IScope;
     drawCycles?: boolean;
     variables?: VariableParser;
+    format?: 'dot' | 'mermaid' | 'tree' | string;
+    type?: string;
+    plan?: string;
+    moduleDepth?: number;
+}
+
+interface GraphNode {
+    id: string;
+    label: string;
+    kind: 'testplan' | 'testrun' | 'testcase' | 'provider';
+}
+
+interface GraphEdge {
+    from: string;
+    to: string;
+    kind: 'contains' | 'depends_on';
+    label?: string;
+}
+
+function escapeDot(str: string): string {
+    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function toMermaidId(str: string): string {
+    return 'node_' + str.replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+function escapeMermaidLabel(str: string): string {
+    return str.replace(/"/g, '#quot;').replace(/[\r\n]+/g, ' ');
+}
+
+function findCycleEdges(edges: Array<{ from: string; to: string }>): Set<string> {
+    const adj = new Map<string, string[]>();
+    for (const e of edges) {
+        if (!adj.has(e.from)) adj.set(e.from, []);
+        adj.get(e.from)!.push(e.to);
+    }
+
+    const visited = new Map<string, number>(); // 0: unvisited, 1: visiting (in stack), 2: finished
+    const cycleEdges = new Set<string>();
+
+    function dfs(u: string, path: string[]) {
+        visited.set(u, 1);
+        path.push(u);
+
+        for (const v of adj.get(u) || []) {
+            const state = visited.get(v) || 0;
+            if (state === 1) {
+                // Back-edge found! u -> v forms a cycle
+                cycleEdges.add(`${u}->${v}`);
+                // All edges on the path from v to u are also part of the cycle
+                const idx = path.indexOf(v);
+                if (idx !== -1) {
+                    for (let i = idx; i < path.length - 1; i++) {
+                        cycleEdges.add(`${path[i]}->${path[i + 1]}`);
+                    }
+                    cycleEdges.add(`${path[path.length - 1]}->${v}`);
+                }
+            } else if (state === 0) {
+                dfs(v, path);
+            }
+        }
+
+        path.pop();
+        visited.set(u, 2);
+    }
+
+    for (const node of adj.keys()) {
+        if ((visited.get(node) || 0) === 0) {
+            dfs(node, []);
+        }
+    }
+
+    return cycleEdges;
 }
 
 export const graphCmd = async (options: GraphCmdOptions = {}) => {
     const {
         dir = '.',
         scope = 'testcase',
-        drawCycles = false
+        drawCycles = false,
+        format = 'dot',
+        type
     } = options;
     const vars = options.variables || new VariableParser(undefined, undefined, dir);
     const parser = new Parser(dir, vars);
@@ -53,10 +129,6 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
         return;
     }
 
-    console.log(bold('Test Infrastructure Graph\n'));
-
-    const link = (str: string) => drawCycles ? magenta(str) : str;
-
     function findTcs(tcId: string) {
         let scenarioName = '*';
         let ruleName = tcId;
@@ -82,18 +154,286 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
         const uris = Array.from(new Set(matches.map(tc => tc.uri)));
         if (uris.length > 1) {
             if (scenarioName !== '*') {
-                const { logger } = require('../logger');
+                const { logger } = require('../core/logger');
                 logger.error(`Ambiguous reference for Scenario '${scenarioName}' under Rule '${ruleName}'. It matches multiple files:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nPlease specify the full file path in your Rule to disambiguate.`);
             } else {
-                const { logger } = require('../logger');
+                const { logger } = require('../core/logger');
                 logger.warn(`Rule '${ruleName}' matches multiple feature files. Processing all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
             }
         }
         return matches;
     }
 
+    function findMatchingTcNode(dep: string): string {
+        const norm = normalizeAddress(dep);
+        for (const tc of testcases) {
+            const tcKey = tc.custom?.identity || `${tc.uri}.${tc.name}`;
+            const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+            const tagAddresses = tcTags.map(t => normalizeAddress(`${tc.uri}.${t}`));
+
+            if (
+                addressesMatch(tcKey, dep) ||
+                addressesMatch(tc.name, dep) ||
+                addressesMatch(tc.uri, dep) ||
+                tagAddresses.some(ta => addressesMatch(ta, dep)) ||
+                norm.endsWith(normalizeAddress(tc.name)) ||
+                norm.endsWith(normalizeAddress(tcKey))
+            ) {
+                return `testcase.${tc.name}`;
+            }
+        }
+        return `testcase.${dep}`;
+    }
+
+    function getTcDependencies(tc: ParserScenario): string[] {
+        const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+        const keysToCheck = [
+            tc.name,
+            `${tc.uri}.${tc.name}`,
+            tc.custom?.identity,
+            ...tcTags.map(t => `${tc.uri}.${t}`),
+            ...tcTags.map(t => `${tc.uri}.@${t.replace(/^@/, '')}`),
+            ...tcTags
+        ].filter(Boolean) as string[];
+
+        const allDeps = new Set<string>();
+        for (const key of keysToCheck) {
+            const deps = depResolver.getDependencies(key, tcTags);
+            for (const d of deps) allDeps.add(d);
+        }
+        return Array.from(allDeps);
+    }
+
+    // If tree format is explicitly requested, render terminal ASCII tree
+    if (format === 'tree') {
+        renderTreeGraph({ testplans, testruns, testcases, scope, drawCycles, depResolver, findTcs, getTcDependencies });
+        return;
+    }
+
+    // Build model of nodes and edges for structured graph output (DOT / Mermaid)
+    const nodes = new Map<string, GraphNode>();
+    const edges: GraphEdge[] = [];
+
+    const typeSuffix = type ? ` (${type})` : '';
+
     if (scope === 'testplan' || scope === 'testcase') {
-        // Print Test Plans at root
+        for (const plan of testplans) {
+            const planId = `testplan.${plan.name}`;
+            nodes.set(planId, { id: planId, label: `${plan.name}${typeSuffix}`, kind: 'testplan' });
+
+            for (const trId of plan.testruns) {
+                const normTrId = normalizeAddress(trId);
+                const run = testruns.find(r =>
+                    addressesMatch(r.identity, trId) ||
+                    r.name === trId ||
+                    r.name.endsWith(trId) ||
+                    trId.endsWith(r.name) ||
+                    normalizeAddress(r.uri).endsWith(normTrId)
+                );
+
+                if (run) {
+                    const runId = `testrun.${run.name}`;
+                    nodes.set(runId, { id: runId, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
+                    edges.push({ from: planId, to: runId, kind: 'contains' });
+
+                    if (scope !== 'testplan') {
+                        for (const tcId of run.testcases) {
+                            const tcs = findTcs(tcId);
+                            for (const tc of tcs) {
+                                const tcIdNode = `testcase.${tc.name}`;
+                                nodes.set(tcIdNode, { id: tcIdNode, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
+                                edges.push({ from: runId, to: tcIdNode, kind: 'contains' });
+
+                                const deps = getTcDependencies(tc);
+                                for (const dep of deps) {
+                                    const depNodeId = findMatchingTcNode(dep);
+                                    if (!nodes.has(depNodeId)) {
+                                        nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
+                                    }
+                                    edges.push({ from: depNodeId, to: tcIdNode, kind: 'depends_on', label: 'depends_on' });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Orphaned test runs when scope includes testcases
+        if (scope !== 'testplan') {
+            const referencedRuns = new Set(testplans.flatMap(p => p.testruns || []));
+            const orphanedRuns = testruns.filter(r => {
+                return !Array.from(referencedRuns).some(ref =>
+                    addressesMatch(r.identity, ref) ||
+                    r.name === ref ||
+                    normalizeAddress(r.uri).endsWith(normalizeAddress(ref)) ||
+                    ref.endsWith(r.name)
+                );
+            });
+
+            for (const run of orphanedRuns) {
+                const runId = `testrun.${run.name}`;
+                nodes.set(runId, { id: runId, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
+                for (const tcId of run.testcases) {
+                    const tcs = findTcs(tcId);
+                    for (const tc of tcs) {
+                        const tcIdNode = `testcase.${tc.name}`;
+                        nodes.set(tcIdNode, { id: tcIdNode, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
+                        edges.push({ from: runId, to: tcIdNode, kind: 'contains' });
+
+                        const deps = getTcDependencies(tc);
+                        for (const dep of deps) {
+                            const depNodeId = findMatchingTcNode(dep);
+                            if (!nodes.has(depNodeId)) {
+                                nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
+                            }
+                            edges.push({ from: depNodeId, to: tcIdNode, kind: 'depends_on', label: 'depends_on' });
+                        }
+                    }
+                }
+            }
+        }
+    } else if (scope === 'testrun') {
+        for (const run of testruns) {
+            const runId = `testrun.${run.name}`;
+            nodes.set(runId, { id: runId, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
+            for (const tcId of run.testcases) {
+                const tcs = findTcs(tcId);
+                for (const tc of tcs) {
+                    const tcIdNode = `testcase.${tc.name}`;
+                    nodes.set(tcIdNode, { id: tcIdNode, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
+                    edges.push({ from: runId, to: tcIdNode, kind: 'contains' });
+
+                    const deps = getTcDependencies(tc);
+                    for (const dep of deps) {
+                        const depNodeId = findMatchingTcNode(dep);
+                        if (!nodes.has(depNodeId)) {
+                            nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
+                        }
+                        edges.push({ from: depNodeId, to: tcIdNode, kind: 'depends_on', label: 'depends_on' });
+                    }
+                }
+            }
+        }
+    }
+
+    // Detect cycle edges for highlighting
+    const cycleEdges = findCycleEdges(edges);
+
+    if (format === 'mermaid') {
+        renderMermaidGraph({ nodes: Array.from(nodes.values()), edges, cycleEdges, drawCycles });
+    } else {
+        // Default: DOT (Graphviz)
+        renderDotGraph({ nodes: Array.from(nodes.values()), edges, cycleEdges, drawCycles });
+    }
+};
+
+/**
+ * Renders Graphviz DOT format compatible with Terraform graph.
+ */
+function renderDotGraph(params: {
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+    cycleEdges: Set<string>;
+    drawCycles: boolean;
+}): void {
+    const { nodes, edges, cycleEdges, drawCycles } = params;
+    const lines: string[] = [];
+
+    lines.push('digraph G {');
+    lines.push('  compound = "true";');
+    lines.push('  newrank = "true";');
+    lines.push('  subgraph "root" {');
+
+    for (const node of nodes) {
+        const rootId = `[root] ${node.id}`;
+        lines.push(`    "${escapeDot(rootId)}" [label = "${escapeDot(node.label)}", shape = "box"];`);
+    }
+
+    for (const edge of edges) {
+        const fromId = `[root] ${edge.from}`;
+        const toId = `[root] ${edge.to}`;
+        const edgeKey = `${edge.from}->${edge.to}`;
+        const isCycle = cycleEdges.has(edgeKey);
+
+        if (isCycle && drawCycles) {
+            lines.push(`    "${escapeDot(fromId)}" -> "${escapeDot(toId)}" [color = "red", penwidth = 2.0];`);
+        } else if (edge.label) {
+            lines.push(`    "${escapeDot(fromId)}" -> "${escapeDot(toId)}" [label = "${escapeDot(edge.label)}"];`);
+        } else {
+            lines.push(`    "${escapeDot(fromId)}" -> "${escapeDot(toId)}";`);
+        }
+    }
+
+    lines.push('  }');
+    lines.push('}');
+
+    console.log(lines.join('\n'));
+}
+
+/**
+ * Renders Mermaid diagram format.
+ */
+function renderMermaidGraph(params: {
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+    cycleEdges: Set<string>;
+    drawCycles: boolean;
+}): void {
+    const { nodes, edges, cycleEdges, drawCycles } = params;
+    const lines: string[] = [];
+
+    lines.push('graph TD');
+    lines.push('  subgraph root');
+
+    for (const node of nodes) {
+        const mId = toMermaidId(node.id);
+        const icon = node.kind === 'testplan' ? '📦 ' : node.kind === 'testrun' ? '📂 ' : '📄 ';
+        lines.push(`    ${mId}["${icon}${escapeMermaidLabel(node.label)} (${node.kind})"]`);
+    }
+
+    for (const edge of edges) {
+        const fromId = toMermaidId(edge.from);
+        const toId = toMermaidId(edge.to);
+        const edgeKey = `${edge.from}->${edge.to}`;
+        const isCycle = cycleEdges.has(edgeKey);
+
+        if (isCycle && drawCycles) {
+            lines.push(`    ${fromId} -.->|cycle| ${toId}`);
+            lines.push(`    style ${fromId} stroke:#ff0000,stroke-width:2px;`);
+            lines.push(`    style ${toId} stroke:#ff0000,stroke-width:2px;`);
+        } else if (edge.label) {
+            lines.push(`    ${fromId} -->|${edge.label}| ${toId}`);
+        } else {
+            lines.push(`    ${fromId} --> ${toId}`);
+        }
+    }
+
+    lines.push('  end');
+
+    console.log(lines.join('\n'));
+}
+
+/**
+ * Renders terminal ASCII/Unicode tree representation.
+ */
+function renderTreeGraph(params: {
+    testplans: Array<{ name: string; testruns: string[] }>;
+    testruns: Array<{ name: string; testcases: string[]; identity: string; uri: string }>;
+    testcases: ParserScenario[];
+    scope: IScope;
+    drawCycles: boolean;
+    depResolver: DependencyResolver;
+    findTcs: (tcId: string) => ParserScenario[];
+    getTcDependencies: (tc: ParserScenario) => string[];
+}): void {
+    const { testplans, testruns, scope, drawCycles, depResolver, findTcs, getTcDependencies } = params;
+
+    console.log(bold('Test Infrastructure Graph\n'));
+
+    const link = (str: string) => drawCycles ? magenta(str) : str;
+
+    if (scope === 'testplan' || scope === 'testcase') {
         for (const plan of testplans) {
             const planName = plan.name;
             console.log(`📦 ${cyan(bold(planName))} ${dim(`(testplan)`)}`);
@@ -104,11 +444,11 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                 const runPrefix = isLastRun ? '└── ' : '├── ';
 
                 const normTrId = normalizeAddress(trId);
-                const run = testruns.find(r => 
-                    addressesMatch(r.identity, trId) || 
-                    r.name === trId || 
-                    r.name.endsWith(trId) || 
-                    trId.endsWith(r.name) || 
+                const run = testruns.find(r =>
+                    addressesMatch(r.identity, trId) ||
+                    r.name === trId ||
+                    r.name.endsWith(trId) ||
+                    trId.endsWith(r.name) ||
                     normalizeAddress(r.uri).endsWith(normTrId)
                 );
 
@@ -122,7 +462,6 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                             const tcId = tcIds.at(j)!;
                             const isLastTc = j === tcIds.length - 1;
                             const tcPrefix = isLastRun ? '    ' : '│   ';
-                            const tcConnector = isLastTc ? '└── ' : '├── ';
 
                             const tcs = findTcs(tcId);
 
@@ -133,14 +472,14 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                                     const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
                                     console.log(`   ${tcPrefix}${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
 
-                                    const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
-                                    const deps = depResolver.getDependencies(tc.custom?.identity || `${tc.uri}.${tc.name}`, tcTags);
+                                    const deps = getTcDependencies(tc);
                                     if (deps.length > 0) {
                                         const depPrefix = tcIsLast ? '       ' : '│      ';
                                         console.log(`   ${tcPrefix}${depPrefix}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
                                     }
                                 }
                             } else {
+                                const tcConnector = isLastTc ? '└── ' : '├── ';
                                 console.log(`   ${tcPrefix}${link(tcConnector)}📄 ${dim(tcId + ' (Not found)')}`);
                             }
                         }
@@ -153,13 +492,12 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
         }
 
         if (scope === 'testcase') {
-            // Identify orphaned testruns
             const referencedRuns = new Set(testplans.flatMap(p => p.testruns || []));
             const orphanedRuns = testruns.filter(r => {
-                return !Array.from(referencedRuns).some(ref => 
-                    addressesMatch(r.identity, ref) || 
-                    r.name === ref || 
-                    normalizeAddress(r.uri).endsWith(normalizeAddress(ref)) || 
+                return !Array.from(referencedRuns).some(ref =>
+                    addressesMatch(r.identity, ref) ||
+                    r.name === ref ||
+                    normalizeAddress(r.uri).endsWith(normalizeAddress(ref)) ||
                     ref.endsWith(r.name)
                 );
             });
@@ -173,7 +511,6 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                     for (let j = 0; j < tcIds.length; j++) {
                         const tcId = tcIds.at(j)!;
                         const isLastTc = j === tcIds.length - 1;
-                        const tcConnector = isLastTc ? '└── ' : '├── ';
 
                         const tcs = findTcs(tcId);
                         if (tcs.length > 0) {
@@ -183,14 +520,14 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                                 const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
                                 console.log(`   ${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
 
-                                const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
-                                const deps = depResolver.getDependencies(tc.custom?.identity || `${tc.uri}.${tc.name}`, tcTags);
+                                const deps = getTcDependencies(tc);
                                 if (deps.length > 0) {
                                     const depPrefix = tcIsLast ? '       ' : '│      ';
                                     console.log(`   ${depPrefix}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
                                 }
                             }
                         } else {
+                            const tcConnector = isLastTc ? '└── ' : '├── ';
                             console.log(`   ${link(tcConnector)}📄 ${tcId}`);
                         }
                     }
@@ -199,7 +536,6 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
             }
         }
     } else if (scope === 'testrun') {
-        // Print Test Runs at root
         for (const run of testruns) {
             const runName = run.name;
             console.log(`📂 ${green(bold(runName))} ${dim(`(testrun)`)}`);
@@ -207,10 +543,8 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
             for (let j = 0; j < tcIds.length; j++) {
                 const tcId = tcIds.at(j)!;
                 const isLastTc = j === tcIds.length - 1;
-                const tcConnector = isLastTc ? '└── ' : '├── ';
 
                 const tcs = findTcs(tcId);
-
                 if (tcs.length > 0) {
                     for (let k = 0; k < tcs.length; k++) {
                         const tc = tcs.at(k)!;
@@ -219,10 +553,11 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
                         console.log(`   ${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
                     }
                 } else {
+                    const tcConnector = isLastTc ? '└── ' : '├── ';
                     console.log(`   ${link(tcConnector)}📄 ${dim(tcId + ' (Not found)')}`);
                 }
             }
             console.log('');
         }
     }
-};
+}
