@@ -20,16 +20,6 @@ We have completely overhauled our documentation to be as intuitive and comprehen
 
 **Start here:** 👉 **[Testform Documentation Portal (docs/index.md)](docs/index.md)** 👈
 
-### Quick Links
-- **[Getting Started](docs/getting-started.md)**: Installation, authentication, and your first `apply`.
-- **[Writing Tests (The DSL)](docs/writing-tests-dsl.md)**: Master the Gherkin syntax, tags, and custom fields (like `assignees` and `milestone`).
-- **[Configuration Guide](docs/configuration.md)**: Deep dive into the `testform.json` rules.
-- **[CLI Reference](docs/cli-reference.md)**: Cheat sheet for all commands (`plan`, `apply`, `import`, etc.).
-- **[Reporting & Analytics](docs/reporting-and-analytics.md)**: Generate execution matrices and coverage reports locally.
-- **[Architecture](docs/architecture.md)**: How the AST parser, state management, and GraphQL adapters work.
-
----
-
 ## Prerequisites
 
 To use Testform, it is a requirement to have an existing GitHub Project properly configured with the necessary labels and status fields.
@@ -62,7 +52,7 @@ npm install -g testform
    provider: local
    backend: local
 
-   vars:
+   variable:
      app_url:
        type: string
        default: "https://www.saucedemo.com"
@@ -117,7 +107,7 @@ npm install -g testform
 ## 🚀 Key Features
 
 - **Test-as-Code Engine:** Declarative management for Testcases, Testruns, and Testplans using Gherkin.
-- **5-Tier Variables Precedence:** Hierarchy spanning base `testform.yml`, `vars.yml`/`local.yml`, domain modules, `-var-file`, and `-var` flags with multi-pass recursive interpolation.
+- **5-Tier Variables Precedence:** Hierarchy spanning base `main.yml`, `variable.yml`/`local.yml`, domain modules, `-var-file`, and `-var` flags with multi-pass recursive interpolation.
 - **100% Offline Capability:** Full local backend (`backend: local`) and mock provider (`provider: local`) for deterministic testing without external dependencies or tokens.
 - **Terraform-grade State Management:** State locking, drift detection (`diff`), manual taint/untaint lifecycle, HCL resource display (`state show`), and dependency DAG rendering (`graph`).
 - **Global Flags:** `-chdir=<path>`, `-no-color`, and `-compact-warnings` supported universally across commands.
