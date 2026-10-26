@@ -22,17 +22,55 @@ We have completely overhauled our documentation to be as intuitive and comprehen
 
 ## Prerequisites
 
-To use Testform, it is a requirement to have an existing GitHub Project properly configured with the necessary labels and status fields.
+Testform supports two operational modes depending on your team's workflow:
 
-We highly recommend using our automated **[Install Testform Labels and Project](.github/workflows/install.yml)** workflow to set everything up for you. This workflow will automatically:
-- Create the required repository labels (`bug`, `testcase`, `testplan`, `testreport`, `testrun`).
-- Clone the [Testform Template Project](https://github.com/users/fromeroc9/projects/4) into your organization or user account and link it to your target repository.
-- Configure the "Status" field with the correct options and colors (`Todo`, `Done`, `passed`, `failed`, `blocked`, `skipped`, `unexecuted`).
-- Install the `close-issue.yml` workflow into your target repository to automate issue state transitions.
+### 1. Local / Offline Mode (Zero Configuration)
+If you configure `provider: local` and `backend: local`, **no external services, tokens, or credentials are required**. Testform works 100% offline out-of-the-box, storing your test management state locally or committing it directly to Git.
 
-> **💡 Authentication Recommendation:** If you plan to use Testform within GitHub Actions, or authenticate via `testform login` (or equivalent CLI login), we strongly advise configuring a **Personal Access Token (PAT)** (with `repo` and `project` permissions). *Note: It is neither mandatory nor recommended to use a GitHub App token.*
->
-> *Why?* The default `GITHUB_TOKEN` provided by Actions often lacks the necessary scopes to manipulate organization-level GitHub Projects (V2) or perform cross-repository operations. Using a dedicated PAT ensures that your automated pipelines have the robust, fine-grained access required to smoothly transition issues, manage test cases, and keep your project boards flawlessly in sync.
+### 2. GitHub Provider Mode (`provider: github`)
+When synchronizing your test specifications with GitHub Issues and GitHub Projects, your repository and organization must meet the following prerequisites:
+
+1. **GitHub Project (Projects V2):**
+   - An active GitHub Project (organization or user level) linked to your target repository.
+   - A single-select field named **`Status`** containing the following exact option values:
+     - `Todo`
+     - `Done`
+     - `passed`
+     - `failed`
+     - `blocked`
+     - `skipped`
+     - `unexecuted`
+
+2. **Repository Labels:**
+   - The repository requires the following labels to categorize issues:
+     - `bug`
+     - `testcase`
+     - `testplan`
+     - `testreport`
+     - `testrun`
+
+3. **Authentication & Token Permissions:**
+   - A **Personal Access Token (PAT)** with:
+     - **Classic PAT:** `repo` (Full control of private repositories) and `project` (Read and write projects) scopes.
+     - **Fine-Grained PAT:** Repository permissions (`Issues: Read and write`) and Organization permissions (`Projects: Read and write`).
+   - Exported as an environment variable (e.g. `export GITHUB_TOKEN="ghp_..."`) or provided via `testform login`.
+   - > **💡 GitHub Actions Note:** The default `GITHUB_TOKEN` provided by Actions lacks the necessary scopes to manipulate organization-level GitHub Projects (V2). Always configure a repository secret with a dedicated PAT so automated CI/CD pipelines can transition issues and sync project boards.
+
+4. **🚀 Automated Setup Workflow (Recommended):**
+   To automate the entire GitHub Project and label setup in seconds, we recommend using our automated **[Install Testform Labels and Project](.github/workflows/install.yml)** workflow. It will automatically:
+   - Create the required repository labels (`bug`, `testcase`, `testplan`, `testreport`, `testrun`).
+   - Clone the [Testform Template Project](https://github.com/users/fromeroc9/projects/4) into your organization or user account and link it to your target repository.
+   - Configure the "Status" field with the correct options and standard QA colors.
+   - Install the `close-issue.yml` workflow into your target repository to automate issue state transitions.
+
+### 3. Optional Binary Drivers (Word & Excel)
+For minimal CLI footprint (~1 MB), the binary document generators (`docx` and `exceljs`) are decoupled as optional peer dependencies. If you plan to generate Word (`.docx`) or Excel (`.xlsx`) reports, install them on demand:
+
+```bash
+npm install -g docx exceljs
+# or locally in your project:
+npm install --save-dev docx exceljs
+```
 
 ## Installation
 
@@ -104,6 +142,10 @@ npm install -g testform
    # Generate multi-format execution reports (Markdown, Word, Excel, JSON, CSV)
    testform report testrun-summary -format=md
    testform report testcase-summary -format=docx -out=report.docx
+
+   # Scope reports by target (individual test run or entire test plan)
+   testform report testrun-summary -target=@tr-1
+   testform report testplan-summary -target=@tp-1
    ```
 
 ---
@@ -112,6 +154,8 @@ npm install -g testform
 
 - **Test-as-Code Engine:** Declarative management for Testcases, Testruns, and Testplans using Gherkin.
 - **Modular Reporting & Multi-Format Analytics (`testform report`):** Generates 9 multidimensional reports natively exported to Markdown, JSON, CSV, Word (`.docx`), and Excel (`.xlsx`) with `${...}` dynamic template markers, unified `-filter` queries, and zero-pollution autoloading from `.testform/reports/`.
+- **Target Scoping (`-target`):** Granular scoping to single test runs or test plans with automated discovery of all linked runs and execution cases.
+- **Terraform Diagnostic Standards:** All warnings and errors rendered in structured, colored HashiCorp Terraform diagnostic blocks (`╷ ... │ Error: ... ╵`).
 - **5-Tier Variables Precedence:** Hierarchy spanning base `main.yml`, `variable.yml`/`local.yml`, domain modules, `-var-file`, and `-var` flags with multi-pass recursive interpolation.
 - **100% Offline Capability:** Full local backend (`backend: local`) and mock provider (`provider: local`) for deterministic testing without external dependencies or tokens.
 - **Terraform-grade State Management:** State locking, drift detection (`diff`), manual taint/untaint lifecycle, HCL resource display (`state show`), and dependency DAG rendering (`graph`).
