@@ -3,6 +3,7 @@ import { interpolateExpressions } from '../core/expressions/evaluator';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { loadDriver } from '../core/driver';
+import { logger } from '../core/logger';
 
 const STATUS_ICONS: Record<string, string> = {
     passed: '✅',
@@ -151,13 +152,19 @@ export const DocxFormat: IReportFormat = {
         try {
             docx = loadDriver('docx');
         } catch {
-            throw new Error(
-                `The "docx" package is required to generate Word reports.\n` +
-                `Please install it globally or locally in your project:\n\n` +
-                `  npm install -g docx\n` +
-                `  # or\n` +
-                `  npm install --save-dev docx\n`
-            );
+            logger.push({
+                type: 'error',
+                title: 'Missing optional package "docx"',
+                detail: [
+                    'The "docx" package is required to generate Word (.docx) reports.',
+                    'Please install it globally or locally in your project:',
+                    '',
+                    '  npm install -g docx',
+                    '  # or',
+                    '  npm install --save-dev docx'
+                ],
+                close: true
+            });
         }
 
         const {
@@ -169,7 +176,22 @@ export const DocxFormat: IReportFormat = {
         let templateBuffer: Buffer | null = null;
 
         if (template) {
-            templateBuffer = typeof template === 'string' ? readFileSync(template) : template;
+            if (typeof template === 'string') {
+                if (!existsSync(template)) {
+                    logger.push({
+                        type: 'error',
+                        title: `Template file not found: ${template}`,
+                        detail: [
+                            'The specified Word template path does not exist on disk.',
+                            'Verify the path or omit the -template flag to use the default template.'
+                        ],
+                        close: true
+                    });
+                }
+                templateBuffer = readFileSync(template);
+            } else {
+                templateBuffer = template;
+            }
         } else {
             const candidatePaths = [
                 resolve(process.cwd(), '.testform', 'reports', 'report.docx'),
@@ -329,13 +351,19 @@ export const XlsxFormat: IReportFormat = {
         try {
             exceljs = loadDriver('exceljs');
         } catch {
-            throw new Error(
-                `The "exceljs" package is required to generate Excel reports.\n` +
-                `Please install it globally or locally in your project:\n\n` +
-                `  npm install -g exceljs\n` +
-                `  # or\n` +
-                `  npm install --save-dev exceljs\n`
-            );
+            logger.push({
+                type: 'error',
+                title: 'Missing optional package "exceljs"',
+                detail: [
+                    'The "exceljs" package is required to generate Excel (.xlsx) reports.',
+                    'Please install it globally or locally in your project:',
+                    '',
+                    '  npm install -g exceljs',
+                    '  # or',
+                    '  npm install --save-dev exceljs'
+                ],
+                close: true
+            });
         }
 
         const WorkbookClass = exceljs.Workbook || exceljs.default?.Workbook || exceljs.default;
@@ -346,7 +374,23 @@ export const XlsxFormat: IReportFormat = {
         const vars = context.variables || {};
 
         if (template) {
-            const buffer = typeof template === 'string' ? readFileSync(template) : template;
+            let buffer: Buffer;
+            if (typeof template === 'string') {
+                if (!existsSync(template)) {
+                    logger.push({
+                        type: 'error',
+                        title: `Template file not found: ${template}`,
+                        detail: [
+                            'The specified Excel template path does not exist on disk.',
+                            'Verify the path or omit the -template flag to generate a standard workbook.'
+                        ],
+                        close: true
+                    });
+                }
+                buffer = readFileSync(template);
+            } else {
+                buffer = template;
+            }
             await workbook.xlsx.load(buffer as any);
             worksheet = workbook.worksheets[0];
         } else {

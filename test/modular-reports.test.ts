@@ -4,6 +4,7 @@ import { State } from '../src/core/state';
 import { resolveReport, resolveFormat } from '../src/reports/loader';
 import { builtinReports } from '../src/reports/catalog';
 import { coreFormats, DocxFormat, XlsxFormat } from '../src/reports/formats';
+import { logger } from '../src/core/logger';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -343,5 +344,53 @@ module.exports = {
         expect(data.rows.length).toBe(1);
         expect(data.rows[0][0]).toBe('run-sprint-1');
         expect(data.metrics['Total Test Runs']).toBe(1);
+    });
+
+    // ── 10. Diagnósticos estilo Terraform en errores de Reportes y Formatos ────
+    it('should format unknown report error using Terraform diagnostic convention', async () => {
+        const pushSpy = vi.spyOn(logger, 'push');
+        await reportCmd({
+            dir: tmpDir,
+            type: 'non-existent-report',
+            format: 'json'
+        });
+
+        expect(pushSpy).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'error',
+            title: expect.stringContaining('not found')
+        }));
+        expect(process.exitCode).toBe(1);
+    });
+
+    it('should format unknown format error using Terraform diagnostic convention', async () => {
+        const pushSpy = vi.spyOn(logger, 'push');
+        await reportCmd({
+            dir: tmpDir,
+            type: 'testcase-summary',
+            format: 'non-existent-format'
+        });
+
+        expect(pushSpy).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'error',
+            title: expect.stringContaining('not found')
+        }));
+        expect(process.exitCode).toBe(1);
+    });
+
+    it('should format missing template file error using Terraform diagnostic convention', async () => {
+        const pushSpy = vi.spyOn(logger, 'push');
+        await reportCmd({
+            dir: tmpDir,
+            type: 'testcase-summary',
+            format: 'docx',
+            template: 'non-existent-template.docx'
+        });
+
+        expect(pushSpy).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'error',
+            title: expect.stringContaining('Template file not found'),
+            close: true
+        }));
+        expect(process.exitCode).toBe(1);
     });
 });

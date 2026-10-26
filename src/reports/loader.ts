@@ -5,6 +5,8 @@ import { resolve } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { red, bold } from 'chalk';
+import { logger } from '../core/logger';
+import { TestformError } from '../core/errors';
 
 export async function resolveReport(name: string, dir: string = process.cwd()): Promise<IReport> {
     const cleanName = (name || 'testcase-summary').trim().toLowerCase();
@@ -36,13 +38,28 @@ export async function resolveReport(name: string, dir: string = process.cwd()): 
                     return reportObj;
                 }
             } catch (err: any) {
-                console.error(red(`Error loading custom report from ${p}: ${err.message || err}`));
+                logger.push({
+                    type: 'warning',
+                    title: `Failed to load custom report from ${p}`,
+                    detail: [err.message || String(err)]
+                });
             }
         }
     }
 
     const available = Object.keys(builtinReports).join(', ');
-    throw new Error(`Report type "${cleanName}" not found.\nAvailable core reports: ${available}\nOr create .testform/reports/${cleanName}.ts`);
+    logger.push({
+        type: 'error',
+        title: `Report type "${cleanName}" not found`,
+        detail: [
+            `Available built-in reports:`,
+            `  ${available}`,
+            '',
+            `Or create a custom report script in:`,
+            `  .testform/reports/${cleanName}.ts`
+        ]
+    });
+    throw new TestformError(`Report type "${cleanName}" not found`);
 }
 
 export async function resolveFormat(
@@ -91,13 +108,28 @@ export async function resolveFormat(
                     return formatObj;
                 }
             } catch (err: any) {
-                console.error(red(`Error loading custom format from ${p}: ${err.message || err}`));
+                logger.push({
+                    type: 'warning',
+                    title: `Failed to load custom format from ${p}`,
+                    detail: [err.message || String(err)]
+                });
             }
         }
     }
 
     const available = Object.keys(coreFormats).join(', ');
-    throw new Error(`Format "${cleanFmt}" not found.\nAvailable core formats: ${available}\nOr create .testform/reports/${cleanFmt}.format.ts`);
+    logger.push({
+        type: 'error',
+        title: `Format "${cleanFmt}" not found`,
+        detail: [
+            `Available core formats:`,
+            `  ${available}`,
+            '',
+            `Or create a custom format script in:`,
+            `  .testform/reports/${cleanFmt}.format.ts`
+        ]
+    });
+    throw new TestformError(`Format "${cleanFmt}" not found`);
 }
 
 export function resolveTemplate(

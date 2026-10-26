@@ -5,6 +5,8 @@ import { ReportContext } from '../reports/types';
 import { resolve } from 'path';
 import { writeFileSync } from 'fs';
 import { green, red, yellow, bold } from 'chalk';
+import { logger } from '../core/logger';
+import { TestformError } from '../core/errors';
 
 export interface ReportCmdOptions {
     dir: string;
@@ -88,9 +90,15 @@ export const reportCmd = async (options: ReportCmdOptions): Promise<void> => {
             }
         }
     } catch (err: any) {
-        console.error(red('╷'));
-        console.error(`${red('│')} ${bold(red('Error:'))} ${err.message || err}`);
-        console.error(red('╵'));
+        if (err instanceof TestformError) {
+            process.exitCode = err.exitCode || 1;
+            return;
+        }
+        logger.push({
+            type: 'error',
+            title: err.name && err.name !== 'Error' ? err.name : 'Report generation error',
+            detail: err.message ? err.message.split('\n') : [String(err)]
+        });
         process.exitCode = 1;
     }
 };
