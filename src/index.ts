@@ -841,12 +841,41 @@ export const main = async () => {
         await cli.runMatchedCommand();
     } catch (err: any) {
         if (err instanceof TestformError) {
-            if (err.message) console.error(err.message);
             process.exit(err.exitCode);
         }
         if (err.name === 'CACError') {
-            console.error(chalk.red(`\nError: ${err.message}\n`));
-            console.log(`Run '${TITLE_CLI} --help' for usage instructions.`);
+            const rawMsg = err.message || '';
+            const lowerMsg = rawMsg.toLowerCase();
+            let title = 'Missing required argument';
+            let detail = [
+                rawMsg,
+                `Run '${TITLE_CLI} --help' for usage instructions.`
+            ];
+
+            if (lowerMsg.includes('missing required arg')) {
+                const match = rawMsg.match(/`([^`]+)`/);
+                const cmdUsage = match ? match[1] : '';
+                const baseCmd = cmdUsage.split(' ')[0] || '';
+                title = 'Missing required argument';
+                detail = [
+                    `Missing required argument for command \`${cmdUsage}\`.`,
+                    `Run '${TITLE_CLI} ${baseCmd} --help' for usage instructions.`
+                ];
+            } else if (lowerMsg.includes('unknown option') || lowerMsg.includes('unknown flag')) {
+                title = 'Failed to parse command-line flags';
+                detail = [
+                    rawMsg,
+                    `Run '${TITLE_CLI} --help' for usage instructions.`
+                ];
+            } else {
+                title = rawMsg.charAt(0).toUpperCase() + rawMsg.slice(1);
+            }
+
+            logger.push({
+                type: 'error',
+                title,
+                detail
+            });
             process.exit(1);
         }
         try {
