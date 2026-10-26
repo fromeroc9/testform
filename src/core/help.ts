@@ -467,7 +467,7 @@ ${bold(`Options:`)}
                       variables file.
 
   -format=FORMAT      Output format for the graph. Supported values are
-                      dot (default) and mermaid.
+                      dot (default), mermaid, and console (or string/tree).
 `.trim();
 
 export const HELP_LOGIN = `

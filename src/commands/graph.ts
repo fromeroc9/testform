@@ -204,8 +204,10 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
         return Array.from(allDeps);
     }
 
-    // If tree format is explicitly requested, render terminal ASCII tree
-    if (format === 'tree') {
+    const normFormat = (format || 'dot').toLowerCase();
+
+    // If console, string, or tree format is requested, render terminal ASCII tree
+    if (normFormat === 'console' || normFormat === 'string' || normFormat === 'tree') {
         renderTreeGraph({ testplans, testruns, testcases, scope, drawCycles, depResolver, findTcs, getTcDependencies });
         return;
     }
@@ -320,7 +322,7 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
     // Detect cycle edges for highlighting
     const cycleEdges = findCycleEdges(edges);
 
-    if (format === 'mermaid') {
+    if (normFormat === 'mermaid') {
         renderMermaidGraph({ nodes: Array.from(nodes.values()), edges, cycleEdges, drawCycles });
     } else {
         // Default: DOT (Graphviz)

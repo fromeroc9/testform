@@ -31,7 +31,7 @@ describe('Command graphCmd & Help', () => {
         expect(help).toContain('Usage: testform [global options] graph [options]');
         expect(help).toContain('The graph is presented in the DOT language by default');
         expect(help).toContain('-format=FORMAT');
-        expect(help).toContain('dot (default) and mermaid');
+        expect(help).toContain('dot (default), mermaid, and console');
     });
 
     it('should output message if no configurations found', async () => {
@@ -98,7 +98,7 @@ Feature: Test Run 1
         expect(logs).toContain('-->');
     });
 
-    it('should render ASCII tree graph when format=tree', async () => {
+    it('should render ASCII tree graph when format=tree, console, or string', async () => {
         writeFileSync(join(tmpDir, 'test.case.feature'), `
 Feature: Test Case 1
   @testcase
@@ -111,11 +111,20 @@ Feature: Test Run 1
   Rule: test.case.feature
         `);
 
-        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'tree' });
-
+        // Test with format: 'console'
+        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'console' });
         expect(mockLog).toHaveBeenCalled();
-        const logs = mockLog.mock.calls.map(c => c.join(' ')).join('\n');
+        let logs = mockLog.mock.calls.map(c => c.join(' ')).join('\n');
+        expect(logs).toContain('Test Infrastructure Graph');
+        expect(logs).toContain('Test Run 1');
+        expect(logs).toContain('Do something');
 
+        mockLog.mockClear();
+
+        // Test with format: 'string'
+        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'string' });
+        expect(mockLog).toHaveBeenCalled();
+        logs = mockLog.mock.calls.map(c => c.join(' ')).join('\n');
         expect(logs).toContain('Test Infrastructure Graph');
         expect(logs).toContain('Test Run 1');
         expect(logs).toContain('Do something');
