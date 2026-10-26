@@ -10,7 +10,7 @@ export interface GraphCmdOptions {
     scope?: IScope;
     drawCycles?: boolean;
     variables?: VariableParser;
-    format?: 'dot' | 'mermaid' | 'tree' | string;
+    format?: 'dot' | 'mermaid' | 'tree';
     type?: string;
     plan?: string;
     moduleDepth?: number;
@@ -207,7 +207,7 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
     const normFormat = (format || 'dot').toLowerCase();
 
     // If console, string, or tree format is requested, render terminal ASCII tree
-    if (normFormat === 'console' || normFormat === 'string' || normFormat === 'tree') {
+    if (normFormat === 'tree') {
         renderTreeGraph({ testplans, testruns, testcases, scope, drawCycles, depResolver, findTcs, getTcDependencies });
         return;
     }

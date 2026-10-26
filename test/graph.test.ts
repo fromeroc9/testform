@@ -31,7 +31,7 @@ describe('Command graphCmd & Help', () => {
         expect(help).toContain('Usage: testform [global options] graph [options]');
         expect(help).toContain('The graph is presented in the DOT language by default');
         expect(help).toContain('-format=FORMAT');
-        expect(help).toContain('dot (default), mermaid, and console');
+        expect(help).toContain('dot (default), mermaid, and tree');
     });
 
     it('should output message if no configurations found', async () => {
@@ -112,7 +112,7 @@ Feature: Test Run 1
         `);
 
         // Test with format: 'console'
-        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'console' });
+        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'tree' });
         expect(mockLog).toHaveBeenCalled();
         let logs = mockLog.mock.calls.map(c => c.join(' ')).join('\n');
         expect(logs).toContain('Test Infrastructure Graph');
@@ -122,7 +122,7 @@ Feature: Test Run 1
         mockLog.mockClear();
 
         // Test with format: 'string'
-        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'string' });
+        await graphCmd({ dir: tmpDir, scope: 'testcase', format: 'tree' });
         expect(mockLog).toHaveBeenCalled();
         logs = mockLog.mock.calls.map(c => c.join(' ')).join('\n');
         expect(logs).toContain('Test Infrastructure Graph');

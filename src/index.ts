@@ -690,7 +690,7 @@ export function createCli() {
     // ─── graph ────────────────────────────────────────────────────────────
     cli.command('graph', 'Generate a visual dependency graph of resources')
         .option('--draw-cycles', 'Highlight cycles in dependency graph')
-        .option('--format <format>', 'Output format for the graph (dot, mermaid, console, string, tree) (default: dot)')
+        .option('--format <format>', 'Output format for the graph (dot, mermaid, tree) (default: dot)')
         .option('--type <type>', 'Type of operation graph to output (plan, plan-refresh-only, plan-destroy, apply)')
         .option('--plan <plan>', 'Render graph using the specified plan file')
         .option('--module-depth <n>', '(deprecated) Depth of modules to show in output')
