@@ -25,6 +25,7 @@ ${bold(`All other commands:`)}
   import        Associate existing infrastructure with a ${TITLE_APP} resource
   login         Obtain and save credentials for a remote host
   logout        Remove locally-stored credentials for a remote host
+  modules       Show all declared modules in a working directory
   output        Show output values from your root module or state
   policy        Inspect, enable, or disable validation policies
   print         Parse a feature file and print the JSON AST
@@ -881,6 +882,27 @@ ${bold(`Subcommands:`)}
     show        Inspect an ephemeral sandbox
 `.trim();
 
+export const HELP_MODULES = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] modules [options]
+
+  Prints out a list of all declared ${TITLE_APP} modules and their resolved versions
+  in a ${TITLE_APP} working directory.
+
+${bold(`Options:`)}
+
+  -json               If specified, output declared ${TITLE_APP} modules and
+                      their resolved versions in a machine-readable format.
+
+  -var 'foo=bar'      Set a value for one of the input variables in the root
+                      module of the configuration. Use this option more than
+                      once to set more than one variable.
+
+  -var-file=filename  Load variable values from the given file, in addition
+                      to the default files testform.vars.yml and *.auto.vars.yml.
+                      Use this option more than once to include more than one
+                      variables file.
+`.trim();
+
 export const HELP_PROVIDERS = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] providers [options] [DIR]
 
@@ -1316,6 +1338,7 @@ export function getCommandHelp(command: string): string | null {
     case 'report': return HELP_REPORT;
     case 'print': return HELP_PRINT;
     case 'logout': return HELP_LOGOUT;
+    case 'modules': return HELP_MODULES;
     case 'providers': return HELP_PROVIDERS;
     case 'state': return HELP_STATE;
     case 'state clean': return HELP_STATE_CLEAN;

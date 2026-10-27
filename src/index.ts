@@ -23,6 +23,7 @@ import { graphCmd } from './commands/graph';
 import { fmtCmd } from './commands/fmt';
 import { loginCmd } from './commands/login';
 import { logoutCmd } from './commands/logout';
+import { modulesCmd } from './commands/modules';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
 import { suiteCmd } from './commands/suite';
@@ -40,6 +41,7 @@ import { logger } from './core/logger';
 import { TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE, VERSION_CLI, FILE_CONFIG, FILE_STATE } from './core/const';
 import { getCommandHelp, HELP_GLOBAL } from './core/help';
 import { TestformError } from './core/errors';
+import { suggestCommand } from './core/utils';
 
 import {
     resolveWorkDir as getWorkDir,
@@ -731,6 +733,19 @@ export function createCli() {
             await logoutCmd({ hostname: hostname || 'github.com' });
         });
 
+    // ─── modules ──────────────────────────────────────────────────────────
+    cli.command('modules', 'Show all declared modules in a working directory')
+        .option('--json', 'Output results in JSON format')
+        .option('--var <var>', 'Set a variable value')
+        .option('--var-file <file>', 'Load variable values from file')
+        .action(async (options) => {
+            const workDir = getWorkDir(options);
+            await modulesCmd({
+                dir: workDir,
+                isJson: Boolean(options.json)
+            });
+        });
+
     // ─── providers ────────────────────────────────────────────────────────
     cli.command('providers [action] [...args]', 'Prints a tree of providers and schemas')
         .option('--test-directory <dir>', 'Directory containing test files')
@@ -794,6 +809,24 @@ export function createCli() {
     return cli;
 }
 
+function handleUnknownCommand(cmd: string): never {
+    const knownCommands = [
+        'apply', 'destroy', 'diff', 'ephemeral', 'fmt',
+        'force-unlock', 'functions', 'graph', 'import', 'init',
+        'login', 'logout', 'modules', 'output', 'plan',
+        'policy', 'print', 'providers', 'query', 'refresh',
+        'report', 'show', 'state', 'suite', 'taint',
+        'tool', 'untaint', 'validate', 'version', 'workspace'
+    ];
+    const suggestion = suggestCommand(cmd, knownCommands);
+    if (suggestion) {
+        console.error(`${TITLE_APP} has no command named "${cmd}". Did you mean "${suggestion}"?\n\nTo see all of ${TITLE_APP}'s top-level commands, run:\n  ${TITLE_CLI} -help`);
+    } else {
+        console.error(`${TITLE_APP} has no command named "${cmd}".\n\nTo see all of ${TITLE_APP}'s top-level commands, run:\n  ${TITLE_CLI} -help`);
+    }
+    process.exit(1);
+}
+
 export const main = async () => {
     const rawArgs = process.argv.slice(2);
 
@@ -838,6 +871,7 @@ export const main = async () => {
                 console.log(helpText);
                 process.exit(0);
             }
+            handleUnknownCommand(cmdName);
         }
     }
 
@@ -846,6 +880,16 @@ export const main = async () => {
 
     try {
         cli.parse([process.argv[0], process.argv[1], ...normalized], { run: false });
+        if (!cli.matchedCommand) {
+            const nonFlagArgs = rawArgs.filter(a => !a.startsWith('-'));
+            const unknownCmd = nonFlagArgs[0];
+            if (unknownCmd) {
+                handleUnknownCommand(unknownCmd);
+            } else {
+                console.log(HELP_GLOBAL);
+                process.exit(1);
+            }
+        }
         await cli.runMatchedCommand();
     } catch (err: any) {
         if (err instanceof TestformError) {
@@ -900,6 +944,7 @@ export { policy, registerPolicy } from './core/policy';
 export { evaluateExpression, interpolateExpressions } from './core/expressions/evaluator';
 export { VariableParser } from './core/variables';
 export { Config } from './core/config';
+export * from './reports';
 
 if (require.main === module || !module.parent) {
     main().catch((err: any) => {

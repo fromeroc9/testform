@@ -12,6 +12,7 @@ import {
 } from '../src/core/cli';
 import { State } from '../src/core/state';
 import { resolve } from 'path';
+import { suggestCommand, levenshtein } from '../src/core/utils';
 
 vi.mock('../src/core/state');
 
@@ -179,6 +180,29 @@ describe('cli module', () => {
             })).rejects.toThrow('inner failure');
 
             expect(mockReleaseLock).toHaveBeenCalled();
+        });
+    });
+
+    describe('suggestCommand & levenshtein', () => {
+        const candidates = ['apply', 'destroy', 'init', 'modules', 'plan', 'validate'];
+
+        it('should calculate correct levenshtein distance', () => {
+            expect(levenshtein('module', 'modules')).toBe(1);
+            expect(levenshtein('apply', 'apply')).toBe(0);
+            expect(levenshtein('kitten', 'sitting')).toBe(3);
+        });
+
+        it('should suggest exact or close match for unknown command typos', () => {
+            expect(suggestCommand('module', candidates)).toBe('modules');
+            expect(suggestCommand('aply', candidates)).toBe('apply');
+            expect(suggestCommand('pln', candidates)).toBe('plan');
+            expect(suggestCommand('validat', candidates)).toBe('validate');
+        });
+
+        it('should return undefined when no close match is found', () => {
+            expect(suggestCommand('val', candidates)).toBeUndefined();
+            expect(suggestCommand('foobar', candidates)).toBeUndefined();
+            expect(suggestCommand('xyz123', candidates)).toBeUndefined();
         });
     });
 });
