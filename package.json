@@ -1,7 +1,7 @@
 {
 	"name": "@fromeroc9/testform",
 	"version": "1.1.0-beta.1",
-	"description": "Testform transforms standard issue trackers into full-fledged Test Management ecosystems using declarative Gherkin configurations that can be shared, reviewed, and versioned as code.",
+	"description": "Declarative Test-as-Code orchestration engine for Git: zero mandatory SaaS servers, zero test drift, and immutable quality management.",
 	"author": "Flavio Romero <flavio.arc9@gmail.com>",
 	"main": "dist/index.js",
 	"license": "GPL-3.0-or-later",
