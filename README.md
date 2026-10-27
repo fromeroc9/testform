@@ -5,8 +5,7 @@
 <h1 align="center">Testform</h1>
 
 <p align="center">
-  <strong>Declare, plan, apply, and reconcile in Git.</strong><br />
-  <em>Declarative Test-as-Code Framework for Git & Testing Platforms</em>
+  <strong>Declare, plan, apply, and reconcile in Git.</strong>
 </p>
 
 <p align="center">
@@ -20,7 +19,7 @@
 
 ---
 
-**Testform** is a **declarative test orchestration engine** built on the **Test-as-Code (TaC)** paradigm with **zero mandatory SaaS servers and zero Test Drift**. It transforms your Git repository into an immutable, cryptographic QA ledger. Manage your entire testing lifecycle, declare test specifications as versioned Gherkin (`.feature`) code, plan speculative diffs, reconcile execution states across platforms, and review quality gates directly in Pull Requests.
+**Testform** is a **declarative test framework** built on the **Test-as-Code (TaC)** paradigm with **zero mandatory SaaS servers and zero Test Drift**. It transforms your Git repository into an immutable, cryptographic QA ledger. Manage your entire testing lifecycle, declare test specifications as versioned Gherkin (`.feature`) code, plan speculative diffs, reconcile execution states across platforms, and review quality gates directly in Pull Requests.
 
 ---
 
