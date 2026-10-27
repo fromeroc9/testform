@@ -8,6 +8,15 @@
   <strong>Declarative Test-as-Code Framework for Git & Testing Platforms</strong>
 </p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/@fromeroc9/testform"><img src="https://img.shields.io/npm/v/@fromeroc9/testform?style=flat-square&color=4F46E5&label=npm%20package" alt="NPM Version" /></a>
+  <a href="https://fromeroc9.github.io/testform-docs/"><img src="https://img.shields.io/badge/docs-online-4F46E5?style=flat-square&logo=gitbook&logoColor=white" alt="Docs Online" /></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D%2018.0.0-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js Version" /></a>
+  <img src="https://img.shields.io/badge/tests-43%20passed%20%7C%20356%20units-brightgreen?style=flat-square&logo=vitest&logoColor=white" alt="Test Status" />
+  <a href="https://github.com/fromeroc9/testform-docs"><img src="https://img.shields.io/badge/portal-testform--docs-0284C7?style=flat-square&logo=astro&logoColor=white" alt="Docs Portal" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License" /></a>
+</p>
+
 ---
 
 **Testform** brings the **Test-as-Code** paradigm to your version control platforms. It transforms standard issue trackers (like GitHub) into full-fledged Test Management ecosystems. By treating your QA processes as code, it codifies test specifications into declarative Gherkin (`.feature`) configurations that can be shared amongst team members, edited, reviewed in Pull Requests, and strictly versioned.
