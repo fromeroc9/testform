@@ -36,7 +36,7 @@
 		"docs:dev": "npm --prefix ../testform-docs run dev",
 		"docs:build": "npm --prefix ../testform-docs run build",
 		"format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-		"publish": "npm run build && npm version patch && npm publish"
+		"prepublishOnly": "npm run build"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-dynamodb": "^3.1152.0",
