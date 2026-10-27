@@ -49,14 +49,39 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
     });
 
     for (const tc of sortedTestcases) {
-        const parts = tc.split('.');
-        const scenarioName = parts.pop();
-        const ruleName = parts.join('.');
-        const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
+        const tagMatch = tc.match(/@?(tc-[a-zA-Z0-9_-]+)/i);
+        const tag = tagMatch ? tagMatch[1].toLowerCase() : null;
 
-        const tcResources = state.getResources('github_testcase').filter((r: any) =>
-            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`.${scenarioName}`))
-        );
+        const parts = tc.split('.');
+        const scenarioName = parts.pop() || '';
+        const normTc = tc.replace(/\\/g, '/');
+
+        const tcResources = state.getResources('github_testcase').filter((r: any) => {
+            const normId = (r.identity || '').replace(/\\/g, '/');
+            const normTitle = (r.attributes?.title || '').toLowerCase();
+            const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
+
+            // Match by tag if present
+            if (tag && (idLastPart === tag || normId.toLowerCase().includes(`@${tag}`) || normId.toLowerCase().includes(`.${tag}`))) {
+                const ruleContext = normTc.split('.case.feature')[0];
+                const fileBase = ruleContext.split('/').pop();
+                if (!fileBase || normId.includes(fileBase)) {
+                    return true;
+                }
+            }
+
+            // Match by title
+            if (normTitle && (normTitle === scenarioName.toLowerCase() || normTc.toLowerCase().includes(normTitle))) {
+                return true;
+            }
+
+            // Match by exact end part or wildcard
+            if (scenarioName === '*' || (idLastPart && idLastPart === scenarioName.replace(/^@/, '').toLowerCase())) {
+                return true;
+            }
+
+            return false;
+        });
 
         const distinctFiles = new Set(tcResources.map((r: any) => {
             const lastDot = r.identity.lastIndexOf('.');
@@ -83,16 +108,26 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
             const tcIdentity = tcResource.identity;
 
             let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
-                if (!gs.rule || !gs.name) return false;
-                const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
-                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`.${gs.name}`);
+                if (!gs.name) return false;
+                const normTc = tcIdentity.replace(/\\/g, '/');
+                const lastTc = normTc.split('.').pop() || '';
+                const gsTagMatch = gs.name.match(/@?(tc-[a-zA-Z0-9_-]+)/i);
+                if (gsTagMatch && lastTc && gsTagMatch[1].toLowerCase() === lastTc.replace(/^@/, '').toLowerCase()) {
+                    return true;
+                }
+                if (normTc.endsWith(`.${gs.name}`) || gs.name.endsWith(`.${lastTc}`) || lastTc === gs.name) {
+                    return true;
+                }
+                const tcTitle = (tcResource.attributes?.title || '').toLowerCase();
+                if (tcTitle && gs.name.toLowerCase() === tcTitle) {
+                    return true;
+                }
+                return false;
             });
 
             if (!groupScenario) {
                 groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
-                    if (!gs.rule || !gs.name) return false;
-                    const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
-                    return tcIdentity.includes(gsBaseRule) && gs.name === '*';
+                    return gs.name === '*';
                 });
             }
 

@@ -1,9 +1,10 @@
 import { bold, cyan, dim, green, yellow } from 'chalk';
+import { existsSync, readFileSync } from 'fs';
+import pathLib from 'path';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { TITLE_APP, TITLE_CLI } from '../core/const';
-
-import pathLib from 'path';
+import { resource } from '../core/resources';
 
 interface ShowCmdOptions {
     path?: string;
@@ -31,6 +32,38 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
     if (path === 'plan') {
         logger.info(`Use "${TITLE_CLI} plan" to generate and view an execution plan.`);
         return;
+    }
+
+    if (actualPath) {
+        const resolvedPath = pathLib.resolve(dir, actualPath);
+        if (existsSync(resolvedPath)) {
+            try {
+                const content = readFileSync(resolvedPath, 'utf-8');
+                const parsed = JSON.parse(content);
+                // Check if this is a plan file rather than a state file
+                if (parsed && (Array.isArray(parsed.changes) || ((parsed.testform_version || parsed.format_version) && !parsed.resources))) {
+                    if (isJson) {
+                        console.log(JSON.stringify(parsed, null, 2));
+                        return;
+                    }
+                    const changes = parsed.changes || [];
+                    const state = new State(dir, statePath, backupPath);
+                    try {
+                        await state.init();
+                    } catch {
+                        // ignore state init errors when displaying plan
+                    }
+                    resource.summary(changes, true, { state });
+                    return;
+                }
+            } catch (err: any) {
+                if (err instanceof SyntaxError) {
+                    logger.error(`Failed to parse file at ${resolvedPath}: ${err.message}`);
+                    process.exitCode = 1;
+                    return;
+                }
+            }
+        }
     }
 
     const state = new State(dir, actualPath || statePath, backupPath);

@@ -618,9 +618,9 @@ async function runState(options: {
         const localDoc = GherkinEditor.parseRawDocument(absoluteRunPath);
         const ruleChildren = (localDoc.feature?.children || []).filter((c: any) => c.rule);
 
-        const normBase = baseRule.replace(/\.feature$/i, '');
+        const normBase = baseRule.replace(/\.feature$/i, '').replace(/\\/g, '/');
         const matchedRuleNode = ruleChildren.find((c: any) => {
-            const rName = (c.rule?.name || '').replace(/\.feature$/i, '');
+            const rName = (c.rule?.name || '').replace(/\.feature$/i, '').replace(/\\/g, '/');
             return rName === normBase || rName.endsWith('/' + normBase) || normBase.endsWith('/' + rName) ||
                    rName.endsWith(normBase) || normBase.endsWith(rName);
         });
@@ -629,7 +629,12 @@ async function runState(options: {
             const sName = sc.scenario?.name || '';
             const normCase = scenarioName ? scenarioName.trim().toLowerCase() : '';
             const sNorm = sName.trim().toLowerCase();
-            return sNorm === normCase || sNorm.replace(/^@/, '') === normCase.replace(/^@/, '');
+            return (
+                sNorm === normCase ||
+                sNorm.replace(/^@/, '') === normCase.replace(/^@/, '') ||
+                sNorm.endsWith(`.${normCase}`) ||
+                sNorm.endsWith(`.${normCase.replace(/^@/, '')}`)
+            );
         });
 
         if (!isExpanded) {

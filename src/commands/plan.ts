@@ -411,6 +411,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
         if (isJson) {
             const planData = {
+                format_version: '1.0',
                 testform_version: VERSION_CLI,
                 scope: scope,
                 changes: plan.changes
@@ -427,6 +428,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
         const path = require('path');
         const resolvedOutPath = path.resolve(dir, outPath);
         const planData = {
+            format_version: '1.0',
             testform_version: VERSION_CLI,
             scope: scope,
             changes: plan.changes

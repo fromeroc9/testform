@@ -13,6 +13,7 @@ import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
 import { createCommandContext } from '../core/context';
 import { resolveScopes } from '../core/cli';
 import { updateFeatureScenario } from '../core/editor';
+import { matchesScope } from '../core/selector';
 
 export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
@@ -117,12 +118,14 @@ export const diffCmd = async (options: DiffCmdOptions) => {
     const scopesToRun = resolveScopes(effectiveScope);
 
     for (const s of scopesToRun) {
+        const matchPattern = config.getMatch?.(s);
+        const rawScenarios = documents.filter(d => matchesScope(d, s, matchPattern));
         const data = {
             identity: config.getIdentity(s),
             fields: config.getFields(s),
         };
 
-        const filtered = parser.filter(documents, data, s) || [];
+        const filtered = parser.filter(rawScenarios, data, s) || [];
 
         const resourceType = SCOPE_RESOURCE_MAP[s];
         const resources = state.getResources(resourceType);
@@ -240,8 +243,10 @@ async function executeRemoteDrift(
     for (const s of scopesToRun) {
         const resourceType = SCOPE_RESOURCE_MAP[s];
         const resources = state.getResources(resourceType);
+        const matchPattern = config.getMatch?.(s);
+        const rawScenarios = documents.filter(d => matchesScope(d, s, matchPattern));
         const filterData = { identity: config.getIdentity(s), fields: config.getFields(s) };
-        const localScenarios = parser.filter(documents, filterData, s) || [];
+        const localScenarios = parser.filter(rawScenarios, filterData, s) || [];
 
         for (const res of resources) {
             const issueNum = res.attributes.issueNumber;

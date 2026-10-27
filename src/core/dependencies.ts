@@ -169,6 +169,34 @@ export class DependencyResolver {
             }
         }
 
+        // Enforce hierarchical lifecycle dependencies: testcase -> testrun -> testplan
+        for (const item of items) {
+            const rawId = getIdentity(item);
+            const id = normalizeAddress(rawId);
+            const isRun = id.includes('testrun') || id.includes('.run.');
+            const isPlan = id.includes('testplan') || id.includes('.plan.');
+
+            if (isRun) {
+                for (const other of items) {
+                    const otherId = normalizeAddress(getIdentity(other));
+                    const otherIsCase = !otherId.includes('testrun') && !otherId.includes('.run.') && !otherId.includes('testplan') && !otherId.includes('.plan.');
+                    if (otherIsCase) {
+                        adj.get(otherId)!.push(id);
+                        inDegree.set(id, (inDegree.get(id) || 0) + 1);
+                    }
+                }
+            } else if (isPlan) {
+                for (const other of items) {
+                    const otherId = normalizeAddress(getIdentity(other));
+                    const otherIsRun = otherId.includes('testrun') || otherId.includes('.run.');
+                    if (otherIsRun) {
+                        adj.get(otherId)!.push(id);
+                        inDegree.set(id, (inDegree.get(id) || 0) + 1);
+                    }
+                }
+            }
+        }
+
         // Kahn's algorithm for Topological Sort
         const queue: string[] = [];
         for (const [id, deg] of inDegree.entries()) {

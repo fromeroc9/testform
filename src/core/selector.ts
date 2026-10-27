@@ -318,19 +318,24 @@ export async function resolveTargetScenario(
     };
 
     const documents = parser.content() || [];
-    const rawScenarios = documents.filter(s => matchesScope(s, scope));
+    const matchPattern = config.getMatch?.(scope);
+    const rawScenarios = documents.filter(s => matchesScope(s, scope, matchPattern));
     const filtered = parser.filter(rawScenarios, data, scope) || [];
 
+    const normTarget = target.replace(/\\/g, '/');
     const matches = filtered.filter(s => {
-        const id = s.custom?.identity ? `${s.uri}.${s.custom.identity}` : s.uri;
+        const normUri = (s.uri || '').replace(/\\/g, '/');
+        const id = s.custom?.identity ? `${normUri}.${s.custom.identity}` : normUri;
         return (
-            id === target ||
-            id.startsWith(`${target}.`) ||
-            id.endsWith(`/${target}`) ||
-            id.endsWith(target) ||
-            s.uri === target ||
-            s.uri.endsWith(`/${target}`) ||
-            s.uri.endsWith(target)
+            id === normTarget ||
+            id.startsWith(`${normTarget}.`) ||
+            id.endsWith(`/${normTarget}`) ||
+            id.endsWith(normTarget) ||
+            normUri === normTarget ||
+            normUri.endsWith(`/${normTarget}`) ||
+            normUri.endsWith(normTarget) ||
+            basename(normUri) === normTarget ||
+            basename(normUri) === basename(normTarget)
         );
     });
 

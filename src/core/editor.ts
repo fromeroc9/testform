@@ -248,10 +248,10 @@ export class GherkinEditor {
      * Find a rule within a feature by matching the baseRule string
      */
     private static findRule(feature: Feature, baseRule: string): Rule | undefined {
-        const normalizedBaseRule = baseRule.replace(/\.feature$/i, '');
+        const normalizedBaseRule = baseRule.replace(/\.feature$/i, '').replace(/\\/g, '/');
         return feature.elements.find(element => {
             if (element instanceof Rule) {
-                const ruleText = element.name.replace(/\.feature$/i, '');
+                const ruleText = element.name.replace(/\.feature$/i, '').replace(/\\/g, '/');
                 return normalizedBaseRule.endsWith(ruleText) || normalizedBaseRule.includes(ruleText) ||
                        ruleText.endsWith(normalizedBaseRule) || ruleText.includes(normalizedBaseRule);
             }
@@ -280,7 +280,9 @@ export class GherkinEditor {
             if (element instanceof Scenario) {
                 if (
                     element.name === scenarioName ||
-                    element.name.replace(/^@/, '') === scenarioName.replace(/^@/, '')
+                    element.name.replace(/^@/, '') === scenarioName.replace(/^@/, '') ||
+                    element.name.endsWith(`.${scenarioName}`) ||
+                    element.name.endsWith(`.${scenarioName.replace(/^@/, '')}`)
                 ) {
                     targetScenario = element;
                     break;
