@@ -5,7 +5,7 @@
 <h1 align="center">Testform</h1>
 
 <p align="center">
-  <strong>Declare, plan, apply, and reconcile in Git.</strong>
+  <strong>Declarative Test-as-Code Framework for Git & Testing Platforms</strong>
 </p>
 
 <p align="center">
