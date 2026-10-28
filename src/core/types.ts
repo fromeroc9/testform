@@ -61,7 +61,10 @@ export interface IConfig {
         testplan?: IScopeConfig;
         [key: string]: any;
     };
-    outputs?: Record<string, any>;
+    locals?: Record<string, any>;
+    module?: Record<string, any>;
+    variable?: Record<string, any>;
+    output?: Record<string, any>;
     data?: Record<string, any>;
     report_mapping?: Record<string, string>;
     policy?: {

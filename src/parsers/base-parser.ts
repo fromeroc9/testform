@@ -98,8 +98,9 @@ export abstract class BaseParser {
                                 const resolved = resolveModulePath(currentFile, target.source, this.dir, this.getModuleRegistry());
                                 if (resolved) {
                                     const evaluatedVars: Record<string, any> = {};
-                                    if (target.vars) {
-                                        for (const [k, v] of Object.entries(target.vars)) {
+                                    const targetVars = target.variable;
+                                    if (targetVars) {
+                                        for (const [k, v] of Object.entries(targetVars)) {
                                             if (typeof v === 'string' && this.variables) {
                                                 evaluatedVars[k] = this.variables.applyToTemplate(v);
                                             } else {

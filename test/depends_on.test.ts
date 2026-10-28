@@ -35,13 +35,21 @@ dependencies:
         const yamlDeps = resolver.getDependencies('checkout/checkout.case.feature.@tc-6', []);
         expect(yamlDeps.some(d => addressesMatch(d, 'auth/login.case.feature.@tc-1'))).toBe(true);
 
-        // Check Gherkin tag dependency
+        // Check Gherkin tag dependency (comma-separated style)
         const tagDeps = resolver.getDependencies('inventory/catalog.case.feature.@tc-4', [
             '@smoke',
             '@depends_on("auth/login.case.feature.@tc-1", "config/init.case.feature.@tc-0")'
         ]);
         expect(tagDeps.some(d => addressesMatch(d, 'auth/login.case.feature.@tc-1'))).toBe(true);
         expect(tagDeps.some(d => addressesMatch(d, 'config/init.case.feature.@tc-0'))).toBe(true);
+
+        // Check Gherkin tag dependency with array bracket syntax (Terraform parity)
+        const arrayTagDeps = resolver.getDependencies('inventory/catalog.case.feature.@tc-5', [
+            '@depends_on(["auth/login.case.feature.@tc-1", "config/init.case.feature.@tc-0"])'
+        ]);
+        expect(arrayTagDeps.length).toBe(2);
+        expect(arrayTagDeps.some(d => addressesMatch(d, 'auth/login.case.feature.@tc-1'))).toBe(true);
+        expect(arrayTagDeps.some(d => addressesMatch(d, 'config/init.case.feature.@tc-0'))).toBe(true);
     });
 
     it('should sort resources topologically so prerequisites run first', () => {
@@ -63,6 +71,28 @@ dependencies:
             'auth/login.case.feature.@tc-1',
             'checkout/cart.case.feature.@tc-2',
             'checkout/pay.case.feature.@tc-3'
+        ]);
+    });
+
+    it('should resolve dependencies within the same feature using just the scenario tag', () => {
+        const resolver = new DependencyResolver(testDir);
+
+        const items = [
+            { id: 'auth/login.case.feature.@tc-2', tags: ['@depends_on("@tc-1")'] },
+            { id: 'auth/login.case.feature.@tc-1', tags: [] },
+            { id: 'auth/login.case.feature.@tc-3', tags: ['@depends_on("tc-2")'] }
+        ];
+
+        const sorted = resolver.sortTopologically(
+            items,
+            item => item.id,
+            item => item.tags
+        );
+
+        expect(sorted.map(s => s.id)).toEqual([
+            'auth/login.case.feature.@tc-1',
+            'auth/login.case.feature.@tc-2',
+            'auth/login.case.feature.@tc-3'
         ]);
     });
 

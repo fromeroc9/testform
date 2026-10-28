@@ -11,14 +11,15 @@ export interface ModuleTarget {
     name?: string;
     source: string;
     scenario?: string; // Optional: e.g. "@tc-1" or "Login con credenciales"
-    vars?: Record<string, any>; // Input parameters passed to module
+    variable?: Record<string, any>; // Input parameters passed to module (canonical Terraform parity)
 }
 
 export interface ModuleDeclaration {
     source: string;
     version?: string;
     scenario?: string;
-    vars?: Record<string, any>;
+    variable?: Record<string, any>; // Input parameters passed to module (canonical Terraform parity)
+    output?: Record<string, any>;
     outputs?: Record<string, any>;
 }
 
@@ -41,9 +42,8 @@ export class ModuleRegistry {
             if (existsSync(p)) {
                 try {
                     const parsed = YAML.parse(readFileSync(p, 'utf-8'));
-                    const mods = parsed?.module || parsed?.modules;
-                    if (mods && typeof mods === 'object') {
-                        this.registerModules(mods);
+                    if (parsed?.module && typeof parsed.module === 'object') {
+                        this.registerModules(parsed.module);
                     }
                 } catch {
                     // ignore parse errors
@@ -51,14 +51,13 @@ export class ModuleRegistry {
             }
         }
 
-        // 2. Domain files
+        // 2. Domain files across the workspace
         const domainFiles = findDomainConfigFiles(this.workDir);
         for (const f of domainFiles) {
             try {
                 const parsed = YAML.parse(readFileSync(f, 'utf-8'));
-                const mods = parsed?.module || parsed?.modules;
-                if (mods && typeof mods === 'object') {
-                    this.registerModules(mods);
+                if (parsed?.module && typeof parsed.module === 'object') {
+                    this.registerModules(parsed.module);
                 }
             } catch {
                 // ignore
@@ -67,14 +66,37 @@ export class ModuleRegistry {
     }
 
     private registerModules(raw: Record<string, any>): void {
+        const RESERVED = new Set([
+            'source', 'version', 'scenario', 'id', 'providers', 'depends_on',
+            'count', 'for_each', 'lifecycle', 'output', 'outputs', 'variable'
+        ]);
+
         for (const [name, cfg] of Object.entries(raw)) {
             if (!cfg || typeof cfg !== 'object') continue;
+
+            // 1. Direct native variables (any top-level key not in reserved)
+            const directVars: Record<string, any> = {};
+            for (const [k, v] of Object.entries(cfg)) {
+                if (!RESERVED.has(k)) {
+                    directVars[k] = v;
+                }
+            }
+
+            // 2. Explicit variable: block
+            const explicitVars = (cfg.variable && typeof cfg.variable === 'object')
+                ? cfg.variable
+                : {};
+
+            const mergedVars = { ...directVars, ...explicitVars };
+            const finalVars = Object.keys(mergedVars).length > 0 ? mergedVars : undefined;
+
             this.declaredModules.set(name, {
                 source: cfg.source || '',
                 version: cfg.version || '',
                 scenario: cfg.scenario || cfg.id,
-                vars: cfg.vars && typeof cfg.vars === 'object' ? cfg.vars : undefined,
-                outputs: cfg.outputs && typeof cfg.outputs === 'object' ? cfg.outputs : undefined,
+                variable: finalVars,
+                output: cfg.output || cfg.outputs,
+                outputs: cfg.output || cfg.outputs,
             });
         }
     }
@@ -129,10 +151,11 @@ export function parseGitSource(source: string): ParsedGitSource {
 }
 
 /**
- * Parses input variables inside vars={...} argument of @module.
+ * Parses input variables inside variable={...} argument of @module.
+ * Note: legacy vars={...} syntax has been completely eradicated.
  */
-function parseVarsArgument(tag: string): Record<string, any> | undefined {
-    const varsIdx = tag.indexOf('vars=');
+function parseVariableArgument(tag: string): Record<string, any> | undefined {
+    const varsIdx = tag.indexOf('variable=');
     if (varsIdx === -1) return undefined;
 
     const openIdx = tag.indexOf('{', varsIdx);
@@ -183,9 +206,9 @@ function parseVarsArgument(tag: string): Record<string, any> | undefined {
  * named module lookup, and input variable parameters.
  * Examples:
  *   @module(source="./auth.case.feature")
- *   @module(source="./auth.case.feature", vars={user: "admin", env: "${var.environment}"})
- *   @module(source="./auth.case.feature", scenario="@tc-1", vars={user: "admin"})
- *   @module(name="auth_standard", vars={user: "custom"})
+ *   @module(source="./auth.case.feature", variable={user: "admin", env: "${var.environment}"})
+ *   @module(source="./auth.case.feature", scenario="@tc-1", variable={user: "admin"})
+ *   @module(name="auth_standard", variable={user: "custom"})
  *   @module("auth_standard")
  *   @module("./auth.case.feature.@tc-1")
  *   @module(source=["./m1.feature.@tc-1", "./m2.feature"])
@@ -197,8 +220,8 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
     const scenarioArgMatch = tag.match(/[,;]\s*(?:scenario|id)=['"]([^'"]+)['"]/i);
     const scenarioArg = scenarioArgMatch ? scenarioArgMatch[1].trim() : undefined;
 
-    // Extract vars={...} if present
-    const parsedVars = parseVarsArgument(tag);
+    // Extract variable={...} if present
+    const parsedVars = parseVariableArgument(tag);
 
     // Check for name="..."
     const nameMatch = tag.match(/name=['"]([^'"]+)['"]/i);
@@ -217,10 +240,10 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
                     return {
                         source: item.slice(0, idx + 8).trim(),
                         scenario: item.slice(idx + 9).trim(),
-                        vars: parsedVars
+                        variable: parsedVars
                     };
                 }
-                return { source: item, scenario: scenarioArg, vars: parsedVars };
+                return { source: item, scenario: scenarioArg, variable: parsedVars };
             });
     }
 
@@ -228,18 +251,19 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
     if (explicitName && registry) {
         const declared = registry.getModule(explicitName);
         if (declared) {
+            const combinedVars = { ...(declared.variable || {}), ...(parsedVars || {}) };
             return [{
                 name: explicitName,
                 source: declared.source,
                 scenario: scenarioArg || declared.scenario,
-                vars: { ...(declared.vars || {}), ...(parsedVars || {}) }
+                variable: Object.keys(combinedVars).length > 0 ? combinedVars : undefined
             }];
         }
         return [{
             name: explicitName,
             source: explicitName,
             scenario: scenarioArg,
-            vars: parsedVars
+            variable: parsedVars
         }];
     }
 
@@ -253,11 +277,12 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
         if (registry) {
             const declared = registry.getModule(src);
             if (declared) {
+                const combinedVars = { ...(declared.variable || {}), ...(parsedVars || {}) };
                 return [{
                     name: src,
                     source: declared.source,
                     scenario: sc || declared.scenario,
-                    vars: { ...(declared.vars || {}), ...(parsedVars || {}) }
+                    variable: Object.keys(combinedVars).length > 0 ? combinedVars : undefined
                 }];
             }
         }
@@ -267,7 +292,7 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
             sc = src.slice(idx + 9).trim();
             src = src.slice(0, idx + 8).trim();
         }
-        return [{ source: src, scenario: sc, vars: parsedVars }];
+        return [{ source: src, scenario: sc, variable: parsedVars }];
     }
 
     // 4. Shorthand: @module("...") or @module('...')
@@ -280,11 +305,12 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
         if (registry) {
             const declared = registry.getModule(src);
             if (declared) {
+                const combinedVars = { ...(declared.variable || {}), ...(parsedVars || {}) };
                 return [{
                     name: src,
                     source: declared.source,
                     scenario: sc || declared.scenario,
-                    vars: { ...(declared.vars || {}), ...(parsedVars || {}) }
+                    variable: Object.keys(combinedVars).length > 0 ? combinedVars : undefined
                 }];
             }
         }
@@ -294,7 +320,7 @@ export function parseModuleTargets(tag: string, registry?: ModuleRegistry): Modu
             sc = src.slice(idx + 9).trim();
             src = src.slice(0, idx + 8).trim();
         }
-        return [{ source: src, scenario: sc, vars: parsedVars }];
+        return [{ source: src, scenario: sc, variable: parsedVars }];
     }
 
     return null;

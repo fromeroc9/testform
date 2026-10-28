@@ -63,7 +63,7 @@ variable:
   environment:
     default: "prod"
 
-local:
+locals:
   tag_env: "@env-\${var.environment}"
 
 outputs:

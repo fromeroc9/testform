@@ -66,7 +66,7 @@ export class VariableParser {
                             }
                         }
                     }
-                    const localBlock = parsed.locals || parsed.local;
+                    const localBlock = parsed.locals;
                     if (localBlock && typeof localBlock === 'object') {
                         this.rawLocals = { ...this.rawLocals, ...localBlock };
                     }
@@ -106,7 +106,7 @@ export class VariableParser {
                 try {
                     const content = readFileSync(localsPath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const localsObj = parsed.locals || parsed.local || parsed;
+                    const localsObj = parsed.locals || parsed;
                     if (typeof localsObj === 'object') {
                         this.rawLocals = { ...this.rawLocals, ...localsObj };
                     }
@@ -138,7 +138,7 @@ export class VariableParser {
                     }
                 }
 
-                const localBlock = parsed.locals || parsed.local;
+                const localBlock = parsed.locals;
                 if (localBlock && typeof localBlock === 'object') {
                     this.rawLocals = { ...this.rawLocals, ...localBlock };
                 }

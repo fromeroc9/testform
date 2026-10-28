@@ -42,12 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed & Refactored
 
 #### 📐 Configuration Schema Canonicalization (`main.yml`)
-- **Singular Block Alignment:** Refactored configuration schema to use canonical singular blocks matching Terraform conventions:
-  - `resource:` (replacing legacy `scopes:`, `scope:`, `fields:`, and `conventions:`).
-  - `policy:` (replacing legacy `policies:`).
+- **Block Name Alignment with Terraform Conventions:**
+  - `locals:` (plural, matching Terraform `locals { ... }`): Canonical property inside `main.yml`, referenced via `${local.<name>}` and loaded from `locals.yml` or `local.yml`.
+  - `output:` (singular, matching Terraform `output "name" { ... }`): Canonical property inside `main.yml` and child modules, eliminating legacy plural `outputs:`.
+  - `module:` (singular, matching Terraform `module "name" { ... }`): Canonical property inside `main.yml` and domain YAML files, eliminating legacy `modules:`. Modules accept native direct arguments directly in YAML (e.g. `user: "admin"`), support explicit `variable:` blocks, and `@module` tags use `@module(..., variable={...})`.
+  - `variable:` (singular, matching Terraform `variable "name" { ... }`): Canonical property inside `main.yml`, `variables.yml`, and domain files.
+  - `resource:` (singular, replacing legacy `scopes:`, `scope:`, `fields:`, and `conventions:`).
+  - `policy:` (singular, replacing legacy `policies:`).
   - `backend:` (object map style: `backend: local: {}`).
+- **No Artificial Dedicated Files:** Eliminated mandatory special-case handling for `module.yml`; Testform automatically discovers `module:`, `data:`, `output:`, `locals:`, `variable:`, and `resource:` blocks across `main.yml` and any modular domain YAML files (`findDomainConfigFiles`), mirroring Terraform's multi-file discovery model.
 - **CLI Policy Sync:** `testform policy enable <id>` and `testform policy disable <id>` now directly update the `policy: disabled: [...]` array inside `main.yml`.
-- **Command Engine Refactoring:** Updated all core CLI commands (`apply`, `destroy`, `diff`, `import`, `plan`, `policy`, `query`, `refresh`, `show`, `suite`) to consume the standardized `resource:`, `policy:`, and `backend:` schema without legacy pollution.
+- **Command Engine Refactoring:** Updated all core CLI commands (`apply`, `destroy`, `diff`, `import`, `plan`, `policy`, `query`, `refresh`, `show`, `suite`, `output`) to consume the standardized `resource:`, `policy:`, `locals:`, `module:`, `output:`, and `backend:` schema without legacy pollution.
 
 #### 🧹 Resource Boundary Cleanliness
 - **Strict Canonical Resource Boundary:** Resources are strictly limited to the 3 BDD testing artifacts: `testcase`, `testrun`, and `testplan`.

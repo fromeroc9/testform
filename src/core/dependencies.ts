@@ -100,12 +100,17 @@ export class DependencyResolver {
         // In Gherkin, an inner '@' in @depends_on("path.@tag") gets split by Cucumber into separate tags
         const reassembledTags = reassembleSplitTags(tags, '@depends_on(');
 
-        // Parse Gherkin tags: @depends_on("target1", "target2") or @depends_on(target1, target2)
+        // Parse Gherkin tags: @depends_on(["target1", "target2"]) or @depends_on("target1", "target2")
         for (const tag of reassembledTags) {
             const clean = tag.startsWith('@') ? tag.substring(1) : tag;
             const match = clean.match(/^depends_on\((.*)\)$/);
             if (match) {
-                const targets = match[1]
+                let inner = match[1].trim();
+                // Support array bracket notation: @depends_on(["target1", "target2"])
+                if (inner.startsWith('[') && inner.endsWith(']')) {
+                    inner = inner.slice(1, -1).trim();
+                }
+                const targets = inner
                     .split(',')
                     .map(t => normalizeAddress(t.trim().replace(/^['"]|['"]$/g, '')))
                     .filter(Boolean);

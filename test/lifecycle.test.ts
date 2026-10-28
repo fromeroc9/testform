@@ -19,18 +19,20 @@ describe('Lifecycle Meta-Arguments (Phase 3)', () => {
         rmSync(testDir, { recursive: true, force: true });
     });
 
-    it('should parse lifecycle configuration from testform.yml and tags', () => {
+    it('should parse lifecycle configuration from resource block and tags', () => {
         const testformYml = `
 version: "1.0"
 provider: local
 backend: local
 
-lifecycle:
-  prevent_destroy: false
-  ignore_changes:
-    - assignees
-  resources:
-    "auth/login.case.feature.@tc-1":
+resource:
+  global:
+    lifecycle:
+      prevent_destroy: false
+      ignore_changes:
+        - assignees
+  testcase:
+    lifecycle:
       prevent_destroy: true
       ignore_changes:
         - labels
@@ -41,11 +43,11 @@ lifecycle:
         const resolver = new LifecycleResolver(testDir);
 
         // Standard resource with global defaults
-        const globalLc = resolver.getLifecycle('checkout/cart.case.feature.@tc-2', []);
+        const globalLc = resolver.getLifecycle('checkout/cart.run.feature.@tr-2', []);
         expect(globalLc.prevent_destroy).toBe(false);
         expect(globalLc.ignore_changes).toContain('assignees');
 
-        // Specific resource override
+        // Specific testcase scope override
         const specificLc = resolver.getLifecycle('auth/login.case.feature.@tc-1', []);
         expect(specificLc.prevent_destroy).toBe(true);
         expect(specificLc.ignore_changes).toContain('labels');
@@ -58,15 +60,35 @@ lifecycle:
         expect(taggedLc.ignore_changes).toContain('milestone');
     });
 
+    it('should parse lifecycle defined inside resource.yml following Terraform parity', () => {
+        const resourceYml = `
+resource:
+  testcase:
+    match: "features/*.case.feature"
+    lifecycle:
+      prevent_destroy: true
+      ignore_changes:
+        - labels
+        - assignees
+`;
+        writeFileSync(resolve(testDir, 'resource.yml'), resourceYml);
+
+        const resolver = new LifecycleResolver(testDir);
+        const tcLc = resolver.getLifecycle('auth/login.case.feature.@tc-1', []);
+        expect(tcLc.prevent_destroy).toBe(true);
+        expect(tcLc.ignore_changes).toContain('labels');
+        expect(tcLc.ignore_changes).toContain('assignees');
+    });
+
     it('should block destruction when prevent_destroy is active', async () => {
         const testformYml = `
 version: "1.0"
 provider: local
 backend: local
 
-lifecycle:
-  resources:
-    "auth/login.case.feature.@tc-1":
+resource:
+  testcase:
+    lifecycle:
       prevent_destroy: true
 `;
         writeFileSync(resolve(testDir, 'testform.yml'), testformYml);
@@ -161,9 +183,9 @@ version: "1.0"
 provider: local
 backend: local
 
-lifecycle:
-  resources:
-    "auth/login.case.feature.@tc-1":
+resource:
+  testcase:
+    lifecycle:
       ignore_changes:
         - labels
 `;

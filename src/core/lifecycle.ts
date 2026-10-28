@@ -1,8 +1,8 @@
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import YAML from 'yaml';
 import { CONFIG_FILE_NAMES } from './const';
-import { normalizeAddress, addressesMatch } from './utils';
+import { normalizeAddress, addressesMatch, findDomainConfigFiles } from './utils';
 
 export interface LifecycleDeclaration {
     prevent_destroy?: boolean;
@@ -11,7 +11,6 @@ export interface LifecycleDeclaration {
 
 export class LifecycleResolver {
     private globalDefaults: LifecycleDeclaration = {};
-    private resourceRules: Map<string, LifecycleDeclaration> = new Map();
     private scopeDefaults: Map<string, LifecycleDeclaration> = new Map();
     private workDir: string;
 
@@ -21,7 +20,8 @@ export class LifecycleResolver {
     }
 
     /**
-     * Loads lifecycle configurations from testform.yml and domain files.
+     * Loads lifecycle configurations from resource declarations in main.yml, resource.yml, and domain files.
+     * In strict Terraform parity, lifecycle is a meta-argument block inside resource.
      */
     public loadDeclarations(): void {
         const rootFiles = CONFIG_FILE_NAMES;
@@ -30,100 +30,65 @@ export class LifecycleResolver {
             if (existsSync(p)) {
                 try {
                     const parsed = YAML.parse(readFileSync(p, 'utf-8'));
-                    if (parsed && typeof parsed.lifecycle === 'object') {
-                        this.registerLifecycleBlock(parsed.lifecycle);
-                    }
+                    this.processParsedYaml(parsed);
                 } catch {
                     // ignore
                 }
             }
         }
 
-        const domainFiles = this.findDomainConfigFiles(this.workDir);
+        const domainFiles = findDomainConfigFiles(this.workDir);
         for (const f of domainFiles) {
             try {
                 const parsed = YAML.parse(readFileSync(f, 'utf-8'));
-                if (parsed && typeof parsed.lifecycle === 'object') {
-                    this.registerLifecycleBlock(parsed.lifecycle);
-                }
+                this.processParsedYaml(parsed);
             } catch {
                 // ignore
             }
         }
     }
 
-    private registerLifecycleBlock(block: any): void {
-        if (!block || typeof block !== 'object') return;
+    private processParsedYaml(parsed: any): void {
+        if (!parsed || typeof parsed !== 'object') return;
 
-        // 1. Direct top-level fields
-        if (block.prevent_destroy !== undefined || block.ignore_changes !== undefined) {
-            this.globalDefaults = {
-                prevent_destroy: Boolean(block.prevent_destroy),
-                ignore_changes: Array.isArray(block.ignore_changes) ? block.ignore_changes : []
-            };
-        }
-
-        // 2. Scoped defaults (testcase, testrun, testplan)
-        for (const scope of ['testcase', 'testrun', 'testplan']) {
-            if (block[scope] && typeof block[scope] === 'object') {
-                this.scopeDefaults.set(scope, {
-                    prevent_destroy: Boolean(block[scope].prevent_destroy),
-                    ignore_changes: Array.isArray(block[scope].ignore_changes) ? block[scope].ignore_changes : []
-                });
+        // Terraform Parity: resource.<type>.lifecycle: { ... }
+        const resBlock = parsed.resource;
+        if (resBlock && typeof resBlock === 'object') {
+            for (const [scope, decl] of Object.entries(resBlock)) {
+                if (decl && typeof decl === 'object' && (decl as any).lifecycle) {
+                    this.registerScopeLifecycle(scope, (decl as any).lifecycle);
+                }
             }
         }
 
-        // 3. Resource specific rules
-        if (block.resources && typeof block.resources === 'object') {
-            for (const [addr, decl] of Object.entries(block.resources)) {
-                if (decl && typeof decl === 'object') {
-                    const norm = normalizeAddress(addr);
-                    this.resourceRules.set(norm, {
-                        prevent_destroy: Boolean((decl as any).prevent_destroy),
-                        ignore_changes: Array.isArray((decl as any).ignore_changes) ? (decl as any).ignore_changes : []
-                    });
-                }
+        // Standalone resource.yml without resource wrapper: testcase: { lifecycle: { ... } }
+        for (const scope of ['testcase', 'testrun', 'testplan', 'global']) {
+            if (parsed[scope] && typeof parsed[scope] === 'object' && parsed[scope].lifecycle) {
+                this.registerScopeLifecycle(scope, parsed[scope].lifecycle);
             }
         }
     }
 
-    private findDomainConfigFiles(dir: string): string[] {
-        const results: string[] = [];
-        if (!existsSync(dir)) return results;
+    private registerScopeLifecycle(scope: string, lc: any): void {
+        if (!lc || typeof lc !== 'object') return;
 
-        const IGNORED_DIRS = new Set(['node_modules', '.git', '.testform', '.terraform', 'dist', 'coverage', '.system_generated']);
-        const RESERVED_FILES = new Set([
-            ...CONFIG_FILE_NAMES,
-            'variables.yml', 'variables.yaml',
-            'vars.yml', 'vars.yaml',
-            'locals.yml', 'locals.yaml',
-            'local.yml', 'local.yaml',
-            'outputs.yml', 'outputs.yaml',
-            'data.yml', 'data.yaml'
-        ]);
+        if (scope === 'global') {
+            this.globalDefaults = {
+                prevent_destroy: lc.prevent_destroy !== undefined ? Boolean(lc.prevent_destroy) : this.globalDefaults.prevent_destroy,
+                ignore_changes: Array.isArray(lc.ignore_changes)
+                    ? Array.from(new Set([...(this.globalDefaults.ignore_changes || []), ...lc.ignore_changes]))
+                    : this.globalDefaults.ignore_changes || []
+            };
+            return;
+        }
 
-        const scan = (currentDir: string) => {
-            try {
-                const entries = readdirSync(currentDir, { withFileTypes: true });
-                for (const entry of entries) {
-                    if (entry.isDirectory()) {
-                        if (!IGNORED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
-                            scan(resolve(currentDir, entry.name));
-                        }
-                    } else if (entry.isFile()) {
-                        const lower = entry.name.toLowerCase();
-                        if ((lower.endsWith('.yml') || lower.endsWith('.yaml')) && !RESERVED_FILES.has(lower)) {
-                            results.push(resolve(currentDir, entry.name));
-                        }
-                    }
-                }
-            } catch {
-                // Ignore
-            }
-        };
-
-        scan(dir);
-        return results.sort();
+        const existing = this.scopeDefaults.get(scope) || {};
+        this.scopeDefaults.set(scope, {
+            prevent_destroy: lc.prevent_destroy !== undefined ? Boolean(lc.prevent_destroy) : existing.prevent_destroy,
+            ignore_changes: Array.isArray(lc.ignore_changes)
+                ? Array.from(new Set([...(existing.ignore_changes || []), ...lc.ignore_changes]))
+                : existing.ignore_changes || []
+        });
     }
 
     /**
@@ -134,23 +99,21 @@ export class LifecycleResolver {
         let preventDestroy = this.globalDefaults.prevent_destroy || false;
         let ignoreChanges = [...(this.globalDefaults.ignore_changes || [])];
 
-        // Infer scope from identity
+        // Infer scope from identity (e.g. testcase / .case., testrun / .run., testplan / .plan.)
         for (const [scope, def] of this.scopeDefaults.entries()) {
-            if (norm.includes(`.${scope}.`) || norm.startsWith(`${scope}.`)) {
+            const matchesScope =
+                (scope === 'testcase' && (norm.includes('.case.') || norm.includes('testcase'))) ||
+                (scope === 'testrun' && (norm.includes('.run.') || norm.includes('testrun'))) ||
+                (scope === 'testplan' && (norm.includes('.plan.') || norm.includes('testplan'))) ||
+                norm.includes(`.${scope}.`) || norm.startsWith(`${scope}.`);
+
+            if (matchesScope) {
                 if (def.prevent_destroy !== undefined) preventDestroy = def.prevent_destroy;
                 if (def.ignore_changes) ignoreChanges.push(...def.ignore_changes);
             }
         }
 
-        // Check resource-specific rules
-        for (const [addr, decl] of this.resourceRules.entries()) {
-            if (addressesMatch(norm, addr)) {
-                if (decl.prevent_destroy !== undefined) preventDestroy = decl.prevent_destroy;
-                if (decl.ignore_changes) ignoreChanges.push(...decl.ignore_changes);
-            }
-        }
-
-        // Parse Gherkin tags (highest precedence)
+        // Parse Gherkin tags (highest precedence for scenario instance)
         for (const tag of tags) {
             const clean = tag.startsWith('@') ? tag.substring(1) : tag;
 

@@ -156,7 +156,7 @@ data:
   login_tc:
     address: "auth/login.case.feature.@tc-1"
 
-local:
+locals:
   admin_user: "\${data.credenciales.admin.user}"
 
 outputs:

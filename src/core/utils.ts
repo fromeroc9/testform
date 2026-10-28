@@ -92,7 +92,7 @@ export const formatHclValue = (value: any, indentLevel: number): string => {
  * Converts Windows backslashes to forward slashes and strips leading '@' in scenario tags.
  */
 export function normalizeAddress(str: string): string {
-    return str.replace(/\\/g, '/').replace(/\.@/, '.');
+    return str.replace(/\\/g, '/').replace(/\.@/, '.').replace(/^@/, '');
 }
 
 /**
@@ -173,8 +173,8 @@ export function restoreTagsWithSpaces(str: string): string {
 
 /**
  * Reassembles Cucumber Gherkin tags that were split across whitespace or inner '@' symbols.
- * Example: ["@module(source=\"./auth.feature\",", "vars={user:", "\"admin\"})"]
- * becomes ["@module(source=\"./auth.feature\", vars={user: \"admin\"})"]
+ * Example: ["@module(source=\"./auth.feature\",", "variable={user:", "\"admin\"})"]
+ * becomes ["@module(source=\"./auth.feature\", variable={user: \"admin\"})"]
  */
 export function reassembleSplitTags(tags: string[], prefix: string): string[] {
     const result: string[] = [];

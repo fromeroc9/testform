@@ -38,13 +38,12 @@ describe('Command modulesCmd (testform modules)', () => {
 
     it('should list declared modules in human-readable tree format matching Terraform', async () => {
         writeFileSync(join(tmpDir, 'main.yml'), `
-modules:
+module:
   auth_standard:
     source: "./modules/auth/login.case.feature"
     scenario: "@tc-login"
-    vars:
-      user: "admin"
-      timeout: 5000
+    user: "admin"
+    timeout: 5000
   remote_auth:
     source: "git::https://github.com/my-org/qa-modules.git//auth?ref=v1.2.0"
 `);
@@ -73,11 +72,10 @@ module:
 
     it('should output modules list in valid JSON format matching Terraform schema with -json flag', async () => {
         writeFileSync(join(tmpDir, 'main.yml'), `
-modules:
+module:
   auth_staging:
     source: "./modules/auth/login.case.feature"
-    vars:
-      role: "viewer"
+    role: "viewer"
 `);
 
         await modulesCmd({ dir: tmpDir, isJson: true });

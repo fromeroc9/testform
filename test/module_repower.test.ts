@@ -22,32 +22,75 @@ describe('Repowered Module System (Phase 5)', () => {
         }
     });
 
-    it('should parse @module tags with vars={...} parameters and scenario selection', () => {
-        const tag = '@module(source="./auth/login.case.feature", vars={user: "admin", env: "${var.environment}"})';
+    it('should parse @module tags with variable={...} parameters and scenario selection', () => {
+        const tag = '@module(source="./auth/login.case.feature", variable={user: "admin", env: "${var.environment}"})';
         const targets = parseModuleTargets(tag);
 
         expect(targets).toBeDefined();
         expect(targets?.length).toBe(1);
         expect(targets?.[0].source).toBe('./auth/login.case.feature');
-        expect(targets?.[0].vars).toEqual({
+        expect(targets?.[0].variable).toEqual({
             user: 'admin',
             env: '${var.environment}'
         });
 
-        const tagWithScenario = '@module(source="./auth.feature", scenario="@tc-login", vars={role: "qa", timeout: 5000})';
+        const tagWithScenario = '@module(source="./auth.feature", scenario="@tc-login", variable={role: "qa", timeout: 5000})';
         const targets2 = parseModuleTargets(tagWithScenario);
         expect(targets2?.[0].source).toBe('./auth.feature');
         expect(targets2?.[0].scenario).toBe('@tc-login');
-        expect(targets2?.[0].vars).toEqual({
+        expect(targets2?.[0].variable).toEqual({
             role: 'qa',
             timeout: 5000
         });
+
+        // Verify backward compatibility for vars= is eradicated (does not parse vars= as input variables)
+        const legacyTag = '@module(source="./auth.feature", vars={user: "legacy"})';
+        const legacyTargets = parseModuleTargets(legacyTag);
+        expect(legacyTargets?.[0].variable).toBeUndefined();
+    });
+
+    it('should support direct native module variables in YAML (Terraform parity)', () => {
+        const modDir = join(tmpDir, 'modules', 'auth');
+        mkdirSync(modDir, { recursive: true });
+        writeFileSync(join(modDir, 'login.case.feature'), `@testcase
+Feature: Login Module
+  @tc-login
+  Scenario: Autenticacion
+    Given credencial de usuario "<user>" y rol "<role>"
+`);
+
+        // testform.yml defining module with native direct arguments (no vars: container)
+        writeFileSync(join(tmpDir, 'testform.yml'), `
+module:
+  auth_native:
+    source: "./modules/auth/login.case.feature"
+    user: "native_admin"
+    role: "SuperAdmin"
+`);
+
+        const mainFile = join(tmpDir, 'dashboard.case.feature');
+        writeFileSync(mainFile, `@testcase
+Feature: Dashboard
+  @tc-dash
+  @module("auth_native")
+  Scenario: Ver Dashboard
+    When carga las metricas
+`);
+
+        const parser = new Parser(tmpDir);
+        const scenarios = parser.content();
+        const dashScenario = scenarios.find(s => s.name === 'Ver Dashboard');
+
+        expect(dashScenario).toBeDefined();
+        expect(dashScenario?.steps.length).toBe(2);
+        expect(dashScenario?.steps[0].text).toBe('credencial de usuario "native_admin" y rol "SuperAdmin"');
+        expect(dashScenario?.steps[1].text).toBe('carga las metricas');
     });
 
     it('should reassemble tags split across whitespace by Gherkin parser', () => {
         const splitTags = [
             '@module(source="./modules/auth/login.case.feature",',
-            'vars={user:',
+            'variable={user:',
             '"admin",',
             'env:',
             '"staging"})'
@@ -55,11 +98,11 @@ describe('Repowered Module System (Phase 5)', () => {
 
         const reassembled = reassembleSplitTags(splitTags, '@module(');
         expect(reassembled.length).toBe(1);
-        expect(reassembled[0]).toBe('@module(source="./modules/auth/login.case.feature", vars={user: "admin", env: "staging"})');
+        expect(reassembled[0]).toBe('@module(source="./modules/auth/login.case.feature", variable={user: "admin", env: "staging"})');
 
         const targets = parseModuleTargets(reassembled[0]);
         expect(targets).toBeDefined();
-        expect(targets?.[0].vars).toEqual({
+        expect(targets?.[0].variable).toEqual({
             user: 'admin',
             env: 'staging'
         });
@@ -81,7 +124,7 @@ describe('Repowered Module System (Phase 5)', () => {
         writeFileSync(mainFile, `@testcase
 Feature: Checkout
   @tc-pay
-  @module(source="./modules/auth/login.case.feature", vars={user: "admin_user", password: "SecretPassword123", base_url: "https://app.corp.internal"})
+  @module(source="./modules/auth/login.case.feature", variable={user: "admin_user", password: "SecretPassword123", base_url: "https://app.corp.internal"})
   Scenario: Realizar Pago Seguro
     When confirma la transaccion de $100
     Then transaccion autorizada
@@ -113,10 +156,10 @@ Feature: Login Helper
 
         // testform.yml defining module
         writeFileSync(join(tmpDir, 'testform.yml'), `
-modules:
+module:
   auth_standard:
     source: "./modules/auth/login.case.feature"
-    vars:
+    variable:
       user: "default_standard_user"
 `);
 

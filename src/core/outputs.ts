@@ -37,13 +37,16 @@ export class OutputResolver {
             if (existsSync(p)) {
                 try {
                     const parsed = YAML.parse(readFileSync(p, 'utf-8'));
-                    if (parsed && typeof parsed.outputs === 'object') {
-                        Object.assign(rootOutputs, this.normalizeDeclarations(parsed.outputs));
+                    const outBlock = parsed && (parsed.output || parsed.outputs);
+                    if (outBlock && typeof outBlock === 'object') {
+                        Object.assign(rootOutputs, this.normalizeDeclarations(outBlock));
                     }
-                    if (parsed && typeof parsed.modules === 'object') {
-                        for (const [modName, modConfig] of Object.entries(parsed.modules)) {
-                            if (modConfig && typeof modConfig === 'object' && (modConfig as any).outputs) {
-                                const decls = this.normalizeDeclarations((modConfig as any).outputs);
+                    const mods = parsed && parsed.module;
+                    if (mods && typeof mods === 'object') {
+                        for (const [modName, modConfig] of Object.entries(mods)) {
+                            const modOut = modConfig && typeof modConfig === 'object' && ((modConfig as any).output || (modConfig as any).outputs);
+                            if (modOut && typeof modOut === 'object') {
+                                const decls = this.normalizeDeclarations(modOut);
                                 for (const [k, v] of Object.entries(decls)) {
                                     rootOutputs[`module.${modName}.${k}`] = v;
                                 }
@@ -56,15 +59,17 @@ export class OutputResolver {
             }
         }
 
-        // 2. Root outputs.yml / outputs.yaml
-        for (const name of ['outputs.yml', 'outputs.yaml']) {
+        // 2. Root output.yml / outputs.yml
+        for (const name of ['output.yml', 'output.yaml', 'outputs.yml', 'outputs.yaml']) {
             const p = resolve(this.workDir, name);
             if (existsSync(p)) {
                 try {
                     const parsed = YAML.parse(readFileSync(p, 'utf-8'));
                     if (parsed && typeof parsed === 'object') {
-                        const target = parsed.outputs && typeof parsed.outputs === 'object' ? parsed.outputs : parsed;
-                        Object.assign(rootOutputs, this.normalizeDeclarations(target));
+                        const target = parsed.output || parsed.outputs || parsed;
+                        if (target && typeof target === 'object') {
+                            Object.assign(rootOutputs, this.normalizeDeclarations(target));
+                        }
                     }
                 } catch {
                     // ignore
@@ -82,8 +87,9 @@ export class OutputResolver {
                     const isModule = f.replace(/\\/g, '/').includes('/modules/') || parsed.module;
                     const moduleName = parsed.module || this.extractModuleName(f);
 
-                    if (parsed.outputs && typeof parsed.outputs === 'object') {
-                        const decls = this.normalizeDeclarations(parsed.outputs);
+                    const outBlock = parsed.output || parsed.outputs;
+                    if (outBlock && typeof outBlock === 'object') {
+                        const decls = this.normalizeDeclarations(outBlock);
                         if (isModule && moduleName) {
                             for (const [k, v] of Object.entries(decls)) {
                                 rootOutputs[`module.${moduleName}.${k}`] = v;
@@ -93,10 +99,12 @@ export class OutputResolver {
                         }
                     }
 
-                    if (parsed.modules && typeof parsed.modules === 'object') {
-                        for (const [modName, modConfig] of Object.entries(parsed.modules)) {
-                            if (modConfig && typeof modConfig === 'object' && (modConfig as any).outputs) {
-                                const decls = this.normalizeDeclarations((modConfig as any).outputs);
+                    const mods = parsed.module;
+                    if (mods && typeof mods === 'object') {
+                        for (const [modName, modConfig] of Object.entries(mods)) {
+                            const modOut = modConfig && typeof modConfig === 'object' && ((modConfig as any).output || (modConfig as any).outputs);
+                            if (modOut && typeof modOut === 'object') {
+                                const decls = this.normalizeDeclarations(modOut);
                                 for (const [k, v] of Object.entries(decls)) {
                                     rootOutputs[`module.${modName}.${k}`] = v;
                                 }
