@@ -1,6 +1,6 @@
 {
 	"name": "@fromeroc9/testform",
-	"version": "1.1.0-beta.3",
+	"version": "1.1.0-beta.2",
 	"description": "Declarative Test-as-Code orchestration engine for Git: zero mandatory SaaS servers, zero test drift, and immutable quality management.",
 	"author": "Flavio Romero <flavio.arc9@gmail.com>",
 	"main": "dist/index.js",
