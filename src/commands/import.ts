@@ -13,11 +13,11 @@ import fs from "fs";
 import { Logger } from '../core/logger';
 
 import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP } from '../core/const';
-import { matchesScope } from '../core/selector';
+import { matchesScope, detectScopeFromTarget } from '../core/selector';
 
 interface ImportCmdOptions {
     dir?: string;
-    scope: IScope;
+    scope?: IScope;
     identityArg: string;
     issueNumber: string;
     lock?: boolean;
@@ -29,7 +29,7 @@ interface ImportCmdOptions {
 export const importCmd = async (options: ImportCmdOptions) => {
     const {
         dir = '.',
-        scope,
+        scope: rawScope,
         identityArg,
         issueNumber,
         lock = true,
@@ -37,6 +37,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
         statePath,
         backupPath
     } = options;
+    const scope: IScope = rawScope || detectScopeFromTarget(identityArg) || 'testcase';
     const logger = new Logger();
     console.log(bold(`Importing ${scope} ${identityArg} from issue #${issueNumber}...`));
 

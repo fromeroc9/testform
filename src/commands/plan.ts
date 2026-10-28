@@ -116,10 +116,9 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     let filtered = parser.filter(rawScenarios, data, scope) || [];
 
     if (target) {
-        const targetArray = Array.isArray(target) ? target : [target];
         filtered = filtered.filter(s => {
-            const id = s.custom?.identity ? `${s.uri}.${s.custom.identity}` : '';
-            return targetArray.some(t => id === t || id.startsWith(`${t}.`) || id.endsWith(`/${t}`) || id.endsWith(t));
+            const id = s.custom?.identity ? `${s.uri}.${s.custom.identity}` : s.uri;
+            return matchesTarget(id, target, scope) || matchesTarget(s.uri, target, scope);
         });
     }
 
@@ -154,7 +153,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     let resources = state.getResources(RESOURCE_TYPE);
 
     if (target) {
-        resources = resources.filter(r => matchesTarget(r.identity, target));
+        resources = resources.filter(r => matchesTarget(r.identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
     }
 
     if (refreshOnly) {
@@ -300,7 +299,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 interface PlanCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope: IScope | 'all';
+    scope?: IScope | 'all';
     outPath?: string;
     lock?: boolean;
     lockTimeout?: string;

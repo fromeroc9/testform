@@ -40,13 +40,14 @@ export function matchesScope(s: any, scopeName: IScope, filePattern?: string): b
  * Detects the likely scope from a target string or filename.
  */
 export function detectScopeFromTarget(target: string): IScope | undefined {
-    if (target.endsWith('.plan.feature') || target.includes('plan') || target.startsWith('@tp')) {
+    const clean = target.trim().toLowerCase();
+    if (clean === 'testplan' || clean.endsWith('.plan.feature') || clean.includes('.plan.feature') || clean.startsWith('@tp') || clean.includes('.@tp')) {
         return 'testplan';
     }
-    if (target.endsWith('.run.feature') || target.includes('run') || target.startsWith('@tr')) {
+    if (clean === 'testrun' || clean.endsWith('.run.feature') || clean.includes('.run.feature') || clean.startsWith('@tr') || clean.includes('.@tr')) {
         return 'testrun';
     }
-    if (target.endsWith('.case.feature') || target.includes('case') || target.startsWith('@tc')) {
+    if (clean === 'testcase' || clean.endsWith('.case.feature') || clean.includes('.case.feature') || clean.startsWith('@tc') || clean.includes('.@tc')) {
         return 'testcase';
     }
     return undefined;
@@ -57,23 +58,47 @@ export function detectScopeFromTarget(target: string): IScope | undefined {
 /**
  * Checks if a given identity or URI matches any of the target expressions.
  * Supports exact match, scope prefix (`${target}.`), path suffix (`/${target}`),
- * and filename suffix.
+ * and filename suffix. Also matches resource type (e.g. 'testcase', 'testform_testcase').
  */
-export function matchesTarget(identityOrUri: string, target: string | string[]): boolean {
-    if (!identityOrUri) return false;
+export function matchesTarget(identityOrUri: string, target: string | string[], resourceType?: string): boolean {
+    if (!identityOrUri && !resourceType) return false;
     const targets = Array.isArray(target) ? target : [target];
 
     return targets.some(t => {
         if (!t) return false;
-        const normBase = basename(identityOrUri).replace(/(\.(case|run|plan))?\.feature$/i, '');
-        const normTarget = t.replace(/(\.(case|run|plan))?\.feature$/i, '');
+        const cleanT = t.trim().toLowerCase();
+
+        // Match by resource type (e.g. -target=testcase or -target=testform_testcase)
+        if (resourceType) {
+            const cleanRes = resourceType.trim().toLowerCase();
+            if (cleanT === cleanRes || cleanT === `testform_${cleanRes}` || `testform_${cleanT}` === cleanRes) {
+                return true;
+            }
+        }
+
+        if (!identityOrUri) return false;
+        const normIdentity = identityOrUri.replace(/\\/g, '/');
+        let normT = t.replace(/\\/g, '/');
+
+        // Check if target is a resource address with type prefix (e.g. testcase.modules/auth/login or github_testcase.modules/auth/login)
+        if (resourceType) {
+            const cleanRes = resourceType.trim().toLowerCase();
+            if (normT.toLowerCase().startsWith(`${cleanRes}.`)) {
+                normT = normT.slice(cleanRes.length + 1);
+            } else if (normT.toLowerCase().match(new RegExp(`^[a-z0-9_-]+_${cleanRes}\\.`, 'i'))) {
+                normT = normT.replace(new RegExp(`^[a-z0-9_-]+_${cleanRes}\\.`, 'i'), '');
+            }
+        }
+
+        const normBase = basename(normIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '');
+        const normTarget = basename(normT).replace(/(\.(case|run|plan))?\.feature$/i, '');
 
         return (
-            identityOrUri === t ||
-            identityOrUri.startsWith(`${t}.`) ||
-            identityOrUri.endsWith(`/${t}`) ||
-            identityOrUri.endsWith(t) ||
-            basename(identityOrUri) === t ||
+            normIdentity === normT ||
+            normIdentity.startsWith(`${normT}.`) ||
+            normIdentity.endsWith(`/${normT}`) ||
+            normIdentity.endsWith(normT) ||
+            basename(normIdentity) === normT ||
             normBase === normTarget
         );
     });

@@ -13,7 +13,7 @@ import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
 import { createCommandContext } from '../core/context';
 import { resolveScopes } from '../core/cli';
 import { updateFeatureScenario } from '../core/editor';
-import { matchesScope } from '../core/selector';
+import { matchesScope, matchesTarget } from '../core/selector';
 
 export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
@@ -50,7 +50,7 @@ export interface DiffCmdOptions {
     dir?: string;
     testDirectory?: string;
     verbose?: boolean;
-    scope: IScope | 'all' | 'remote';
+    scope?: IScope | 'all' | 'remote';
     remote?: boolean;
     interactive?: boolean;
     statePath?: string;
@@ -127,10 +127,19 @@ export const diffCmd = async (options: DiffCmdOptions) => {
             fields: config.getFields(s),
         };
 
-        const filtered = parser.filter(rawScenarios, data, s) || [];
+        let filtered = parser.filter(rawScenarios, data, s) || [];
+        if (target) {
+            filtered = filtered.filter(sc => {
+                const id = sc.custom?.identity ? `${sc.uri}.${sc.custom.identity}` : sc.uri;
+                return matchesTarget(id, target, s) || matchesTarget(sc.uri, target, s);
+            });
+        }
 
         const resourceType = SCOPE_RESOURCE_MAP[s];
-        const resources = state.getResources(resourceType);
+        let resources = state.getResources(resourceType);
+        if (target) {
+            resources = resources.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
+        }
         const stateMap = new Map(resources.map(r => [r.identity, r]));
 
         const localIds = new Set<string>();

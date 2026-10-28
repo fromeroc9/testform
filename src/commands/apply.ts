@@ -21,7 +21,7 @@ interface ApplyCmdOptions {
     dir?: string;
     autoApprove?: boolean;
     verbose?: boolean;
-    scope: IScope | 'all';
+    scope?: IScope | 'all';
     planFile?: string;
     lock?: boolean;
     lockTimeout?: string;

@@ -8,6 +8,7 @@
 import { resolve } from 'path';
 import { State } from './state';
 import { IScope } from './types';
+import { detectScopeFromTarget } from './selector';
 import { VariableParser } from './variables';
 import { ERR_NO_INPUT_ALLOWED } from './const';
 
@@ -29,6 +30,11 @@ export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string
         if (resourceTargets.length > 0) {
             return resourceTargets as IScope[];
         }
+
+        const detected = targetArr.map(t => detectScopeFromTarget(t)).filter((s): s is IScope => !!s);
+        if (detected.length > 0 && detected.length === targetArr.length) {
+            return Array.from(new Set(detected));
+        }
     }
 
     const raw = typeof scope === 'object' && scope !== null ? (scope as any).scope : scope;
@@ -42,10 +48,6 @@ export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string
     return [...ALL_SCOPES];
 }
 
-/**
- * Normalizes scope input for CLI commands that support both 'all' and single-scope execution.
- * Accepts either a raw scope string (e.g. 'testcase', 'all') or the CLI options object ({ scope?: string }).
- */
 export function normalizeScope(scopeInput?: string | { scope?: string }): { scope: IScope | 'all'; singleScope: IScope } {
     const scopeVal = typeof scopeInput === 'object' && scopeInput !== null
         ? scopeInput.scope

@@ -46,7 +46,6 @@ import { suggestCommand } from './core/utils';
 import {
     resolveWorkDir as getWorkDir,
     resolveVariableParser as getVariableParser,
-    normalizeScope as getScope,
     normalizeCliArgs as normalizeArgv,
     compareCliVersions as compareVersions
 } from './core/cli';
@@ -119,7 +118,6 @@ export function createCli() {
 
     // Global options
     cli.option('-C, --chdir <dir>', 'Working directory (default: current directory)', { default: '.' });
-    cli.option('-s, --scope <scope>', 'Scope filter (testcase | testrun | testplan | all)');
     cli.option('-v, --verbose', 'Show detailed debug output');
     cli.option('--no-color', 'Disable colorized console output');
     cli.option('--var <var>', 'Set a variable value (key=value)');
@@ -165,18 +163,19 @@ export function createCli() {
         .option('--test-directory <dir>', 'Subdirectory containing test files')
         .option('--no-tests', 'Suppress test execution checks')
         .option('--query <query>', 'Filter query for validation')
+        .option('--target <target>', 'Target a specific resource or feature file')
         .option('--var <var>', 'Set a variable value (key=value)')
         .option('--var-file <file>', 'Load variable values from a YAML file')
         .action(async (targetPath, options) => {
             const workDir = getWorkDir(options);
             const validateDir = targetPath || workDir;
-            const { singleScope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await validateCmd({
                 targetPath: validateDir,
+                dir: workDir,
                 verbose: Boolean(options.verbose),
-                scope: singleScope,
+                target: options.target,
                 variables: variableParser,
                 isJson: options.json,
                 testDirectory: options.testDirectory,
@@ -205,13 +204,11 @@ export function createCli() {
         .option('--test-directory <dir>', 'Directory containing feature files')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await planCmd({
                 dir: workDir,
                 verbose: Boolean(options.verbose),
-                scope,
                 outPath: options.out,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
@@ -250,14 +247,12 @@ export function createCli() {
         .option('--test-directory <dir>', 'Directory containing feature files')
         .action(async (planFile, options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await applyCmd({
                 dir: workDir,
                 autoApprove: Boolean(options.autoApprove),
                 verbose: Boolean(options.verbose),
-                scope,
                 planFile,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
@@ -278,6 +273,7 @@ export function createCli() {
     // ─── destroy ──────────────────────────────────────────────────────────
     cli.command('destroy', 'Destroy all remote-managed test resources')
         .option('-a, --auto-approve', 'Skip interactive approval')
+        .option('--target <target>', 'Target a specific resource')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
         .option('--input', 'Allow interactive input', { default: true })
@@ -285,13 +281,12 @@ export function createCli() {
         .option('--backup <path>', 'Path to backup file')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
 
             await destroyCmd({
                 dir: workDir,
                 autoApprove: Boolean(options.autoApprove),
                 verbose: Boolean(options.verbose),
-                scope,
+                target: options.target,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
                 input: options.input ?? true,
@@ -349,12 +344,10 @@ export function createCli() {
         .option('--compact-warnings', 'Show warnings in compact form')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
 
             await refreshCmd({
                 dir: workDir,
                 verbose: Boolean(options.verbose),
-                scope,
                 target: options.target,
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
@@ -367,6 +360,7 @@ export function createCli() {
 
     // ─── diff ─────────────────────────────────────────────────────────────
     cli.command('diff', 'Display human-readable difference between local and state')
+        .option('--target <target>', 'Target a specific resource or file')
         .option('--remote', 'Detect and compare against remote target platform')
         .option('-i, --interactive', 'Interactively resolve detected drift (pull / overwrite / skip)')
         .option('--test-directory <dir>', 'Subdirectory containing test files')
@@ -374,14 +368,13 @@ export function createCli() {
         .option('--backup <path>', 'Path to backup file')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await diffCmd({
                 dir: workDir,
                 testDirectory: options.testDirectory,
                 verbose: Boolean(options.verbose),
-                scope,
+                target: options.target,
                 remote: Boolean(options.remote),
                 interactive: Boolean(options.interactive),
                 statePath: options.state,
@@ -398,11 +391,9 @@ export function createCli() {
         .option('--backup <path>', 'Path to backup file')
         .action(async (address, issueNumber, options) => {
             const workDir = getWorkDir(options);
-            const { singleScope } = getScope(options);
 
             await importCmd({
                 dir: workDir,
-                scope: singleScope,
                 identityArg: address,
                 issueNumber,
                 lock: options.lock ?? true,
@@ -496,14 +487,12 @@ export function createCli() {
         .option('--json', 'Output results formatted as JSON')
         .action(async (subcommand, id, options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
 
             await ephemeralCmd({
                 subcommand,
                 id,
                 dir: workDir,
                 testDirectory: options.testDirectory,
-                scope,
                 autoApprove: Boolean(options.autoApprove),
                 force: Boolean(options.force),
                 json: Boolean(options.json),
@@ -555,6 +544,7 @@ export function createCli() {
 
     // ─── suite ───────────────────────────────────────────────────────────
     cli.command('suite [subcommand] [...args]', 'Manage test suites and execution files (init, fill, link, mark, tags)')
+        .option('-s, --scope <scope>', 'Suite scope (testrun, testplan)')
         .option('--fill', 'Autocomplete empty testrun rules with their testcases')
         .option('--link <id_status>', 'Link a testcase or testrun into a suite')
         .option('--mark <id_status>', 'Record execution status in a testrun')
@@ -567,7 +557,6 @@ export function createCli() {
         .option('--backup <path>', 'Path to backup file')
         .action(async (subcommand, subArgs, options) => {
             const workDir = getWorkDir(options);
-            const { singleScope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
             const ruleArr = options.rule ? (Array.isArray(options.rule) ? options.rule : [options.rule]) : [];
 
@@ -575,7 +564,7 @@ export function createCli() {
                 dir: workDir,
                 subCommand: subcommand,
                 subArgs: subArgs || [],
-                scope: singleScope,
+                scope: (options.scope as any) || 'testrun',
                 title: options.title,
                 rules: ruleArr,
                 target: options.target,
@@ -601,7 +590,6 @@ export function createCli() {
         .option('--backup <path>', 'Path to backup file')
         .action(async (subcommand, subArgs, options) => {
             const workDir = getWorkDir(options);
-            const { singleScope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
             const ruleArr = options.rule ? (Array.isArray(options.rule) ? options.rule : [options.rule]) : [];
 
@@ -609,7 +597,7 @@ export function createCli() {
                 dir: workDir,
                 subCommand: subcommand,
                 subArgs: subArgs || [],
-                scope: singleScope,
+                scope: (options.scope as any) || 'testcase',
                 title: options.title,
                 rules: ruleArr,
                 target: options.target,
@@ -656,13 +644,11 @@ export function createCli() {
         .option('--backup <path>', 'Path to backup file')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { scope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await queryCmd({
                 dir: workDir,
                 testDirectory: options.testDirectory,
-                scope,
                 filter: options.filter,
                 target: options.target,
                 generateConfigOut: options.generateConfigOut,
@@ -679,14 +665,12 @@ export function createCli() {
         .option('--format <format>', 'Print format', { default: 'testform' })
         .action(async (file, options) => {
             const workDir = getWorkDir(options);
-            const { singleScope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await printCmd({
                 dir: workDir,
                 file,
                 format: options.format || 'testform',
-                scope: singleScope,
                 variables: variableParser
             });
         });
@@ -700,12 +684,10 @@ export function createCli() {
         .option('--module-depth <n>', '(deprecated) Depth of modules to show in output')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { singleScope } = getScope(options);
             const variableParser = getVariableParser(options, workDir);
 
             await graphCmd({
                 dir: workDir,
-                scope: singleScope,
                 drawCycles: options.drawCycles,
                 variables: variableParser,
                 format: options.format || 'dot',
@@ -772,11 +754,10 @@ export function createCli() {
         .option('--json', 'Output policies in JSON format')
         .action(async (options) => {
             const workDir = getWorkDir(options);
-            const { singleScope } = getScope(options);
 
             await policyCmd({
                 dir: workDir,
-                scope: singleScope,
+                scope: options.scope,
                 enable: options.enable,
                 disable: options.disable,
                 show: options.show,

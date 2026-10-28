@@ -16,6 +16,7 @@ import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 import { IScope } from '../core/types';
+import { matchesTarget } from '../core/selector';
 import { formatResourceAddress } from '../core/utils';
 import { executeInBatches, detectAttributeDrift } from '../core/sync';
 import { withStateLock, resolveScopes } from '../core/cli';
@@ -60,8 +61,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let resources = state.getResources(resourceType);
 
     if (target) {
-        const targetArray = Array.isArray(target) ? target : [target];
-        resources = resources.filter(r => targetArray.some(t => r.identity === t || r.identity.startsWith(`${t}.`) || r.identity.endsWith(`/${t}`) || r.identity.endsWith(t)));
+        resources = resources.filter(r => matchesTarget(r.identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
     }
 
     if (resources.length === 0) {
@@ -181,7 +181,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 interface RefreshCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope: IScope | 'all';
+    scope?: IScope | 'all';
     lock?: boolean;
     lockTimeout?: string;
     statePath?: string;

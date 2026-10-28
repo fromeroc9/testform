@@ -15,6 +15,7 @@ import { createCommandContext } from '../core/context';
 import { askDestroyApproval } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
 import { IScope } from '../core/types';
+import { matchesTarget } from '../core/selector';
 import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
 
@@ -34,7 +35,7 @@ export interface DestroyCmdOptions {
     dir?: string;
     autoApprove?: boolean;
     verbose?: boolean;
-    scope: IScope | 'all';
+    scope?: IScope | 'all';
     lock?: boolean;
     lockTimeout?: string;
     input?: boolean;
@@ -61,7 +62,12 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
         const scopesToRun = resolveScopes(scope, target);
 
-        const allResources = scopesToRun.flatMap(s => (SCOPE_RESOURCE_MAP as any)[s] ? stateObj.getResources((SCOPE_RESOURCE_MAP as any)[s]) : []);
+        const allResources = scopesToRun.flatMap(s => {
+            const resType = (SCOPE_RESOURCE_MAP as any)[s];
+            if (!resType) return [];
+            const list = stateObj.getResources(resType);
+            return target ? list.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s))) : list;
+        });
         if (allResources.length === 0) {
             console.log('No resources to destroy. State is empty.');
             return;
@@ -95,7 +101,10 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
                 throw new Error(`Invalid scope: ${s}`);
             }
 
-            const resources = stateObj.getResources(SCOPE_RESOURCE_MAP[s]);
+            let resources = stateObj.getResources(SCOPE_RESOURCE_MAP[s]);
+            if (target) {
+                resources = resources.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
+            }
 
             if (resources.length === 0) {
                 console.log(`No resources found in state for scope '${s}'.`);

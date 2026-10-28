@@ -48,6 +48,18 @@ describe('Target and Spec Selector (src/core/selector)', () => {
             expect(matchesTarget('tests/a.run.feature', ['tests/b.run.feature', 'tests/a.run.feature'])).toBe(true);
             expect(matchesTarget('tests/c.run.feature', ['tests/b.run.feature', 'tests/a.run.feature'])).toBe(false);
         });
+
+        it('should match targets by resource type scope', () => {
+            expect(matchesTarget('tests/login.case.feature.@tc-1', 'testcase', 'testcase')).toBe(true);
+            expect(matchesTarget('tests/smoke.run.feature.@tr-1', 'testcase', 'testrun')).toBe(false);
+            expect(matchesTarget('tests/smoke.run.feature.@tr-1', 'testrun', 'testrun')).toBe(true);
+            expect(matchesTarget('tests/release.plan.feature.@tp-1', 'testplan', 'testplan')).toBe(true);
+        });
+
+        it('should match targets formatted as Terraform resource addresses', () => {
+            expect(matchesTarget('tests/login.case.feature.@tc-1', 'testcase.tests/login.case.feature.@tc-1', 'testcase')).toBe(true);
+            expect(matchesTarget('tests/login.case.feature.@tc-1', 'github_testcase.tests/login.case.feature.@tc-1', 'testcase')).toBe(true);
+        });
     });
 
     describe('parseSpec', () => {

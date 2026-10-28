@@ -2,18 +2,20 @@ import { Parser } from '../core/parser';
 import { VariableParser } from '../core/variables';
 import { Config } from '../core/config';
 import { IScope } from '../core/types';
+import { detectScopeFromTarget } from '../core/selector';
 import { logger } from '../core/logger';
 
 interface PrintOptions {
     dir: string;
     file?: string;
     format: string;
-    scope: IScope;
+    scope?: IScope;
     variables?: VariableParser;
 }
 
 export const printCmd = async (options: PrintOptions) => {
-    const { dir, file, format, scope, variables } = options;
+    const { dir, file, format, scope: rawScope, variables } = options;
+    const scope: IScope = rawScope || (file ? detectScopeFromTarget(file) : undefined) || 'testcase';
 
     const parser = new Parser(dir, variables);
     const config = new Config(dir);

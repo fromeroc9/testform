@@ -43,7 +43,6 @@ ${bold(`All other commands:`)}
 
 ${bold(`Global options (use these before the subcommand, if any):`)}
   -chdir=DIR    Switch to a different working directory before executing the given subcommand.
-  -scope        Limit the scope of the execution (testcase, testrun, testplan).
   -help         Show this help output, or the help for a specified subcommand.
   -version      An alias for the "version" subcommand.
 `;
@@ -189,31 +188,51 @@ export const HELP_VALIDATE = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] validate [options]
 
   Validate the configuration files in a directory, referring only to the
-  configuration and not accessing any remote services.
+  configuration and not accessing any remote services such as remote state,
+  provider APIs, etc.
 
   Validate runs checks that verify whether a configuration is syntactically
-  valid and internally consistent.
+  valid and internally consistent, regardless of any provided variables or
+  existing state. It is thus primarily useful for general verification of
+  reusable modules, including correctness of attribute names and value types.
+
+  It is safe to run this command automatically, for example as a post-save
+  check in a text editor or as a test step for a re-usable module in a CI
+  system.
+
+  Validation requires an initialized working directory with any referenced
+  plugins and modules installed. To initialize a working directory for
+  validation without accessing any configured remote backend, use:
+      ${TITLE_CLI} init -backend=false
+
+  To verify configuration in the context of a particular run (a particular
+  target workspace, input variable values, etc), use the '${TITLE_CLI} plan'
+  command instead, which includes an implied validation check.
 
 ${bold(`Options:`)}
 
-  -json                 Produce output in a machine-readable JSON format.
-                        Always disables color.
+  -json                 Produce output in a machine-readable JSON format,
+                        suitable for use in text editor integrations and other
+                        automated systems. Always disables color.
 
   -no-color             If specified, output won't contain any color.
 
-  -no-tests             If specified, ${TITLE_APP} will only parse the files and
-                        skip policy validations.
+  -no-tests             If specified, ${TITLE_APP} will not validate test files.
+
+  -target=resource      Target a specific resource or feature file for validation
+                        (e.g. -target=testcase, -target=tests/smoke.run.feature).
 
   -test-directory=path  Set the ${TITLE_APP} test directory, defaults to "tests".
-  
-  -query                Filter the parsed documents to locate specific test 
-                        scenarios across the active scope.
 
-  -var 'foo=bar'        Set a value for one of the input variables in the
-                        configuration. Use this option more than once to set
-                        more than one variable.
+  -query                If specified, the command will also filter and validate
+                        specific test scenarios across the configuration.
 
-  -var-file=filename    Load variable values from the given file (.yml or .yaml format).
+  -var 'foo=bar'        Set a value for one of the input variables in the root
+                        module of the configuration. Use this option more than
+                        once to set more than one variable.
+
+  -var-file=filename    Load variable values from the given file, in addition
+                        to the default files ${TITLE_CLI}.tfvars and *.auto.tfvars.
                         Use this option more than once to include more than one
                         variables file.
 `.trim();
@@ -864,6 +883,7 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] diff [options]
 
 ${bold(`Options:`)}
 
+  -target=resource        Target a specific resource or feature file.
   -remote                 Compare local and state against live remote provider issues.
   -i, -interactive        Interactively resolve detected drift (pull / overwrite / skip).
   -test-directory=dir     Subdirectory containing test files.
