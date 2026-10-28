@@ -892,6 +892,13 @@ export const main = async () => {
         await cli.runMatchedCommand();
     } catch (err: any) {
         if (err instanceof TestformError) {
+            if (!(err as any).logged) {
+                try {
+                    logger.error(err.message || String(err));
+                } catch {
+                    // TestformError thrown by logger.error
+                }
+            }
             process.exit(err.exitCode);
         }
         if (err.name === 'CACError') {
@@ -948,6 +955,13 @@ export * from './reports';
 if (require.main === module || !module.parent) {
     main().catch((err: any) => {
         if (err instanceof TestformError) {
+            if (!(err as any).logged) {
+                try {
+                    logger.error(err.message || String(err));
+                } catch {
+                    // TestformError thrown by logger.error
+                }
+            }
             process.exit(err.exitCode);
         }
         try {

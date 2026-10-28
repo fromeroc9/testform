@@ -115,7 +115,9 @@ export class Logger {
         const msgStr = this.formatMessage(message);
         if (this.isJson) {
             this.emitJson("error", msgStr, error ? (error instanceof Error ? error.stack : error) : undefined);
-            throw new TestformError(msgStr);
+            const err = new TestformError(msgStr);
+            (err as any).logged = true;
+            throw err;
         }
         this.print(red('╷'), true);
         const prefix = bold(red('Error:'));
@@ -141,7 +143,9 @@ export class Logger {
             }
         }
         this.print(red('╵'), true);
-        throw new TestformError(msgStr);
+        const err = new TestformError(msgStr);
+        (err as any).logged = true;
+        throw err;
     }
 
     blank(): void {
@@ -158,7 +162,11 @@ export class Logger {
 
         if (this.isJson) {
             this.emitJson(options.type === 'warning' ? "warn" : "error", options.title, { detail: options.detail, extra: options.extra });
-            if (close) throw new TestformError(options.title);
+            if (close) {
+                const err = new TestformError(options.title);
+                (err as any).logged = true;
+                throw err;
+            }
             return;
         }
 
@@ -180,7 +188,11 @@ export class Logger {
 
         this.print(lineColor('╵'));
 
-        if (close) throw new TestformError(options.title);
+        if (close) {
+            const err = new TestformError(options.title);
+            (err as any).logged = true;
+            throw err;
+        }
     }
 
     refresh(resourceId: string, remoteId?: string) {

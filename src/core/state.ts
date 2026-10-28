@@ -70,6 +70,7 @@ export class State {
     private workspaceManager: WorkspaceManager;
     private lockAcquired: boolean = false;
     private dir: string;
+    private customStatePath?: string;
 
     constructor(
         dir: string,
@@ -80,6 +81,7 @@ export class State {
         explicitBackendConfig?: any
     ) {
         this.dir = dir;
+        this.customStatePath = customStatePath;
         const config = new Config(dir, false);
         let backendConfig = explicitBackendConfig || config.getBackend();
 
@@ -134,7 +136,7 @@ export class State {
                 detail: [`Add a "version" field to your ${FILE_STATE} file and rerun init.`],
                 close: true
             });
-        } else if (parsed.version !== VERSION_STATE) {
+        } else if (parsed.version !== VERSION_STATE && parsed.version !== '1.0.0' && parsed.version !== '1') {
             notify.push({
                 type: 'error',
                 title: `state version mismatch`,
@@ -154,7 +156,11 @@ export class State {
             lineage: parsed.lineage ?? randomUUID(),
             lastSync: parsed.lastSync ?? '',
             provider: parsed.provider ?? config.getAdapterType(),
-            resources: parsed.resources ?? [],
+            resources: (parsed.resources ?? []).map((r: any) => ({
+                ...r,
+                type: r.type || (r.identity?.startsWith('@tr-') || r.identity?.includes('.run.') ? 'testrun' : r.identity?.startsWith('@tp-') || r.identity?.includes('.plan.') ? 'testplan' : 'testcase'),
+                attributes: r.attributes ?? { ...r }
+            })),
             outputs: parsed.outputs ?? {},
         };
     }
@@ -164,7 +170,14 @@ export class State {
 
         const success = await this.backend.lock(timeoutRaw);
         if (!success) {
-            throw new StateLockError(`Error acquiring the state lock.\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.`);
+            let lockInfoStr = '';
+            try {
+                const info = typeof (this.backend as any).getLockInfo === 'function' ? await (this.backend as any).getLockInfo() : null;
+                if (info && info.id) {
+                    lockInfoStr = `\n\nLock Info:\n  ID:        ${info.id}\n  Path:      ${this.customStatePath || FILE_STATE}\n  Operation: ${info.operation || 'Operation'}\n  Who:       ${info.who || 'unknown'}\n  Created:   ${info.created || ''}`;
+                }
+            } catch {}
+            throw new StateLockError(`Error acquiring the state lock\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.${lockInfoStr}`);
         }
 
         this.lockAcquired = true;
@@ -244,8 +257,9 @@ export class State {
         if (!this.state || !this.state.resources) return [];
         if (!type) return this.state.resources;
         return this.state.resources.filter(r => {
-            if (r.type === type) return true;
-            const canonicalR = r.type.includes('_') ? r.type.split('_').slice(1).join('_') : r.type;
+            const rType = r.type || (r.identity?.startsWith('@tr-') || r.identity?.includes('.run.') ? 'testrun' : r.identity?.startsWith('@tp-') || r.identity?.includes('.plan.') ? 'testplan' : 'testcase');
+            if (rType === type) return true;
+            const canonicalR = rType.includes('_') ? rType.split('_').slice(1).join('_') : rType;
             const canonicalT = type.includes('_') ? type.split('_').slice(1).join('_') : type;
             return canonicalR === canonicalT;
         });

@@ -150,6 +150,17 @@ export class LocalBackend implements IBackend {
         return existsSync(this.lockPath());
     }
 
+    async getLockInfo(): Promise<{ id?: string; path?: string; who?: string; operation?: string; created?: string } | null> {
+        const lockFile = this.lockPath();
+        if (!existsSync(lockFile)) return null;
+        try {
+            const raw = await fs.readFile(lockFile, 'utf-8');
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+
     async listWorkspaces(): Promise<string[]> {
         const workspaces = ['default'];
         const dPath = resolve(this.dir, `${FILE_STATE}.d`);
