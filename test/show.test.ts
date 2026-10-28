@@ -58,11 +58,7 @@ describe('Command showCmd', () => {
         expect(logs).toContain('synced');
     });
 
-    it('should print informational message when type is plan', async () => {
-        await showCmd({ path: 'plan' });
-
-        expect(mockLog).toHaveBeenCalled();
-        const logs = mockLog.mock.calls.join(' ');
-        expect(logs).toContain('generate and view an execution plan');
+    it('should report an error when specified file path does not exist', async () => {
+        await expect(showCmd({ path: 'non-existent-plan.tfplan' })).rejects.toThrow('The specified file does not exist');
     });
 });

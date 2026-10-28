@@ -45,34 +45,38 @@ function updateConfigFilePolicy(dir: string, policyId: string, enabled: boolean)
         doc.contents = doc.createNode({}) as any;
     }
 
-    let policies = doc.get('policies') as any;
-    if (!policies) {
-        doc.set('policies', doc.createNode({}));
-        policies = doc.get('policies') as any;
+    let policyNode = doc.get('policy') as any;
+    if (!policyNode) {
+        doc.set('policy', doc.createNode({}));
+        policyNode = doc.get('policy') as any;
     }
 
     if (enabled) {
-        const disabledNode = doc.getIn(['policies', 'disabled']) as any;
+        const disabledNode = doc.getIn(['policy', 'disabled']) as any;
         if (disabledNode) {
             const items = disabledNode.items ? disabledNode.items.map((i: any) => i.value ?? i) : (Array.isArray(disabledNode) ? disabledNode : []);
             const filtered = items.filter((id: string) => id !== policyId);
-            doc.setIn(['policies', 'disabled'], filtered);
+            if (filtered.length > 0) {
+                doc.setIn(['policy', 'disabled'], filtered);
+            } else {
+                doc.deleteIn(['policy', 'disabled']);
+            }
         }
-        if (doc.hasIn(['policies', policyId])) {
-            doc.setIn(['policies', policyId, 'enabled'], true);
+        if (doc.hasIn(['policy', policyId])) {
+            doc.deleteIn(['policy', policyId]);
         }
     } else {
-        const disabledNode = doc.getIn(['policies', 'disabled']) as any;
+        const disabledNode = doc.getIn(['policy', 'disabled']) as any;
         if (disabledNode) {
             const items: string[] = disabledNode.items ? disabledNode.items.map((i: any) => i.value ?? i) : (Array.isArray(disabledNode) ? disabledNode : []);
             if (!items.includes(policyId)) {
                 items.push(policyId);
-                doc.setIn(['policies', 'disabled'], items);
+                doc.setIn(['policy', 'disabled'], items);
             }
-        } else if (doc.hasIn(['policies', policyId])) {
-            doc.setIn(['policies', policyId, 'enabled'], false);
+        } else if (doc.hasIn(['policy', policyId])) {
+            doc.setIn(['policy', policyId], false);
         } else {
-            doc.setIn(['policies', 'disabled'], [policyId]);
+            doc.setIn(['policy', 'disabled'], [policyId]);
         }
     }
 

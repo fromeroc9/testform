@@ -56,6 +56,7 @@ export interface DiffCmdOptions {
     statePath?: string;
     backupPath?: string;
     variables?: VariableParser;
+    target?: string | string[];
 }
 
 export interface RemoteDriftDifference {
@@ -90,7 +91,8 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         remote = false,
         interactive = false,
         statePath,
-        backupPath
+        backupPath,
+        target
     } = options;
 
     const logger = new Logger(verbose);
@@ -115,7 +117,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
 
     // ── Local vs State Diff Mode ──
     const entries: DiffEntry[] = [];
-    const scopesToRun = resolveScopes(effectiveScope);
+    const scopesToRun = resolveScopes(effectiveScope, target);
 
     for (const s of scopesToRun) {
         const matchPattern = config.getMatch?.(s);

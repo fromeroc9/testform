@@ -43,7 +43,6 @@ ${bold(`All other commands:`)}
 
 ${bold(`Global options (use these before the subcommand, if any):`)}
   -chdir=DIR    Switch to a different working directory before executing the given subcommand.
-  -project-id   Override the default project ID defined in your main.yml.
   -scope        Limit the scope of the execution (testcase, testrun, testplan).
   -help         Show this help output, or the help for a specified subcommand.
   -version      An alias for the "version" subcommand.
@@ -898,7 +897,7 @@ ${bold(`Options:`)}
                       once to set more than one variable.
 
   -var-file=filename  Load variable values from the given file, in addition
-                      to the default files testform.vars.yml and *.auto.vars.yml.
+                      to the default files ${TITLE_APP.toLowerCase()}.vars.yml and *.auto.vars.yml.
                       Use this option more than once to include more than one
                       variables file.
 `.trim();
@@ -922,7 +921,7 @@ ${bold(`Options:`)}
                         once to set more than one variable.
 
   -var-file=filename    Load variable values from the given file, in addition
-                        to the default files testform.vars.yml and *.auto.vars.yml.
+                        to the default files ${TITLE_APP.toLowerCase()}.vars.yml and *.auto.vars.yml.
                         Use this option more than once to include more than one
                         variables file.
 
@@ -930,6 +929,117 @@ ${bold(`Subcommands:`)}
     lock      Write out dependency locks for the configured providers
     mirror    Save local copies of all required provider plugins
     schema    Show schemas for the providers used in the configuration
+`.trim();
+
+export const HELP_PROVIDERS_LOCK = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] providers lock [options] [providers...]
+
+  Normally the dependency lock file (.testform/cache/lock.json) is updated
+  automatically by "${TITLE_CLI} init", but the information available to the
+  normal provider installer can be constrained when you're installing providers
+  from filesystem or network mirrors, and so the generated lock file can end
+  up incomplete.
+
+  The "providers lock" subcommand addresses that by updating the lock file
+  based on the official packages available in the origin registry, ignoring
+  the currently-configured installation strategy.
+
+  After this command succeeds, the lock file will contain suitable checksums
+  to allow installation of the providers needed by the current configuration
+  on all of the selected platforms.
+
+  By default this command updates the lock file for every provider declared
+  in the configuration. You can override that behavior by providing one or
+  more provider source addresses on the command line.
+
+${bold(`Options:`)}
+
+  -fs-mirror=dir         Consult the given filesystem mirror directory instead
+                         of the origin registry for each of the given providers.
+
+                         This would be necessary to generate lock file entries for
+                         a provider that is available only via a mirror, and not
+                         published in an upstream registry. In this case, the set
+                         of valid checksums will be limited only to what ${TITLE_APP}
+                         can learn from the data in the mirror directory.
+
+  -net-mirror=url        Consult the given network mirror (given as a base URL)
+                         instead of the origin registry for each of the given
+                         providers.
+
+                         This would be necessary to generate lock file entries for
+                         a provider that is available only via a mirror, and not
+                         published in an upstream registry. In this case, the set
+                         of valid checksums will be limited only to what ${TITLE_APP}
+                         can learn from the data in the mirror indices.
+
+  -platform=os_arch      Choose a target platform to request package checksums
+                         for.
+
+                         By default ${TITLE_APP} will request package checksums
+                         suitable only for the platform where you run this
+                         command. Use this option multiple times to include
+                         checksums for multiple target systems.
+
+                         Target names consist of an operating system and a CPU
+                         architecture. For example, "linux_amd64" selects the
+                         Linux operating system running on an AMD64 or x86_64
+                         CPU. Each provider is available only for a limited
+                         set of target platforms.
+
+  -enable-plugin-cache   Enable the usage of the globally configured plugin cache.
+                         This will speed up the locking process, but the providers
+                         won't be loaded from an authoritative source.
+
+  -test-directory=path   Set the ${TITLE_APP} test directory, defaults to "tests".
+
+  -var 'foo=bar'         Set a value for one of the input variables in the root
+                         module of the configuration. Use this option more than
+                         once to set more than one variable.
+
+  -var-file=filename     Load variable values from the given file, in addition
+                         to the default files ${TITLE_APP.toLowerCase()}.vars.yml and *.auto.vars.yml.
+                         Use this option more than once to include more than one
+                         variables file.
+`.trim();
+
+export const HELP_PROVIDERS_MIRROR = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] providers mirror [options] <target-dir>
+
+  Populates a local directory with copies of the provider plugins needed for
+  the current configuration, so that the directory can be used either directly
+  as a filesystem mirror or as the basis for a network mirror and thus obtain
+  those providers without access to their origin registries in future.
+
+  The mirror directory will contain JSON index files that can be published
+  along with the mirrored packages on a static HTTP file server to produce
+  a network mirror. Those index files will be ignored if the directory is
+  used instead as a local filesystem mirror.
+
+${bold(`Options:`)}
+
+  -platform=os_arch   Choose which target platform to build a mirror for.
+                      By default ${TITLE_APP} will obtain plugin packages
+                      suitable for the platform where you run this command.
+                      Use this flag multiple times to include packages for
+                      multiple target systems.
+
+                      Target names consist of an operating system and a CPU
+                      architecture. For example, "linux_amd64" selects the
+                      Linux operating system running on an AMD64 or x86_64
+                      CPU. Each provider is available only for a limited
+                      set of target platforms.
+`.trim();
+
+export const HELP_PROVIDERS_SCHEMA = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] providers schema [options]
+
+  Prints out a json representation of the schemas for all providers used
+  in the configuration.
+
+${bold(`Options:`)}
+
+  -json                 Output the schema representation in JSON format.
 `.trim();
 
 export const HELP_QUERY = `
@@ -1223,7 +1333,6 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] suite fill -target=<resource>
   [testrun only] Reads each Rule block in the target testrun feature file,
   finds the referenced .case.feature on disk, and fills its scenarios into
   the testrun file with 'mark status = pending'.
-  (Alias: 'suite expand')
 
 ${bold(`Options:`)}
 
@@ -1340,6 +1449,9 @@ export function getCommandHelp(command: string): string | null {
     case 'logout': return HELP_LOGOUT;
     case 'modules': return HELP_MODULES;
     case 'providers': return HELP_PROVIDERS;
+    case 'providers lock': return HELP_PROVIDERS_LOCK;
+    case 'providers mirror': return HELP_PROVIDERS_MIRROR;
+    case 'providers schema': return HELP_PROVIDERS_SCHEMA;
     case 'state': return HELP_STATE;
     case 'state clean': return HELP_STATE_CLEAN;
     case 'state identities': return HELP_STATE_IDENTITIES;
@@ -1359,11 +1471,6 @@ export function getCommandHelp(command: string): string | null {
     case 'suite link': return HELP_SUITE_LINK;
     case 'suite mark': return HELP_SUITE_MARK;
     case 'functions': return HELP_FUNCTIONS;
-    case 'tool': return HELP_SUITE;
-    case 'tool feature': return HELP_SUITE_INIT;
-    case 'tool autocomplete': return HELP_SUITE_FILL;
-    case 'tool link': return HELP_SUITE_LINK;
-    case 'tool state': return HELP_SUITE_MARK;
     default: return null;
   }
 }

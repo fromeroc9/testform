@@ -64,10 +64,10 @@ export async function resolveReport(name: string, dir: string = process.cwd()): 
 
 export async function resolveFormat(
     report: IReport,
-    formatName: string = 'markdown',
+    formatName: string = 'md',
     dir: string = process.cwd()
 ): Promise<IReportFormat> {
-    const cleanFmt = (formatName || 'markdown').trim().toLowerCase();
+    const cleanFmt = (formatName || 'md').trim().toLowerCase();
 
     // 1. Formato local exclusivo definido dentro del reporte
     if (report.formats && report.formats[cleanFmt]) {

@@ -120,7 +120,7 @@ describe('Command suiteCmd', () => {
             }));
         });
 
-        it('should fail if target is not provided for suite expand (alias for fill)', async () => {
+        it('should reject expand subcommand as unknown subcommand', async () => {
             await expect(suiteCmd({
                 dir: '.',
                 subCommand: 'expand',
@@ -129,7 +129,7 @@ describe('Command suiteCmd', () => {
 
             expect(notify.push).toHaveBeenCalledWith(expect.objectContaining({
                 type: 'error',
-                title: expect.stringContaining('suite fill -target=<target>')
+                title: expect.stringContaining("Unknown suite subcommand: 'expand'")
             }));
         });
     });
@@ -224,7 +224,7 @@ testform:
   required_version: ">= 1.0.0"
   backend: local
 provider: local
-scopes:
+resource:
   testcase:
     directory: "tests"
   testrun:
@@ -292,7 +292,7 @@ testform:
   required_version: ">= 1.0.0"
   backend: local
 provider: local
-scopes:
+resource:
   testcase:
     directory: "tests"
   testrun:

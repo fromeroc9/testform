@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { modulesCmd } from '../src/commands/modules';
@@ -36,7 +36,7 @@ describe('Command modulesCmd (testform modules)', () => {
         expect(output).toBe('{"format_version":"1.0","modules":null}');
     });
 
-    it('should list declared modules in human-readable tree format', async () => {
+    it('should list declared modules in human-readable tree format matching Terraform', async () => {
         writeFileSync(join(tmpDir, 'main.yml'), `
 modules:
   auth_standard:
@@ -51,13 +51,24 @@ modules:
 
         await modulesCmd({ dir: tmpDir });
         const output = logged.join('\n');
-        expect(output).toContain('Modules declared in configuration:');
-        expect(output).toContain('module.auth_standard');
-        expect(output).toContain('./modules/auth/login.case.feature');
-        expect(output).toContain('@tc-login');
-        expect(output).toContain('module.remote_auth');
-        expect(output).toContain('git::https://github.com/my-org/qa-modules.git//auth?ref=v1.2.0');
-        expect(output).toContain('v1.2.0');
+        expect(output).toContain('Modules declared by configuration:');
+        expect(output).toContain('├── "auth_standard"[./modules/auth/login.case.feature]');
+        expect(output).toContain('└── "remote_auth"[git::https://github.com/my-org/qa-modules.git//auth?ref=v1.2.0] v1.2.0');
+    });
+
+    it('should support module singular block in configuration', async () => {
+        writeFileSync(join(tmpDir, 'main.yml'), `
+version: "1.0"
+module:
+  checkout:
+    source: "./checkout"
+    version: "2.1.0"
+`);
+
+        await modulesCmd({ dir: tmpDir });
+        const output = logged.join('\n');
+        expect(output).toContain('Modules declared by configuration:');
+        expect(output).toContain('└── "checkout"[./checkout] 2.1.0');
     });
 
     it('should output modules list in valid JSON format matching Terraform schema with -json flag', async () => {
@@ -76,13 +87,9 @@ modules:
         expect(parsed.format_version).toBe('1.0');
         expect(parsed.modules).toBeDefined();
         expect(Array.isArray(parsed.modules)).toBe(true);
-        expect(parsed.modules.length).toBe(2); // root (Key: '') + auth_staging
-        expect(parsed.modules[0].Key).toBe('');
-        expect(parsed.modules[0].Source).toBe('');
-        expect(parsed.modules[0].Dir).toBe('.');
-        expect(parsed.modules[1].Key).toBe('auth_staging');
-        expect(parsed.modules[1].Source).toBe('./modules/auth/login.case.feature');
-        expect(parsed.modules[1].Dir).toBeDefined();
+        expect(parsed.modules.length).toBe(1);
+        expect(parsed.modules[0].key).toBe('auth_staging');
+        expect(parsed.modules[0].source).toBe('./modules/auth/login.case.feature');
+        expect(parsed.modules[0].version).toBe('');
     });
 });
-

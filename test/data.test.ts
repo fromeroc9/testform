@@ -192,4 +192,206 @@ outputs:
         expect(resolvedOutputs['resolved_admin'].value).toBe('superadmin');
         expect(resolvedOutputs['tc_id'].value).toBe('local:99');
     });
+
+    it('should support inline single-line data source syntax (no wasted filename/address line)', () => {
+        mkdirSync(resolve(testDir, 'fixtures'), { recursive: true });
+        writeFileSync(resolve(testDir, 'fixtures/users.json'), JSON.stringify({ admin: { user: 'admin' } }));
+
+        const testformYml = `
+version: "1.0"
+data:
+  local_file:
+    usuarios: "fixtures/users.json"
+  testcase:
+    login_core: "auth/login.case.feature.@tc-1"
+  direct_users: "fixtures/users.json"
+  direct_login: "auth/login.case.feature.@tc-1"
+`;
+        writeFileSync(resolve(testDir, 'testform.yml'), testformYml);
+
+        const resolver = new DataResolver(testDir);
+        const decls = resolver.getDeclarations();
+
+        expect(decls['usuarios'].file).toBe('fixtures/users.json');
+        expect(decls['local_file.usuarios'].file).toBe('fixtures/users.json');
+        expect(decls['login_core'].address).toBe('auth/login.case.feature.@tc-1');
+        expect(decls['testcase.login_core'].address).toBe('auth/login.case.feature.@tc-1');
+        expect(decls['direct_users'].file).toBe('fixtures/users.json');
+        expect(decls['direct_login'].address).toBe('auth/login.case.feature.@tc-1');
+
+        expect(resolver.resolvePath('usuarios.admin.user')).toBe('admin');
+        expect(resolver.resolvePath('local_file.usuarios.admin.user')).toBe('admin');
+        expect(resolver.resolvePath('direct_users.admin.user')).toBe('admin');
+    });
+
+    it('should return an array when an address or tag matches multiple scenarios', async () => {
+        // 1. Static feature file with multiple scenarios sharing a tag
+        mkdirSync(resolve(testDir, 'suites'), { recursive: true });
+        const smokeFeature = `
+@tr-smoke
+Feature: Smoke Test Suite
+  Scenario: TC 1 Smoke Verification
+    Given service is alive
+  Scenario: TC 2 Database Ping
+    Given db is alive
+  Scenario: TC 3 Cache Ping
+    Given redis is alive
+`;
+        writeFileSync(resolve(testDir, 'suites/smoke.run.feature'), smokeFeature.trim());
+
+        const testformYml = `
+version: "1.0"
+data:
+  smoke_suite: "suites/smoke.run.feature.@tr-smoke"
+`;
+        writeFileSync(resolve(testDir, 'testform.yml'), testformYml);
+
+        const resolver = new DataResolver(testDir);
+        const result = resolver.resolvePath('smoke_suite');
+
+        expect(Array.isArray(result)).toBe(true);
+        expect(result.length).toBe(3);
+        expect(result[0].title).toBe('TC 1 Smoke Verification');
+        expect(result[1].title).toBe('TC 2 Database Ping');
+        expect(result[2].title).toBe('TC 3 Cache Ping');
+
+        // Test array index resolution with bracket and dot notations
+        expect(resolver.resolvePath('smoke_suite[0].title')).toBe('TC 1 Smoke Verification');
+        expect(resolver.resolvePath('smoke_suite.0.title')).toBe('TC 1 Smoke Verification');
+        expect(resolver.resolvePath('smoke_suite.1.title')).toBe('TC 2 Database Ping');
+        expect(resolver.resolvePath('smoke_suite.length')).toBe(3);
+
+        // Test Splat expressions (* and [*]) to access an attribute from ALL matched elements
+        const allTitlesBracket = resolver.resolvePath('smoke_suite[*].title');
+        const allTitlesDot = resolver.resolvePath('smoke_suite.*.title');
+        expect(allTitlesBracket).toEqual([
+            'TC 1 Smoke Verification',
+            'TC 2 Database Ping',
+            'TC 3 Cache Ping'
+        ]);
+        expect(allTitlesDot).toEqual([
+            'TC 1 Smoke Verification',
+            'TC 2 Database Ping',
+            'TC 3 Cache Ping'
+        ]);
+
+        // 2. State-based multiple resource resolution
+        const state = new State(testDir);
+        await state.init();
+
+        state.upsertResource({
+            type: 'github_testcase',
+            identity: 'suites/smoke.run.feature.@tc-1',
+            attributes: {
+                localHash: 'hash1',
+                remoteId: 'local:1',
+                issueNumber: 1,
+                title: 'Login Test',
+                labels: ['tr-smoke', 'auth']
+            },
+            lastApplied: new Date().toISOString()
+        });
+
+        state.upsertResource({
+            type: 'github_testcase',
+            identity: 'suites/smoke.run.feature.@tc-2',
+            attributes: {
+                localHash: 'hash2',
+                remoteId: 'local:2',
+                issueNumber: 2,
+                title: 'Payment Test',
+                labels: ['tr-smoke', 'checkout']
+            },
+            lastApplied: new Date().toISOString()
+        });
+
+        const stateResolver = new DataResolver(testDir);
+        const stateSmokeResult = stateResolver.resolvePath('smoke_suite', state);
+        expect(Array.isArray(stateSmokeResult)).toBe(true);
+        expect(stateSmokeResult.length).toBe(2);
+        expect(stateSmokeResult[0].title).toBe('Login Test');
+        expect(stateSmokeResult[1].title).toBe('Payment Test');
+    });
+
+    it('should resolve http data source with GET and POST requests, auto-parsing JSON', async () => {
+        const { spawn } = await import('child_process');
+        const serverScript = `
+const http = require('http');
+const server = http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/user') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ login: 'octocat', id: 583231, role: 'developer' }));
+    } else if (req.method === 'POST' && req.url === '/auth') {
+        let raw = '';
+        req.on('data', chunk => { raw += chunk; });
+        req.on('end', () => {
+            const parsed = JSON.parse(raw);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ token: 'jwt-xyz-123', user: parsed.username }));
+        });
+    } else {
+        res.writeHead(404);
+        res.end('Not found');
+    }
+});
+server.listen(0, '127.0.0.1', () => {
+    console.log(server.address().port);
+});
+`;
+        const child = spawn(process.execPath, ['-e', serverScript]);
+        let port = '';
+        for await (const chunk of child.stdout) {
+            port = chunk.toString().trim().split('\n')[0].trim();
+            break;
+        }
+
+        const baseUrl = `http://127.0.0.1:${port}`;
+
+        try {
+            const testformYml = `
+version: "1.0"
+data:
+  # 1. Inline URL auto-detected as http
+  direct_api: "${baseUrl}/user"
+
+  # 2. Typed http block with GET
+  http:
+    typed_user: "${baseUrl}/user"
+
+  # 3. Explicit POST with headers and body
+  auth_session:
+    type: "http"
+    url: "${baseUrl}/auth"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body:
+      username: "supertester"
+      password: "secretpassword"
+`;
+            writeFileSync(resolve(testDir, 'testform.yml'), testformYml);
+
+            const resolver = new DataResolver(testDir);
+            const decls = resolver.getDeclarations();
+
+            expect(decls['direct_api']).toBeDefined();
+            expect(decls['typed_user']).toBeDefined();
+            expect(decls['auth_session']).toBeDefined();
+
+            // 1. GET resolution
+            expect(resolver.resolvePath('direct_api.login')).toBe('octocat');
+            expect(resolver.resolvePath('direct_api.role')).toBe('developer');
+            expect(resolver.resolvePath('direct_api.status_code')).toBe(200);
+
+            expect(resolver.resolvePath('typed_user.login')).toBe('octocat');
+            expect(resolver.resolvePath('http.typed_user.id')).toBe(583231);
+
+            // 2. POST resolution
+            expect(resolver.resolvePath('auth_session.token')).toBe('jwt-xyz-123');
+            expect(resolver.resolvePath('auth_session.user')).toBe('supertester');
+            expect(resolver.resolvePath('auth_session.status_code')).toBe(200);
+        } finally {
+            child.kill();
+        }
+    });
 });

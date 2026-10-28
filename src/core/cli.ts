@@ -13,17 +13,33 @@ import { ERR_NO_INPUT_ALLOWED } from './const';
 
 // ─── Scope Resolution ─────────────────────────────────────────────────────────
 
-export const ALL_SCOPES: IScope[] = ['testcase', 'testrun', 'testplan'];
+export const VALID_RESOURCES: IScope[] = ['testcase', 'testrun', 'testplan'];
+export const ALL_SCOPES: IScope[] = VALID_RESOURCES;
 
 /**
- * Resolves a scope option (e.g. 'all', undefined, or a single scope) into an array of IScope.
+ * Resolves a scope / resource option (e.g. 'all', undefined, or a single resource) into an array of IScope.
+ * Supports targeting specific resource types via target argument.
  */
-export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string }): IScope[] {
+export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string }, target?: string | string[]): IScope[] {
+    if (target) {
+        const targetArr = Array.isArray(target) ? target : [target];
+        const resourceTargets = targetArr
+            .map(t => t.trim().toLowerCase())
+            .filter(t => (VALID_RESOURCES as string[]).includes(t));
+        if (resourceTargets.length > 0) {
+            return resourceTargets as IScope[];
+        }
+    }
+
     const raw = typeof scope === 'object' && scope !== null ? (scope as any).scope : scope;
     if (!raw || (raw as string) === 'all') {
         return [...ALL_SCOPES];
     }
-    return [raw as IScope];
+    const clean = String(raw).trim().toLowerCase();
+    if ((VALID_RESOURCES as string[]).includes(clean)) {
+        return [clean as IScope];
+    }
+    return [...ALL_SCOPES];
 }
 
 /**

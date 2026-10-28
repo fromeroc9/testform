@@ -225,7 +225,7 @@ describe('Modular Reports & Formats Engine', () => {
     // ── 5. Interpolación de variables en plantillas de texto ──────────────────
     it('should interpolate vars in text templates', () => {
         const template = 'Report: ${report.title} | Empresa: ${var.company} | Total: ${report.metrics.total}';
-        const rendered = coreFormats.markdown.render(
+        const rendered = coreFormats.md.render(
             {
                 title: 'Pruebas Q1',
                 headers: ['ID'],

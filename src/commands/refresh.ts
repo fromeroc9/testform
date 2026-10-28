@@ -206,7 +206,7 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
     } = options;
     const logger = new Logger(verbose);
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
-        const scopesToRun = resolveScopes(scope);
+        const scopesToRun = resolveScopes(scope, target);
         for (const s of scopesToRun) {
             await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw, target });
         }

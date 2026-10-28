@@ -52,7 +52,7 @@ describe('Command importCmd', () => {
     });
 
     it('should fail if issue number is invalid', async () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', provider: { github: {} } }));
 
         await expect(importCmd({
             dir: tmpDir,
@@ -67,7 +67,7 @@ describe('Command importCmd', () => {
     });
 
     it('should fail if issue is not found in github', async () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', provider: { github: {} } }));
         (GitHubAdapter as any).mockImplementation(function() {
             return {
                 getIssue: vi.fn<any>().mockResolvedValue(null)
@@ -87,7 +87,7 @@ describe('Command importCmd', () => {
     });
 
     it('should successfully import an issue into state', async () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', provider: { github: {} } }));
         
         // Mock a successful GitHub response
         const mockGetIssue = vi.fn<any>().mockResolvedValue({
@@ -124,7 +124,7 @@ describe('Command importCmd', () => {
     });
 
     it('should warn if issue is closed', async () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', github: {} }));
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', provider: { github: {} } }));
         (GitHubAdapter as any).mockImplementation(function() {
             return {
                 getIssue: vi.fn<any>().mockResolvedValue({

@@ -4,6 +4,7 @@ import YAML from "yaml";
 import { CONFIG_FILE_NAMES, FILE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
 import { IConfig, IGitHubConfig, IField, IScope, ITest, IScopeConfig, IBackendConfig } from '../core/types';
 import { logger as notify } from '../core/logger';
+import { resource } from '../core/resources';
 
 export class Config {
 
@@ -55,31 +56,51 @@ export class Config {
         const raw = readFileSync(resolvedPath, "utf-8");
         this.config = (YAML.parse(raw) || {}) as IConfig;
 
-        // Auto-load external scopes.yml / scopes.yaml / scope.yml / scope.yaml if present in the workspace
+        // Auto-load external resource.yml / resource.yaml if present in the workspace
         const dir = dirname(resolvedPath);
-        for (const scopeName of ['scopes.yml', 'scopes.yaml', 'scope.yml', 'scope.yaml']) {
-            const scopePath = resolve(dir, scopeName);
-            if (existsSync(scopePath)) {
+        for (const resourceName of ['resource.yml', 'resource.yaml']) {
+            const resourcePath = resolve(dir, resourceName);
+            if (existsSync(resourcePath)) {
                 try {
-                    const content = readFileSync(scopePath, 'utf-8');
+                    const content = readFileSync(resourcePath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const extScopes = parsed.scopes || parsed.scope || parsed;
-                    if (extScopes && typeof extScopes === 'object') {
-                        const currentScopes = (this.config.scopes || this.config.scope || {}) as Record<string, any>;
-                        const mergedScopes: Record<string, any> = { ...extScopes };
-                        for (const [key, val] of Object.entries(currentScopes)) {
-                            if (val && typeof val === 'object' && mergedScopes[key] && typeof mergedScopes[key] === 'object') {
-                                mergedScopes[key] = { ...mergedScopes[key], ...val };
+                    const extResources = parsed.resource || parsed;
+                    if (extResources && typeof extResources === 'object') {
+                        const currentResources = (this.config.resource || {}) as Record<string, any>;
+                        const mergedResources: Record<string, any> = { ...extResources };
+                        for (const [key, val] of Object.entries(currentResources)) {
+                            if (val && typeof val === 'object' && mergedResources[key] && typeof mergedResources[key] === 'object') {
+                                mergedResources[key] = { ...mergedResources[key], ...val };
                             } else {
-                                mergedScopes[key] = val;
+                                mergedResources[key] = val;
                             }
                         }
-                        this.config.scopes = mergedScopes;
+                        this.config.resource = mergedResources;
                     }
                 } catch {
                     // Ignore parse error here; validated during validateCmd
                 }
                 break;
+            }
+        }
+
+        // Validate resource declarations strictly to prevent mistakes
+        const res = this.config.resource;
+        if (res && typeof res === 'object') {
+            const registered = resource.getRegisteredTypes();
+            const ALLOWED = [...new Set(['testcase', 'testrun', 'testplan', 'global', ...registered])];
+            for (const key of Object.keys(res)) {
+                if (!ALLOWED.includes(key)) {
+                    notify.push({
+                        type: 'error',
+                        title: `Unknown resource type in configuration: "${key}"`,
+                        detail: [
+                            `The resource block only allows declaring: ${ALLOWED.filter(a => a !== 'global').join(', ')} (and global).`,
+                            `Verify your main.yml or resource.yml configuration.`
+                        ],
+                        close: true
+                    });
+                }
             }
         }
 
@@ -95,9 +116,8 @@ export class Config {
     }
 
     getProviderType(): string {
-        const raw: any = this.config.provider || (this.config as any).providers;
+        const raw: any = this.config.provider;
         if (!raw) {
-            if ((this.config as any).github) return 'github';
             return 'local';
         }
 
@@ -112,20 +132,13 @@ export class Config {
         //     owner: ...
         const KNOWN_PROVIDERS = ['github', 'gitlab', 'custom', 'local'];
         for (const p of KNOWN_PROVIDERS) {
-            if ((raw as any)[p] !== undefined && ((raw as any)[p] === null || typeof (raw as any)[p] === 'object')) {
+            if (raw[p] !== undefined && (raw[p] === null || typeof raw[p] === 'object')) {
                 return p;
             }
         }
 
-        // 3. Legacy type-based format:
-        // provider:
-        //   type: github
-        if ((raw as any).type) {
-            return (raw as any).type.toLowerCase();
-        }
-
         const keys = Object.keys(raw);
-        if (keys.length > 0 && ((raw as any)[keys[0]] === null || typeof (raw as any)[keys[0]] === 'object')) {
+        if (keys.length > 0 && (raw[keys[0]] === null || typeof raw[keys[0]] === 'object')) {
             return keys[0].toLowerCase();
         }
 
@@ -138,12 +151,9 @@ export class Config {
 
     getProviderConfig(type?: string): Record<string, any> {
         const targetType = type || this.getProviderType();
-        const raw = this.config.provider || (this.config as any).providers;
+        const raw = this.config.provider;
 
         if (!raw || typeof raw === 'string') {
-            if (targetType === 'github' && (this.config as any).github) {
-                return (this.config as any).github;
-            }
             return {};
         }
 
@@ -152,34 +162,18 @@ export class Config {
             return (raw as any)[targetType] || {};
         }
 
-        // Legacy format: raw.config
-        if ((raw as any).config && typeof (raw as any).config === 'object') {
-            return (raw as any).config;
-        }
-
-        // Flat format: { type: 'github', owner: '...' }
-        if ((raw as any).type) {
-            const { type: _t, ...rest } = raw as any;
-            return rest;
-        }
-
-        if (targetType === 'github' && (this.config as any).github) {
-            return (this.config as any).github;
-        }
-
-        return raw as Record<string, any>;
+        return {};
     }
 
     getGitHub(): IGitHubConfig | undefined {
         const type = this.getProviderType();
-        const hasGithub = type === 'github' || (this.config as any).github !== undefined || (this.config.provider as any)?.github !== undefined;
-        if (!hasGithub) return undefined;
+        if (type !== 'github') return undefined;
         const gh = this.getProviderConfig('github') || {};
         return {
             owner: gh.owner,
             repository: gh.repository,
-            projectId: gh.projectId || gh.project_id,
-            tokenEnv: gh.tokenEnv || gh.token_env || 'GITHUB_TOKEN'
+            projectId: gh.project_id,
+            tokenEnv: gh.token_env || 'GITHUB_TOKEN'
         };
     }
 
@@ -214,7 +208,7 @@ export class Config {
             };
         }
 
-        // 2. Support optimized format where backend type is the root key:
+        // 2. Dictionary format where backend type is the root key:
         // backend:
         //   s3:
         //     bucket: my-bucket
@@ -228,32 +222,25 @@ export class Config {
             }
         }
 
-        // 2. Support direct / flat format:
-        // backend:
-        //   type: s3
-        //   bucket: my-bucket
-        if (raw.type) {
-            if (raw.config && typeof raw.config === 'object') {
-                return raw as IBackendConfig;
-            }
-            const { type, ...rest } = raw as any;
+        const keys = Object.keys(raw);
+        if (keys.length > 0 && typeof (raw as any)[keys[0]] === 'object') {
             return {
-                type,
-                config: rest
+                type: keys[0].toLowerCase() as any,
+                config: (raw as any)[keys[0]] || {}
             };
         }
 
-        return raw as IBackendConfig;
+        return undefined;
     }
 
     getPolicies(): Record<string, any> | undefined {
-        return (this.config as any).policies || (this.config as any).policy;
+        return this.config.policy;
     }
 
     getScopeConf(scope: IScope | 'global'): IScopeConfig | undefined {
-        const scopes = this.config.scopes || this.config.scope;
-        if (!scopes) return undefined;
-        return Object.prototype.hasOwnProperty.call(scopes, scope) ? (scopes as any)[scope] : undefined;
+        const resource = this.config.resource;
+        if (!resource) return undefined;
+        return Object.prototype.hasOwnProperty.call(resource, scope) ? (resource as any)[scope] : undefined;
     }
 
     getMatch(scope: IScope): string | undefined {
@@ -285,19 +272,15 @@ export class Config {
         const globalConf = this.getScopeConf('global');
         const scopeConf = this.getScopeConf(scope);
         
-        const globalScaffold = globalConf?.scaffold || globalConf?.convention;
-        const scopeScaffold = scopeConf?.scaffold || scopeConf?.convention;
+        const globalScaffold = globalConf?.scaffold;
+        const scopeScaffold = scopeConf?.scaffold;
 
-        // Merge convention/scaffold: scope overrides global
         if (!globalScaffold && !scopeScaffold) return undefined;
         
         const merged: any = {
             ...(globalScaffold || {}),
             ...(scopeScaffold || {})
         };
-        if (merged.pattern && !merged.filename) {
-            merged.filename = merged.pattern;
-        }
         return merged;
     }
 
@@ -307,18 +290,10 @@ export class Config {
 
     getFields(scope: IScope): IField[] {
         const globalScopeRaw = this.getScopeConf('global')?.fields;
-        const globalTopRaw = this.config.fields?.global;
-        const globalFields = [
-            ...this.normalizeFields(globalScopeRaw),
-            ...this.normalizeFields(globalTopRaw)
-        ];
+        const globalFields = this.normalizeFields(globalScopeRaw);
 
         const scopeRaw = this.getScopeConf(scope)?.fields;
-        const scopeTopRaw = this.config.fields && Object.prototype.hasOwnProperty.call(this.config.fields, scope) ? (this.config.fields as any)[scope] : undefined;
-        const scopeFields = [
-            ...this.normalizeFields(scopeRaw),
-            ...this.normalizeFields(scopeTopRaw)
-        ];
+        const scopeFields = this.normalizeFields(scopeRaw);
 
         // Merge fields, giving precedence to scope-specific fields
         const fieldMap = new Map<string, IField>();
@@ -338,14 +313,12 @@ export class Config {
         if (Array.isArray(raw)) {
             return raw.map((item) => {
                 if (!item || typeof item !== 'object') return null;
-                const isTag = item.source === 'tag' || item.source === 'tags' || item.type === 'tags';
-                const values = item.enum ?? item.values;
+                const source = (item.source === 'tag' || item.source === 'tags' || item.type === 'tags') ? 'tag' : 'step';
+                const enumValues = item.enum ?? item.values;
                 return {
                     name: item.name,
-                    type: isTag ? 'tags' : 'keywords',
-                    source: isTag ? 'tag' : (item.source || 'step'),
-                    values,
-                    enum: values,
+                    source,
+                    enum: enumValues,
                     required: item.required,
                     default: item.default
                 } as IField;
@@ -355,14 +328,12 @@ export class Config {
             const result: IField[] = [];
             for (const [name, val] of Object.entries(raw)) {
                 const fieldObj: any = (typeof val === 'object' && val !== null) ? val : {};
-                const isTag = fieldObj.source === 'tag' || fieldObj.source === 'tags' || fieldObj.type === 'tags';
-                const values = fieldObj.enum ?? fieldObj.values;
+                const source = (fieldObj.source === 'tag' || fieldObj.source === 'tags' || fieldObj.type === 'tags') ? 'tag' : 'step';
+                const enumValues = fieldObj.enum ?? fieldObj.values;
                 result.push({
                     name: fieldObj.name ?? name,
-                    type: isTag ? 'tags' : 'keywords',
-                    source: isTag ? 'tag' : (fieldObj.source || 'step'),
-                    values,
-                    enum: values,
+                    source,
+                    enum: enumValues,
                     required: fieldObj.required,
                     default: fieldObj.default
                 });

@@ -24,7 +24,7 @@ version: "1.0"
 provider: local
 backend: local
 
-vars:
+variable:
   environment:
     default: "staging"
 
@@ -59,7 +59,7 @@ version: "1.0"
 provider: local
 backend: local
 
-vars:
+variable:
   environment:
     default: "prod"
 

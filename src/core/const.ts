@@ -38,11 +38,17 @@ export const CONFIG_FILE_NAMES = [
 /** Default configuration file name. */
 export const FILE_CONFIG = "main.yml";
 
+/** Directory for auto-generated temporary and runtime cache files. */
+export const DIR_CACHE = ".testform/cache";
+
 /** Default state file name. */
 export const FILE_STATE = "testform.state";
 
-// Default data file name.
-export const FILE_DATA = "testform.data";
+// Default data file name (stored in dedicated cache folder).
+export const FILE_DATA = ".testform/cache/data.json";
+
+/** Default dependency lock file name (stored in dedicated cache folder). */
+export const FILE_LOCK = ".testform/cache/lock.json";
 
 // ─── Scope Maps ───────────────────────────────────────────────────────────────
 

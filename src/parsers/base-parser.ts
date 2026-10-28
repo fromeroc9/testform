@@ -297,10 +297,10 @@ export abstract class BaseParser {
         const tagFields = new Map<string, IField>();
 
         for (const field of fields) {
-            if (field.type === "keywords") {
+            if (field.source === "step" || (field as any).type === "keywords") {
                 keywordFields.set(field.name.toLowerCase(), field);
             }
-            if (field.type === "tags") {
+            if (field.source === "tag" || (field as any).type === "tags") {
                 tagFields.set(field.name.toLowerCase(), field);
             }
         }

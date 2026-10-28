@@ -1,4 +1,4 @@
-import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, FILE_LOCK, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
 import YAML from 'yaml';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -153,7 +153,7 @@ const createConfigIfNotExists = (
             backend: backendBlock
         },
         provider: providerBlock,
-        scopes: {
+        resource: {
             testcase: {
                 match: "*.case.feature",
                 scaffold: {
@@ -693,6 +693,29 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     logger.info(`- Finding fromeroc9/${resolvedProvider} versions matching "1.0.0"...`);
     logger.info(`- Installing fromeroc9/${resolvedProvider} v1.0.0...`);
     logger.info(`- Installed fromeroc9/${resolvedProvider} v1.0.0`);
+
+    const lockFilePath = join(dir, FILE_LOCK);
+    if (!existsSync(lockFilePath)) {
+        const lockDir = dirname(lockFilePath);
+        if (!existsSync(lockDir)) {
+            mkdirSync(lockDir, { recursive: true });
+        }
+        const lockContent = {
+            provider: {
+                [`registry.testform.io/fromeroc9/${resolvedProvider}`]: {
+                    version: "1.0.0",
+                    constraints: ">= 1.0.0",
+                    hashes: [
+                        "h1:dGVzdGZvcm0tcHJvdmlkZXItbG9jay12ZXJpZmllZA=="
+                    ]
+                }
+            }
+        };
+        writeFileSync(lockFilePath, JSON.stringify(lockContent, null, 2), 'utf-8');
+        logger.info(`\n${TITLE_APP} has created a lock file ${FILE_LOCK} to record the provider\nselections it made above. Include this file in your version control repository\nso that ${TITLE_APP} can guarantee to make the same selections by default when you\nrun "${TITLE_CLI} init" in the future.`);
+    } else {
+        logger.info(`- Re-using previous version of fromeroc9/${resolvedProvider} from the dependency lock file`);
+    }
     logger.blank();
 
     // OUTPUT

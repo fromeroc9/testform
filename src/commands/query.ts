@@ -11,12 +11,6 @@ export interface QueryCmdOptions {
     dir?: string;
     testDirectory?: string;
     scope?: IScope | 'all';
-    status?: string;
-    label?: string;
-    assignee?: string;
-    milestone?: string;
-    custom?: string | string[];
-    search?: string;
     filter?: string | string[];
     target?: string | string[];
     json?: boolean;
@@ -33,12 +27,6 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
         dir = '.',
         testDirectory,
         scope = 'all',
-        status,
-        label,
-        assignee,
-        milestone,
-        custom,
-        search,
         filter,
         target,
         json = false,
@@ -65,7 +53,7 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
     // Apply target scoping first
     const targetedItems = stateQuery.filterByTarget(target);
 
-    // Unify all filters (legacy options + new unified -filter)
+    // Filters (-filter)
     const filters: string[] = [];
 
     if (filter) {
@@ -73,15 +61,6 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
         else filters.push(filter);
     }
     if (scope && scope !== 'all') filters.push(`scope=${scope}`);
-    if (status) filters.push(`status=${status}`);
-    if (label) filters.push(`label=${label}`);
-    if (assignee) filters.push(`assignee=${assignee}`);
-    if (milestone) filters.push(`milestone=${milestone}`);
-    if (custom) {
-        const customArr = Array.isArray(custom) ? custom : [custom];
-        filters.push(...customArr);
-    }
-    if (search) filters.push(search);
 
     const items: QueryResultItem[] = filters.length > 0 ? stateQuery.filter(filters, targetedItems) : targetedItems;
 

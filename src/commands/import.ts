@@ -193,13 +193,13 @@ export const importCmd = async (options: ImportCmdOptions) => {
 
                     if (isDefault || isBg) continue;
 
-                    if (def.type === 'tags') {
+                    if (def.source === 'tag') {
                         // For tags, check if the remote value (e.g. '@high' or 'high') is already in global tags
                         const cleanRemoteTag = remoteVal.startsWith('@') ? remoteVal : `@${remoteVal}`;
                         if (!globalTags.includes(cleanRemoteTag) && !globalTags.includes(cleanRemoteTag.substring(1))) {
                             tagsToAppend.push(cleanRemoteTag);
                         }
-                    } else if (def.type === 'keywords') {
+                    } else if (def.source === 'step') {
                         keywordsToAppend.push(`* field ${def.name} = ${remoteVal}`);
                     }
                 }

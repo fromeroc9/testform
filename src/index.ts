@@ -122,8 +122,6 @@ export function createCli() {
     cli.option('-s, --scope <scope>', 'Scope filter (testcase | testrun | testplan | all)');
     cli.option('-v, --verbose', 'Show detailed debug output');
     cli.option('--no-color', 'Disable colorized console output');
-    cli.option('--project-id <id>', 'Override the default project ID defined in your main.yml');
-    cli.option('--projectId <id>', 'Alias for --project-id');
     cli.option('--var <var>', 'Set a variable value (key=value)');
     cli.option('--var-file <file>', 'Load variables from a YAML file');
 
@@ -132,7 +130,6 @@ export function createCli() {
         .option('--backend-type <type>', 'Backend type to initialize (local | github | s3 | azurerm | gcs | oci)')
         .option('--backend-config <config>', 'Backend configuration override')
         .option('--provider <type>', 'Provider type to initialize (github | local | gitlab)')
-        .option('--provider-type <type>', 'Alias for --provider')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
         .option('--reconfigure', 'Reconfigure backend')
@@ -143,7 +140,7 @@ export function createCli() {
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const resolvedBackendType = options.backendType || (typeof options.backend === 'string' ? options.backend : undefined);
-            const resolvedProviderType = options.provider || options.providerType;
+            const resolvedProviderType = options.provider;
             const backendEnabled = options.backend !== false && options.backend !== 'false';
 
             await initCmd({
@@ -651,8 +648,6 @@ export function createCli() {
     cli.command('query', 'Query and filter managed test resources in state')
         .option('--filter <filter>', 'Filter resources by key=value or inferred text search')
         .option('--target <target>', 'Target a specific resource, testrun, or testplan')
-        .option('--custom <custom>', 'Filter by custom field (key=value)')
-        .option('--search <text>', 'Free-text search in title or labels')
         .option('--generate-config-out <path>', 'Generate import configuration blocks at PATH')
         .option('--var <var>', 'Set a variable value')
         .option('--var-file <file>', 'Load variable values from file')
@@ -670,8 +665,6 @@ export function createCli() {
                 scope,
                 filter: options.filter,
                 target: options.target,
-                custom: options.custom,
-                search: options.search,
                 generateConfigOut: options.generateConfigOut,
                 variables: variableParser,
                 json: Boolean(options.json),
@@ -748,6 +741,11 @@ export function createCli() {
 
     // ─── providers ────────────────────────────────────────────────────────
     cli.command('providers [action] [...args]', 'Prints a tree of providers and schemas')
+        .option('--json', 'Output schema representation in JSON format')
+        .option('--platform <platform>', 'Choose target platform')
+        .option('--fs-mirror <dir>', 'Filesystem mirror directory')
+        .option('--net-mirror <url>', 'Network mirror base URL')
+        .option('--enable-plugin-cache', 'Enable plugin cache usage')
         .option('--test-directory <dir>', 'Directory containing test files')
         .option('--var <var>', 'Set a variable value')
         .option('--var-file <file>', 'Load variable values from file')
@@ -760,7 +758,8 @@ export function createCli() {
                 action,
                 args: Array.isArray(args) ? args : (args ? [args] : []),
                 testDirectory: options.testDirectory,
-                variables: variableParser
+                variables: variableParser,
+                isJson: Boolean(options.json)
             });
         });
 

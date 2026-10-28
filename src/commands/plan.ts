@@ -383,7 +383,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
     let plan: PlanResult = { changes: [], hasChanges: false, state: stateObj };
     try {
-        const scopesToRun = resolveScopes(scope);
+        const scopesToRun = resolveScopes(scope, target);
         
         if (refresh && !destroyPlan) {
             if (!isJson) console.log(MSG_ACQUIRING_LOCK);

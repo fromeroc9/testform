@@ -100,13 +100,14 @@ export class TestcaseParser extends BaseParser {
 
             const tagFilter = (tag: string) => {
                 for (const fieldDef of tagFields.values()) {
-                    const values = Array.isArray(fieldDef.values)
-                        ? fieldDef.values
-                        : typeof fieldDef.values === "string"
-                            ? [fieldDef.values]
+                    const rawEnum = fieldDef.enum ?? (fieldDef as any).values;
+                    const enumValues = Array.isArray(rawEnum)
+                        ? rawEnum
+                        : typeof rawEnum === "string"
+                            ? [rawEnum]
                             : [];
 
-                    if (values.includes(tag)) {
+                    if (enumValues.includes(tag)) {
                         customFields[fieldDef.name] = tag;
                         return false;
                     }

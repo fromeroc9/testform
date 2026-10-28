@@ -26,47 +26,42 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
     } = options;
     const logger = new Logger(verbose);
 
-    // If path is "state" or "plan" (legacy support)
-    let actualPath = path;
-    if (path === 'state') actualPath = undefined;
-    if (path === 'plan') {
-        logger.info(`Use "${TITLE_CLI} plan" to generate and view an execution plan.`);
-        return;
-    }
-
-    if (actualPath) {
-        const resolvedPath = pathLib.resolve(dir, actualPath);
-        if (existsSync(resolvedPath)) {
-            try {
-                const content = readFileSync(resolvedPath, 'utf-8');
-                const parsed = JSON.parse(content);
-                // Check if this is a plan file rather than a state file
-                if (parsed && (Array.isArray(parsed.changes) || ((parsed.testform_version || parsed.format_version) && !parsed.resources))) {
-                    if (isJson) {
-                        console.log(JSON.stringify(parsed, null, 2));
-                        return;
-                    }
-                    const changes = parsed.changes || [];
-                    const state = new State(dir, statePath, backupPath);
-                    try {
-                        await state.init();
-                    } catch {
-                        // ignore state init errors when displaying plan
-                    }
-                    resource.summary(changes, true, { state });
+    if (path) {
+        const resolvedPath = pathLib.resolve(dir, path);
+        if (!existsSync(resolvedPath)) {
+            logger.error(`The specified file does not exist: ${resolvedPath}`);
+            process.exitCode = 1;
+            return;
+        }
+        try {
+            const content = readFileSync(resolvedPath, 'utf-8');
+            const parsed = JSON.parse(content);
+            // Check if this is a plan file rather than a state file
+            if (parsed && (Array.isArray(parsed.changes) || ((parsed.testform_version || parsed.format_version) && !parsed.resources))) {
+                if (isJson) {
+                    console.log(JSON.stringify(parsed, null, 2));
                     return;
                 }
-            } catch (err: any) {
-                if (err instanceof SyntaxError) {
-                    logger.error(`Failed to parse file at ${resolvedPath}: ${err.message}`);
-                    process.exitCode = 1;
-                    return;
+                const changes = parsed.changes || [];
+                const state = new State(dir, statePath, backupPath);
+                try {
+                    await state.init();
+                } catch {
+                    // ignore state init errors when displaying plan
                 }
+                resource.summary(changes, true, { state });
+                return;
+            }
+        } catch (err: any) {
+            if (err instanceof SyntaxError) {
+                logger.error(`Failed to parse file at ${resolvedPath}: ${err.message}`);
+                process.exitCode = 1;
+                return;
             }
         }
     }
 
-    const state = new State(dir, actualPath || statePath, backupPath);
+    const state = new State(dir, path || statePath, backupPath);
     await state.init();
 
     const current = state.getState();

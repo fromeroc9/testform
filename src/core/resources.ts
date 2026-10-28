@@ -22,7 +22,7 @@ class Resource {
         return Object.values(merged);
     }
 
-    private get(type: string): ResourceTemplate {
+    public findTemplate(type: string): ResourceTemplate | undefined {
         const templates = this.resolve();
         let template = templates.find(t => t.type === type);
         if (!template && type.includes('_')) {
@@ -32,7 +32,13 @@ class Resource {
         if (!template) {
             template = templates.find(t => t.type.endsWith(`_${type}`));
         }
+        return template;
+    }
+
+    private get(type: string): ResourceTemplate {
+        const template = this.findTemplate(type);
         if (!template) {
+            const templates = this.resolve();
             notify.push({
                 type: 'error',
                 title: `Unknown resource type: "${type}"`,
@@ -46,30 +52,44 @@ class Resource {
         return template!;
     }
 
+    public getRegisteredTypes(): string[] {
+        const types = new Set<string>();
+        for (const t of this.resolve()) {
+            types.add(t.type);
+            if (t.type.includes('_')) {
+                types.add(t.type.split('_').slice(1).join('_'));
+            }
+        }
+        return Array.from(types);
+    }
+
     registry(template: ResourceTemplate, type: 'system' | 'user' = 'system'): void {
         if (type === 'system') {
             this.builtinTemplates[template.type] = template;
+            return;
         }
 
         if (type === 'user') {
-            const existing = this.builtinTemplates[template.type] || this.userTemplates[template.type];
+            const existing = this.findTemplate(template.type);
             if (existing) {
-                // Merge fields by name: user fields override existing fields, other fields are preserved
-                const fieldMap = new Map(existing.fields.map(f => [f.name, f]));
-                if (template.fields) {
-                    for (const field of template.fields) {
-                        fieldMap.set(field.name, field);
-                    }
+                const baseFields = existing.fields || [];
+                const fieldMap = new Map(baseFields.map(f => [f.name, f]));
+                for (const f of template.fields || []) {
+                    fieldMap.set(f.name, f);
                 }
-                this.userTemplates[template.type] = {
+                const merged: ResourceTemplate = {
                     ...existing,
                     ...template,
-                    fields: Array.from(fieldMap.values()),
-                    comments: template.comments !== undefined ? template.comments : existing.comments,
+                    fields: Array.from(fieldMap.values())
                 };
+                this.userTemplates[template.type] = merged;
+                if (existing.type !== template.type) {
+                    this.userTemplates[existing.type] = merged;
+                }
             } else {
                 this.userTemplates[template.type] = template;
             }
+            return;
         }
     }
 
@@ -136,7 +156,7 @@ class Resource {
             return;
         }
 
-        // 2. Array of template definitions: [{ type, ... }, { type, ... }]
+        // 2. Array of template definitions
         if (Array.isArray(exported)) {
             for (const item of exported) {
                 if (item?.type && Array.isArray(item.fields)) {

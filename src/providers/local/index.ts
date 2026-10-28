@@ -45,6 +45,10 @@ export class LocalProvider implements IProvider {
     }
 
     private saveDB() {
+        const dir = path.dirname(this.dbPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
         fs.writeFileSync(this.dbPath, JSON.stringify(this.db, null, 2), 'utf8');
     }
 

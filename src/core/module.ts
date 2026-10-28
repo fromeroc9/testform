@@ -16,6 +16,7 @@ export interface ModuleTarget {
 
 export interface ModuleDeclaration {
     source: string;
+    version?: string;
     scenario?: string;
     vars?: Record<string, any>;
     outputs?: Record<string, any>;
@@ -40,8 +41,9 @@ export class ModuleRegistry {
             if (existsSync(p)) {
                 try {
                     const parsed = YAML.parse(readFileSync(p, 'utf-8'));
-                    if (parsed && typeof parsed.modules === 'object') {
-                        this.registerModules(parsed.modules);
+                    const mods = parsed?.module || parsed?.modules;
+                    if (mods && typeof mods === 'object') {
+                        this.registerModules(mods);
                     }
                 } catch {
                     // ignore parse errors
@@ -54,8 +56,9 @@ export class ModuleRegistry {
         for (const f of domainFiles) {
             try {
                 const parsed = YAML.parse(readFileSync(f, 'utf-8'));
-                if (parsed && typeof parsed.modules === 'object') {
-                    this.registerModules(parsed.modules);
+                const mods = parsed?.module || parsed?.modules;
+                if (mods && typeof mods === 'object') {
+                    this.registerModules(mods);
                 }
             } catch {
                 // ignore
@@ -68,6 +71,7 @@ export class ModuleRegistry {
             if (!cfg || typeof cfg !== 'object') continue;
             this.declaredModules.set(name, {
                 source: cfg.source || '',
+                version: cfg.version || '',
                 scenario: cfg.scenario || cfg.id,
                 vars: cfg.vars && typeof cfg.vars === 'object' ? cfg.vars : undefined,
                 outputs: cfg.outputs && typeof cfg.outputs === 'object' ? cfg.outputs : undefined,
@@ -378,12 +382,12 @@ function loadModuleDirectoryDefaults(moduleFilePath: string): Record<string, any
     const dir = dirname(moduleFilePath);
     const defaults: Record<string, any> = {};
 
-    for (const name of ['variables.yml', 'variables.yaml', 'vars.yml', 'vars.yaml', ...CONFIG_FILE_NAMES]) {
+    for (const name of ['variables.yml', 'variables.yaml', ...CONFIG_FILE_NAMES]) {
         const p = join(dir, name);
         if (existsSync(p)) {
             try {
                 const parsed = YAML.parse(readFileSync(p, 'utf-8'));
-                const varsBlock = parsed?.variable || parsed?.vars;
+                const varsBlock = parsed?.variable;
                 if (varsBlock && typeof varsBlock === 'object') {
                     for (const [k, v] of Object.entries(varsBlock)) {
                         if (v && typeof v === 'object' && 'default' in (v as any)) {

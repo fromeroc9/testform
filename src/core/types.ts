@@ -22,16 +22,13 @@ export interface IGitHubConfig {
 export interface IScaffold {
     directory?: string;
     filename?: string;
-    pattern?: string;
 }
 
 export type IConvention = IScaffold;
 
 export interface IField {
     name: string;
-    type: 'keywords' | 'tags';
-    source?: 'step' | 'tag' | 'tags' | 'keywords';
-    values?: string | string[];
+    source: 'step' | 'tag';
     enum?: string | string[];
     required?: boolean;
     default?: string | string[];
@@ -42,7 +39,6 @@ export interface IScopeConfig {
     identity?: string;
     fields?: IField[] | Record<string, any>;
     scaffold?: IScaffold;
-    convention?: IConvention;
     directory?: string;
     filename?: string;
 }
@@ -52,35 +48,23 @@ export interface ITest {
     identity?: string;
     fields?: IField[];
     scaffold?: IScaffold;
-    convention?: IConvention;
 }
 
 export interface IConfig {
     version?: string;
     provider?: IProviderConfig;
     backend?: IBackendConfig | string | Record<string, any>;
-    scopes?: {
+    resource?: {
         global?: IScopeConfig;
         testcase?: IScopeConfig;
         testrun?: IScopeConfig;
         testplan?: IScopeConfig;
-    };
-    scope?: {
-        global?: IScopeConfig;
-        testcase?: IScopeConfig;
-        testrun?: IScopeConfig;
-        testplan?: IScopeConfig;
-    };
-    fields?: {
-        global?: IField[] | Record<string, any>;
-        testcase?: IField[] | Record<string, any>;
-        testrun?: IField[] | Record<string, any>;
-        testplan?: IField[] | Record<string, any>;
+        [key: string]: any;
     };
     outputs?: Record<string, any>;
     data?: Record<string, any>;
     report_mapping?: Record<string, string>;
-    policies?: {
+    policy?: {
         disabled?: string[];
         enabled?: string[];
         [key: string]: any;

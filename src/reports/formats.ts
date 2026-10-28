@@ -16,7 +16,7 @@ const STATUS_ICONS: Record<string, string> = {
 
 // ── 1. Formato Markdown ───────────────────────────────────────────────────────
 export const MarkdownFormat: IReportFormat = {
-    name: 'markdown',
+    name: 'md',
     extension: '.md',
     isBinary: false,
     render(data: ReportData, context: ReportContext, template?: string | Buffer): string {
@@ -495,7 +495,6 @@ export const XlsxFormat: IReportFormat = {
 };
 
 export const coreFormats: Record<string, IReportFormat> = {
-    markdown: MarkdownFormat,
     md: MarkdownFormat,
     json: JsonFormat,
     csv: CsvFormat,

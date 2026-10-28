@@ -103,7 +103,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ status: 'passed' });
+        await queryCmd({ filter: 'status=passed' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('login_test');
@@ -119,7 +119,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ status: 'failed' });
+        await queryCmd({ filter: 'status=failed' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('pay_test');
@@ -135,7 +135,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ label: '@smoke' });
+        await queryCmd({ filter: 'label=@smoke' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('login_test');
@@ -150,7 +150,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ assignee: 'john' });
+        await queryCmd({ filter: 'assignee=john' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('pay_test');
@@ -165,7 +165,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ milestone: 'v1.0' });
+        await queryCmd({ filter: 'milestone=v1.0' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('login_test');
@@ -180,7 +180,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ custom: 'priority=high' });
+        await queryCmd({ filter: 'priority=high' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('login_test');
@@ -195,7 +195,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ search: 'payment' });
+        await queryCmd({ filter: 'payment' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('pay_test');
@@ -223,7 +223,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ json: true, status: 'passed' });
+        await queryCmd({ json: true, filter: 'status=passed' });
 
         expect(mockLog).toHaveBeenCalled();
         const jsonStr = mockLog.mock.calls[0][0];
@@ -242,7 +242,7 @@ describe('Command queryCmd', () => {
             };
         });
 
-        await queryCmd({ search: 'nonexistent-query-string' });
+        await queryCmd({ filter: 'nonexistent-query-string' });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('No resources matched the given query criteria.');

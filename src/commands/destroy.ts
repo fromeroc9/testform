@@ -40,6 +40,7 @@ export interface DestroyCmdOptions {
     input?: boolean;
     statePath?: string;
     backupPath?: string;
+    target?: string | string[];
 }
 
 export const destroyCmd = async (options: DestroyCmdOptions) => {
@@ -48,6 +49,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
         autoApprove = false,
         verbose = false,
         scope,
+        target,
         lock = true,
         lockTimeout = '0s',
         input = true,
@@ -57,7 +59,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
     const logger = new Logger(verbose);
 
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
-        const scopesToRun = resolveScopes(scope);
+        const scopesToRun = resolveScopes(scope, target);
 
         const allResources = scopesToRun.flatMap(s => (SCOPE_RESOURCE_MAP as any)[s] ? stateObj.getResources((SCOPE_RESOURCE_MAP as any)[s]) : []);
         if (allResources.length === 0) {

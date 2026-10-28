@@ -55,7 +55,7 @@ export class VariableParser {
                 try {
                     const content = readFileSync(configPath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const varsBlock = parsed.variable || parsed.variables || parsed.vars;
+                    const varsBlock = parsed.variable;
                     if (varsBlock && typeof varsBlock === 'object') {
                         this.declaredVars = { ...this.declaredVars, ...varsBlock };
                         for (const [key, decl] of Object.entries(varsBlock)) {
@@ -78,13 +78,13 @@ export class VariableParser {
         }
 
         // [Nivel 1] Estándar: variables.yml & locals.yml
-        for (const name of ['variables.yml', 'variables.yaml', 'vars.yml', 'vars.yaml']) {
+        for (const name of ['variables.yml', 'variables.yaml']) {
             const varDeclPath = resolve(this.workDir, name);
             if (existsSync(varDeclPath)) {
                 try {
                     const content = readFileSync(varDeclPath, 'utf-8');
                     const parsed = YAML.parse(content) || {};
-                    const varsObj = parsed.variable || parsed.variables || parsed.vars || parsed;
+                    const varsObj = parsed.variable || parsed;
                     if (typeof varsObj === 'object') {
                         this.declaredVars = { ...this.declaredVars, ...varsObj };
                         for (const [key, decl] of Object.entries(varsObj)) {
@@ -123,7 +123,7 @@ export class VariableParser {
                 const parsed = YAML.parse(content);
                 if (!parsed || typeof parsed !== 'object') continue;
 
-                const varsBlock = parsed.variable || parsed.variables || parsed.vars;
+                const varsBlock = parsed.variable;
                 if (varsBlock && typeof varsBlock === 'object') {
                     for (const [key, val] of Object.entries(varsBlock)) {
                         if (val && typeof val === 'object' && !Array.isArray(val)) {
@@ -225,7 +225,7 @@ export class VariableParser {
             const content = readFileSync(filePath, 'utf-8');
             const parsed = YAML.parse(content);
             if (parsed && typeof parsed === 'object') {
-                const entries = parsed.variable || parsed.variables || parsed.vars || parsed;
+                const entries = parsed.variable || parsed;
                 for (const [k, v] of Object.entries(entries)) {
                     if (v !== undefined && v !== null && typeof v !== 'object') {
                         this.vars[k] = String(v);

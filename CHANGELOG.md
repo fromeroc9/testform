@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.2] - 2026-10-27
+
+### Added
+
+#### 🌐 Declarative Data Sources Engine (`data:` Block & Terraform Parity)
+- **First-Class HTTP Data Source (`data.http`):** Declarative REST API integration in `data:` supporting both `GET` and `POST` methods without requiring external curl/fetch steps.
+- **Compact Inline Auto-Detection (Zero Boilerplate):**
+  - Scalar URLs starting with `http://` or `https://` are auto-classified as `http` data sources (`github_user: "https://api.github.com/users/octocat"`).
+  - Scalar paths ending in `.json`, `.yaml`, `.yml`, or `.csv` are auto-classified as `local_file` fixtures (`users: "fixtures/users.json"`).
+  - Feature file paths and tags (`auth/login.case.feature.@tc-1` or `@tc-smoke`) are auto-classified into `testcase`, `testrun`, or `testplan`.
+- **Advanced HTTP Request Customization:** Native support for `headers` / `request_headers`, `body` / `request_body` (auto-serialized to JSON), and `timeout`.
+- **Auto-Parsed JSON & Terraform Attributes:** Parsed JSON properties are blended directly into the root object (`${data.user.login}`), alongside standard Terraform attributes (`status_code`, `response_body`, `response_headers`, `url`, `id`).
+- **In-Memory Lifecycle Caching:** Automatic memoization of HTTP queries during command execution.
+
+#### 🔀 Multi-Scenario Matching & Terraform Splat Expressions (`.*` / `[*]`)
+- **Array Resolution on Multi-Matches:** When a data source address or tag matches multiple scenarios (e.g. `suites/smoke.run.feature.@tr-smoke` or `@smoke`), it returns a native array of scenario objects; single matches return the single scenario object directly.
+- **Terraform Splat Expressions:** Added support for extracting attributes across all matched elements via `${data.<source>.*.<field>}` and `${data.<source>[*].<field>}` (e.g. `${data.smoke_suite.*.title}` returns an array of all matched titles).
+- **Collection Functions Integration:** Full compatibility of splat arrays with collection functions such as `join(", ", data.smoke_suite.*.title)` and `length(data.smoke_suite)`.
+
+#### 🧩 CLI Parity: Providers & Modules Commands
+- **`testform providers` Tree & Subcommands:**
+  - `testform providers`: Prints a tree of provider requirements across modules.
+  - `testform providers lock`: Updates lock files based on origin registries, supporting `-fs-mirror`, `-net-mirror`, `-platform`, `-enable-plugin-cache`, `-test-directory`, `-var`, and `-var-file`.
+  - `testform providers mirror`: Generates local mirrors of provider packages and JSON indices.
+  - `testform providers schema`: Displays provider schemas in human-readable or machine-readable JSON format.
+- **`testform modules` Command:** Added `testform modules` with `-json`, `-var`, and `-var-file` flags to list declared modules and their resolved versions.
+
+#### 🔍 `testform show` Command Parity
+- **Execution Plan & State Inspection:** Standardized `testform show [options] [path]` to inspect either saved execution plan files (`testform show tfplan`) or the current state ledger (`testform show`).
+- **Machine-Readable JSON Output:** Added full support for `-json` flag across both plan inspection and state dumps.
+
+#### 🗄️ Isolated Cache Architecture (`.testform/cache/`)
+- **Generated File Segregation:** Centralized all generated temporary state and dependency locks (`lock.json`, `data.json`) inside `.testform/cache/`, safeguarding user-authored scripts in `.testform/policies/`, `.testform/resources/`, and `.testform/reports/` from accidental modification or erasure.
+
+### Changed & Refactored
+
+#### 📐 Configuration Schema Canonicalization (`main.yml`)
+- **Singular Block Alignment:** Refactored configuration schema to use canonical singular blocks matching Terraform conventions:
+  - `resource:` (replacing legacy `scopes:`, `scope:`, `fields:`, and `conventions:`).
+  - `policy:` (replacing legacy `policies:`).
+  - `backend:` (object map style: `backend: local: {}`).
+- **CLI Policy Sync:** `testform policy enable <id>` and `testform policy disable <id>` now directly update the `policy: disabled: [...]` array inside `main.yml`.
+- **Command Engine Refactoring:** Updated all core CLI commands (`apply`, `destroy`, `diff`, `import`, `plan`, `policy`, `query`, `refresh`, `show`, `suite`) to consume the standardized `resource:`, `policy:`, and `backend:` schema without legacy pollution.
+
+#### 🧹 Resource Boundary Cleanliness
+- **Strict Canonical Resource Boundary:** Resources are strictly limited to the 3 BDD testing artifacts: `testcase`, `testrun`, and `testplan`.
+- **Eradication of `commit` Resource & `extendResource`:** Completely removed obsolete `commit` resource and `extendResource` API. Declarative field additions are managed cleanly via `resource: <type>: fields:` in YAML, and custom provider templates via `registerResource()`.
+
+---
+
 ## [1.1.0-beta.1] - 2026-10-26
 
 ### Added

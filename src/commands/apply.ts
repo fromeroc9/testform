@@ -88,7 +88,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
         } else {
 
-            const scopesToRun = resolveScopes(scope);
+            const scopesToRun = resolveScopes(scope, target);
             let allChanges: any[] = [];
             let finalState = stateObj;
 

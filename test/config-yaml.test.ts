@@ -24,16 +24,14 @@ describe('YAML Configuration Support', () => {
 version: "1.0"
 
 provider:
-  type: github
-  config:
+  github:
     owner: acme-corp
     repository: core-banking
-    tokenEnv: GITHUB_TOKEN
+    token_env: GITHUB_TOKEN
 
-backend:
-  type: local
+backend: local
 
-scope:
+resource:
   testcase:
     identity: "@tc-*"
     fields:
@@ -80,7 +78,7 @@ provider:
     });
 
     it('should resolve testform.yml even if testform.json exists in directory', () => {
-        writeFileSync(join(tmpDir, 'testform.yml'), 'version: "1.0"\nprovider:\n  type: github\n  config:\n    owner: from-yaml\n', 'utf8');
+        writeFileSync(join(tmpDir, 'testform.yml'), 'version: "1.0"\nprovider:\n  github:\n    owner: from-yaml\n', 'utf8');
         writeFileSync(join(tmpDir, 'testform.json'), JSON.stringify({ version: "1.0", provider: { config: { owner: "from-json" } } }), 'utf8');
 
         const config = new Config(tmpDir);
@@ -100,7 +98,7 @@ provider:
         expect(content).toContain('required_version:');
         expect(content).toContain('provider:');
         expect(content).toContain('github:');
-        expect(content).toContain('scopes:');
+        expect(content).toContain('resource:');
     });
 
     it('should respect and load existing testform.yml for backward compatibility', async () => {
@@ -120,12 +118,12 @@ testform:
     local:
       path: ./testform.state
 
-providers:
+provider:
   github:
     owner: terraform-style
     repository: my-repo
 
-scopes:
+resource:
   testcase:
     match: "*.case.feature"
 `;
@@ -139,18 +137,17 @@ scopes:
         expect(config.getGitHub()?.owner).toBe('terraform-style');
     });
 
-    it('should support Propuesta A: scopes, match, scaffold, and fields object map', () => {
+    it('should support Propuesta A: resource, match, scaffold, and fields object map', () => {
         const yamlContent = `
 version: "1.0"
 provider:
-  type: github
-  config:
+  github:
     owner: my-org
     repository: my-repo
     project_id: 42
     token_env: CUSTOM_GH_TOKEN
 
-scopes:
+resource:
   global:
     fields:
       priority:
@@ -195,42 +192,38 @@ scopes:
 
         const priorityField = fields.find(f => f.name === 'priority');
         expect(priorityField).toBeDefined();
-        expect(priorityField?.type).toBe('tags');
         expect(priorityField?.source).toBe('tag');
         expect(priorityField?.required).toBe(false); // overridden by testcase
-        expect(priorityField?.values).toEqual(['@low', '@high']);
+        expect(priorityField?.enum).toEqual(['@low', '@high']);
 
         const assigneesField = fields.find(f => f.name === 'assignees');
         expect(assigneesField).toBeDefined();
-        expect(assigneesField?.type).toBe('keywords');
         expect(assigneesField?.source).toBe('step');
 
         const browserField = fields.find(f => f.name === 'browser');
         expect(browserField).toBeDefined();
-        expect(browserField?.type).toBe('keywords');
+        expect(browserField?.source).toBe('step');
         expect(browserField?.required).toBe(true);
     });
 
-    it('should support top-level fields block and scaffold pattern alias', () => {
+    it('should support resource fields block and scaffold filename', () => {
         const yamlContent = `
 version: "1.0"
-provider:
-  type: local
+provider: local
 
-scopes:
+resource:
+  global:
+    fields:
+      env:
+        source: step
   testrun:
     match: "*.run.feature::*"
     scaffold:
       directory: "runs"
-      pattern: "{slug}.run.feature"
-
-fields:
-  global:
-    env:
-      source: step
-  testrun:
-    testcases:
-      source: step
+      filename: "{slug}.run.feature"
+    fields:
+      testcases:
+        source: step
 `;
         writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
 
@@ -243,8 +236,8 @@ fields:
 
         const fields = config.getFields('testrun');
         expect(fields).toHaveLength(2);
-        expect(fields.find(f => f.name === 'env')?.type).toBe('keywords');
-        expect(fields.find(f => f.name === 'testcases')?.type).toBe('keywords');
+        expect(fields.find(f => f.name === 'env')?.source).toBe('step');
+        expect(fields.find(f => f.name === 'testcases')?.source).toBe('step');
     });
 
     it('should parse dictionary format for providers directly without type or env wrapper', () => {
@@ -254,8 +247,8 @@ provider:
   github:
     owner: enterprise-corp
     repository: core-payments
-    projectId: 77
-    tokenEnv: GITHUB_TOKEN
+    project_id: 77
+    token_env: GITHUB_TOKEN
 `;
         writeFileSync(join(tmpDir, 'testform.yml'), yamlContent, 'utf8');
 
@@ -283,7 +276,7 @@ provider: local
         const yamlContent = `
 version: "1.0"
 provider: local
-scopes:
+resource:
   testcase:
     match: "*.case.feature.login-*"
   testrun:
@@ -297,7 +290,7 @@ scopes:
         expect(config.getIdentity('testrun')).toBe('smoke-*');
     });
 
-    it('should fallback gracefully to standard defaults when match or scopes are not declared', () => {
+    it('should fallback gracefully to standard defaults when match or resource are not declared', () => {
         const yamlContent = `
 version: "1.0"
 provider: local
@@ -311,7 +304,7 @@ provider: local
         expect(config.getIdentity('testplan')).toBe('tp-*');
     });
 
-    it('should automatically load scopes from external scopes.yml when separated from main.yml', () => {
+    it('should automatically load scopes from external resource.yml when separated from main.yml', () => {
         writeFileSync(join(tmpDir, 'main.yml'), `
 testform:
   required_version: ">= 1.0.0"
@@ -319,26 +312,26 @@ testform:
 provider: local
 `, 'utf8');
 
-        writeFileSync(join(tmpDir, 'scopes.yml'), `
-scope:
+        writeFileSync(join(tmpDir, 'resource.yml'), `
+resource:
   global:
-    convention:
+    scaffold:
       filename: "{YYYYMMDD}_{HHmmss}"
     fields:
       - name: project
-        type: keywords
+        source: step
         required: true
         default: "Core Project"
       - name: priority
-        type: tags
-        values: ["@low", "@medium", "@high"]
+        source: tag
+        enum: ["@low", "@medium", "@high"]
         default: "@medium"
   testcase:
     match: "*.case.feature"
     identity: "tc-*"
     fields:
       - name: module
-        type: keywords
+        source: step
         required: true
   testrun:
     match: "*.run.feature"

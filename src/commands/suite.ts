@@ -1001,7 +1001,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         return;
     }
 
-    if (cmd === 'fill' || cmd === 'expand' || cmd === 'autocomplete') {
+    if (cmd === 'fill') {
         if (!currentTarget) {
             if (isInteractive()) {
                 currentTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
@@ -1053,7 +1053,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         return;
     }
 
-    if (cmd === 'mark' || cmd === 'state') {
+    if (cmd === 'mark') {
         if (!currentTarget) {
             if (isInteractive()) {
                 currentTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
