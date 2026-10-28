@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.3] - 2026-10-28
+
+### Added
+
+#### 🎯 Comprehensive `-target` CLI Standard & Scope Eradication
+- **Universal Target Selector:** Standardized `-target` flag across all core workflow and inspection commands (`validate`, `plan`, `apply`, `diff`, `destroy`, `refresh`), replacing legacy scope-based targeting.
+- **Hierarchical Target Resolution:**
+  - **Resource Scope:** `-target=testcase`, `-target=testrun`, `-target=testplan` isolates execution exclusively to that resource type across the workspace.
+  - **Specification File:** Direct file targeting (e.g. `-target=tests/testrun/smoke.run.feature` or `-target=modules/auth/login.case.feature`).
+  - **Identity Tags:** Direct tag targeting (e.g. `-target=@tc-1`, `-target=@tr-smoke`, `-target=@tp-release1`).
+  - **Terraform Canonical Addresses:** Full support for Terraform-style addresses (e.g. `-target=testcase.modules/auth/login.case.feature.@tc-1` or `-target=github_testcase.modules/auth/login.case.feature.@tc-1`).
+- **Cross-Platform Path Normalization:** Standardized `matchesTarget()` to seamlessly resolve both Windows backslashes (`\`) and POSIX forward slashes (`/`).
+- **Target Scope Auto-Inference:** Introduced `detectScopeFromTarget()` to automatically infer target scope from file naming conventions (`.case.feature`, `.run.feature`, `.plan.feature`), identity prefixes (`@tc-`, `@tr-`, `@tp-`), or explicit resource keywords.
+
+#### 📜 Official Terraform Parity for `testform validate` Help
+- **HashiCorp Parity Documentation:** Updated `HELP_VALIDATE` to mirror HashiCorp Terraform's official `validate` command help structure and option catalog.
+- **Explicit Target Documentation:** Added `-target=resource` flag description, highlighting both resource scope (`-target=testcase`) and specific file examples.
+- **Updated `diff` Help:** Added `-target=resource` to `HELP_DIFF`.
+
+#### 🔗 Multi-Dependency Gherkin Directives (`@depends_on`)
+- **Array & Comma-Separated Directives:** Added full support for multi-dependency expressions in Gherkin `@depends_on` tags (e.g. `@depends_on("auth/login.case.feature.@tc-1", "inventory/catalog.case.feature.@tc-4")`).
+- **Robust DAG Graph Construction:** Clean dependency parsing supporting both array bracket notation and comma separation for execution graphs and dependency sorting.
+
+#### 🔒 Local Backend Lock Introspection (`getLockInfo`)
+- **State Lock Introspection:** Implemented `getLockInfo()` in `LocalBackend` to inspect lock metadata (`lockId`, `timestamp`, `holder`) during lock contention and automated timeouts.
+
+#### 🗄️ Backend Cache Relocation (`.testform/cache/backend.json`)
+- **Relocated Cache State:** Moved `backend.json` into `.testform/cache/backend.json` alongside `lock.json` and `data.json`.
+- **Seamless Backwards-Compatible Migration:** Added automatic fallback to read legacy `.testform/backend.json` if present and safely remove it upon writing the updated cache file.
+
+### Changed & Refactored
+
+#### 🧹 Eradication of Global `-scope` and Scope Retrocompatibility
+- **Removed Global `-scope`:** Eliminated `-s, --scope <scope>` from the CLI root command and global options.
+- **Purged Legacy `getScope()`:** Completely removed `getScope()` calls from `src/index.ts` across `plan`, `apply`, `refresh`, `diff`, `destroy`, `query`, `ephemeral`, `import`, `print`, and `graph`.
+- **Optional Scope in Command Signatures:** Made `scope?: IScope | 'all'` optional across `PlanCmdOptions`, `ApplyCmdOptions`, `RefreshCmdOptions`, `DestroyCmdOptions`, and `DiffCmdOptions`. Commands resolve their execution scopes dynamically via `resolveScopes(scope, target)`.
+- **Preserved Only Where Subcommand-Local:** Kept `--scope` strictly where documented as local subcommand options (`testform policy --scope <scope>` and `testform suite init --scope <scope>`).
+
+#### 📐 Module & Lifecycle Terraform Parity
+- **Canonical `variable:` in Modules:** Replaced legacy `vars` with canonical `variable` in Gherkin `@module(...)` tags and YAML manifests.
+- **Elimination of `vars` Retrocompatibility:** Removed obsolete `vars` fallback in Gherkin parser to enforce clean Terraform syntax standards.
+- **Resource Lifecycle Meta-Arguments (`lifecycle:`):** Standardized lifecycle meta-arguments (`prevent_destroy`, `ignore_changes`, `create_before_destroy`) under `resource: <type>: lifecycle:` in YAML manifests.
+
+#### 📊 State Ledger Versioning & Metadata Streamlining
+- **Canonical State Format:** Aligned state structure with `version: "1.0"`, `lineage`, `lastSync`, and `provider` metadata.
+- **Cleaned State Attributes:** Stripped redundant execution summaries from the state ledger for exact Terraform state parity.
+
+#### 🛡️ Diagnostic & Logger Polish
+- **Duplicate Error Logging Suppression:** Added tracking to prevent duplicate error diagnostic logs across execution catch blocks.
+- **State Lock Failure Messages:** Enhanced error output for lock acquisition failures with clear, actionable resolution commands (`testform force-unlock`).
+
+---
+
 ## [1.1.0-beta.2] - 2026-10-27
 
 ### Added
