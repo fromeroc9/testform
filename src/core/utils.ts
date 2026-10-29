@@ -34,19 +34,28 @@ export function resolvePath(obj: any, path: string): any {
     return current;
 }
 
-export function formatIdentityDisplay(identity: string): string {
+export function formatIdentityDisplay(identity?: string): string {
+    if (!identity) return '';
+    const lastSlash = Math.max(identity.lastIndexOf('/'), identity.lastIndexOf('\\'));
+    if (lastSlash !== -1) {
+        return identity.substring(lastSlash + 1);
+    }
     return identity;
 }
 
 /**
- * Formats a resource address string.
+ * Formats a resource address string following the Terraform convention:
+ * provider.resource.shortidentity (e.g. "github.testcase.customer.case.feature.@tc-01")
  *
  * @param type     - The resource type (e.g. `'github_testcase'`).
- * @param identity - The resource identity (e.g. `'tc1.case.feature.tc-01'`).
- * @returns A formatted address like `"github_testcase.tc1.case.feature.tc-01"`.
+ * @param identity - The resource identity (e.g. `'testcase/Magento/customer.case.feature.@tc-01'`).
+ * @returns A formatted address like `"github.testcase.customer.case.feature.@tc-01"`.
  */
-export function formatResourceAddress(type: string, identity: string): string {
-    return `${type}.${identity}`;
+export function formatResourceAddress(type?: string, identity?: string): string {
+    const rawType = type || 'testcase';
+    const formattedType = rawType.includes('_') ? rawType.replace(/_/g, '.') : rawType;
+    const shortIdentity = formatIdentityDisplay(identity);
+    return `${formattedType}.${shortIdentity}`;
 }
 
 export const formatHclValue = (value: any, indentLevel: number): string => {

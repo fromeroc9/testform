@@ -8,7 +8,7 @@ import {
     ParserScenario, PlanAction, PlanChange,
     ResourceField, ResourceTemplate, ResourceFormat
 } from '../core/types';
-import { formatIdentityDisplay, formatHclValue, calculateRollupVerdict } from '../core/utils';
+import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
 import { buildGitHubTestplanBody } from '../providers/github/templates';
 
 class Resource {
@@ -371,21 +371,21 @@ class Resource {
         output.push('');
 
         for (const change of changes) {
-            const shortIdentity = formatIdentityDisplay(change.identity);
+            const address = formatResourceAddress(change.resourceType, change.identity);
             const actionText =
                 change.action === 'add'
-                    ? bold(green(`# [${change.scenario.feature?.name || 'Unknown'}].${change.resourceType}.${shortIdentity} will be created`))
+                    ? bold(green(`# ${address} will be created`))
                     : change.action === 'change'
-                        ? bold(yellow(`# ${change.resourceType}.${shortIdentity} will be updated in-place`))
+                        ? bold(yellow(`# ${address} will be updated in-place`))
                         : change.action === 'replace'
-                            ? bold(red(`# ${change.resourceType}.${shortIdentity} must be replaced`))
-                            : bold(red(`# ${change.resourceType}.${shortIdentity} will be destroyed`));
+                            ? bold(red(`# ${address} must be replaced`))
+                            : bold(red(`# ${address} will be destroyed`));
 
             output.push(`  ${actionText}`);
 
             // For destroy, add explanation comment
             if (change.action === 'destroy') {
-                output.push(`  # (because ${change.resourceType}.${shortIdentity} is not in configuration)`);
+                output.push(`  # (because ${address} is not in configuration)`);
             }
 
             output.push(this.format(change, context));

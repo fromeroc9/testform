@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cross-Platform Path Normalization:** Unified Windows (`\`) and POSIX (`/`) separator handling across `resources.ts`, `templates.ts`, and `selector.ts`.
 - **Target Selector Refinement:** Updated `matchesTarget()` to automatically strip scenario/identity tags (`.@tc-X`, `.@tr-X`) during feature-level target matching.
 
+- **Terraform-Compliant Resource Addressing (provider.resource.shortidentity):** Standardized plan, apply, and refresh logs to display addresses as provider.resource.shortidentity (e.g. github.testcase.customer.case.feature.@tc-01). Eradicated non-standard feature title brackets (# [Feature Name].) and stripped directory path clutter from resource blocks and drift warnings.
+
 ### Removed
 - **Deprecated `testcaseCommentIds`:** Removed comment ID tracking from testrun state schema while preserving transparent backward compatibility for legacy state reads.
 

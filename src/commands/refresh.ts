@@ -17,7 +17,7 @@ import { logger as notify } from '../core/logger';
 import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 import { IScope } from '../core/types';
 import { matchesTarget } from '../core/selector';
-import { formatResourceAddress } from '../core/utils';
+import { formatResourceAddress, formatIdentityDisplay } from '../core/utils';
 import { executeInBatches, detectAttributeDrift } from '../core/sync';
 import { withStateLock, resolveScopes } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
@@ -136,7 +136,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 if (hasDrift) {
                     res.attributes = { ...res.attributes, ...newAttributes };
                     if (!silent) {
-                        console.log(yellow(`  ! Drift detected on remote for ${res.identity} (Issue #${res.attributes.issueNumber})`));
+                        console.log(yellow(`  ! Drift detected on remote for ${formatIdentityDisplay(res.identity)} (Issue #${res.attributes.issueNumber})`));
                         console.log(dim(`    Run 'testform diff --remote' to inspect differences or interactively pull changes.`));
                     }
                     // Invalidate localHash to force a plan diff
