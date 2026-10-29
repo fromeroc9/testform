@@ -181,7 +181,6 @@ export const refreshState = async (options: RefreshStateOptions) => {
 interface RefreshCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope?: IScope | 'all';
     lock?: boolean;
     lockTimeout?: string;
     statePath?: string;
@@ -195,7 +194,6 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
     const {
         dir = '.',
         verbose = false,
-        scope,
         lock = true,
         lockTimeout = '0s',
         statePath,
@@ -206,7 +204,9 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
     } = options;
     const logger = new Logger(verbose);
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
-        const scopesToRun = resolveScopes(scope, target);
+        const effectiveTarget = target || (options as any).scope;
+        const realTarget = effectiveTarget || (options as any).scope;
+    const scopesToRun = resolveScopes(realTarget);
         for (const s of scopesToRun) {
             await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw, target });
         }

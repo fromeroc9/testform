@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
     resolveScopes,
-    normalizeScope,
-    assertApprovalAllowed,
+        assertApprovalAllowed,
     resolveWorkDir,
     resolveVariableParser,
     normalizeCliArgs,
@@ -18,37 +17,25 @@ vi.mock('../src/core/state');
 
 describe('cli module', () => {
     describe('resolveScopes', () => {
-        it('should return all scopes for undefined or "all"', () => {
+        it('should return all scopes for undefined', () => {
             expect(resolveScopes()).toEqual(ALL_SCOPES);
-            expect(resolveScopes('all')).toEqual(ALL_SCOPES);
         });
 
-        it('should return single scope array for specific scope', () => {
+        it('should return single scope array for resource target name', () => {
             expect(resolveScopes('testcase')).toEqual(['testcase']);
             expect(resolveScopes('testrun')).toEqual(['testrun']);
             expect(resolveScopes('testplan')).toEqual(['testplan']);
         });
 
-        it('should accept options object with scope property', () => {
-            expect(resolveScopes({})).toEqual(ALL_SCOPES);
-            expect(resolveScopes({ scope: 'all' })).toEqual(ALL_SCOPES);
-            expect(resolveScopes({ scope: 'testcase' })).toEqual(['testcase']);
-        });
-    });
-
-    describe('normalizeScope', () => {
-        it('should return all and testcase fallback for empty scope', () => {
-            expect(normalizeScope()).toEqual({ scope: 'all', singleScope: 'testcase' });
-            expect(normalizeScope('all')).toEqual({ scope: 'all', singleScope: 'testcase' });
+        it('should detect scope from feature file target', () => {
+            expect(resolveScopes('cart.case.feature')).toEqual(['testcase']);
+            expect(resolveScopes('smoke.run.feature')).toEqual(['testrun']);
+            expect(resolveScopes('release.plan.feature')).toEqual(['testplan']);
         });
 
-        it('should preserve specific scope as singleScope', () => {
-            expect(normalizeScope('testrun')).toEqual({ scope: 'testrun', singleScope: 'testrun' });
-        });
-
-        it('should accept options object with scope property', () => {
-            expect(normalizeScope({})).toEqual({ scope: 'all', singleScope: 'testcase' });
-            expect(normalizeScope({ scope: 'testrun' })).toEqual({ scope: 'testrun', singleScope: 'testrun' });
+        it('should return unique scopes for array of targets', () => {
+            expect(resolveScopes(['cart.case.feature', 'login.case.feature'])).toEqual(['testcase']);
+            expect(resolveScopes(['testcase', 'testrun'])).toEqual(['testcase', 'testrun']);
         });
     });
 

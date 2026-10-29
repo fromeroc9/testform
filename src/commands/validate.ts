@@ -15,7 +15,6 @@ interface ValidateCmdOptions {
     targetPath?: string;
     dir?: string;
     verbose?: boolean;
-    scope?: IScope | 'all';
     target?: string | string[];
     variables?: VariableParser;
     isJson?: boolean;
@@ -29,7 +28,6 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
         targetPath = '.',
         dir = '.',
         verbose = false,
-        scope,
         target,
         variables,
         isJson = false,
@@ -133,7 +131,8 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
 
     logger.debug(`Found ${documents.length} scenarios across feature files`);
 
-    const scopesToRun = resolveScopes(scope, effectiveTarget);
+    const realTarget = effectiveTarget || (options as any).scope;
+    const scopesToRun = resolveScopes(realTarget);
     let totalScenarios = 0;
     const scopeCounts: Record<string, number> = {};
     const allFiltered: any[] = [];

@@ -50,7 +50,6 @@ export interface DiffCmdOptions {
     dir?: string;
     testDirectory?: string;
     verbose?: boolean;
-    scope?: IScope | 'all' | 'remote';
     remote?: boolean;
     interactive?: boolean;
     statePath?: string;
@@ -87,7 +86,6 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         dir = '.',
         testDirectory,
         verbose = false,
-        scope,
         remote = false,
         interactive = false,
         statePath,
@@ -96,8 +94,8 @@ export const diffCmd = async (options: DiffCmdOptions) => {
     } = options;
 
     const logger = new Logger(verbose);
-    const isRemote = remote || (scope as string) === 'remote';
-    const effectiveScope: IScope | 'all' = (scope as string) === 'remote' ? 'all' : (scope as IScope | 'all');
+    const isRemote = Boolean(remote);
+    const effectiveTarget = target || (options as any).scope;
 
     // Load config and parse features
     const config = new Config(dir);
@@ -111,13 +109,13 @@ export const diffCmd = async (options: DiffCmdOptions) => {
     await state.init();
 
     if (isRemote) {
-        await executeRemoteDrift(dir, parseDir, effectiveScope, state, config, parser, documents, interactive, verbose);
+        await executeRemoteDrift(dir, parseDir, effectiveTarget, state, config, parser, documents, interactive, verbose);
         return;
     }
 
     // ── Local vs State Diff Mode ──
     const entries: DiffEntry[] = [];
-    const scopesToRun = resolveScopes(effectiveScope, target);
+    const scopesToRun = resolveScopes(effectiveTarget);
 
     for (const s of scopesToRun) {
         const matchPattern = config.getMatch?.(s);
@@ -227,7 +225,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
 async function executeRemoteDrift(
     dir: string,
     parseDir: string,
-    scope: IScope | 'all',
+    target: string | string[] | undefined,
     state: State,
     config: Config,
     parser: Parser,
@@ -248,7 +246,7 @@ async function executeRemoteDrift(
     }
     const github = ctx.adapter || (ctx as any).github;
 
-    const scopesToRun = resolveScopes(scope as any);
+    const scopesToRun = resolveScopes(target);
     const driftedItems: RemoteDriftItem[] = [];
 
     for (const s of scopesToRun) {

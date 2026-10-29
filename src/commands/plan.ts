@@ -299,7 +299,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 interface PlanCmdOptions {
     dir?: string;
     verbose?: boolean;
-    scope?: IScope | 'all';
     outPath?: string;
     lock?: boolean;
     lockTimeout?: string;
@@ -323,7 +322,6 @@ export const planCmd = async (options: PlanCmdOptions) => {
     const {
         dir = '.',
         verbose = false,
-        scope,
         outPath,
         lock = true,
         lockTimeout = '0s',
@@ -382,7 +380,9 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
     let plan: PlanResult = { changes: [], hasChanges: false, state: stateObj };
     try {
-        const scopesToRun = resolveScopes(scope, target);
+        const effectiveTarget = target || (options as any).scope;
+        const realTarget = effectiveTarget || (options as any).scope;
+    const scopesToRun = resolveScopes(realTarget);
         
         if (refresh && !destroyPlan) {
             if (!isJson) console.log(MSG_ACQUIRING_LOCK);
@@ -412,7 +412,6 @@ export const planCmd = async (options: PlanCmdOptions) => {
             const planData = {
                 format_version: '1.0',
                 testform_version: VERSION_CLI,
-                scope: scope,
                 changes: plan.changes
             };
             console.log(JSON.stringify(planData, null, 2));
@@ -429,7 +428,6 @@ export const planCmd = async (options: PlanCmdOptions) => {
         const planData = {
             format_version: '1.0',
             testform_version: VERSION_CLI,
-            scope: scope,
             changes: plan.changes
         };
         try {

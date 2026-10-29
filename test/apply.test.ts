@@ -88,7 +88,7 @@ describe('Command applyCmd', () => {
 
         vi.mocked(askApproval).mockResolvedValue(false as any);
 
-        await applyCmd({ dir: tmpDir, scope: 'testcase', refresh: false, autoApprove: false });
+        await applyCmd({ dir: tmpDir, target: 'testcase', refresh: false, autoApprove: false });
 
         expect(askApproval).toHaveBeenCalled();
         expect(createCommandContext).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe('Command applyCmd', () => {
             };
         });
 
-        await applyCmd({ dir: tmpDir, scope: 'testcase', refresh: false, autoApprove: true });
+        await applyCmd({ dir: tmpDir, target: 'testcase', refresh: false, autoApprove: true });
 
         expect(createCommandContext).toHaveBeenCalled();
         expect(mockGithub.createIssue).toHaveBeenCalled();
@@ -141,7 +141,7 @@ describe('Command applyCmd', () => {
             };
         });
 
-        await expect(applyCmd({ dir: tmpDir, scope: 'testcase', refresh: false, autoApprove: false, input: false })).rejects.toThrow(/No input allowed|This command requires manual approval/);
+        await expect(applyCmd({ dir: tmpDir, target: 'testcase', refresh: false, autoApprove: false, input: false })).rejects.toThrow(/No input allowed|This command requires manual approval/);
         
         expect(mockError).toHaveBeenCalled();
         const logs = mockError.mock.calls.join(' ');
@@ -170,7 +170,7 @@ describe('Command applyCmd', () => {
             };
         });
 
-        await applyCmd({ dir: tmpDir, scope: 'testcase', refresh: false, autoApprove: true });
+        await applyCmd({ dir: tmpDir, target: 'testcase', refresh: false, autoApprove: true });
 
         expect(createCommandContext).toHaveBeenCalled();
         expect(mockGithub.closeIssue).toHaveBeenCalledWith(123);

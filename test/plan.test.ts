@@ -69,7 +69,7 @@ describe('Command planCmd', () => {
             };
         });
 
-        const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false });
+        const result = await planCmd({ dir: tmpDir, target: 'testcase', refresh: false });
 
         expect(result).toBeDefined();
         expect(result!.changes.length).toBeGreaterThan(0);
@@ -96,7 +96,7 @@ describe('Command planCmd', () => {
             };
         });
 
-        await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, outPath });
+        await planCmd({ dir: tmpDir, target: 'testcase', refresh: false, outPath });
 
         expect(existsSync(outPath)).toBe(true);
         const fileContent = JSON.parse(readFileSync(outPath, 'utf8'));
@@ -121,7 +121,7 @@ describe('Command planCmd', () => {
             };
         });
 
-        await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, isJson: true });
+        await planCmd({ dir: tmpDir, target: 'testcase', refresh: false, isJson: true });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('"testform_version"');
@@ -147,7 +147,7 @@ describe('Command planCmd', () => {
             };
         });
 
-        await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, detailedExitCode: true });
+        await planCmd({ dir: tmpDir, target: 'testcase', refresh: false, detailedExitCode: true });
 
         expect(process.exitCode).toBe(2);
         process.exitCode = 0; // reset for other tests
@@ -170,7 +170,7 @@ describe('Command planCmd', () => {
             };
         });
 
-        const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, refreshOnly: true });
+        const result = await planCmd({ dir: tmpDir, target: 'testcase', refresh: false, refreshOnly: true });
 
         expect(result).toBeDefined();
         expect(result!.changes).toHaveLength(0);
@@ -196,7 +196,7 @@ describe('Command planCmd', () => {
             };
         });
 
-        const result = await planCmd({ dir: tmpDir, scope: 'testcase', refresh: false, replaceTargets: 'file1.tc1' });
+        const result = await planCmd({ dir: tmpDir, target: 'testcase', refresh: false, replaceTargets: 'file1.tc1' });
 
         expect(result).toBeDefined();
         expect(result!.changes).toHaveLength(1);

@@ -239,6 +239,8 @@ class Resource {
         for (const field of template.fields) {
             const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
             const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
+            if (raw === undefined && oldRaw === undefined) continue;
+            if (field.name === 'milestone' && !raw && !oldRaw) continue;
             let valueStr = '';
             let fieldChanged = false;
 
@@ -427,7 +429,7 @@ resource.registry({
             return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
         } },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
+        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
         {
             name: 'custom_fields', value: (s) => {
                 const fields = { ...(s.custom?.fields || {}) };
@@ -447,7 +449,7 @@ resource.registry({
         { name: 'title', value: (s) => s.feature?.name || '' },
         {
             name: 'body', value: (s, context) => {
-                let body = s.feature.description || '### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- Execution results for each test case will be recorded dynamically as comments on this issue.\n- Click on individual test case links to view their details or attach evidence.';
+                let body = s.feature?.description || '### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- Execution results for each test case will be recorded dynamically as comments on this issue.\n- Click on individual test case links to view their details or attach evidence.';
 
                 const testcases = s.custom?.testcases || [];
                 if (testcases.length > 0 && context?.state) {
@@ -577,7 +579,7 @@ resource.registry({
             return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
         } },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
+        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
         {
             name: 'custom_fields', value: (s) => {
                 const fields = { ...(s.custom?.fields || {}) };
@@ -610,7 +612,7 @@ resource.registry({
             return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
         } },
         { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || '' },
+        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
         {
             name: 'custom_fields', value: (s) => {
                 const fields = { ...(s.custom?.fields || {}) };

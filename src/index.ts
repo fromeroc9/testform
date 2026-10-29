@@ -885,10 +885,14 @@ export const main = async () => {
         if (err.name === 'CACError') {
             const rawMsg = err.message || '';
             const lowerMsg = rawMsg.toLowerCase();
+            const normalizedMsg = rawMsg.replace(/`--([a-zA-Z0-9_-]+)`/g, '`-$1`').replace(/--([a-zA-Z0-9_-]+)/g, '-$1');
+            const subCmd = process.argv.slice(2).find(a => !a.startsWith('-')) || '';
+            const helpSuggestion = subCmd ? `Run '${TITLE_CLI} ${subCmd} -help' for usage instructions.` : `Run '${TITLE_CLI} -help' for usage instructions.`;
+
             let title = 'Missing required argument';
             let detail = [
-                rawMsg,
-                `Run '${TITLE_CLI} --help' for usage instructions.`
+                normalizedMsg,
+                helpSuggestion
             ];
 
             if (lowerMsg.includes('missing required arg')) {
@@ -898,13 +902,13 @@ export const main = async () => {
                 title = 'Missing required argument';
                 detail = [
                     `Missing required argument for command \`${cmdUsage}\`.`,
-                    `Run '${TITLE_CLI} ${baseCmd} --help' for usage instructions.`
+                    `Run '${TITLE_CLI} ${baseCmd} -help' for usage instructions.`
                 ];
             } else if (lowerMsg.includes('unknown option') || lowerMsg.includes('unknown flag')) {
                 title = 'Failed to parse command-line flags';
                 detail = [
-                    rawMsg,
-                    `Run '${TITLE_CLI} --help' for usage instructions.`
+                    normalizedMsg,
+                    helpSuggestion
                 ];
             } else {
                 title = rawMsg.charAt(0).toUpperCase() + rawMsg.slice(1);

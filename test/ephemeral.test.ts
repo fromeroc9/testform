@@ -97,7 +97,7 @@ describe('Command ephemeralCmd', () => {
             expect(applyCmd).toHaveBeenCalledWith(expect.objectContaining({
                 dir: tmpDir,
                 autoApprove: true,
-                scope: 'testcase',
+                target: 'testcase',
                 statePath: join(sandboxDir, 'testform.state'),
                 backupPath: join(sandboxDir, 'testform.state.backup')
             }));
@@ -137,7 +137,6 @@ describe('Command ephemeralCmd', () => {
 
             expect(destroyCmd).toHaveBeenCalledWith(expect.objectContaining({
                 dir: tmpDir,
-                scope: 'all',
                 autoApprove: true,
                 statePath
             }));

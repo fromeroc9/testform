@@ -60,7 +60,7 @@ describe('Command destroyCmd', () => {
             };
         });
 
-        await destroyCmd({ dir: tmpDir, scope: 'testcase' });
+        await destroyCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
@@ -77,7 +77,7 @@ describe('Command destroyCmd', () => {
             };
         });
 
-        await expect(destroyCmd({ dir: tmpDir, scope: 'testcase', input: false })).rejects.toThrow(/No input allowed|This command requires manual approval|Process exited with code 1/);
+        await expect(destroyCmd({ dir: tmpDir, target: 'testcase', input: false })).rejects.toThrow(/No input allowed|This command requires manual approval|Process exited with code 1/);
         
         expect(mockError).toHaveBeenCalled();
         const logs = mockError.mock.calls.join(' ');
@@ -96,7 +96,7 @@ describe('Command destroyCmd', () => {
 
         vi.mocked(askDestroyApproval).mockResolvedValue(false as any);
 
-        await destroyCmd({ dir: tmpDir, scope: 'testcase' });
+        await destroyCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(askDestroyApproval).toHaveBeenCalledWith(1);
         expect(createCommandContext).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('Command destroyCmd', () => {
 
         vi.mocked(askDestroyApproval).mockResolvedValue(true as any);
 
-        await destroyCmd({ dir: tmpDir, scope: 'testcase' });
+        await destroyCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(askDestroyApproval).toHaveBeenCalledWith(2);
         expect(createCommandContext).toHaveBeenCalled();

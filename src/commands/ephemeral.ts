@@ -106,7 +106,7 @@ export const ephemeralCmd = async (options: EphemeralCmdOptions) => {
             await applyCmd({
                 dir,
                 testDirectory,
-                scope,
+                target: scope === 'all' ? undefined : scope,
                 autoApprove: Boolean(autoApprove),
                 verbose: Boolean(verbose),
                 statePath,
@@ -143,7 +143,6 @@ export const ephemeralCmd = async (options: EphemeralCmdOptions) => {
             if (existsSync(statePath)) {
                 await destroyCmd({
                     dir,
-                    scope: 'all',
                     autoApprove: Boolean(autoApprove),
                     input: !autoApprove,
                     verbose: Boolean(verbose),

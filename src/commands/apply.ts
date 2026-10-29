@@ -21,7 +21,6 @@ interface ApplyCmdOptions {
     dir?: string;
     autoApprove?: boolean;
     verbose?: boolean;
-    scope?: IScope | 'all';
     planFile?: string;
     lock?: boolean;
     lockTimeout?: string;
@@ -43,7 +42,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         dir = '.',
         autoApprove = false,
         verbose = false,
-        scope,
         planFile,
         lock = true,
         lockTimeout = '0s',
@@ -88,7 +86,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
         } else {
 
-            const scopesToRun = resolveScopes(scope, target);
+            const effectiveTarget = target || (options as any).scope;
+        const realTarget = effectiveTarget || (options as any).scope;
+    const scopesToRun = resolveScopes(realTarget);
             let allChanges: any[] = [];
             let finalState = stateObj;
 

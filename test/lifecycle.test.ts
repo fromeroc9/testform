@@ -112,7 +112,7 @@ resource:
 
         await expect(destroyCmd({
             dir: testDir,
-            scope: 'testcase',
+            target: 'testcase',
             autoApprove: true,
             lock: false,
             input: false
@@ -194,6 +194,7 @@ resource:
         const plan1 = await calculatePlan({
             dir: testDir,
             scope: 'testcase',
+            target: 'testcase',
             lock: false
         });
 
@@ -233,6 +234,7 @@ Feature: Auth Feature
         const plan2 = await calculatePlan({
             dir: testDir,
             scope: 'testcase',
+            target: 'testcase',
             lock: false
         });
 

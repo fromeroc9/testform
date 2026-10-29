@@ -152,7 +152,7 @@ Feature: Step B
         try {
             await validateCmd({
                 targetPath: testDir,
-                scope: 'testcase',
+                target: 'testcase',
                 isJson: true,
                 noTests: true
             });

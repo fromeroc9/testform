@@ -92,6 +92,16 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
 
         const normBase = basename(normIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '');
         const normTarget = basename(normT).replace(/(\.(case|run|plan))?\.feature$/i, '');
+        const hasPath = normT.includes('/');
+
+        if (hasPath) {
+            return (
+                normIdentity === normT ||
+                normIdentity.startsWith(`${normT}.`) ||
+                normIdentity.endsWith(`/${normT}`) ||
+                normIdentity.endsWith(normT)
+            );
+        }
 
         return (
             normIdentity === normT ||

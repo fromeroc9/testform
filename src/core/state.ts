@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
 import YAML from 'yaml';
 import { FILE_STATE, VERSION_STATE } from '../core/const';
 import { logger as notify } from '../core/logger';
@@ -83,9 +83,11 @@ export class State {
         this.dir = dir;
         this.customStatePath = customStatePath;
         const config = new Config(dir, false);
+        const resolvedConfig = config.getResolvedPath();
+        const rootDir = (resolvedConfig && !customStatePath) ? dirname(resolvedConfig) : dir;
         let backendConfig = explicitBackendConfig || config.getBackend();
 
-        this.workspaceManager = new WorkspaceManager(dir);
+        this.workspaceManager = new WorkspaceManager(rootDir);
         const currentWorkspace = this.workspaceManager.getCurrentWorkspace();
 
         // If backend is explicitly disabled via CLI or a custom state file path is provided, force local
@@ -117,7 +119,7 @@ export class State {
         } else if (backendConfig?.type === 'custom') {
             this.backend = new CustomBackend(backendConfig.config as unknown as CustomBackendConfig, currentWorkspace, dir);
         } else {
-            this.backend = new LocalBackend(dir, customStatePath, customBackupPath, currentWorkspace);
+            this.backend = new LocalBackend(rootDir, customStatePath, customBackupPath, currentWorkspace);
         }
     }
 

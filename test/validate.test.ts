@@ -47,7 +47,7 @@ describe('Command validateCmd', () => {
     it('should fail if the target path does not exist or has no feature files', async () => {
         await expect(validateCmd({
             targetPath: join(tmpDir, 'nonexistent'),
-            scope: 'testcase'
+            target: 'testcase'
         })).rejects.toThrow();
 
         expect(mockError).toHaveBeenCalled();
@@ -58,7 +58,7 @@ describe('Command validateCmd', () => {
     it('should output JSON error if isJson=true and directory is invalid', async () => {
         await validateCmd({
             targetPath: join(tmpDir, 'nonexistent'),
-            scope: 'testcase',
+            target: 'testcase',
             isJson: true
         });
 
@@ -83,7 +83,7 @@ Feature: Dummy Feature
 
         await validateCmd({
             targetPath: tmpDir,
-            scope: 'testcase'
+            target: 'testcase'
         });
 
         expect(policy.scanner).toHaveBeenCalled();
@@ -100,7 +100,7 @@ Feature: Dummy Feature
 
         await validateCmd({
             targetPath: tmpDir,
-            scope: 'testcase',
+            target: 'testcase',
             noTests: true
         });
 
@@ -121,7 +121,7 @@ Feature: Dummy Feature
         await validateCmd({
             targetPath: tmpDir,
             testDirectory: 'custom_tests',
-            scope: 'testcase'
+            target: 'testcase'
         });
 
         expect(policy.scanner).toHaveBeenCalled();
@@ -138,7 +138,7 @@ Feature: Dummy Feature
 
         await validateCmd({
             targetPath: tmpDir,
-            scope: 'testcase',
+            target: 'testcase',
             isJson: true
         });
 
@@ -160,7 +160,7 @@ Feature: Dummy Feature
 
         await validateCmd({
             targetPath: tmpDir,
-            scope: 'testcase',
+            target: 'testcase',
             query: 'Specific Query Scenario'
         });
 
@@ -177,7 +177,7 @@ Feature: Dummy Feature
 
         await expect(validateCmd({
             targetPath: tmpDir,
-            scope: 'testcase'
+            target: 'testcase'
         })).rejects.toThrow('Missing required provider');
     });
 });

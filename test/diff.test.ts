@@ -79,7 +79,7 @@ describe('Command diffCmd', () => {
             };
         });
 
-        await diffCmd({ scope: 'testcase', verbose: true });
+        await diffCmd({ target: 'testcase', verbose: true });
 
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
@@ -143,7 +143,7 @@ describe('Command diffCmd', () => {
             github: mockGithub
         } as any);
 
-        await diffCmd({ scope: 'testcase', remote: true });
+        await diffCmd({ target: 'testcase', remote: true });
 
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
@@ -193,7 +193,7 @@ describe('Command diffCmd', () => {
             github: mockGithub
         } as any);
 
-        await diffCmd({ scope: 'testcase', remote: true });
+        await diffCmd({ target: 'testcase', remote: true });
 
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('No remote drift detected');
@@ -253,7 +253,7 @@ describe('Command diffCmd', () => {
                 close: vi.fn()
             });
 
-            await diffCmd({ scope: 'testcase', remote: true, interactive: true });
+            await diffCmd({ target: 'testcase', remote: true, interactive: true });
 
             expect(mockSave).toHaveBeenCalled();
             const updatedContent = fs.readFileSync(tmpFile, 'utf8');

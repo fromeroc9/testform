@@ -18,10 +18,10 @@ export const VALID_RESOURCES: IScope[] = ['testcase', 'testrun', 'testplan'];
 export const ALL_SCOPES: IScope[] = VALID_RESOURCES;
 
 /**
- * Resolves a scope / resource option (e.g. 'all', undefined, or a single resource) into an array of IScope.
- * Supports targeting specific resource types via target argument.
+ * Resolves targeted resources into an array of IScope based on -target.
+ * If no target is specified, returns all scopes (testcase, testrun, testplan).
  */
-export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string }, target?: string | string[]): IScope[] {
+export function resolveScopes(target?: string | string[]): IScope[] {
     if (target) {
         const targetArr = Array.isArray(target) ? target : [target];
         const resourceTargets = targetArr
@@ -37,24 +37,7 @@ export function resolveScopes(scope?: IScope | 'all' | string | { scope?: string
         }
     }
 
-    const raw = typeof scope === 'object' && scope !== null ? (scope as any).scope : scope;
-    if (!raw || (raw as string) === 'all') {
-        return [...ALL_SCOPES];
-    }
-    const clean = String(raw).trim().toLowerCase();
-    if ((VALID_RESOURCES as string[]).includes(clean)) {
-        return [clean as IScope];
-    }
     return [...ALL_SCOPES];
-}
-
-export function normalizeScope(scopeInput?: string | { scope?: string }): { scope: IScope | 'all'; singleScope: IScope } {
-    const scopeVal = typeof scopeInput === 'object' && scopeInput !== null
-        ? scopeInput.scope
-        : scopeInput;
-    const scope: IScope | 'all' = (scopeVal as IScope | 'all') || 'all';
-    const singleScope: IScope = scope === 'all' ? 'testcase' : scope;
-    return { scope, singleScope };
 }
 
 // ─── Approval & Interactive Assertions ────────────────────────────────────────

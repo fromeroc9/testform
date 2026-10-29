@@ -44,7 +44,7 @@ describe('Command refreshCmd', () => {
             };
         });
 
-        await refreshCmd({ dir: tmpDir, scope: 'testcase' });
+        await refreshCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
@@ -87,7 +87,7 @@ describe('Command refreshCmd', () => {
             };
         });
 
-        await refreshCmd({ dir: tmpDir, scope: 'testcase' });
+        await refreshCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(mockUpsertResource).toHaveBeenCalledWith(expect.objectContaining({
             attributes: expect.objectContaining({ title: 'New Title' })
@@ -134,7 +134,7 @@ describe('Command refreshCmd', () => {
             };
         });
 
-        await refreshCmd({ dir: tmpDir, scope: 'testcase' });
+        await refreshCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(mockRemoveResource).toHaveBeenCalledWith('tc2');
         expect(mockSave).toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe('Command refreshCmd', () => {
             };
         });
 
-        await refreshCmd({ dir: tmpDir, scope: 'testcase' });
+        await refreshCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(mockRemoveResource).toHaveBeenCalledWith('tc3');
         expect(mockSave).toHaveBeenCalled();
