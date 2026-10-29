@@ -14,6 +14,7 @@ import { createCommandContext } from '../core/context';
 import { resolveScopes } from '../core/cli';
 import { updateFeatureScenario } from '../core/editor';
 import { matchesScope, matchesTarget } from '../core/selector';
+import { normalizeAddress } from '../core/utils';
 
 export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
@@ -261,9 +262,12 @@ async function executeRemoteDrift(
             const issueNum = res.attributes.issueNumber;
             if (!issueNum) continue;
 
+            const normResId = normalizeAddress(res.identity);
             const matchedScenario = localScenarios.find(ls => {
                 const raw = ls.custom?.identity;
-                return raw === res.identity || `${ls.uri}.${raw}` === res.identity || res.identity.endsWith(raw || '');
+                if (!raw) return false;
+                const fullId = raw.startsWith(ls.uri) || raw === ls.uri ? raw : `${ls.uri}.${raw}`;
+                return normalizeAddress(fullId) === normResId || normalizeAddress(raw) === normResId;
             });
 
             try {

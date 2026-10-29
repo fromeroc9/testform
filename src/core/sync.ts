@@ -68,7 +68,7 @@ export function compareCustomFields(
 
         const localVal = String(localFields[localKey] ?? '');
         const cleanLocalVal = localVal.startsWith('@') ? localVal.substring(1).toLowerCase() : localVal.toLowerCase();
-        const cleanRemoteVal = remoteVal.toLowerCase();
+        const cleanRemoteVal = remoteVal.startsWith('@') ? remoteVal.substring(1).toLowerCase() : remoteVal.toLowerCase();
 
         if (cleanLocalVal !== cleanRemoteVal) {
             reconciled[localKey] = remoteVal;
