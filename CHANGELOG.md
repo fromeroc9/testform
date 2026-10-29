@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.2.2] - 2026-10-29
+## [1.1.0-beta.3] - 2026-10-29
 
 ### Added
 
@@ -22,28 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `testruns: Record<string, string>` on `testplan` (e.g. `{"testruns/Magento-xxx.run.feature": "failed"}`).
 - **Universal Provider `metadata` Container:** Introduced generic `metadata: Record<string, any>` attribute across execution resources for adapter-specific data, omitting empty objects to keep state size minimal.
 
-### Changed & Refactored
-
-#### 🧹 Eradication of Legacy Status Comments
-- **Removed Issue Comment Sync:** Deprecated GitHub issue comment creation during `apply`; testcase execution tracking is now centralized directly within the testrun issue body and state attributes.
-- **Cross-Platform Path Normalization:** Unified Windows (`\`) and POSIX (`/`) separator handling across `resources.ts`, `templates.ts`, and `selector.ts`.
-- **Target Selector Refinement:** Updated `matchesTarget()` to automatically strip scenario/identity tags (`.@tc-X`, `.@tr-X`) during feature-level target matching.
-
-- **Terraform-Compliant Resource Addressing (provider.resource.shortidentity):** Standardized plan, apply, and refresh logs to display addresses as provider.resource.shortidentity (e.g. github.testcase.customer.case.feature.@tc-01). Eradicated non-standard feature title brackets (# [Feature Name].) and stripped directory path clutter from resource blocks and drift warnings.
-
-#### 🛡️ Elimination of Ghost & Phantom Diffs (`hasFieldChanges`)
-- **CRLF vs LF Normalization:** Automatically normalizes `\r\n` carriage returns to `\n` in multiline bodies (`body`, `description`) prior to comparison in `hasFieldChanges()` and diff rendering, eradicating false in-place updates on Windows platforms.
-- **Order-Independent & Prefix-Agnostic Array Comparison:** Leveraged `arraysEqual()` across `labels` and `assignees` in `hasFieldChanges()`, `format()`, and `detectAttributeDrift()`, ensuring arbitrary array order and leading `@` prefixes (`@fromeroc9` vs `fromeroc9`) never trigger spurious changes or remote drift.
-- **Custom Fields Prefix Healing:** Sanitized custom field values (`priority: "@medium"` vs `"medium"`) across diff calculation and HCL output generation.
-- **Path-Normalized Diff Matching:** Applied `normalizeAddress()` consistently across `testform diff` resource maps and sets, eliminating false `new_local` and `orphaned_remote` dual entries caused by Windows backslashes (`\`) vs POSIX slashes (`/`).
-- **Synchronized Lifecycle Scenarios in Diff:** Integrated `LifecycleResolver` and `ignore_changes` support into `diffCmd`'s scenario hashing, preventing divergence between `diff` and `plan`.
-
-### Removed
-- **Deprecated `testcaseCommentIds`:** Removed comment ID tracking from testrun state schema while preserving transparent backward compatibility for legacy state reads.
-
-## [1.1.0-beta.2] - 2026-10-27
-
-### Added
 
 #### 🎯 Comprehensive `-target` CLI Standard & Scope Eradication
 - **Universal Target Selector:** Standardized `-target` flag across all core workflow and inspection commands (`validate`, `plan`, `apply`, `diff`, `destroy`, `refresh`), replacing legacy scope-based targeting.
@@ -72,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Seamless Backwards-Compatible Migration:** Added automatic fallback to read legacy `.testform/backend.json` if present and safely remove it upon writing the updated cache file.
 
 ### Changed & Refactored
+
 
 #### 🧹 Eradication of Global `-scope` and Scope Retrocompatibility
 - **Removed Global `-scope`:** Eliminated `-s, --scope <scope>` from the CLI root command and global options.
@@ -122,7 +101,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### 🗄️ Isolated Cache Architecture (`.testform/cache/`)
 - **Generated File Segregation:** Centralized all generated temporary state and dependency locks (`lock.json`, `data.json`) inside `.testform/cache/`, safeguarding user-authored scripts in `.testform/policies/`, `.testform/resources/`, and `.testform/reports/` from accidental modification or erasure.
 
-### Changed & Refactored
+#### 🧹 Eradication of Legacy Status Comments
+- **Removed Issue Comment Sync:** Deprecated GitHub issue comment creation during `apply`; testcase execution tracking is now centralized directly within the testrun issue body and state attributes.
+- **Cross-Platform Path Normalization:** Unified Windows (`\`) and POSIX (`/`) separator handling across `resources.ts`, `templates.ts`, and `selector.ts`.
+- **Target Selector Refinement:** Updated `matchesTarget()` to automatically strip scenario/identity tags (`.@tc-X`, `.@tr-X`) during feature-level target matching.
+
+- **Terraform-Compliant Resource Addressing (provider.resource.shortidentity):** Standardized plan, apply, and refresh logs to display addresses as provider.resource.shortidentity (e.g. github.testcase.customer.case.feature.@tc-01). Eradicated non-standard feature title brackets (# [Feature Name].) and stripped directory path clutter from resource blocks and drift warnings.
+
+#### 🛡️ Elimination of Ghost & Phantom Diffs (`hasFieldChanges`)
+- **CRLF vs LF Normalization:** Automatically normalizes `\r\n` carriage returns to `\n` in multiline bodies (`body`, `description`) prior to comparison in `hasFieldChanges()` and diff rendering, eradicating false in-place updates on Windows platforms.
+- **Order-Independent & Prefix-Agnostic Array Comparison:** Leveraged `arraysEqual()` across `labels` and `assignees` in `hasFieldChanges()`, `format()`, and `detectAttributeDrift()`, ensuring arbitrary array order and leading `@` prefixes (`@fromeroc9` vs `fromeroc9`) never trigger spurious changes or remote drift.
+- **Custom Fields Prefix Healing:** Sanitized custom field values (`priority: "@medium"` vs `"medium"`) across diff calculation and HCL output generation.
+- **Path-Normalized Diff Matching:** Applied `normalizeAddress()` consistently across `testform diff` resource maps and sets, eliminating false `new_local` and `orphaned_remote` dual entries caused by Windows backslashes (`\`) vs POSIX slashes (`/`).
+- **Synchronized Lifecycle Scenarios in Diff:** Integrated `LifecycleResolver` and `ignore_changes` support into `diffCmd`'s scenario hashing, preventing divergence between `diff` and `plan`.
+
 
 #### 📐 Configuration Schema Canonicalization (`main.yml`)
 - **Block Name Alignment with Terraform Conventions:**
@@ -140,6 +132,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### 🧹 Resource Boundary Cleanliness
 - **Strict Canonical Resource Boundary:** Resources are strictly limited to the 3 BDD testing artifacts: `testcase`, `testrun`, and `testplan`.
 - **Eradication of `commit` Resource & `extendResource`:** Completely removed obsolete `commit` resource and `extendResource` API. Declarative field additions are managed cleanly via `resource: <type>: fields:` in YAML, and custom provider templates via `registerResource()`.
+
+### Removed
+- **Deprecated `testcaseCommentIds`:** Removed comment ID tracking from testrun state schema while preserving transparent backward compatibility for legacy state reads.
 
 ---
 
