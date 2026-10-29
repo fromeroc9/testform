@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.2.2] - 2026-10-29
+
+### Added
+
+#### ⚖️ Rollup Verdict Engine (`calculateRollupVerdict`)
+- **Automated Execution Status Resolution:** Built-in verdict aggregation for `testrun` and `testplan` resources based on strict QA priority rules:
+  1. `failed`: If any child execution is failed, the run/plan evaluates to `failed`.
+  2. `pending`: If any child is pending, blocked, skipped, or unexecuted (and none failed), evaluates to `pending`.
+  3. `passed`: Evaluates to `passed` strictly when 100% of child executions have passed.
+- **Dynamic Plan Verdict Rollup:** `testplan` evaluates linked `testruns` in the active state to compute consolidated plan verdicts.
+
+#### 🗜️ Compact Provider-Agnostic State Linkage
+- **Lightweight State Maps:** Replaced verbose duplicate arrays with direct key-value maps:
+  - `testcases: Record<string, string>` on `testrun` (e.g. `{"Magento/cart.case.feature.@tc-01": "passed"}`).
+  - `testruns: Record<string, string>` on `testplan` (e.g. `{"testruns/Magento-xxx.run.feature": "failed"}`).
+- **Universal Provider `metadata` Container:** Introduced generic `metadata: Record<string, any>` attribute across execution resources for adapter-specific data, omitting empty objects to keep state size minimal.
+
+### Changed & Refactored
+
+#### 🧹 Eradication of Legacy Status Comments
+- **Removed Issue Comment Sync:** Deprecated GitHub issue comment creation during `apply`; testcase execution tracking is now centralized directly within the testrun issue body and state attributes.
+- **Cross-Platform Path Normalization:** Unified Windows (`\`) and POSIX (`/`) separator handling across `resources.ts`, `templates.ts`, and `selector.ts`.
+- **Target Selector Refinement:** Updated `matchesTarget()` to automatically strip scenario/identity tags (`.@tc-X`, `.@tr-X`) during feature-level target matching.
+
+### Removed
+- **Deprecated `testcaseCommentIds`:** Removed comment ID tracking from testrun state schema while preserving transparent backward compatibility for legacy state reads.
+
 ## [1.1.0-beta.2] - 2026-10-27
 
 ### Added

@@ -8,7 +8,8 @@ import {
     ParserScenario, PlanAction, PlanChange,
     ResourceField, ResourceTemplate, ResourceFormat
 } from '../core/types';
-import { formatIdentityDisplay, formatHclValue } from '../core/utils';
+import { formatIdentityDisplay, formatHclValue, calculateRollupVerdict } from '../core/utils';
+import { buildGitHubTestplanBody } from '../providers/github/templates';
 
 class Resource {
     private builtinTemplates: Record<string, ResourceTemplate> = Object.create(null);
@@ -457,7 +458,7 @@ resource.registry({
 
                     const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}.${s.custom.identity}` : s.uri;
                     const existingRun = state.getResources('github_testrun').find((r: any) => r.identity === runIdentity);
-                    const existingStatuses = existingRun?.attributes?.testcaseStatuses || {};
+                    const existingStatuses = existingRun?.attributes?.testcases || existingRun?.attributes?.testcaseStatuses || {};
 
                     const sortedTestcases = [...testcases].sort((a: string, b: string) => {
                         const aName = a.split('.').pop()?.replace('@', '') || '';
@@ -613,12 +614,35 @@ resource.registry({
                 delete fields['status'];
                 return fields;
             }
+        },
+        {
+            name: 'status',
+            value: (s) => {
+                const groupScenarios = s.custom?.groupScenarios || [];
+                const statuses = groupScenarios.map((gs: any) => gs.custom?.fields?.status || 'pending');
+                return calculateRollupVerdict(statuses);
+            }
+        },
+        {
+            name: 'testcases',
+            value: (s) => {
+                const groupScenarios = s.custom?.groupScenarios || [];
+                const map: Record<string, string> = {};
+                for (const gs of groupScenarios) {
+                    if (gs.rule?.name && gs.name) {
+                        const key = `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/');
+                        map[key] = gs.custom?.fields?.status || 'pending';
+                    }
+                }
+                return map;
+            }
+        },
+        {
+            name: 'metadata',
+            value: (s) => s.custom?.metadata || {}
         }
     ],
-    comments: (s, context) => {
-        const { evaluateGitHubTestrunComments } = require('../providers/github/templates');
-        return evaluateGitHubTestrunComments(s, context);
-    }
+    comments: () => []
 });
 
 resource.registry({
@@ -627,7 +651,6 @@ resource.registry({
         { name: 'title', value: (s) => s.feature?.name || '' },
         {
             name: 'body', value: (s, context) => {
-                const { buildGitHubTestplanBody } = require('../providers/github/templates');
                 return buildGitHubTestplanBody(s, context);
             }
         },
@@ -647,6 +670,58 @@ resource.registry({
                 return fields;
             }
         },
-        { name: 'testruns', value: (s) => s.custom?.testruns || [] }
+        {
+            name: 'status',
+            value: (s, context) => {
+                const trList = s.custom?.testruns || [];
+                const state = context?.state;
+                if (!state || trList.length === 0) return 'pending';
+                const statuses: string[] = [];
+                for (const tr of trList) {
+                    const normTr = String(tr).replace(/\\/g, '/');
+                    const trBase = normTr.endsWith('.run.feature') ? normTr : normTr + '.run.feature';
+                    const trFileName = basename(trBase);
+                    const found = state.getResources('github_testrun').find((r: any) => {
+                        const normId = (r.identity || '').replace(/\\/g, '/');
+                        const lastDot = normId.lastIndexOf('.');
+                        const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                        return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
+                    });
+                    statuses.push(found?.attributes?.status || 'pending');
+                }
+                return calculateRollupVerdict(statuses);
+            }
+        },
+        {
+            name: 'testruns',
+            value: (s, context) => {
+                const trList = s.custom?.testruns || [];
+                const map: Record<string, string> = {};
+                const state = context?.state;
+                for (const tr of trList) {
+                    const normTr = String(tr).replace(/\\/g, '/');
+                    let status = 'pending';
+                    if (state) {
+                        const trBase = normTr.endsWith('.run.feature') ? normTr : normTr + '.run.feature';
+                        const trFileName = basename(trBase);
+                        const found = state.getResources('github_testrun').find((r: any) => {
+                            const normId = (r.identity || '').replace(/\\/g, '/');
+                            const lastDot = normId.lastIndexOf('.');
+                            const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                            return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
+                        });
+                        if (found?.attributes?.status) {
+                            status = found.attributes.status;
+                        }
+                    }
+                    map[normTr] = status;
+                }
+                return map;
+            }
+        },
+        {
+            name: 'metadata',
+            value: (s) => s.custom?.metadata || {}
+        }
     ]
 });

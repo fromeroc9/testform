@@ -13,7 +13,7 @@ import { refreshState } from './refresh';
 import { askApproval } from '../core/prompt';
 import { formatResourceAddress, elapsedSeconds } from '../core/utils';
 import { createCommandContext } from '../core/context';
-import { executeInBatches, syncTestrunComments as syncCommentsHelper } from '../core/sync';
+import { executeInBatches } from '../core/sync';
 import { resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { DependencyResolver } from '../core/dependencies';
 
@@ -185,19 +185,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
         };
 
-        // Helper to sync status comments for testruns
-        const syncTestrunComments = (change: any, issueNumber: number, existingAttributes?: any) =>
-            syncCommentsHelper({
-                change,
-                issueNumber,
-                provider: github,
-                stateObj,
-                testDirectory,
-                existingAttributes,
-                onCommentUpdate: (id, st) => console.log(`  -> Updated status comment for ${id} to '${st}'`),
-                onCommentCreate: (id, st) => console.log(`  -> Created status comment for ${id} as '${st}'`),
-            });
-
         // Execute changes in parallel batches with topological dependency ordering
         const parallelismNum = parallelism ? parseInt(String(parallelism), 10) || 1 : 1;
         const depResolver = new DependencyResolver(dir);
@@ -244,9 +231,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         // Link sub-issues
                         await linkSubIssues(change, result.number);
 
-                        // Sync status comments
-                        const { testcaseCommentIds, testcaseStatuses, expandedTestcases } = await syncTestrunComments(change, result.number);
-
                         // Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
@@ -263,11 +247,15 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 custom_fields: (payload as any).custom_fields,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
+                                ...((payload as any).status ? { status: (payload as any).status } : {}),
                                 ...(change.resourceType.endsWith('testrun') ? {
-                                    testcaseCommentIds: testcaseCommentIds || {},
-                                    testcaseStatuses: testcaseStatuses || {},
+                                    testcases: (payload as any).testcases || {},
+                                    metadata: (payload as any).metadata || {},
                                 } : {}),
-                                ...((payload as any).testruns ? { testruns: (payload as any).testruns } : {}),
+                                ...(change.resourceType.endsWith('testplan') ? {
+                                    testruns: (payload as any).testruns || {},
+                                    metadata: (payload as any).metadata || {},
+                                } : {}),
                             },
                             lastApplied: new Date().toISOString(),
                         });
@@ -307,9 +295,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         // Link sub-issues
                         await linkSubIssues(change, result.number);
 
-                        // Sync status comments (existingAttributes is empty because it's a replacement)
-                        const { testcaseCommentIds, testcaseStatuses, expandedTestcases } = await syncTestrunComments(change, result.number);
-
                         // 3. Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
@@ -326,11 +311,15 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 custom_fields: (payload as any).custom_fields,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
+                                ...((payload as any).status ? { status: (payload as any).status } : {}),
                                 ...(change.resourceType.endsWith('testrun') ? {
-                                    testcaseCommentIds: testcaseCommentIds || {},
-                                    testcaseStatuses: testcaseStatuses || {},
+                                    testcases: (payload as any).testcases || {},
+                                    metadata: (payload as any).metadata || {},
                                 } : {}),
-                                ...((payload as any).testruns ? { testruns: (payload as any).testruns } : {}),
+                                ...(change.resourceType.endsWith('testplan') ? {
+                                    testruns: (payload as any).testruns || {},
+                                    metadata: (payload as any).metadata || {},
+                                } : {}),
                             },
                             lastApplied: new Date().toISOString(),
                         });
@@ -363,10 +352,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         // Link sub-issues
                         await linkSubIssues(change, result.number);
 
-                        // Sync status comments
-                        const existingAttributes = stateObj.getResources(change.resourceType).find((r: any) => r.identity === change.identity)?.attributes;
-                        const { testcaseCommentIds, testcaseStatuses, expandedTestcases } = await syncTestrunComments(change, result.number, existingAttributes);
-
                         // Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
@@ -383,11 +368,15 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 custom_fields: (payload as any).custom_fields,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
+                                ...((payload as any).status ? { status: (payload as any).status } : {}),
                                 ...(change.resourceType.endsWith('testrun') ? {
-                                    testcaseCommentIds: testcaseCommentIds || {},
-                                    testcaseStatuses: testcaseStatuses || {},
+                                    testcases: (payload as any).testcases || {},
+                                    metadata: (payload as any).metadata || {},
                                 } : {}),
-                                ...((payload as any).testruns ? { testruns: (payload as any).testruns } : {}),
+                                ...(change.resourceType.endsWith('testplan') ? {
+                                    testruns: (payload as any).testruns || {},
+                                    metadata: (payload as any).metadata || {},
+                                } : {}),
                             },
                             lastApplied: new Date().toISOString(),
                         });

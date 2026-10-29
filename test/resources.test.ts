@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { resource, registerResource } from '../src/core/resources';
 import { ParserScenario } from '../src/core/types';
+import { calculateRollupVerdict } from '../src/core/utils';
 
 describe('Resource Registry and User Overrides', () => {
     it('should allow user to override fields of already declared builtin resources', () => {
@@ -67,5 +68,59 @@ describe('Resource Registry and User Overrides', () => {
         const result = resource.evaluate('jira_custom_test', mockScenario);
         expect(result.summary).toBe('JIRA: Checkout payment flow');
         expect(result.priority).toBe('High');
+    });
+
+    it('should compute rollup verdict and testcases map for testrun', () => {
+        expect(calculateRollupVerdict(['passed', 'passed'])).toBe('passed');
+        expect(calculateRollupVerdict(['passed', 'failed'])).toBe('failed');
+        expect(calculateRollupVerdict(['passed', 'pending'])).toBe('pending');
+        expect(calculateRollupVerdict([])).toBe('pending');
+
+        const mockRunScenario: any = {
+            feature: { name: 'Run 1' },
+            custom: {
+                groupScenarios: [
+                    { rule: { name: 'cart.case.feature' }, name: '@tc-01', custom: { fields: { status: 'passed' } } },
+                    { rule: { name: 'cart.case.feature' }, name: '@tc-02', custom: { fields: { status: 'failed' } } }
+                ]
+            }
+        };
+
+        const evaluated = resource.evaluate('github_testrun', mockRunScenario);
+        expect(evaluated.status).toBe('failed');
+        expect(evaluated.testcases).toEqual({
+            'cart.case.feature.@tc-01': 'passed',
+            'cart.case.feature.@tc-02': 'failed'
+        });
+        expect(evaluated.metadata).toEqual({});
+    });
+
+    it('should compute rollup verdict and testruns map for testplan', () => {
+        const mockPlanScenario: any = {
+            feature: { name: 'Plan 1' },
+            custom: {
+                testruns: ['testruns/run-1.run.feature', 'testruns/run-2.run.feature']
+            }
+        };
+
+        const mockState = {
+            getResources: (type: string) => {
+                if (type === 'github_testrun') {
+                    return [
+                        { identity: 'testruns/run-1.run.feature.@tr-1', attributes: { status: 'passed' } },
+                        { identity: 'testruns/run-2.run.feature.@tr-2', attributes: { status: 'failed' } }
+                    ];
+                }
+                return [];
+            }
+        };
+
+        const evaluated = resource.evaluate('github_testplan', mockPlanScenario, { state: mockState });
+        expect(evaluated.status).toBe('failed');
+        expect(evaluated.testruns).toEqual({
+            'testruns/run-1.run.feature': 'passed',
+            'testruns/run-2.run.feature': 'failed'
+        });
+        expect(evaluated.metadata).toEqual({});
     });
 });

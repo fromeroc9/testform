@@ -248,5 +248,21 @@ export function suggestCommand(input: string, candidates: string[]): string | un
     return undefined;
 }
 
+/**
+ * Calculates a consolidated verdict/status from a list of child statuses.
+ * Precedence:
+ *   1. 'failed' (if at least one child is failed)
+ *   2. 'pending' (if at least one child is pending, blocked, skipped, or if list is empty)
+ *   3. 'passed' (if all children are passed)
+ */
+export function calculateRollupVerdict(statuses: string[]): 'passed' | 'failed' | 'pending' {
+    if (!statuses || statuses.length === 0) return 'pending';
+    const cleanStatuses = statuses.map(s => String(s || '').trim().toLowerCase());
+    if (cleanStatuses.some(s => s === 'failed')) return 'failed';
+    if (cleanStatuses.some(s => s === 'pending' || s === 'blocked' || s === 'skipped' || s === 'in_progress' || !s)) return 'pending';
+    if (cleanStatuses.every(s => s === 'passed')) return 'passed';
+    return 'pending';
+}
+
 
 

@@ -281,12 +281,18 @@ export class OutputResolver {
                 return attrs.labels || [];
             case 'status':
                 return attrs.status || '';
+            case 'testcases':
+                return attrs.testcases || attrs.testcaseStatuses || {};
+            case 'testruns':
+                return attrs.testruns || {};
+            case 'metadata':
+                return attrs.metadata || {};
             case 'assignees':
                 return attrs.assignees || [];
             case 'milestone':
                 return attrs.milestone || '';
             case 'testcaseStatuses':
-                return attrs.testcaseStatuses || {};
+                return attrs.testcases || attrs.testcaseStatuses || {};
             case 'testcaseCommentIds':
                 return attrs.testcaseCommentIds || {};
             case 'createdAt':

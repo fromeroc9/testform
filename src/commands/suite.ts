@@ -528,8 +528,8 @@ async function runState(options: {
         }
     } else {
         // Interactive: list available testcases and prompt
-        const commentIds: Record<string, any> = foundRun.attributes?.testcaseCommentIds || {};
-        const keys = Object.keys(commentIds);
+        const testcasesMap: Record<string, any> = foundRun.attributes?.testcases || foundRun.attributes?.testcaseStatuses || foundRun.attributes?.testcaseCommentIds || {};
+        const keys = Object.keys(testcasesMap);
         if (keys.length === 0) {
             Diag.error({ title: `No testcases found in testrun '${target}'. Run \`testform apply\` first.`, detail: [] }).abort();
             return;
@@ -537,7 +537,7 @@ async function runState(options: {
 
         if (isInteractive()) {
             const choices = keys.map(k => {
-                const status = foundRun.attributes?.testcaseStatuses?.[k] || 'pending';
+                const status = foundRun.attributes?.testcases?.[k] || foundRun.attributes?.testcaseStatuses?.[k] || 'pending';
                 const tcRes = allTestcases.find((r: any) => r.identity === k);
                 const titlePart = tcRes?.attributes?.title ? ` - "${tcRes.attributes.title}"` : '';
                 return {
@@ -559,7 +559,7 @@ async function runState(options: {
         } else {
             console.log(bold(`\nAvailable testcases in '${foundRun.identity}':`));
             keys.forEach((k, i) => {
-                const status = foundRun.attributes?.testcaseStatuses?.[k] || 'pending';
+                const status = foundRun.attributes?.testcases?.[k] || foundRun.attributes?.testcaseStatuses?.[k] || 'pending';
                 const tcRes = allTestcases.find((r: any) => r.identity === k);
                 const titlePart = tcRes?.attributes?.title ? ` - "${tcRes.attributes.title}"` : '';
                 console.log(`  ${i + 1}. ${k}${titlePart} [${status}]`);
@@ -607,7 +607,7 @@ async function runState(options: {
 
     const targetId = matchingKeys[0];
     const commentId = commentIds[targetId];
-    const oldStatus = foundRun.attributes?.testcaseStatuses?.[targetId] || 'pending';
+    const oldStatus = foundRun.attributes?.testcases?.[targetId] || foundRun.attributes?.testcaseStatuses?.[targetId] || 'pending';
     const lastTargetDot = targetId.lastIndexOf('.');
     const baseRule = lastTargetDot !== -1 ? targetId.slice(0, lastTargetDot) : targetId;
     const scenarioName = lastTargetDot !== -1 ? targetId.slice(lastTargetDot + 1) : '';
@@ -665,8 +665,9 @@ async function runState(options: {
     await ctx.adapter.updateIssueComment(commentId, commentBody);
     console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
 
-    if (!foundRun.attributes.testcaseStatuses) foundRun.attributes.testcaseStatuses = {};
-    foundRun.attributes.testcaseStatuses[targetId] = newStatus;
+    if (!foundRun.attributes.testcases) foundRun.attributes.testcases = {};
+    foundRun.attributes.testcases[targetId] = newStatus;
+    if (foundRun.attributes.testcaseStatuses) foundRun.attributes.testcaseStatuses[targetId] = newStatus;
     await stateObj.save();
 
     console.log(`\n  ${yellow('~')} resource "${foundRun.type || 'testrun'}" "${foundRun.identity}" {`);

@@ -106,6 +106,8 @@ export interface ParserScenario {
         fields?: Record<string, string>;
         policy?: ParserPolicy[];
         groupScenarios?: ParserScenario[];
+        metadata?: Record<string, any>;
+        [key: string]: any;
     };
 }
 
@@ -165,6 +167,10 @@ export interface StateAttributes {
     assignees?: string[];
     milestone?: string;
     custom_fields?: Record<string, any>;
+    status?: string;
+    testcases?: Record<string, string>;
+    testruns?: Record<string, string> | string[];
+    metadata?: Record<string, any>;
     testcaseCommentIds?: Record<string, number | string>;
     testcaseStatuses?: Record<string, string>;
     createdAt?: string;
@@ -215,7 +221,7 @@ export interface PolicyDefinition {
 // ─── Resources ───────────────────────────────────────────────────────────────
 export interface ResourceField {
     name: string;
-    value: ((scenario: any, context?: any) => string | string[]) | string | string[];
+    value: ((scenario: ParserScenario, context?: any) => any) | string | string[] | number | boolean | Record<string, any>;
     knownAfterApply?: boolean;
 }
 

@@ -100,7 +100,7 @@ export class StateQuery {
         // Map status from testruns
         const executedTcMap = new Map<string, { status: string; testRunId: string }[]>();
         for (const tr of testruns) {
-            const statuses = (tr.attributes.testcaseStatuses as Record<string, string>) || {};
+            const statuses = ((tr.attributes.testcases || tr.attributes.testcaseStatuses) as Record<string, string>) || {};
             for (const [tcId, st] of Object.entries(statuses)) {
                 if (!executedTcMap.has(tcId)) {
                     executedTcMap.set(tcId, []);
