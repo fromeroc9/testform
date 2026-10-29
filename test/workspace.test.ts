@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { workspaceCmd } from '../src/commands/workspace';
 import { State } from '../src/core/state';
+import { WorkspaceManager } from '../src/core/workspace';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { mkdtempSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 
 const mockExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`Process exited with code ${code}`);
@@ -12,6 +16,44 @@ const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 vi.mock('../src/core/state');
 
 describe('Command workspaceCmd', () => {
+    describe('WorkspaceManager backend cache', () => {
+        it('saves active backend to .testform/cache/backend.json and cleans up legacy file', () => {
+                                                
+            const testDir = mkdtempSync(join(tmpdir(), 'tf-ws-test-'));
+            const ws = new WorkspaceManager(testDir);
+
+            // Create legacy backend.json
+            const legacyDir = join(testDir, '.testform');
+            mkdirSync(legacyDir, { recursive: true });
+            const legacyPath = join(legacyDir, 'backend.json');
+            writeFileSync(legacyPath, JSON.stringify({ type: 'local', legacy: true }));
+
+            // Setting backend should write to cache and remove legacy
+            ws.setActiveBackend({ type: 's3', config: { bucket: 'b' } });
+
+            const cachePath = join(testDir, '.testform', 'cache', 'backend.json');
+            expect(existsSync(cachePath)).toBe(true);
+            expect(existsSync(legacyPath)).toBe(false);
+
+            const readBack = ws.getActiveBackend();
+            expect(readBack).toEqual({ type: 's3', config: { bucket: 'b' } });
+        });
+
+        it('reads active backend from legacy .testform/backend.json if cache does not exist yet', () => {
+                                                
+            const testDir = mkdtempSync(join(tmpdir(), 'tf-ws-test-'));
+            const ws = new WorkspaceManager(testDir);
+
+            const legacyDir = join(testDir, '.testform');
+            mkdirSync(legacyDir, { recursive: true });
+            const legacyPath = join(legacyDir, 'backend.json');
+            writeFileSync(legacyPath, JSON.stringify({ type: 'local', legacy: true }));
+
+            const readBack = ws.getActiveBackend();
+            expect(readBack).toEqual({ type: 'local', legacy: true });
+        });
+    });
+
     beforeEach(() => {
         mockExit.mockClear();
         mockLog.mockClear();

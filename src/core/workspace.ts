@@ -1,18 +1,23 @@
 import { join } from 'path';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, unlinkSync } from 'fs';
 
 export class WorkspaceManager {
     private testformDir: string;
+    private cacheDir: string;
     private envPath: string;
 
     constructor(dir: string) {
         this.testformDir = join(dir, '.testform');
+        this.cacheDir = join(this.testformDir, 'cache');
         this.envPath = join(this.testformDir, 'environment');
     }
 
     private ensureDir(): void {
         if (!existsSync(this.testformDir)) {
             mkdirSync(this.testformDir, { recursive: true });
+        }
+        if (!existsSync(this.cacheDir)) {
+            mkdirSync(this.cacheDir, { recursive: true });
         }
     }
 
@@ -32,10 +37,13 @@ export class WorkspaceManager {
     }
 
     getActiveBackend(): { type: string; config?: Record<string, any> } | null {
-        const backendPath = join(this.testformDir, 'backend.json');
-        if (existsSync(backendPath) && statSync(backendPath).isFile()) {
+        const cacheBackendPath = join(this.cacheDir, 'backend.json');
+        const legacyBackendPath = join(this.testformDir, 'backend.json');
+        const targetPath = existsSync(cacheBackendPath) ? cacheBackendPath : legacyBackendPath;
+
+        if (existsSync(targetPath) && statSync(targetPath).isFile()) {
             try {
-                return JSON.parse(readFileSync(backendPath, 'utf8'));
+                return JSON.parse(readFileSync(targetPath, 'utf8'));
             } catch {
                 return null;
             }
@@ -45,8 +53,15 @@ export class WorkspaceManager {
 
     setActiveBackend(backend: { type: string; config?: Record<string, any> }): void {
         this.ensureDir();
-        const backendPath = join(this.testformDir, 'backend.json');
+        const backendPath = join(this.cacheDir, 'backend.json');
         writeFileSync(backendPath, JSON.stringify(backend, null, 2), 'utf8');
+
+        // Clean up legacy .testform/backend.json if present
+        const legacyBackendPath = join(this.testformDir, 'backend.json');
+        if (existsSync(legacyBackendPath)) {
+            try {
+                unlinkSync(legacyBackendPath);
+            } catch {}
+        }
     }
 }
-

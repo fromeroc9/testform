@@ -323,7 +323,7 @@ describe('Comando initCmd', () => {
         }));
 
         await initCmd({ dir: tmpDir, reconfigure: true });
-        const backendJsonPath = join(tmpDir, '.testform', 'backend.json');
+        const backendJsonPath = join(tmpDir, '.testform', 'cache', 'backend.json');
         expect(existsSync(backendJsonPath)).toBe(true);
         const savedBackend = JSON.parse(readFileSync(backendJsonPath, 'utf8'));
         expect(savedBackend.type).toBe('local');

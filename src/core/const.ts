@@ -50,6 +50,9 @@ export const FILE_DATA = ".testform/cache/data.json";
 /** Default dependency lock file name (stored in dedicated cache folder). */
 export const FILE_LOCK = ".testform/cache/lock.json";
 
+/** Default active backend metadata file name (stored in dedicated cache folder). */
+export const FILE_BACKEND = ".testform/cache/backend.json";
+
 // ─── Scope Maps ───────────────────────────────────────────────────────────────
 
 /**
