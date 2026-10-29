@@ -9,6 +9,7 @@ import {
     ResourceField, ResourceTemplate, ResourceFormat
 } from '../core/types';
 import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
+import { arraysEqual } from '../core/sync';
 import { buildGitHubTestplanBody } from '../providers/github/templates';
 
 class Resource {
@@ -204,15 +205,26 @@ class Resource {
                 const safeOldRaw = oldRaw && typeof oldRaw === 'object' && !Array.isArray(oldRaw) ? oldRaw : {};
                 const allKeys = new Set([...Object.keys(safeOldRaw), ...Object.keys(raw)]);
                 for (const k of allKeys) {
-                    if (JSON.stringify(safeOldRaw[k]) !== JSON.stringify(raw[k])) {
+                    const oldV = safeOldRaw[k];
+                    const newV = raw[k];
+                    if (oldV === undefined && newV === undefined) continue;
+                    if (field.name === 'custom_fields') {
+                        const cleanOld = String(oldV ?? '').replace(/^@/, '').toLowerCase().trim();
+                        const cleanNew = String(newV ?? '').replace(/^@/, '').toLowerCase().trim();
+                        if (cleanOld !== cleanNew) {
+                            return true;
+                        }
+                    } else if (JSON.stringify(oldV) !== JSON.stringify(newV)) {
                         return true;
                     }
                 }
             } else if (Array.isArray(raw)) {
                 const safeOldRaw = Array.isArray(oldRaw) ? oldRaw : (oldRaw ? [oldRaw] : []);
-                if (JSON.stringify(raw) !== JSON.stringify(safeOldRaw)) return true;
+                if (!arraysEqual(raw, safeOldRaw)) return true;
             } else {
-                if (String(raw ?? '').trim() !== String(oldRaw ?? '').trim()) {
+                const normRaw = String(raw ?? '').replace(/\r\n/g, '\n').trim();
+                const normOldRaw = String(oldRaw ?? '').replace(/\r\n/g, '\n').trim();
+                if (normRaw !== normOldRaw) {
                     return true;
                 }
             }
@@ -306,14 +318,22 @@ class Resource {
                             const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
                             diffLines.push(`          ${red('-')} ${kStr}: ${formattedOldVal}`);
                             fieldChanged = true;
-                        } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-                            const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
-                            const formattedNewVal = formatHclValue(newVal, 2).trimStart();
-                            diffLines.push(`          ${yellow('~')} ${kStr}: ${formattedOldVal} -> ${formattedNewVal}`);
-                            fieldChanged = true;
                         } else {
-                            const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
-                            diffLines.push(`            ${kStr}: ${formattedOldVal}`);
+                            let isKeyChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal);
+                            if (field.name === 'custom_fields') {
+                                const cleanOld = String(oldVal ?? '').replace(/^@/, '').toLowerCase().trim();
+                                const cleanNew = String(newVal ?? '').replace(/^@/, '').toLowerCase().trim();
+                                isKeyChanged = cleanOld !== cleanNew;
+                            }
+                            if (isKeyChanged) {
+                                const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
+                                const formattedNewVal = formatHclValue(newVal, 2).trimStart();
+                                diffLines.push(`          ${yellow('~')} ${kStr}: ${formattedOldVal} -> ${formattedNewVal}`);
+                                fieldChanged = true;
+                            } else {
+                                const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
+                                diffLines.push(`            ${kStr}: ${formattedOldVal}`);
+                            }
                         }
                     }
                     diffLines.push('        }');
@@ -327,7 +347,8 @@ class Resource {
                 const formattedLines = formatHclValue(raw, 2).split('\n');
                 valueStr = formattedLines.map((line: string, idx: number) => idx === 0 ? line.trimStart() : line).join('\n');
                 if (action === 'change') {
-                    fieldChanged = JSON.stringify(raw) !== JSON.stringify(oldRaw);
+                    const safeOldRaw = Array.isArray(oldRaw) ? oldRaw : (oldRaw ? [oldRaw] : []);
+                    fieldChanged = !arraysEqual(raw, safeOldRaw);
                 } else {
                     fieldChanged = true;
                 }
@@ -335,18 +356,22 @@ class Resource {
                 const formattedLines = formatHclValue(raw, 2).split('\n');
                 valueStr = formattedLines.map((line: string, idx: number) => idx === 0 ? line.trimStart() : line).join('\n');
                 if (action === 'change') {
-                    fieldChanged = raw !== oldRaw;
+                    const normRaw = raw.replace(/\r\n/g, '\n').trim();
+                    const normOld = String(oldRaw ?? '').replace(/\r\n/g, '\n').trim();
+                    fieldChanged = normRaw !== normOld;
                 } else {
                     fieldChanged = true;
                 }
             } else {
-                if (action === 'change' && raw !== oldRaw && oldRaw !== undefined) {
+                const normRaw = String(raw ?? '').replace(/\r\n/g, '\n').trim();
+                const normOld = String(oldRaw ?? '').replace(/\r\n/g, '\n').trim();
+                if (action === 'change' && normRaw !== normOld && oldRaw !== undefined) {
                     valueStr = `"${oldRaw}" -> "${raw}"`;
                     fieldChanged = true;
                 } else {
                     valueStr = `"${raw}"`;
                     if (action === 'change') {
-                        fieldChanged = raw !== oldRaw;
+                        fieldChanged = normRaw !== normOld;
                     } else {
                         fieldChanged = true;
                     }
@@ -459,7 +484,7 @@ resource.registry({
             const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
             return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
         } },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
+        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
         {
             name: 'custom_fields', value: (s) => {
@@ -633,7 +658,7 @@ resource.registry({
             const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
             return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
         } },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
+        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
         {
             name: 'custom_fields', value: (s) => {
@@ -688,7 +713,7 @@ resource.registry({
             const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
             return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
         } },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim()).filter(Boolean) },
+        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
         { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
         {
             name: 'custom_fields', value: (s) => {

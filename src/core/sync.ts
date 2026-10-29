@@ -31,7 +31,7 @@ export async function executeInBatches<T, R>(
 function normalizeStringArray(val?: string[] | string): string[] {
     if (!val) return [];
     const arr = Array.isArray(val) ? val : String(val).split(',');
-    return arr.map(s => String(s).trim().toLowerCase()).filter(Boolean);
+    return arr.map(s => String(s).trim().replace(/^@/, '').toLowerCase()).filter(Boolean);
 }
 
 /**
@@ -102,7 +102,9 @@ export function detectAttributeDrift(
     const ignored = new Set(ignoreChanges.map(s => s.toLowerCase()));
 
     // 1. Title
-    if (!ignored.has('title') && newAttributes.title !== remoteIssue.title) {
+    const remoteTitle = (remoteIssue.title ?? '').trim();
+    const localTitle = String(newAttributes.title ?? '').trim();
+    if (!ignored.has('title') && localTitle !== remoteTitle) {
         newAttributes.title = remoteIssue.title;
         hasDrift = true;
     }
@@ -122,8 +124,8 @@ export function detectAttributeDrift(
     }
 
     // 4. Milestone
-    const remoteMilestone = remoteIssue.milestone ?? '';
-    const localMilestone = String(newAttributes.milestone ?? '');
+    const remoteMilestone = (remoteIssue.milestone ?? '').trim();
+    const localMilestone = String(newAttributes.milestone ?? '').trim();
     if (!ignored.has('milestone') && localMilestone !== remoteMilestone) {
         newAttributes.milestone = remoteMilestone;
         hasDrift = true;

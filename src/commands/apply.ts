@@ -113,6 +113,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             resource.summary(plan.changes, false, { state: plan.state });
 
             if (!plan.hasChanges) {
+                await stateObj.save();
                 return;
             }
 

@@ -16,18 +16,10 @@ import { updateFeatureScenario } from '../core/editor';
 import { matchesScope, matchesTarget } from '../core/selector';
 import { normalizeAddress } from '../core/utils';
 
-export function hashScenario(scenario: ParserScenario, scope?: IScope): string {
-    const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
-    if (!scope || scope === 'testcase') {
-        clone.name = '';
-    }
-    if (!scope || scope === 'testrun' || scope === 'testplan') {
-        if (clone.feature) {
-            clone.feature.name = '';
-        }
-    }
-    return createHash('sha256').update(JSON.stringify(clone)).digest('hex');
-}
+import { LifecycleResolver } from '../core/lifecycle';
+import { arraysEqual } from '../core/sync';
+import { hashScenario } from './plan';
+export { hashScenario };
 
 function getStatusIcon(status: DiffStatus): string {
     switch (status) {
@@ -139,9 +131,10 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         if (target) {
             resources = resources.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
         }
-        const stateMap = new Map(resources.map(r => [r.identity, r]));
+        const stateMap = new Map(resources.map(r => [normalizeAddress(r.identity), r]));
 
         const localIds = new Set<string>();
+        const lifecycleResolver = new LifecycleResolver(dir);
 
         for (const scenario of filtered) {
             const rawIdentity = scenario.custom?.identity;
@@ -154,9 +147,12 @@ export const diffCmd = async (options: DiffCmdOptions) => {
                 identity = `${scenario.uri}.${rawIdentity}`;
             }
 
-            localIds.add(identity);
-            const localHash = hashScenario(scenario, s);
-            const stateRes = stateMap.get(identity);
+            const normId = normalizeAddress(identity);
+            localIds.add(normId);
+            const scenarioTags = scenario.tags ? scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+            const lc = lifecycleResolver.getLifecycle(identity, scenarioTags);
+            const localHash = hashScenario(scenario, s, lc.ignore_changes);
+            const stateRes = stateMap.get(normId);
 
             if (!stateRes) {
                 entries.push({ identity, status: 'new_local', localHash });
@@ -180,7 +176,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         }
 
         for (const res of resources) {
-            if (!localIds.has(res.identity)) {
+            if (!localIds.has(normalizeAddress(res.identity))) {
                 entries.push({
                     identity: res.identity,
                     status: 'orphaned_remote',
@@ -298,14 +294,12 @@ async function executeRemoteDrift(
                 }
 
                 // Check labels
-                const localLabels = Array.isArray(res.attributes.labels)
-                    ? res.attributes.labels.map(l => l.replace(/^@/, '').toLowerCase()).sort()
-                    : [];
+                const localLabels = Array.isArray(res.attributes.labels) ? res.attributes.labels : [];
                 const remoteLabels = Array.isArray(issue.labels)
-                    ? issue.labels.map((l: any) => (typeof l === 'string' ? l : l.name || '').replace(/^@/, '').toLowerCase()).sort()
+                    ? issue.labels.map((l: any) => typeof l === 'string' ? l : l.name || '')
                     : [];
 
-                if (JSON.stringify(localLabels) !== JSON.stringify(remoteLabels)) {
+                if (!arraysEqual(localLabels, remoteLabels)) {
                     differences.push({
                         field: 'labels',
                         local: `[${localLabels.join(', ')}]`,
