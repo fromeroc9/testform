@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from 'fs';
-import { resolve, extname } from 'path';
+import { resolve, extname, basename } from 'path';
 import { pathToFileURL } from 'url';
 import { TITLE_APP, TITLE_CLI } from '../core/const';
 import { logger as notify } from '../core/logger';
@@ -470,27 +470,44 @@ resource.registry({
 
                     for (const tc of sortedTestcases) {
                         const parts = tc.split('.');
-                        const scenarioName = parts.pop();
+                        const scenarioName = parts.pop() || '';
                         const ruleName = parts.join('.');
-                        const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '');
+                        const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
+                        const ruleBaseName = basename(baseRule);
+                        const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
 
-                        const tcResources = state.getResources('github_testcase').filter((r: any) =>
-                            r.identity.includes(baseRule) && (scenarioName === '*' || r.identity.endsWith(`.${scenarioName}`))
-                        );
+                        const tcResources = state.getResources('github_testcase').filter((r: any) => {
+                            const normId = (r.identity || '').replace(/\\/g, '/');
+                            const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
+
+                            // Rule path matching: either relative path matches or basename matches
+                            const matchesRule = normId.includes(baseRule) || normId.includes(ruleBaseName);
+                            if (!matchesRule) return false;
+
+                            // Scenario matching: wildcard, exact tag, or matching title
+                            if (cleanScenario === '*' || idLastPart === cleanScenario) return true;
+
+                            const normTitle = (r.attributes?.title || '').toLowerCase();
+                            if (normTitle && (normTitle === cleanScenario || normTitle === scenarioName.toLowerCase())) return true;
+
+                            return false;
+                        });
 
                         const distinctFiles = new Set(tcResources.map((r: any) => {
-                            const lastDot = r.identity.lastIndexOf('.');
-                            return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                            const normId = (r.identity || '').replace(/\\/g, '/');
+                            const lastDot = normId.lastIndexOf('.');
+                            return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
                         }));
                         let validResources = tcResources;
 
                         if (distinctFiles.size > 1) {
                             if (context?.testDirectory) {
-                                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
-                                validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
+                                validResources = tcResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
                                 const distinctValid = new Set(validResources.map((r: any) => {
-                                    const lastDot = r.identity.lastIndexOf('.');
-                                    return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                                    const normId = (r.identity || '').replace(/\\/g, '/');
+                                    const lastDot = normId.lastIndexOf('.');
+                                    return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
                                 }));
                                 if (distinctValid.size > 1) {
                                     throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
@@ -523,9 +540,10 @@ resource.registry({
 
                     const groupedByOrigin = new Map<string, any[]>();
                     for (const tcResource of uniqueResources) {
-                        const lastDot = tcResource.identity.lastIndexOf('.');
-                        const baseRule = lastDot !== -1 ? tcResource.identity.slice(0, lastDot) : tcResource.identity;
-                        const originFile = require('path').basename(baseRule || '');
+                        const normId = (tcResource.identity || '').replace(/\\/g, '/');
+                        const lastDot = normId.lastIndexOf('.');
+                        const baseRule = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                        const originFile = basename(baseRule || '');
                         if (!groupedByOrigin.has(originFile)) {
                             groupedByOrigin.set(originFile, []);
                         }
@@ -536,23 +554,29 @@ resource.registry({
                         body += `\n\n**Origin:** ${origin}\n`;
                         for (const tcResource of resources) {
                             const tcIdentity = tcResource.identity;
-                            const safeName = tcIdentity.split('.').pop()?.replace('@', '') || '';
+                            const normTcId = (tcIdentity || '').replace(/\\/g, '/');
+                            const tcLastPart = normTcId.split('.').pop() || '';
+                            const cleanIdTag = tcLastPart.replace(/^@/, '').toLowerCase();
+                            const safeName = tcLastPart.replace(/^@/, '') || '';
 
                             let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
                                 if (!gs.rule || !gs.name) return false;
-                                const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
-                                return tcIdentity.includes(gsBaseRule) && tcIdentity.endsWith(`.${gs.name}`);
+                                const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
+                                const cleanGsName = gs.name.replace(/^@/, '').toLowerCase();
+                                const matchesRule = normTcId.includes(gsBaseRule) || normTcId.includes(basename(gsBaseRule));
+                                return matchesRule && (cleanIdTag === cleanGsName || cleanGsName === '*');
                             });
 
                             if (!groupScenario) {
                                 groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
                                     if (!gs.rule || !gs.name) return false;
-                                    const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '');
-                                    return tcIdentity.includes(gsBaseRule) && gs.name === '*';
+                                    const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
+                                    const matchesRule = normTcId.includes(gsBaseRule) || normTcId.includes(basename(gsBaseRule));
+                                    return matchesRule && gs.name === '*';
                                 });
                             }
 
-                            const localStatus = groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || 'pending';
+                            const localStatus = groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || existingStatuses[normTcId] || 'pending';
                             const checkbox = localStatus === 'passed' ? '[x]' : '[ ]';
 
                             if (tcResource?.attributes?.issueNumber) {

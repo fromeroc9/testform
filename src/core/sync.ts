@@ -200,7 +200,8 @@ export async function syncTestrunComments(
         const { identity, status, body } = comment;
         expandedTestcases.push(identity);
 
-        if (!testcaseCommentIds[identity] || testcaseStatuses[identity] !== status) {
+        const prevStatus = existingAttributes?.testcaseStatuses?.[identity];
+        if (!testcaseCommentIds[identity] || prevStatus !== status) {
             if (testcaseCommentIds[identity]) {
                 await provider.updateIssueComment(testcaseCommentIds[identity], body);
                 onCommentUpdate?.(identity, status);
@@ -209,7 +210,16 @@ export async function syncTestrunComments(
                 testcaseCommentIds[identity] = result.id;
                 onCommentCreate?.(identity, status);
             }
-            testcaseStatuses[identity] = status;
+        }
+        testcaseStatuses[identity] = status;
+    }
+
+    if (Object.keys(testcaseStatuses).length === 0 && change.scenario.custom?.groupScenarios) {
+        for (const gs of change.scenario.custom.groupScenarios) {
+            if (gs.rule && gs.name) {
+                const tcKey = `${gs.rule.name}.${gs.name}`;
+                testcaseStatuses[tcKey] = gs.custom?.fields?.status || 'pending';
+            }
         }
     }
 

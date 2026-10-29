@@ -41,6 +41,7 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
 
     const state = context.state;
     const result: GitHubCommentResult[] = [];
+    const seenIdentities = new Set<string>();
 
     const sortedTestcases = [...testcases].sort((a: string, b: string) => {
         const aName = a.split('.').pop()?.replace('@', '') || '';
@@ -54,29 +55,28 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
 
         const parts = tc.split('.');
         const scenarioName = parts.pop() || '';
+        const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
         const normTc = tc.replace(/\\/g, '/');
+        const ruleName = parts.join('.');
+        const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
+        const ruleBaseName = basename(baseRule);
 
         const tcResources = state.getResources('github_testcase').filter((r: any) => {
             const normId = (r.identity || '').replace(/\\/g, '/');
-            const normTitle = (r.attributes?.title || '').toLowerCase();
             const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
 
-            // Match by tag if present
-            if (tag && (idLastPart === tag || normId.toLowerCase().includes(`@${tag}`) || normId.toLowerCase().includes(`.${tag}`))) {
-                const ruleContext = normTc.split('.case.feature')[0];
-                const fileBase = ruleContext.split('/').pop();
-                if (!fileBase || normId.includes(fileBase)) {
-                    return true;
-                }
-            }
+            // Must match rule / file path
+            const matchesRule = normId.includes(baseRule) || normId.includes(ruleBaseName);
+            if (!matchesRule) return false;
 
-            // Match by title
-            if (normTitle && (normTitle === scenarioName.toLowerCase() || normTc.toLowerCase().includes(normTitle))) {
+            // Match by scenario name, tag or wildcard
+            if (cleanScenario === '*' || idLastPart === cleanScenario || (tag && idLastPart === tag)) {
                 return true;
             }
 
-            // Match by exact end part or wildcard
-            if (scenarioName === '*' || (idLastPart && idLastPart === scenarioName.replace(/^@/, '').toLowerCase())) {
+            // Match by title
+            const normTitle = (r.attributes?.title || '').toLowerCase();
+            if (normTitle && (normTitle === cleanScenario || normTitle === scenarioName.toLowerCase())) {
                 return true;
             }
 
@@ -84,15 +84,16 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
         });
 
         const distinctFiles = new Set(tcResources.map((r: any) => {
-            const lastDot = r.identity.lastIndexOf('.');
-            return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+            const normId = (r.identity || '').replace(/\\/g, '/');
+            const lastDot = normId.lastIndexOf('.');
+            return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
         }));
         let validResources = tcResources;
 
         if (distinctFiles.size > 1) {
             if (context?.testDirectory) {
-                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
-                validResources = tcResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
+                validResources = tcResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
             } else {
                 continue;
             }
@@ -106,20 +107,21 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
 
         for (const tcResource of validResources) {
             const tcIdentity = tcResource.identity;
+            const normTc = tcIdentity.replace(/\\/g, '/');
+            const lastTc = normTc.split('.').pop()?.replace(/^@/, '').toLowerCase() || '';
 
             let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
                 if (!gs.name) return false;
-                const normTc = tcIdentity.replace(/\\/g, '/');
-                const lastTc = normTc.split('.').pop() || '';
-                const gsTagMatch = gs.name.match(/@?(tc-[a-zA-Z0-9_-]+)/i);
-                if (gsTagMatch && lastTc && gsTagMatch[1].toLowerCase() === lastTc.replace(/^@/, '').toLowerCase()) {
-                    return true;
-                }
-                if (normTc.endsWith(`.${gs.name}`) || gs.name.endsWith(`.${lastTc}`) || lastTc === gs.name) {
+                const cleanGsName = gs.name.replace(/^@/, '').toLowerCase();
+                const gsRule = gs.rule ? gs.rule.name.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/') : '';
+                const matchesRule = !gsRule || normTc.includes(gsRule) || normTc.includes(basename(gsRule));
+                if (!matchesRule) return false;
+
+                if (cleanGsName === '*' || cleanGsName === lastTc) {
                     return true;
                 }
                 const tcTitle = (tcResource.attributes?.title || '').toLowerCase();
-                if (tcTitle && gs.name.toLowerCase() === tcTitle) {
+                if (tcTitle && cleanGsName === tcTitle) {
                     return true;
                 }
                 return false;
@@ -127,11 +129,18 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
 
             if (!groupScenario) {
                 groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
-                    return gs.name === '*';
+                    if (!gs.name) return false;
+                    const cleanGsName = gs.name.replace(/^@/, '').toLowerCase();
+                    const gsRule = gs.rule ? gs.rule.name.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/') : '';
+                    const matchesRule = !gsRule || normTc.includes(gsRule) || normTc.includes(basename(gsRule));
+                    return matchesRule && cleanGsName === '*';
                 });
             }
 
-            const localStatus = groupScenario?.custom?.fields?.status || context?.existingAttributes?.testcaseStatuses?.[tcIdentity] || 'pending';
+            const localStatus = groupScenario?.custom?.fields?.status ||
+                context?.existingAttributes?.testcaseStatuses?.[tcIdentity] ||
+                context?.existingAttributes?.testcaseStatuses?.[normTc] ||
+                'pending';
             const tcTitle = tcResource.attributes?.title || tcIdentity;
 
             const lastDot = tcIdentity.lastIndexOf('.');
@@ -142,7 +151,10 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
 
             const commentBody = generateGitHubTestrunComment(originFile, safeScenario, tcTitle, localStatus);
 
-            result.push({ identity: tcIdentity, status: localStatus, body: commentBody, title: tcTitle });
+            if (!seenIdentities.has(tcIdentity)) {
+                seenIdentities.add(tcIdentity);
+                result.push({ identity: tcIdentity, status: localStatus, body: commentBody, title: tcTitle });
+            }
         }
     }
     return result;
@@ -158,25 +170,37 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
         body += '\n\n### Test Runs\n';
         const state = context.state;
         for (const tr of testruns) {
+            const normTr = tr.replace(/\\/g, '/');
+            const trBase = normTr.endsWith('.run.feature') ? normTr : normTr + '.run.feature';
+            const trFileName = basename(trBase);
+
             const runResources = state.getResources('github_testrun').filter((r: any) => {
-                const lastDot = r.identity.lastIndexOf('.');
-                const base = lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
-                return base.endsWith(tr) || r.identity.endsWith(tr);
+                const normId = (r.identity || '').replace(/\\/g, '/');
+                const lastDot = normId.lastIndexOf('.');
+                const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+
+                return base.endsWith(normTr) ||
+                       normId.endsWith(normTr) ||
+                       base.endsWith(trFileName) ||
+                       normId.endsWith(trFileName) ||
+                       base === normTr;
             });
 
             const distinctFiles = new Set(runResources.map((r: any) => {
-                const lastDot = r.identity.lastIndexOf('.');
-                return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                const normId = (r.identity || '').replace(/\\/g, '/');
+                const lastDot = normId.lastIndexOf('.');
+                return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
             }));
             let validResources = runResources;
 
             if (distinctFiles.size > 1) {
                 if (context?.testDirectory) {
-                    const normalizedTestDir = context.testDirectory.replace(/^\.\//, '');
-                    validResources = runResources.filter((r: any) => r.identity.startsWith(normalizedTestDir));
+                    const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
+                    validResources = runResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
                     const distinctValid = new Set(validResources.map((r: any) => {
-                        const lastDot = r.identity.lastIndexOf('.');
-                        return lastDot !== -1 ? r.identity.slice(0, lastDot) : r.identity;
+                        const normId = (r.identity || '').replace(/\\/g, '/');
+                        const lastDot = normId.lastIndexOf('.');
+                        return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
                     }));
                     if (distinctValid.size > 1) {
                         throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);

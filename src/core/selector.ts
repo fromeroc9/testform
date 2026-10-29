@@ -90,25 +90,36 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             }
         }
 
-        const normBase = basename(normIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '');
+        // Strip trailing scenario/identity tag (e.g. .@tc-01, .@tr-1, .@tp-1) if present
+        const lastDot = normIdentity.lastIndexOf('.');
+        const cleanIdentity = (lastDot !== -1 && normIdentity.slice(lastDot).startsWith('.@'))
+            ? normIdentity.slice(0, lastDot)
+            : normIdentity;
+
+        const normBase = basename(cleanIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '');
         const normTarget = basename(normT).replace(/(\.(case|run|plan))?\.feature$/i, '');
         const hasPath = normT.includes('/');
 
         if (hasPath) {
             return (
                 normIdentity === normT ||
+                cleanIdentity === normT ||
                 normIdentity.startsWith(`${normT}.`) ||
-                normIdentity.endsWith(`/${normT}`) ||
-                normIdentity.endsWith(normT)
+                cleanIdentity.startsWith(`${normT}.`) ||
+                cleanIdentity.endsWith(`/${normT}`) ||
+                cleanIdentity.endsWith(normT)
             );
         }
 
         return (
             normIdentity === normT ||
+            cleanIdentity === normT ||
             normIdentity.startsWith(`${normT}.`) ||
-            normIdentity.endsWith(`/${normT}`) ||
-            normIdentity.endsWith(normT) ||
-            basename(normIdentity) === normT ||
+            cleanIdentity.startsWith(`${normT}.`) ||
+            cleanIdentity.endsWith(`/${normT}`) ||
+            cleanIdentity.endsWith(normT) ||
+            basename(cleanIdentity) === normT ||
+            basename(cleanIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '') === normTarget ||
             normBase === normTarget
         );
     });

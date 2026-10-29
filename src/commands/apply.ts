@@ -263,7 +263,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 custom_fields: (payload as any).custom_fields,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
-                                ...(testcaseCommentIds ? { testcaseCommentIds, testcaseStatuses } : {}),
+                                ...(change.resourceType.endsWith('testrun') ? {
+                                    testcaseCommentIds: testcaseCommentIds || {},
+                                    testcaseStatuses: testcaseStatuses || {},
+                                } : {}),
+                                ...((payload as any).testruns ? { testruns: (payload as any).testruns } : {}),
                             },
                             lastApplied: new Date().toISOString(),
                         });
@@ -322,7 +326,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 custom_fields: (payload as any).custom_fields,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
-                                ...(testcaseCommentIds ? { testcaseCommentIds, testcaseStatuses } : {}),
+                                ...(change.resourceType.endsWith('testrun') ? {
+                                    testcaseCommentIds: testcaseCommentIds || {},
+                                    testcaseStatuses: testcaseStatuses || {},
+                                } : {}),
+                                ...((payload as any).testruns ? { testruns: (payload as any).testruns } : {}),
                             },
                             lastApplied: new Date().toISOString(),
                         });
@@ -375,7 +383,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 custom_fields: (payload as any).custom_fields,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
-                                ...(testcaseCommentIds ? { testcaseCommentIds, testcaseStatuses } : {}),
+                                ...(change.resourceType.endsWith('testrun') ? {
+                                    testcaseCommentIds: testcaseCommentIds || {},
+                                    testcaseStatuses: testcaseStatuses || {},
+                                } : {}),
+                                ...((payload as any).testruns ? { testruns: (payload as any).testruns } : {}),
                             },
                             lastApplied: new Date().toISOString(),
                         });
