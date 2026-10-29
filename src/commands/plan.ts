@@ -224,6 +224,13 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 oldAttributes: existing.attributes,
             });
         } else if (existing.attributes.localHash !== localHash) {
+            const hasActualChanges = resource.hasFieldChanges(RESOURCE_TYPE, scenario, existing.attributes, { state, testDirectory: dir });
+            if (!hasActualChanges) {
+                // If there are zero attribute differences, don't generate a ghost update in-place.
+                // Heal the in-memory hash so state converges.
+                existing.attributes.localHash = localHash;
+                continue;
+            }
 
             // Changed resource — needs to be updated
             changes.push({

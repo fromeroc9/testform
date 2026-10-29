@@ -190,6 +190,36 @@ class Resource {
         return result;
     }
 
+    hasFieldChanges(type: string, scenario: ParserScenario, oldAttributes: Record<string, any>, context?: any): boolean {
+        const template = this.get(type);
+        for (const field of template.fields) {
+            if (field.knownAfterApply) return true;
+            const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
+            const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
+
+            if (raw === undefined && oldRaw === undefined) continue;
+            if (field.name === 'milestone' && !raw && !oldRaw) continue;
+
+            if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+                const safeOldRaw = oldRaw && typeof oldRaw === 'object' && !Array.isArray(oldRaw) ? oldRaw : {};
+                const allKeys = new Set([...Object.keys(safeOldRaw), ...Object.keys(raw)]);
+                for (const k of allKeys) {
+                    if (JSON.stringify(safeOldRaw[k]) !== JSON.stringify(raw[k])) {
+                        return true;
+                    }
+                }
+            } else if (Array.isArray(raw)) {
+                const safeOldRaw = Array.isArray(oldRaw) ? oldRaw : (oldRaw ? [oldRaw] : []);
+                if (JSON.stringify(raw) !== JSON.stringify(safeOldRaw)) return true;
+            } else {
+                if (String(raw ?? '').trim() !== String(oldRaw ?? '').trim()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     evaluateComments(type: string, scenario: ParserScenario, context?: any): { identity: string; status: string; body: string; title: string }[] {
         const template = this.get(type);
         if (template.comments) {
