@@ -31,6 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Terraform-Compliant Resource Addressing (provider.resource.shortidentity):** Standardized plan, apply, and refresh logs to display addresses as provider.resource.shortidentity (e.g. github.testcase.customer.case.feature.@tc-01). Eradicated non-standard feature title brackets (# [Feature Name].) and stripped directory path clutter from resource blocks and drift warnings.
 
+#### 🛡️ Elimination of Ghost & Phantom Diffs (`hasFieldChanges`)
+- **CRLF vs LF Normalization:** Automatically normalizes `\r\n` carriage returns to `\n` in multiline bodies (`body`, `description`) prior to comparison in `hasFieldChanges()` and diff rendering, eradicating false in-place updates on Windows platforms.
+- **Order-Independent & Prefix-Agnostic Array Comparison:** Leveraged `arraysEqual()` across `labels` and `assignees` in `hasFieldChanges()`, `format()`, and `detectAttributeDrift()`, ensuring arbitrary array order and leading `@` prefixes (`@fromeroc9` vs `fromeroc9`) never trigger spurious changes or remote drift.
+- **Custom Fields Prefix Healing:** Sanitized custom field values (`priority: "@medium"` vs `"medium"`) across diff calculation and HCL output generation.
+- **Path-Normalized Diff Matching:** Applied `normalizeAddress()` consistently across `testform diff` resource maps and sets, eliminating false `new_local` and `orphaned_remote` dual entries caused by Windows backslashes (`\`) vs POSIX slashes (`/`).
+- **Synchronized Lifecycle Scenarios in Diff:** Integrated `LifecycleResolver` and `ignore_changes` support into `diffCmd`'s scenario hashing, preventing divergence between `diff` and `plan`.
+
 ### Removed
 - **Deprecated `testcaseCommentIds`:** Removed comment ID tracking from testrun state schema while preserving transparent backward compatibility for legacy state reads.
 
