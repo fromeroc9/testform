@@ -123,4 +123,57 @@ describe('Resource Registry and User Overrides', () => {
         });
         expect(evaluated.metadata).toEqual({});
     });
+
+    it('should support declarative { api, state } schema registration and evaluation', () => {
+        registerResource({
+            type: 'pokedex_creature',
+            api: {
+                pokemon: (s: any) => ({
+                    name: s.name,
+                    level: s.custom?.fields?.level || 1,
+                    type: s.custom?.fields?.type || 'normal'
+                }),
+                trainer: (s: any) => ({
+                    trainerId: s.custom?.fields?.trainer || 'red'
+                })
+            },
+            state: {
+                status: (s: any) => s.custom?.fields?.status || 'wild',
+                caughtAt: () => '2026-10-30'
+            }
+        });
+
+        const mockScenario: any = {
+            name: 'Pikachu',
+            custom: {
+                fields: {
+                    level: 25,
+                    type: 'electric',
+                    trainer: 'ash',
+                    status: 'caught'
+                }
+            }
+        };
+
+        const apiPayload = resource.evaluateApi('pokedex_creature', mockScenario);
+        expect(apiPayload.pokemon).toEqual({
+            name: 'Pikachu',
+            level: 25,
+            type: 'electric'
+        });
+        expect(apiPayload.trainer).toEqual({
+            trainerId: 'ash'
+        });
+
+        const statePayload = resource.evaluateState('pokedex_creature', mockScenario);
+        expect(statePayload).toEqual({
+            status: 'caught',
+            caughtAt: '2026-10-30'
+        });
+
+        // Combined flat evaluation
+        const flatEvaluated = resource.evaluate('pokedex_creature', mockScenario);
+        expect(flatEvaluated.status).toBe('caught');
+        expect(flatEvaluated.pokemon).toBeDefined();
+    });
 });

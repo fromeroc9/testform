@@ -16,6 +16,7 @@ import { CustomBackend, CustomBackendConfig } from '../backends/custom';
 import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
+import { detectScopeFromTarget } from '../core/selector';
 
 export function parseBackendOverrides(raw: string | string[], baseDir: string = '.'): Record<string, string> {
     const overrides: Record<string, string> = {};
@@ -160,7 +161,7 @@ export class State {
             provider: parsed.provider ?? config.getAdapterType(),
             resources: (parsed.resources ?? []).map((r: any) => ({
                 ...r,
-                type: r.type || (r.identity?.startsWith('@tr-') || r.identity?.includes('.run.') ? 'testrun' : r.identity?.startsWith('@tp-') || r.identity?.includes('.plan.') ? 'testplan' : 'testcase'),
+                type: r.type || (r.identity ? detectScopeFromTarget(r.identity, config) : undefined) || 'testcase',
                 attributes: r.attributes ?? { ...r }
             })),
             outputs: parsed.outputs ?? {},
@@ -259,7 +260,7 @@ export class State {
         if (!this.state || !this.state.resources) return [];
         if (!type) return this.state.resources;
         return this.state.resources.filter(r => {
-            const rType = r.type || (r.identity?.startsWith('@tr-') || r.identity?.includes('.run.') ? 'testrun' : r.identity?.startsWith('@tp-') || r.identity?.includes('.plan.') ? 'testplan' : 'testcase');
+            const rType = r.type || (r.identity ? detectScopeFromTarget(r.identity) : undefined) || 'testcase';
             if (rType === type) return true;
             const canonicalR = rType.includes('_') ? rType.split('_').slice(1).join('_') : rType;
             const canonicalT = type.includes('_') ? type.split('_').slice(1).join('_') : type;

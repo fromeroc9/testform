@@ -1,5 +1,4 @@
 import { IProvider, IProviderIssueResult } from '../providers/interface';
-import { resource } from './resources';
 
 // ─── Batch Execution ──────────────────────────────────────────────────────────
 
@@ -142,88 +141,4 @@ export function detectAttributeDrift(
     }
 
     return { hasDrift, newAttributes };
-}
-
-// ─── Testrun Status Comments Sync ─────────────────────────────────────────────
-
-export interface SyncTestrunCommentsOptions {
-    change: any;
-    issueNumber: number;
-    provider: IProvider;
-    stateObj: any;
-    testDirectory?: string;
-    existingAttributes?: any;
-    onCommentUpdate?: (identity: string, status: string) => void;
-    onCommentCreate?: (identity: string, status: string) => void;
-}
-
-export interface SyncTestrunCommentsResult {
-    testcaseCommentIds: Record<string, any>;
-    testcaseStatuses: Record<string, string>;
-    expandedTestcases: string[];
-}
-
-/**
- * Synchronizes testcase status comments on a remote testrun issue.
- */
-export async function syncTestrunComments(
-    options: SyncTestrunCommentsOptions
-): Promise<SyncTestrunCommentsResult> {
-    const {
-        change,
-        issueNumber,
-        provider,
-        stateObj,
-        testDirectory,
-        existingAttributes,
-        onCommentUpdate,
-        onCommentCreate,
-    } = options;
-
-    if (!change.resourceType.endsWith('testrun') || !change.scenario.custom?.testcases) {
-        return {
-            testcaseCommentIds: existingAttributes?.testcaseCommentIds || {},
-            testcaseStatuses: existingAttributes?.testcaseStatuses || {},
-            expandedTestcases: [],
-        };
-    }
-
-    const testcaseCommentIds: Record<string, any> = { ...(existingAttributes?.testcaseCommentIds || {}) };
-    const testcaseStatuses: Record<string, string> = { ...(existingAttributes?.testcaseStatuses || {}) };
-    const expandedTestcases: string[] = [];
-
-    const comments = resource.evaluateComments(change.resourceType, change.scenario, {
-        state: stateObj,
-        testDirectory,
-        existingAttributes,
-    });
-
-    for (const comment of comments) {
-        const { identity, status, body } = comment;
-        expandedTestcases.push(identity);
-
-        const prevStatus = existingAttributes?.testcaseStatuses?.[identity];
-        if (!testcaseCommentIds[identity] || prevStatus !== status) {
-            if (testcaseCommentIds[identity]) {
-                await provider.updateIssueComment(testcaseCommentIds[identity], body);
-                onCommentUpdate?.(identity, status);
-            } else {
-                const result = await provider.createIssueComment(issueNumber, body);
-                testcaseCommentIds[identity] = result.id;
-                onCommentCreate?.(identity, status);
-            }
-        }
-        testcaseStatuses[identity] = status;
-    }
-
-    if (Object.keys(testcaseStatuses).length === 0 && change.scenario.custom?.groupScenarios) {
-        for (const gs of change.scenario.custom.groupScenarios) {
-            if (gs.rule && gs.name) {
-                const tcKey = `${gs.rule.name}.${gs.name}`;
-                testcaseStatuses[tcKey] = gs.custom?.fields?.status || 'pending';
-            }
-        }
-    }
-
-    return { testcaseCommentIds, testcaseStatuses, expandedTestcases };
 }

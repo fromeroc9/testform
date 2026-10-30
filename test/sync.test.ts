@@ -1,12 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
     executeInBatches,
     arraysEqual,
     compareCustomFields,
     detectAttributeDrift,
-    syncTestrunComments,
 } from '../src/core/sync';
-import { resource } from '../src/core/resources';
 
 describe('sync module', () => {
     describe('executeInBatches', () => {
@@ -143,122 +141,6 @@ describe('sync module', () => {
             const remoteFields = { Priority: 'High' };
             const result = detectAttributeDrift(current, remoteIssue, remoteFields);
             expect(result.hasDrift).toBe(false);
-        });
-    });
-
-    describe('syncTestrunComments', () => {
-        it('should skip non-testrun resources', async () => {
-            const change = { resourceType: 'github_testcase' };
-            const result = await syncTestrunComments({
-                change,
-                issueNumber: 1,
-                provider: {} as any,
-                stateObj: {},
-            });
-            expect(result.expandedTestcases).toEqual([]);
-        });
-
-        it('should create new comments when not already tracked', async () => {
-            vi.spyOn(resource, 'evaluateComments').mockReturnValueOnce([
-                { identity: 'tc-1', title: 'Testcase 1', status: 'Passed', body: 'Comment body 1' }
-            ]);
-
-            const mockCreateComment = vi.fn().mockResolvedValue({ id: 101 });
-            const mockUpdateComment = vi.fn();
-            const onCommentCreate = vi.fn();
-
-            const change = {
-                resourceType: 'github_testrun',
-                scenario: { custom: { testcases: ['tc-1'] } }
-            };
-
-            const result = await syncTestrunComments({
-                change,
-                issueNumber: 12,
-                provider: {
-                    createIssueComment: mockCreateComment,
-                    updateIssueComment: mockUpdateComment,
-                } as any,
-                stateObj: {},
-                onCommentCreate,
-            });
-
-            expect(mockCreateComment).toHaveBeenCalledWith(12, 'Comment body 1');
-            expect(mockUpdateComment).not.toHaveBeenCalled();
-            expect(onCommentCreate).toHaveBeenCalledWith('tc-1', 'Passed');
-            expect(result.testcaseCommentIds['tc-1']).toBe(101);
-            expect(result.testcaseStatuses['tc-1']).toBe('Passed');
-        });
-
-        it('should update comments when status has changed', async () => {
-            vi.spyOn(resource, 'evaluateComments').mockReturnValueOnce([
-                { identity: 'tc-1', title: 'Testcase 1', status: 'Failed', body: 'Comment body updated' }
-            ]);
-
-            const mockCreateComment = vi.fn();
-            const mockUpdateComment = vi.fn().mockResolvedValue({});
-            const onCommentUpdate = vi.fn();
-
-            const change = {
-                resourceType: 'github_testrun',
-                scenario: { custom: { testcases: ['tc-1'] } }
-            };
-
-            const existingAttributes = {
-                testcaseCommentIds: { 'tc-1': 101 },
-                testcaseStatuses: { 'tc-1': 'Passed' }
-            };
-
-            const result = await syncTestrunComments({
-                change,
-                issueNumber: 12,
-                provider: {
-                    createIssueComment: mockCreateComment,
-                    updateIssueComment: mockUpdateComment,
-                } as any,
-                stateObj: {},
-                existingAttributes,
-                onCommentUpdate,
-            });
-
-            expect(mockCreateComment).not.toHaveBeenCalled();
-            expect(mockUpdateComment).toHaveBeenCalledWith(101, 'Comment body updated');
-            expect(onCommentUpdate).toHaveBeenCalledWith('tc-1', 'Failed');
-            expect(result.testcaseStatuses['tc-1']).toBe('Failed');
-        });
-
-        it('should do nothing if status is unchanged', async () => {
-            vi.spyOn(resource, 'evaluateComments').mockReturnValueOnce([
-                { identity: 'tc-1', title: 'Testcase 1', status: 'Passed', body: 'Same body' }
-            ]);
-
-            const mockCreateComment = vi.fn();
-            const mockUpdateComment = vi.fn();
-
-            const change = {
-                resourceType: 'github_testrun',
-                scenario: { custom: { testcases: ['tc-1'] } }
-            };
-
-            const existingAttributes = {
-                testcaseCommentIds: { 'tc-1': 101 },
-                testcaseStatuses: { 'tc-1': 'Passed' }
-            };
-
-            const result = await syncTestrunComments({
-                change,
-                issueNumber: 12,
-                provider: {
-                    createIssueComment: mockCreateComment,
-                    updateIssueComment: mockUpdateComment,
-                } as any,
-                stateObj: {},
-                existingAttributes,
-            });
-
-            expect(mockCreateComment).not.toHaveBeenCalled();
-            expect(mockUpdateComment).not.toHaveBeenCalled();
-            expect(result.testcaseStatuses['tc-1']).toBe('Passed');
         });
     });
 });

@@ -12,7 +12,7 @@
   <a href="https://www.npmjs.com/package/@fromeroc9/testform"><img src="https://img.shields.io/npm/v/@fromeroc9/testform/beta?style=flat-square&color=4F46E5&label=npm%20beta" alt="NPM Beta Version" /></a>
   <a href="https://fromeroc9.github.io/testform-docs/"><img src="https://img.shields.io/badge/docs-online-4F46E5?style=flat-square&logo=gitbook&logoColor=white" alt="Docs Online" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D%2018.0.0-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js Version" /></a>
-  <img src="https://img.shields.io/badge/tests-43%20passed%20%7C%20356%20units-brightgreen?style=flat-square&logo=vitest&logoColor=white" alt="Test Status" />
+  <img src="https://img.shields.io/badge/tests-46%20passed%20%7C%20387%20units-brightgreen?style=flat-square&logo=vitest&logoColor=white" alt="Test Status" />
   <a href="https://github.com/fromeroc9/testform-docs"><img src="https://img.shields.io/badge/portal-testform--docs-0284C7?style=flat-square&logo=astro&logoColor=white" alt="Docs Portal" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License" /></a>
 </p>
@@ -184,7 +184,10 @@ testform -version
 
 ## 🚀 Key Features
 
-- **Test-as-Code Engine:** Declarative management for Testcases, Testruns, and Testplans using Gherkin.
+- **Test-as-Code Engine:** Declarative management for Testcases, Testruns, Testplans, and Bugs using Gherkin.
+- **Agnostic Multi-Service Provider Architecture (`IProvider.apis`):** Completely decoupled API adapters (`issue`, `project`, or arbitrary domain dictionaries) from the internal state ledger, enabling any provider to connect without modifying core commands.
+- **Unified Test Lifecycle CLI (`testform spec`):** 100% flag-based non-positional syntax to scaffold (`new`), append (`add`), execute (`mark`), delete (`delete`), and inspect (`status`) specs across `testcase`, `testrun`, `testplan`, and `bug`.
+- **First-Class Defect Lifecycle (`@bug` / `@bg-X`):** Built-in bug management tracking target testcases, severities, priorities, stack traces, and automated image evidence extracted from Cucumber executions.
 - **Modular Reporting & Multi-Format Analytics (`testform report`):** Generates 9 multidimensional reports natively exported to Markdown, JSON, CSV, Word (`.docx`), and Excel (`.xlsx`) with `${...}` dynamic template markers, unified `-filter` queries, and zero-pollution autoloading from `.testform/reports/`.
 - **Target Scoping (`-target`):** Granular scoping to single test runs or test plans with automated discovery of all linked runs and execution cases.
 - **Terraform Diagnostic Standards:** All warnings and errors rendered in structured, colored HashiCorp Terraform diagnostic blocks (`╷ ... │ Error: ... ╵`).

@@ -16,11 +16,39 @@ class Mutex {
 const projectMutex = new Mutex();
 
 export class GitHubProvider implements IProvider {
+    public name = 'github';
     private token: string;
     private owner: string;
     private repo: string;
     private projectId?: number | string;
     private config: IGitHubConfig;
+
+    /**
+     * Dictionary of service APIs exposed by GitHubProvider.
+     */
+    public apis = {
+        issue: {
+            create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
+            update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
+            delete: async (id: number | string) => this.closeIssue(id),
+            get: async (id: number | string) => this.getIssue(id),
+        },
+        project: {
+            create: async (data: { fields?: Record<string, any> }, context?: any) => {
+                const issueNodeId = context?.issueResult?.node_id;
+                if (!issueNodeId || !this.projectId) return undefined;
+                const itemId = await this.addToProject(issueNodeId);
+                if (itemId && data.fields) {
+                    await this.updateProjectItemFields(itemId, data.fields);
+                }
+                return itemId;
+            },
+            update: async (itemId: string, data: { fields?: Record<string, any> }) => {
+                if (!itemId || !data.fields) return;
+                await this.updateProjectItemFields(itemId, data.fields);
+            }
+        }
+    };
 
     constructor(config: IGitHubConfig) {
         this.config = config;

@@ -4,6 +4,7 @@ import { IScope, ParserScenario } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { DependencyResolver } from '../core/dependencies';
 import { normalizeAddress, addressesMatch } from '../core/utils';
+import { matchesScope } from '../core/selector';
 
 export interface GraphCmdOptions {
     dir?: string;
@@ -99,9 +100,9 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
     const scenarios = parser.content();
     const depResolver = new DependencyResolver(dir);
 
-    const testcases = scenarios.filter(s => !s.uri.endsWith('.run.feature') && !s.uri.endsWith('.plan.feature'));
-    const testrunsAll = scenarios.filter(s => s.uri.endsWith('.run.feature'));
-    const testplansAll = scenarios.filter(s => s.uri.endsWith('.plan.feature'));
+    const testcases = scenarios.filter(s => matchesScope(s, 'testcase'));
+    const testrunsAll = scenarios.filter(s => matchesScope(s, 'testrun'));
+    const testplansAll = scenarios.filter(s => matchesScope(s, 'testplan'));
 
     // Group testplans by URI
     const testplansMap = new Map<string, { name: string, testruns: string[] }>();

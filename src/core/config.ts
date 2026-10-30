@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { resolve, basename, dirname } from "path";
 import YAML from "yaml";
-import { CONFIG_FILE_NAMES, FILE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, SCOPE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
 import { IConfig, IGitHubConfig, IField, IScope, ITest, IScopeConfig, IBackendConfig } from '../core/types';
 import { logger as notify } from '../core/logger';
 import { resource } from '../core/resources';
@@ -266,6 +266,35 @@ export class Config {
         }
 
         return id;
+    }
+
+    getScopeExtension(scope: IScope): string {
+        const convention = this.getConvention(scope);
+        if (convention?.extension) return convention.extension;
+        const scopeConf = this.getScopeConf(scope);
+        if (scopeConf?.match && scopeConf.match.includes('.feature')) {
+            return scopeConf.match.replace(/^\*/, '');
+        }
+        return (SCOPE_CONFIG as any)[scope]?.ext || '.feature';
+    }
+
+    getFallbackIdentityTag(scope: IScope): string {
+        const idPattern = this.getIdentity(scope);
+        if (idPattern && idPattern !== '*') {
+            const prefix = idPattern.split('*')[0];
+            return prefix.startsWith('@') ? `${prefix}1` : `@${prefix}1`;
+        }
+        const defaultTag = (SCOPE_CONFIG as any)[scope]?.tag || '@test';
+        return `${defaultTag}-1`;
+    }
+
+    findIdentityTag(tags: string[], scope: IScope): string | undefined {
+        const idPattern = this.getIdentity(scope);
+        const prefix = idPattern.split('*')[0].replace(/^@/, '');
+        return tags.find((t: string) => {
+            const clean = t.startsWith('@') ? t.slice(1) : t;
+            return clean.toLowerCase().startsWith(prefix.toLowerCase());
+        });
     }
 
     getConvention(scope: IScope) {

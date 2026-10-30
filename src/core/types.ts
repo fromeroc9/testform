@@ -225,10 +225,30 @@ export interface ResourceField {
     knownAfterApply?: boolean;
 }
 
+export type ResourceApiDefinition = Record<
+    string,
+    ((scenario: ParserScenario, context?: any) => any) | Record<string, ((scenario: ParserScenario, context?: any) => any) | any> | any
+>;
+
+export type ResourceStateDefinition = Record<
+    string,
+    ((scenario: ParserScenario, context?: any) => any) | any
+>;
+
 export interface ResourceTemplate {
     type: string;
-    fields: ResourceField[];
-    comments?: (s: any, context?: any) => { identity: string; status: string; body: string; title: string }[];
+    /**
+     * Dictionary of payloads mapping directly to the provider's exposed APIs
+     * (e.g. { issue: (s) => ({ title, body }), project: (s) => ({ fields }) }).
+     */
+    api?: ResourceApiDefinition;
+    /**
+     * Internal attributes to be persisted directly into testform.state
+     * (e.g. { status, testcases, testcaseTraces, metadata }).
+     */
+    state?: ResourceStateDefinition;
+    /** Legacy flat field definitions (backward compatibility). */
+    fields?: ResourceField[];
 }
 
 export interface ResourceFormat {

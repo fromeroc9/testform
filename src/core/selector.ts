@@ -39,19 +39,27 @@ export function matchesScope(s: any, scopeName: IScope, filePattern?: string): b
 /**
  * Detects the likely scope from a target string or filename.
  */
-export function detectScopeFromTarget(target: string): IScope | undefined {
+export function detectScopeFromTarget(target: string, config?: Config): IScope | undefined {
     const clean = target.trim().toLowerCase();
-    if (clean === 'testplan' || clean.endsWith('.plan.feature') || clean.includes('.plan.feature') || clean.startsWith('@tp') || clean.includes('.@tp')) {
-        return 'testplan';
-    }
-    if (clean === 'testrun' || clean.endsWith('.run.feature') || clean.includes('.run.feature') || clean.startsWith('@tr') || clean.includes('.@tr')) {
-        return 'testrun';
-    }
-    if (clean === 'testcase' || clean.endsWith('.case.feature') || clean.includes('.case.feature') || clean.startsWith('@tc') || clean.includes('.@tc')) {
-        return 'testcase';
-    }
-    if (clean === 'bug' || clean.endsWith('.bug.feature') || clean.includes('.bug.feature') || clean.startsWith('@bg') || clean.includes('.@bg')) {
-        return 'bug';
+    const scopes: IScope[] = ['testplan', 'testrun', 'bug', 'testcase'];
+    for (const scope of scopes) {
+        if (clean === scope) return scope;
+        const scopeCfg = (SCOPE_CONFIG as any)[scope];
+        const ext = config ? config.getScopeExtension(scope) : scopeCfg?.ext;
+        if (ext && (clean.endsWith(ext) || clean.includes(ext))) return scope;
+
+        const idPattern = config ? config.getIdentity(scope) : (
+            scope === 'testcase' ? 'tc-*' : scope === 'testrun' ? 'tr-*' : scope === 'testplan' ? 'tp-*' : 'bg-*'
+        );
+        const prefix = idPattern.split('*')[0].replace(/^@/, '').toLowerCase();
+        if (prefix && (clean.startsWith(`@${prefix}`) || clean.includes(`.@${prefix}`) || clean.startsWith(prefix))) {
+            return scope;
+        }
+
+        const tag = scopeCfg?.tag?.replace(/^@/, '').toLowerCase();
+        if (tag && (clean.startsWith(`@${tag}`) || clean === tag)) {
+            return scope;
+        }
     }
     return undefined;
 }

@@ -10,7 +10,54 @@ import {
 } from '../core/types';
 import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
 import { arraysEqual } from '../core/sync';
-import { buildGitHubTestplanBody } from '../providers/github/templates';
+import { buildGitHubTestplanBody, buildGitHubTestrunBody, buildGitHubBugBody } from '../providers/github/templates';
+
+function deriveFieldsFromTemplate(template: ResourceTemplate): ResourceField[] {
+    const fields: ResourceField[] = [];
+    if (template.api) {
+        for (const [k, v] of Object.entries(template.api)) {
+            if (k === 'issue') {
+                if (typeof v === 'function') {
+                    fields.push(
+                        { name: 'title', value: (s: any, ctx: any) => v(s, ctx)?.title },
+                        { name: 'body', value: (s: any, ctx: any) => v(s, ctx)?.body },
+                        { name: 'labels', value: (s: any, ctx: any) => v(s, ctx)?.labels },
+                        { name: 'assignees', value: (s: any, ctx: any) => v(s, ctx)?.assignees },
+                        { name: 'milestone', value: (s: any, ctx: any) => v(s, ctx)?.milestone }
+                    );
+                } else if (typeof v === 'object' && v !== null) {
+                    for (const [subK, subV] of Object.entries(v)) {
+                        fields.push({
+                            name: subK,
+                            value: typeof subV === 'function' ? subV : () => subV
+                        });
+                    }
+                }
+            } else if (k === 'project') {
+                fields.push({
+                    name: 'custom_fields',
+                    value: (s: any, ctx: any) => {
+                        const proj = typeof v === 'function' ? v(s, ctx) : v;
+                        return proj?.fields || {};
+                    }
+                });
+            } else if (typeof v === 'function') {
+                fields.push({ name: k, value: v });
+            } else {
+                fields.push({ name: k, value: () => v });
+            }
+        }
+    }
+    if (template.state) {
+        for (const [k, v] of Object.entries(template.state)) {
+            fields.push({
+                name: k,
+                value: typeof v === 'function' ? v : () => v
+            });
+        }
+    }
+    return fields;
+}
 
 class Resource {
     private builtinTemplates: Record<string, ResourceTemplate> = Object.create(null);
@@ -66,6 +113,10 @@ class Resource {
     }
 
     registry(template: ResourceTemplate, type: 'system' | 'user' = 'system'): void {
+        if (!template.fields || template.fields.length === 0) {
+            template.fields = deriveFieldsFromTemplate(template);
+        }
+
         if (type === 'system') {
             this.builtinTemplates[template.type] = template;
             return;
@@ -181,10 +232,87 @@ class Resource {
         }
     }
 
+    evaluateApi(type: string, scenario: ParserScenario, context?: any): Record<string, any> {
+        const template = this.get(type);
+        const fieldsEvaluated = this.evaluate(type, scenario, context);
+
+        if (template.api) {
+            const result: Record<string, any> = {};
+            for (const [apiKey, apiDef] of Object.entries(template.api)) {
+                if (typeof apiDef === 'function') {
+                    result[apiKey] = apiDef(scenario, context);
+                } else if (apiDef && typeof apiDef === 'object') {
+                    const subResult: Record<string, any> = {};
+                    for (const [subKey, subVal] of Object.entries(apiDef)) {
+                        subResult[subKey] = typeof subVal === 'function' ? subVal(scenario, context) : subVal;
+                    }
+                    result[apiKey] = subResult;
+                } else {
+                    result[apiKey] = apiDef;
+                }
+            }
+
+            // Sync user overridden fields into api
+            if (template.fields) {
+                for (const field of template.fields) {
+                    if (result.issue && Object.prototype.hasOwnProperty.call(result.issue, field.name)) {
+                        result.issue[field.name] = fieldsEvaluated[field.name];
+                    }
+                    if (field.name === 'custom_fields' && result.project) {
+                        result.project.fields = fieldsEvaluated[field.name];
+                    }
+                }
+            }
+            return result;
+        }
+
+        // Backward compatibility for legacy templates using only `fields`
+        const issueFields: Record<string, any> = {};
+        const projectFields: Record<string, any> = {};
+        for (const [k, v] of Object.entries(fieldsEvaluated)) {
+            if (k === 'custom_fields') {
+                projectFields.fields = v;
+            } else if (['title', 'body', 'labels', 'assignees', 'milestone'].includes(k)) {
+                issueFields[k] = v;
+            } else {
+                issueFields[k] = v;
+            }
+        }
+        return {
+            issue: issueFields,
+            project: projectFields,
+            ...fieldsEvaluated
+        };
+    }
+
+    evaluateState(type: string, scenario: ParserScenario, context?: any): Record<string, any> {
+        const template = this.get(type);
+        if (template.state) {
+            const result: Record<string, any> = {};
+            for (const [key, val] of Object.entries(template.state)) {
+                result[key] = typeof val === 'function' ? val(scenario, context) : val;
+            }
+            return result;
+        }
+
+        // Backward compatibility: extract internal state fields from legacy fields if any
+        if (template.fields) {
+            const stateFields: Record<string, any> = {};
+            for (const field of template.fields) {
+                if (['status', 'testcases', 'testcaseTraces', 'testcaseEvidence', 'metadata', 'severity', 'priority', 'testruns', 'trace', 'evidence'].includes(field.name)) {
+                    stateFields[field.name] = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
+                }
+            }
+            return stateFields;
+        }
+
+        return {};
+    }
+
     evaluate(type: string, scenario: ParserScenario, context?: any): Record<string, any> {
         const template = this.get(type);
         const result: Record<string, any> = {};
-        for (const field of template.fields) {
+        for (const field of template.fields || []) {
             if (field.knownAfterApply) continue;
             result[field.name] = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
         }
@@ -192,23 +320,21 @@ class Resource {
     }
 
     hasFieldChanges(type: string, scenario: ParserScenario, oldAttributes: Record<string, any>, context?: any): boolean {
-        const template = this.get(type);
-        for (const field of template.fields) {
-            if (field.knownAfterApply) return true;
-            const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
-            const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
+        const newAttributes = this.evaluate(type, scenario, context);
+        for (const [k, raw] of Object.entries(newAttributes)) {
+            const oldRaw = oldAttributes ? oldAttributes[k] : undefined;
 
             if (raw === undefined && oldRaw === undefined) continue;
-            if (field.name === 'milestone' && !raw && !oldRaw) continue;
+            if (k === 'milestone' && !raw && !oldRaw) continue;
 
             if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
                 const safeOldRaw = oldRaw && typeof oldRaw === 'object' && !Array.isArray(oldRaw) ? oldRaw : {};
                 const allKeys = new Set([...Object.keys(safeOldRaw), ...Object.keys(raw)]);
-                for (const k of allKeys) {
-                    const oldV = safeOldRaw[k];
-                    const newV = raw[k];
+                for (const subK of allKeys) {
+                    const oldV = safeOldRaw[subK];
+                    const newV = raw[subK];
                     if (oldV === undefined && newV === undefined) continue;
-                    if (field.name === 'custom_fields') {
+                    if (k === 'custom_fields') {
                         const cleanOld = String(oldV ?? '').replace(/^@/, '').toLowerCase().trim();
                         const cleanNew = String(newV ?? '').replace(/^@/, '').toLowerCase().trim();
                         if (cleanOld !== cleanNew) {
@@ -230,14 +356,6 @@ class Resource {
             }
         }
         return false;
-    }
-
-    evaluateComments(type: string, scenario: ParserScenario, context?: any): { identity: string; status: string; body: string; title: string }[] {
-        const template = this.get(type);
-        if (template.comments) {
-            return template.comments(scenario, context);
-        }
-        return [];
     }
 
     private getSymbol(type: PlanAction) {
@@ -279,7 +397,7 @@ class Resource {
         const pad = (name: string) => name.padEnd(16);
 
         lines.push(`  ${sym} resource "${resourceType}" "${formatIdentityDisplay(identity)}" {`);
-        for (const field of template.fields) {
+        for (const field of template.fields || []) {
             const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
             const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
             if (raw === undefined && oldRaw === undefined) continue;
@@ -472,446 +590,216 @@ class Resource {
     }
 }
 
+// ─── Built-in Resource Helpers ────────────────────────────────────────────────
+
+function extractLabels(s: any, extraTag?: string): string[] {
+    const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
+    const base: string[] = extraTag ? [...(s.tags || []), extraTag].map(String) : (s.tags || []).map(String);
+    const cleaned = base.map((t: string) => t.startsWith('@') ? t.substring(1) : t).filter((t: string) => t !== idTag);
+    return Array.from(new Set(cleaned));
+}
+
+function extractAssignees(s: any): string[] {
+    return (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean);
+}
+
+function extractCustomFields(rawFields: Record<string, any> = {}, excludeKeys: string[] = []): Record<string, any> {
+    const fields = { ...rawFields };
+    for (const k of excludeKeys) {
+        delete fields[k];
+    }
+    return fields;
+}
+
+function extractTestcaseStatusMap(s: any): Record<string, string> {
+    const groupScenarios = s.custom?.groupScenarios || [];
+    const map: Record<string, string> = {};
+    for (const gs of groupScenarios) {
+        if (gs.rule?.name && gs.name) {
+            const key = `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/');
+            map[key] = gs.custom?.fields?.status || 'pending';
+        } else if (gs.name) {
+            const key = gs.name.replace(/\\/g, '/');
+            map[key] = gs.custom?.fields?.status || 'pending';
+        }
+    }
+    return map;
+}
+
+function extractTestcaseTraceMap(s: any): Record<string, string> {
+    const groupScenarios = s.custom?.groupScenarios || [];
+    const map: Record<string, string> = {};
+    for (const gs of groupScenarios) {
+        const trace = gs.custom?.fields?.trace || gs.custom?.fields?.error;
+        if (trace) {
+            const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
+            if (key) map[key] = trace;
+        }
+    }
+    return map;
+}
+
+function extractTestcaseEvidenceMap(s: any): Record<string, any> {
+    const groupScenarios = s.custom?.groupScenarios || [];
+    const map: Record<string, any> = {};
+    for (const gs of groupScenarios) {
+        const ev = gs.custom?.fields?.evidence;
+        if (ev) {
+            const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
+            if (key) map[key] = Array.isArray(ev) ? ev : [ev];
+        }
+    }
+    return map;
+}
+
+function calculatePlanRollup(s: any, context?: any): string {
+    const trList = s.custom?.testruns || [];
+    const state = context?.state;
+    if (!state || trList.length === 0) return 'pending';
+    const statuses: string[] = [];
+    for (const tr of trList) {
+        const normTr = String(tr).replace(/\\/g, '/');
+        const trExt = context?.config?.getScopeExtension?.('testrun') || '.run.feature';
+        const trBase = normTr.endsWith('.feature') ? normTr : (normTr.endsWith(trExt) ? normTr : normTr + trExt);
+        const trFileName = basename(trBase);
+        const found = state.getResources('github_testrun').find((r: any) => {
+            const normId = (r.identity || '').replace(/\\/g, '/');
+            const lastDot = normId.lastIndexOf('.');
+            const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+            return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
+        });
+        statuses.push(found?.attributes?.status || 'pending');
+    }
+    return calculateRollupVerdict(statuses);
+}
+
+function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
+    const trList = s.custom?.testruns || [];
+    const map: Record<string, string> = {};
+    const state = context?.state;
+    for (const tr of trList) {
+        const normTr = String(tr).replace(/\\/g, '/');
+        let status = 'pending';
+        if (state) {
+            const trExt = context?.config?.getScopeExtension?.('testrun') || '.run.feature';
+            const trBase = normTr.endsWith('.feature') ? normTr : (normTr.endsWith(trExt) ? normTr : normTr + trExt);
+            const trFileName = basename(trBase);
+            const found = state.getResources('github_testrun').find((r: any) => {
+                const normId = (r.identity || '').replace(/\\/g, '/');
+                const lastDot = normId.lastIndexOf('.');
+                const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
+            });
+            if (found?.attributes?.status) {
+                status = found.attributes.status;
+            }
+        }
+        map[normTr] = status;
+    }
+    return map;
+}
+
+// ─── Resource Registration ───────────────────────────────────────────────────
+
 export const resource = new Resource();
 export const registerResource = (template: ResourceTemplate) => resource.registry(template, 'user');
 
 resource.registry({
     type: 'github_testcase',
-    fields: [
-        { name: 'title', value: (s) => s.name },
-        { name: 'body', value: (s) => '```gherkin\n' + s.steps.map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```' },
-        { name: 'labels', value: (s) => {
-            const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
-            return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
-        } },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
-        {
-            name: 'custom_fields', value: (s) => {
-                const fields = { ...(s.custom?.fields || {}) };
-                delete fields['labels'];
-                delete fields['assignees'];
-                delete fields['milestone'];
-                delete fields['status'];
-                return fields;
-            }
-        }
-    ]
+    api: {
+        issue: (s: any) => ({
+            title: s.name,
+            body: '```gherkin\n' + (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```',
+            labels: extractLabels(s),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+        }),
+        project: (s: any) => ({
+            fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+        })
+    },
+    state: {
+        status: (s: any) => s.custom?.fields?.status || 'pending',
+        metadata: (s: any) => s.custom?.metadata || {}
+    }
 });
 
 resource.registry({
     type: 'github_testrun',
-    fields: [
-        { name: 'title', value: (s) => s.feature?.name || '' },
-        {
-            name: 'body', value: (s, context) => {
-                let body = s.feature?.description || '### 🚀 Test Run Execution\n\nThis issue serves as the central hub for tracking the execution of this Test Run. All associated test cases are linked below as tasks.\n\n**Instructions:**\n- Execution results for each test case will be recorded dynamically as comments on this issue.\n- Click on individual test case links to view their details or attach evidence.';
-
-                const testcases = s.custom?.testcases || [];
-                if (testcases.length > 0 && context?.state) {
-                    const state = context.state;
-
-                    const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}.${s.custom.identity}` : s.uri;
-                    const existingRun = state.getResources('github_testrun').find((r: any) => r.identity === runIdentity);
-                    const existingStatuses = existingRun?.attributes?.testcases || existingRun?.attributes?.testcaseStatuses || {};
-
-                    const sortedTestcases = [...testcases].sort((a: string, b: string) => {
-                        const aName = a.split('.').pop()?.replace('@', '') || '';
-                        const bName = b.split('.').pop()?.replace('@', '') || '';
-                        return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
-                    });
-
-                    const allValidResources: any[] = [];
-                    const notFoundTCs: string[] = [];
-
-                    for (const tc of sortedTestcases) {
-                        const parts = tc.split('.');
-                        const scenarioName = parts.pop() || '';
-                        const ruleName = parts.join('.');
-                        const baseRule = ruleName.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
-                        const ruleBaseName = basename(baseRule);
-                        const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
-
-                        const tcResources = state.getResources('github_testcase').filter((r: any) => {
-                            const normId = (r.identity || '').replace(/\\/g, '/');
-                            const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
-
-                            // Rule path matching: either relative path matches or basename matches
-                            const matchesRule = normId.includes(baseRule) || normId.includes(ruleBaseName);
-                            if (!matchesRule) return false;
-
-                            // Scenario matching: wildcard, exact tag, or matching title
-                            if (cleanScenario === '*' || idLastPart === cleanScenario) return true;
-
-                            const normTitle = (r.attributes?.title || '').toLowerCase();
-                            if (normTitle && (normTitle === cleanScenario || normTitle === scenarioName.toLowerCase())) return true;
-
-                            return false;
-                        });
-
-                        const distinctFiles = new Set(tcResources.map((r: any) => {
-                            const normId = (r.identity || '').replace(/\\/g, '/');
-                            const lastDot = normId.lastIndexOf('.');
-                            return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-                        }));
-                        let validResources = tcResources;
-
-                        if (distinctFiles.size > 1) {
-                            if (context?.testDirectory) {
-                                const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
-                                validResources = tcResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
-                                const distinctValid = new Set(validResources.map((r: any) => {
-                                    const normId = (r.identity || '').replace(/\\/g, '/');
-                                    const lastDot = normId.lastIndexOf('.');
-                                    return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-                                }));
-                                if (distinctValid.size > 1) {
-                                    throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
-                                }
-                            } else {
-                                throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
-                            }
-                        }
-
-                        if (validResources.length > 0) {
-                            allValidResources.push(...validResources);
-                        } else {
-                            notFoundTCs.push(tc);
-                        }
-                    }
-
-                    const uniqueResourcesMap = new Map();
-                    for (const r of allValidResources) {
-                        if (!uniqueResourcesMap.has(r.identity)) {
-                            uniqueResourcesMap.set(r.identity, r);
-                        }
-                    }
-                    const uniqueResources = Array.from(uniqueResourcesMap.values());
-
-                    uniqueResources.sort((a: any, b: any) => {
-                        const aName = a.identity.split('.').pop()?.replace('@', '') || '';
-                        const bName = b.identity.split('.').pop()?.replace('@', '') || '';
-                        return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
-                    });
-
-                    const groupedByOrigin = new Map<string, any[]>();
-                    for (const tcResource of uniqueResources) {
-                        const normId = (tcResource.identity || '').replace(/\\/g, '/');
-                        const lastDot = normId.lastIndexOf('.');
-                        const baseRule = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-                        const originFile = basename(baseRule || '');
-                        if (!groupedByOrigin.has(originFile)) {
-                            groupedByOrigin.set(originFile, []);
-                        }
-                        groupedByOrigin.get(originFile)!.push(tcResource);
-                    }
-
-                    for (const [origin, resources] of groupedByOrigin.entries()) {
-                        body += `\n\n**Origin:** ${origin}\n`;
-                        for (const tcResource of resources) {
-                            const tcIdentity = tcResource.identity;
-                            const normTcId = (tcIdentity || '').replace(/\\/g, '/');
-                            const tcLastPart = normTcId.split('.').pop() || '';
-                            const cleanIdTag = tcLastPart.replace(/^@/, '').toLowerCase();
-                            const safeName = tcLastPart.replace(/^@/, '') || '';
-
-                            let groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
-                                if (!gs.rule || !gs.name) return false;
-                                const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
-                                const cleanGsName = gs.name.replace(/^@/, '').toLowerCase();
-                                const matchesRule = normTcId.includes(gsBaseRule) || normTcId.includes(basename(gsBaseRule));
-                                return matchesRule && (cleanIdTag === cleanGsName || cleanGsName === '*');
-                            });
-
-                            if (!groupScenario) {
-                                groupScenario = s.custom?.groupScenarios?.find((gs: any) => {
-                                    if (!gs.rule || !gs.name) return false;
-                                    const gsBaseRule = gs.rule.name.replace('.case.feature', '').replace('.feature', '').replace(/\\/g, '/');
-                                    const matchesRule = normTcId.includes(gsBaseRule) || normTcId.includes(basename(gsBaseRule));
-                                    return matchesRule && gs.name === '*';
-                                });
-                            }
-
-                            const localStatus = groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || existingStatuses[normTcId] || 'pending';
-                            const checkbox = localStatus === 'passed' ? '[x]' : '[ ]';
-
-                            if (tcResource?.attributes?.issueNumber) {
-                                body += `- ${checkbox} ${safeName}: #${tcResource.attributes.issueNumber}\n`;
-                            } else {
-                                body += `- ${checkbox} ${safeName}: (known after apply) - ${tcIdentity}\n`;
-                            }
-                        }
-                    }
-
-                    if (notFoundTCs.length > 0) {
-                        body += `\n\n**Not Found in State**\n`;
-                        for (const tc of notFoundTCs) {
-                            const safeName = tc.split('.').pop()?.replace('@', '') || '';
-                            body += `- [ ] ${safeName}: (not found in state) - ${tc}\n`;
-                        }
-                    }
-                }
-                return body.trim();
-            }
+    api: {
+        issue: (s: any, context?: any) => ({
+            title: s.feature?.name || '',
+            body: buildGitHubTestrunBody(s, context),
+            labels: extractLabels(s),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+        }),
+        project: (s: any) => ({
+            fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+        })
+    },
+    state: {
+        status: (s: any) => {
+            const groupScenarios = s.custom?.groupScenarios || [];
+            const statuses = groupScenarios.map((gs: any) => gs.custom?.fields?.status || 'pending');
+            return calculateRollupVerdict(statuses);
         },
-        { name: 'labels', value: (s) => {
-            const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
-            return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
-        } },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
-        {
-            name: 'custom_fields', value: (s) => {
-                const fields = { ...(s.custom?.fields || {}) };
-                delete fields['labels'];
-                delete fields['assignees'];
-                delete fields['milestone'];
-                delete fields['status'];
-                return fields;
-            }
-        },
-        {
-            name: 'status',
-            value: (s) => {
-                const groupScenarios = s.custom?.groupScenarios || [];
-                const statuses = groupScenarios.map((gs: any) => gs.custom?.fields?.status || 'pending');
-                return calculateRollupVerdict(statuses);
-            }
-        },
-        {
-            name: 'testcases',
-            value: (s) => {
-                const groupScenarios = s.custom?.groupScenarios || [];
-                const map: Record<string, string> = {};
-                for (const gs of groupScenarios) {
-                    if (gs.rule?.name && gs.name) {
-                        const key = `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/');
-                        map[key] = gs.custom?.fields?.status || 'pending';
-                    } else if (gs.name && (gs.name.includes('.case.feature') || gs.name.includes('@tc-'))) {
-                        const key = gs.name.replace(/\\/g, '/');
-                        map[key] = gs.custom?.fields?.status || 'pending';
-                    }
-                }
-                return map;
-            }
-        },
-        {
-            name: 'testcaseTraces',
-            value: (s) => {
-                const groupScenarios = s.custom?.groupScenarios || [];
-                const map: Record<string, string> = {};
-                for (const gs of groupScenarios) {
-                    const trace = gs.custom?.fields?.trace || gs.custom?.fields?.error;
-                    if (trace) {
-                        const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
-                        if (key) map[key] = trace;
-                    }
-                }
-                return map;
-            }
-        },
-        {
-            name: 'testcaseEvidence',
-            value: (s) => {
-                const groupScenarios = s.custom?.groupScenarios || [];
-                const map: Record<string, any> = {};
-                for (const gs of groupScenarios) {
-                    const ev = gs.custom?.fields?.evidence;
-                    if (ev) {
-                        const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
-                        if (key) map[key] = Array.isArray(ev) ? ev : [ev];
-                    }
-                }
-                return map;
-            }
-        },
-        {
-            name: 'metadata',
-            value: (s) => s.custom?.metadata || {}
-        }
-    ],
-    comments: () => []
+        testcases: (s: any) => extractTestcaseStatusMap(s),
+        testcaseTraces: (s: any) => extractTestcaseTraceMap(s),
+        testcaseEvidence: (s: any) => extractTestcaseEvidenceMap(s),
+        metadata: (s: any) => s.custom?.metadata || {}
+    }
 });
 
 resource.registry({
     type: 'github_testplan',
-    fields: [
-        { name: 'title', value: (s) => s.feature?.name || '' },
-        {
-            name: 'body', value: (s, context) => {
-                return buildGitHubTestplanBody(s, context);
-            }
-        },
-        { name: 'labels', value: (s) => {
-            const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
-            return [...new Set([...(s.tags || [])].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
-        } },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
-        {
-            name: 'custom_fields', value: (s) => {
-                const fields = { ...(s.custom?.fields || {}) };
-                delete fields['labels'];
-                delete fields['assignees'];
-                delete fields['milestone'];
-                delete fields['status'];
-                return fields;
-            }
-        },
-        {
-            name: 'status',
-            value: (s, context) => {
-                const trList = s.custom?.testruns || [];
-                const state = context?.state;
-                if (!state || trList.length === 0) return 'pending';
-                const statuses: string[] = [];
-                for (const tr of trList) {
-                    const normTr = String(tr).replace(/\\/g, '/');
-                    const trBase = normTr.endsWith('.run.feature') ? normTr : normTr + '.run.feature';
-                    const trFileName = basename(trBase);
-                    const found = state.getResources('github_testrun').find((r: any) => {
-                        const normId = (r.identity || '').replace(/\\/g, '/');
-                        const lastDot = normId.lastIndexOf('.');
-                        const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-                        return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
-                    });
-                    statuses.push(found?.attributes?.status || 'pending');
-                }
-                return calculateRollupVerdict(statuses);
-            }
-        },
-        {
-            name: 'testruns',
-            value: (s, context) => {
-                const trList = s.custom?.testruns || [];
-                const map: Record<string, string> = {};
-                const state = context?.state;
-                for (const tr of trList) {
-                    const normTr = String(tr).replace(/\\/g, '/');
-                    let status = 'pending';
-                    if (state) {
-                        const trBase = normTr.endsWith('.run.feature') ? normTr : normTr + '.run.feature';
-                        const trFileName = basename(trBase);
-                        const found = state.getResources('github_testrun').find((r: any) => {
-                            const normId = (r.identity || '').replace(/\\/g, '/');
-                            const lastDot = normId.lastIndexOf('.');
-                            const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-                            return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
-                        });
-                        if (found?.attributes?.status) {
-                            status = found.attributes.status;
-                        }
-                    }
-                    map[normTr] = status;
-                }
-                return map;
-            }
-        },
-        {
-            name: 'metadata',
-            value: (s) => s.custom?.metadata || {}
-        }
-    ]
+    api: {
+        issue: (s: any, context?: any) => ({
+            title: s.feature?.name || '',
+            body: buildGitHubTestplanBody(s, context),
+            labels: extractLabels(s),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+        }),
+        project: (s: any) => ({
+            fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+        })
+    },
+    state: {
+        status: (s: any, context?: any) => calculatePlanRollup(s, context),
+        testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context),
+        metadata: (s: any) => s.custom?.metadata || {}
+    }
 });
 
 resource.registry({
     type: 'github_bug',
-    fields: [
-        { name: 'title', value: (s) => s.name || s.feature?.name || '' },
-        {
-            name: 'body',
-            value: (s) => {
-                let body = '';
-                const gherkinSteps = s.steps?.map((sp: any) => `${sp.keyword}${sp.text}`).join('\n');
-                if (gherkinSteps) {
-                    body += '```gherkin\n' + gherkinSteps + '\n```\n\n';
-                }
-                const target = s.custom?.fields?.target || s.custom?.fields?.testcase || '';
-                const testrun = s.feature?.name || s.custom?.fields?.testrun || '';
-                if (target || testrun) {
-                    body += '### 🔗 Context\n';
-                    if (target) body += `- **Testcase:** \`${target}\`\n`;
-                    if (testrun) body += `- **Testrun:** \`${testrun}\`\n`;
-                    body += '\n';
-                }
-                const trace = s.custom?.fields?.trace || s.custom?.fields?.error || '';
-                if (trace) {
-                    body += '### 🚨 Trace\n```text\n' + trace + '\n```\n\n';
-                }
-                const rawEvidence = s.custom?.fields?.evidence;
-                const evidenceList = Array.isArray(rawEvidence) ? rawEvidence : (rawEvidence ? [rawEvidence] : []);
-                if (evidenceList.length > 0) {
-                    body += '### 📸 Evidence\n';
-                    for (const ev of evidenceList) {
-                        body += `- ![Evidence](${ev})\n`;
-                    }
-                    body += '\n';
-                }
-                return body.trim();
-            }
+    api: {
+        issue: (s: any) => ({
+            title: s.name || s.feature?.name || '',
+            body: buildGitHubBugBody(s),
+            labels: extractLabels(s, 'bug'),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+        }),
+        project: (s: any) => ({
+            fields: extractCustomFields(s.custom?.fields, [
+                'labels', 'assignees', 'milestone', 'status', 'severity', 'priority',
+                'trace', 'error', 'evidence', 'target', 'testcase', 'testrun'
+            ])
+        })
+    },
+    state: {
+        status: (s: any) => s.custom?.fields?.status || 'failed',
+        severity: (s: any) => s.custom?.fields?.severity || undefined,
+        priority: (s: any) => s.custom?.fields?.priority || undefined,
+        trace: (s: any) => s.custom?.fields?.trace || s.custom?.fields?.error || undefined,
+        evidence: (s: any) => {
+            const ev = s.custom?.fields?.evidence;
+            return Array.isArray(ev) ? ev : (ev ? [ev] : []);
         },
-        {
-            name: 'labels',
-            value: (s) => {
-                const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
-                return [...new Set([...(s.tags || []), 'bug'].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
-            }
-        },
-        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
-        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
-        {
-            name: 'status',
-            value: (s) => s.custom?.fields?.status || 'failed'
-        },
-        {
-            name: 'trace',
-            value: (s) => s.custom?.fields?.trace || s.custom?.fields?.error || undefined
-        },
-        {
-            name: 'evidence',
-            value: (s) => {
-                const ev = s.custom?.fields?.evidence;
-                return Array.isArray(ev) ? ev : (ev ? [ev] : []);
-            }
-        },
-        {
-            name: 'testcase',
-            value: (s) => s.custom?.fields?.target || s.custom?.fields?.testcase || undefined
-        },
-        {
-            name: 'testrun',
-            value: (s) => s.feature?.name || s.custom?.fields?.testrun || undefined
-        },
-        {
-            name: 'severity',
-            value: (s) => s.custom?.fields?.severity || undefined
-        },
-        {
-            name: 'priority',
-            value: (s) => s.custom?.fields?.priority || undefined
-        },
-        {
-            name: 'custom_fields',
-            value: (s) => {
-                const fields = { ...(s.custom?.fields || {}) };
-                delete fields['labels'];
-                delete fields['assignees'];
-                delete fields['milestone'];
-                delete fields['status'];
-                delete fields['severity'];
-                delete fields['priority'];
-                delete fields['trace'];
-                delete fields['error'];
-                delete fields['evidence'];
-                delete fields['target'];
-                delete fields['testcase'];
-                delete fields['testrun'];
-                return fields;
-            }
-        },
-        {
-            name: 'metadata',
-            value: (s) => s.custom?.metadata || {}
-        }
-    ]
+        testcase: (s: any) => s.custom?.fields?.target || s.custom?.fields?.testcase || undefined,
+        testrun: (s: any) => s.feature?.name || s.custom?.fields?.testrun || undefined,
+        metadata: (s: any) => s.custom?.metadata || {}
+    }
 });

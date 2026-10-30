@@ -90,7 +90,7 @@ async function runImportResults(options: {
             if (el.type === 'background') continue;
 
             const tags: string[] = (el.tags || []).map((t: any) => t.name || '').filter(Boolean);
-            const tcTag = tags.find((t: string) => t.startsWith('@tc-'));
+            const tcTag = configClass.findIdentityTag(tags, 'testcase');
 
             let target = '';
             if (featureUri && tcTag) {
@@ -158,12 +158,13 @@ async function runImportResults(options: {
     const now = new Date();
     const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
     const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
-    const trTag = findNextIdentity(dir, configClass.getIdentity('testrun')) || '@tr-1';
-
-    const runFileName = `${YYYYMMDD}_${HHmmss}_imported.run.feature`;
+    const trTag = findNextIdentity(dir, configClass.getIdentity('testrun')) || configClass.getFallbackIdentityTag('testrun');
+    const runExt = configClass.getScopeExtension('testrun');
+    const runFileName = `${YYYYMMDD}_${HHmmss}_imported${runExt}`;
     const runFilePath = join(absRunsDir, runFileName);
 
-    let runContent = `@testrun ${trTag}\nFeature: Results from ${basename(results)}\n\n`;
+    const trHeaderTag = (SCOPE_CONFIG as any)['testrun']?.tag || '@testrun';
+    let runContent = `${trHeaderTag} ${trTag}\nFeature: Results from ${basename(results)}\n\n`;
 
     for (const sc of scenarioResults) {
         runContent += `  Scenario: ${sc.target}\n`;
@@ -197,13 +198,15 @@ async function runImportResults(options: {
                 fs.mkdirSync(absBugsDir, { recursive: true });
             }
 
-            const bugFileName = `${YYYYMMDD}_${HHmmss}_bugs.bug.feature`;
+            const bugExt = configClass.getScopeExtension('bug');
+            const bugFileName = `${YYYYMMDD}_${HHmmss}_bugs${bugExt}`;
             const bugFilePath = join(absBugsDir, bugFileName);
 
-            let bugContent = `@bug\nFeature: Bugs from ${basename(runFilePath)}\n\n`;
+            const bgHeaderTag = (SCOPE_CONFIG as any)['bug']?.tag || '@bug';
+            let bugContent = `${bgHeaderTag}\nFeature: Bugs from ${basename(runFilePath)}\n\n`;
 
             for (const fail of failedScenarios) {
-                const nextBgTag = findNextIdentity(dir, configClass.getIdentity('bug')) || '@bg-1';
+                const nextBgTag = findNextIdentity(dir, configClass.getIdentity('bug')) || configClass.getFallbackIdentityTag('bug');
                 bugContent += `  ${nextBgTag}\n`;
                 bugContent += `  Scenario: Bug in ${fail.name}\n`;
                 bugContent += `    * mark target = ${fail.target}\n`;

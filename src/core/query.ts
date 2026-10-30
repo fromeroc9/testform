@@ -1,7 +1,7 @@
 import { State } from './state';
 import { StateResource } from './types';
 import { resolvePath } from './utils';
-import { matchesTarget } from './selector';
+import { matchesTarget, detectScopeFromTarget } from './selector';
 
 export interface QueryResultItem {
     id: string;
@@ -183,8 +183,8 @@ export class StateQuery {
                 }
             }
 
-            // Also support tag-style @tr or @tp target even if not yet matching an existing resource
-            if (t.startsWith('@tr-') || t.includes('.run.feature')) {
+            // Also support tag-style or target even if not yet matching an existing resource
+            if (detectScopeFromTarget(t) === 'testrun') {
                 matchingRunIds.add(t);
             }
         }

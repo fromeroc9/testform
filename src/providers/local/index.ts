@@ -20,8 +20,35 @@ interface LocalDB {
 }
 
 export class LocalProvider implements IProvider {
+    public name = 'local';
     private dbPath: string;
     private db: LocalDB;
+
+    /**
+     * Dictionary of service APIs exposed by LocalProvider.
+     */
+    public apis = {
+        issue: {
+            create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
+            update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
+            delete: async (id: number | string) => this.closeIssue(id),
+            get: async (id: number | string) => this.getIssue(id),
+        },
+        project: {
+            create: async (data: { fields?: Record<string, any> }, context?: any) => {
+                const issueId = context?.issueResult?.number ?? context?.issueResult?.id;
+                if (issueId && data.fields) {
+                    await this.updateProjectItemFields(issueId, data.fields);
+                }
+                return issueId ? String(issueId) : undefined;
+            },
+            update: async (itemId: string, data: { fields?: Record<string, any> }) => {
+                if (itemId && data.fields) {
+                    await this.updateProjectItemFields(itemId, data.fields);
+                }
+            }
+        }
+    };
 
     constructor(dir: string = '.') {
         this.dbPath = path.resolve(dir, FILE_DATA);

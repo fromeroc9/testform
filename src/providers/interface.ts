@@ -21,7 +21,22 @@ export interface IProviderIssueResult {
     updated_at?: string;
 }
 
+export interface IProviderApiService<TData = any, TResult = any> {
+    create?(data: TData, context?: any): Promise<TResult>;
+    update?(id: string | number, data: TData, context?: any): Promise<TResult>;
+    delete?(id: string | number, context?: any): Promise<void>;
+    get?(id: string | number, context?: any): Promise<TResult | null>;
+}
+
 export interface IProvider {
+    name?: string;
+
+    /**
+     * Dictionary of service APIs exposed by this provider (e.g. { issue, project, pokemon, trainer }).
+     * Enables generic, agnostic execution where Resource.api maps directly to these services.
+     */
+    apis?: Record<string, IProviderApiService>;
+
     /** Create an issue in the provider */
     createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult>;
 

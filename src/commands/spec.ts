@@ -56,10 +56,28 @@ function findFeatureFiles(dir: string): string[] {
     return GherkinEditor.findFeatureFiles(dir, true);
 }
 
+function getScopeExtension(config: Config, scope: IScope): string {
+    const scopeConf = config.getScopeConf(scope);
+    const convention = config.getConvention(scope);
+    if (convention?.extension) return convention.extension;
+    if (scopeConf?.match && scopeConf.match.includes('.feature')) {
+        return scopeConf.match.replace(/^\*/, '');
+    }
+    return (SCOPE_CONFIG as any)[scope]?.ext || '.feature';
+}
+
+function getFallbackIdentityTag(config: Config, scope: IScope): string {
+    const idPattern = config.getIdentity(scope);
+    if (idPattern && idPattern !== '*') {
+        const prefix = idPattern.split('*')[0];
+        return prefix.startsWith('@') ? `${prefix}1` : `@${prefix}1`;
+    }
+    const defaultTag = (SCOPE_CONFIG as any)[scope]?.tag || '@test';
+    return `${defaultTag}-1`;
+}
+
 function resolveScopeFile(dir: string, target: string, scope: IScope, testDir?: string): string | undefined {
     const allFiles = findFeatureFiles(dir);
-    const scopeExt = (SCOPE_CONFIG as any)[scope]?.ext || '';
-    const scopeTag = (SCOPE_CONFIG as any)[scope]?.tag || '';
 
     // Check if target is a file path
     const directPath = testDir ? resolve(dir, testDir, target) : resolve(dir, target);
@@ -99,7 +117,8 @@ async function handleTestcase(options: SpecCmdOptions) {
 
             const safeTitle = title || 'Testcase Specification';
             const slug = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-            const filename = target ? (target.endsWith('.case.feature') ? target : `${target}.case.feature`) : `${slug}.case.feature`;
+            const ext = getScopeExtension(config, 'testcase');
+            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `${slug}${ext}`;
             const filePath = resolve(absDir, filename);
 
             if (existsSync(filePath)) {
@@ -110,7 +129,8 @@ async function handleTestcase(options: SpecCmdOptions) {
                 return;
             }
 
-            const content = `@testcase\nFeature: ${safeTitle}\n\n`;
+            const scopeTag = (SCOPE_CONFIG as any)['testcase']?.tag || '@testcase';
+            const content = `${scopeTag}\nFeature: ${safeTitle}\n\n`;
             writeFileSync(filePath, content, 'utf-8');
             console.log(green(bold(`\n✓ Created testcase specification: ${filePath}`)));
             break;
@@ -120,7 +140,7 @@ async function handleTestcase(options: SpecCmdOptions) {
             if (!target) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testcase add -target=<file> [-title="Scenario title"]`,
-                    detail: [`Specify -target to indicate which .case.feature file to add the scenario into.`]
+                    detail: [`Specify -target to indicate which specification file to add the scenario into.`]
                 }).abort();
                 return;
             }
@@ -135,7 +155,7 @@ async function handleTestcase(options: SpecCmdOptions) {
             }
 
             const idPattern = config.getIdentity('testcase');
-            const nextTag = findNextIdentity(dir, idPattern) || '@tc-1';
+            const nextTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'testcase');
             const scTitle = title || `Scenario ${nextTag}`;
 
             const scenarioContent = `\n  ${nextTag}\n  Scenario: ${scTitle}\n    Given a precondition\n    When an action is performed\n    Then verify the expected result\n`;
@@ -147,13 +167,13 @@ async function handleTestcase(options: SpecCmdOptions) {
         case 'delete': {
             if (!target) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec testcase delete -target=<@tc-X|file>`,
+                    syntax: `${TITLE_CLI} spec testcase delete -target=<tag|file>`,
                     detail: [`Specify -target with the scenario identity tag or file to remove.`]
                 }).abort();
                 return;
             }
 
-            if (target.endsWith('.case.feature') || target.endsWith('.feature')) {
+            if (target.endsWith('.feature')) {
                 const filePath = resolveScopeFile(dir, target, 'testcase', testDirectory);
                 if (filePath && existsSync(filePath)) {
                     unlinkSync(filePath);
@@ -366,13 +386,15 @@ async function handleTestrun(options: SpecCmdOptions) {
             const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
             const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
             const idPattern = config.getIdentity('testrun');
-            const trTag = findNextIdentity(dir, idPattern) || '@tr-1';
+            const trTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'testrun');
 
             const runTitle = title || `Test Run ${trTag}`;
-            const filename = target ? (target.endsWith('.run.feature') ? target : `${target}.run.feature`) : `${YYYYMMDD}_${HHmmss}.run.feature`;
+            const ext = getScopeExtension(config, 'testrun');
+            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `${YYYYMMDD}_${HHmmss}${ext}`;
             const filePath = resolve(absDir, filename);
 
-            const content = `@testrun ${trTag}\nFeature: ${runTitle}\n\n`;
+            const scopeTag = (SCOPE_CONFIG as any)['testrun']?.tag || '@testrun';
+            const content = `${scopeTag} ${trTag}\nFeature: ${runTitle}\n\n`;
             writeFileSync(filePath, content, 'utf-8');
             console.log(green(bold(`\n✓ Created testrun specification: ${filePath}`)));
             break;
@@ -381,7 +403,7 @@ async function handleTestrun(options: SpecCmdOptions) {
         case 'add': {
             if (!target || !tcArg) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec testrun add -target=<@tr-X|file> -case=<testcase_address> [-status=pending]`,
+                    syntax: `${TITLE_CLI} spec testrun add -target=<tag|file> -case=<testcase_address> [-status=pending]`,
                     detail: [`Specify -target for the testrun and -case for the testcase to link.`]
                 }).abort();
                 return;
@@ -623,12 +645,14 @@ async function handleTestplan(options: SpecCmdOptions) {
             if (!existsSync(absDir)) mkdirSync(absDir, { recursive: true });
 
             const idPattern = config.getIdentity('testplan');
-            const tpTag = findNextIdentity(dir, idPattern) || '@tp-1';
+            const tpTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'testplan');
             const planTitle = title || `Test Plan ${tpTag}`;
-            const filename = target ? (target.endsWith('.plan.feature') ? target : `${target}.plan.feature`) : `plan_${tpTag.replace('@', '')}.plan.feature`;
+            const ext = getScopeExtension(config, 'testplan');
+            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `plan_${tpTag.replace(/^@/, '')}${ext}`;
             const filePath = resolve(absDir, filename);
 
-            const content = `@testplan ${tpTag}\nFeature: ${planTitle}\n\n`;
+            const scopeTag = (SCOPE_CONFIG as any)['testplan']?.tag || '@testplan';
+            const content = `${scopeTag} ${tpTag}\nFeature: ${planTitle}\n\n`;
             writeFileSync(filePath, content, 'utf-8');
             console.log(green(bold(`\n✓ Created testplan specification: ${filePath}`)));
             break;
@@ -637,7 +661,7 @@ async function handleTestplan(options: SpecCmdOptions) {
         case 'add': {
             if (!target || !runArg) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec testplan add -target=<@tp-X|file> -run=<testrun_address>`,
+                    syntax: `${TITLE_CLI} spec testplan add -target=<tag|file> -run=<testrun_address>`,
                     detail: [`Specify -target for the testplan and -run for the testrun to link.`]
                 }).abort();
                 return;
@@ -777,10 +801,12 @@ async function handleBug(options: SpecCmdOptions) {
             const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
 
             const bugTitle = title || (runArg ? `Bugs from ${runArg}` : `Defect Container ${YYYYMMDD}`);
-            const filename = target ? (target.endsWith('.bug.feature') ? target : `${target}.bug.feature`) : `${YYYYMMDD}_${HHmmss}.bug.feature`;
+            const ext = getScopeExtension(config, 'bug');
+            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `${YYYYMMDD}_${HHmmss}${ext}`;
             const filePath = resolve(absDir, filename);
 
-            const content = `@bug\nFeature: ${bugTitle}\n\n`;
+            const scopeTag = (SCOPE_CONFIG as any)['bug']?.tag || '@bug';
+            const content = `${scopeTag}\nFeature: ${bugTitle}\n\n`;
             writeFileSync(filePath, content, 'utf-8');
             console.log(green(bold(`\n✓ Created bug specification: ${filePath}`)));
             break;
@@ -803,7 +829,7 @@ async function handleBug(options: SpecCmdOptions) {
             }
 
             const idPattern = config.getIdentity('bug');
-            const bgTag = findNextIdentity(dir, idPattern) || '@bg-1';
+            const bgTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'bug');
             const bugScenarioTitle = title || (tcArg ? `Defect in ${tcArg}` : `Bug ${bgTag}`);
 
             let sc = `\n  ${bgTag}\n  Scenario: ${bugScenarioTitle}\n`;
@@ -822,13 +848,13 @@ async function handleBug(options: SpecCmdOptions) {
         case 'delete': {
             if (!target) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug delete -target=<@bg-X|file>`,
+                    syntax: `${TITLE_CLI} spec bug delete -target=<tag|file>`,
                     detail: [`Specify -target to remove a bug scenario or bug specification file.`]
                 }).abort();
                 return;
             }
 
-            if (target.endsWith('.bug.feature') || target.endsWith('.feature')) {
+            if (target.endsWith('.feature')) {
                 const filePath = resolveScopeFile(dir, target, 'bug', testDirectory);
                 if (filePath && existsSync(filePath)) {
                     unlinkSync(filePath);

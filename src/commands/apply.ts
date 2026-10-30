@@ -207,6 +207,44 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             throw err;
         }
 
+        // Helper to execute API and state payload dispatch
+        const applyApiPayload = async (change: any, existingIssueNumber?: number) => {
+            const apiPayload = resource.evaluateApi(change.resourceType, change.scenario, { state: stateObj, testDirectory });
+            const statePayload = resource.evaluateState(change.resourceType, change.scenario, { state: stateObj, testDirectory });
+
+            const issueData = apiPayload.issue || apiPayload;
+            const projectData = apiPayload.project?.fields ? { custom_fields: apiPayload.project.fields } : (apiPayload.custom_fields ? { custom_fields: apiPayload.custom_fields } : {});
+
+            await resolvePayloadMilestone(issueData);
+
+            let result: any;
+            if (github.apis?.issue) {
+                if (existingIssueNumber && github.apis.issue.update) {
+                    result = await github.apis.issue.update(existingIssueNumber, issueData);
+                } else if (github.apis.issue.create) {
+                    result = await github.apis.issue.create(issueData);
+                }
+
+                if (github.apis.project?.create && apiPayload.project) {
+                    await github.apis.project.create(apiPayload.project, { issueResult: result });
+                }
+            } else {
+                if (existingIssueNumber) {
+                    result = await github.updateIssue(existingIssueNumber, issueData);
+                } else {
+                    result = await github.createIssue(issueData);
+                }
+                if (result?.node_id && github.addToProject && projectData.custom_fields) {
+                    const itemId = await github.addToProject(result.node_id);
+                    if (itemId && github.updateProjectItemFields) {
+                        await github.updateProjectItemFields(itemId, projectData.custom_fields);
+                    }
+                }
+            }
+
+            return { result, issueData, projectData, statePayload };
+        };
+
         await executeInBatches(orderedChanges, parallelismNum, async (change) => {
             try {
                     if (change.action === 'add') {
@@ -214,16 +252,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Creating...`);
                         const startTime = Date.now();
 
-                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj, testDirectory }) as unknown as GitHubIssuePayload;
-                        await resolvePayloadMilestone(payload);
-                        const result = await github.createIssue(payload);
-
-                        if (result.node_id && github.addToProject) {
-                            const itemId = await github.addToProject(result.node_id);
-                            if (itemId && (payload as any).custom_fields && github.updateProjectItemFields) {
-                                await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
-                            }
-                        }
+                        const { result, issueData, projectData, statePayload } = await applyApiPayload(change);
 
                         const elapsed = elapsedSeconds(startTime);
                         const remoteId = github.formatRemoteId(result.number);
@@ -240,25 +269,15 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 localHash: change.localHash,
                                 remoteId,
                                 issueNumber: result.number,
-                                title: payload.title,
-                                body: payload.body,
-                                labels: payload.labels,
-                                assignees: (payload as any).assignees,
-                                milestone: (payload as any).milestone || undefined,
-                                custom_fields: (payload as any).custom_fields,
+                                title: issueData.title,
+                                body: issueData.body,
+                                labels: issueData.labels,
+                                assignees: issueData.assignees,
+                                milestone: issueData.milestone || undefined,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
-                                ...((payload as any).status ? { status: (payload as any).status } : {}),
-                                ...(change.resourceType.endsWith('testrun') ? {
-                                    testcases: (payload as any).testcases || {},
-                                    testcaseTraces: (payload as any).testcaseTraces || {},
-                                    testcaseEvidence: (payload as any).testcaseEvidence || {},
-                                    metadata: (payload as any).metadata || {},
-                                } : {}),
-                                ...(change.resourceType.endsWith('testplan') ? {
-                                    testruns: (payload as any).testruns || {},
-                                    metadata: (payload as any).metadata || {},
-                                } : {}),
+                                ...projectData,
+                                ...statePayload,
                             },
                             lastApplied: new Date().toISOString(),
                         });
@@ -280,16 +299,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         }
 
                         // 2. Add (create new issue)
-                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj, testDirectory }) as unknown as GitHubIssuePayload;
-                        await resolvePayloadMilestone(payload);
-                        const result = await github.createIssue(payload);
-
-                        if (result.node_id && github.addToProject) {
-                            const itemId = await github.addToProject(result.node_id);
-                            if (itemId && (payload as any).custom_fields && github.updateProjectItemFields) {
-                                await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
-                            }
-                        }
+                        const { result, issueData, projectData, statePayload } = await applyApiPayload(change);
 
                         const elapsed = elapsedSeconds(startTime);
                         const newRemoteId = github.formatRemoteId(result.number);
@@ -306,25 +316,15 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 localHash: change.localHash,
                                 remoteId: newRemoteId,
                                 issueNumber: result.number,
-                                title: payload.title,
-                                body: payload.body,
-                                labels: payload.labels,
-                                assignees: (payload as any).assignees,
-                                milestone: (payload as any).milestone || undefined,
-                                custom_fields: (payload as any).custom_fields,
+                                title: issueData.title,
+                                body: issueData.body,
+                                labels: issueData.labels,
+                                assignees: issueData.assignees,
+                                milestone: issueData.milestone || undefined,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
-                                ...((payload as any).status ? { status: (payload as any).status } : {}),
-                                ...(change.resourceType.endsWith('testrun') ? {
-                                    testcases: (payload as any).testcases || {},
-                                    testcaseTraces: (payload as any).testcaseTraces || {},
-                                    testcaseEvidence: (payload as any).testcaseEvidence || {},
-                                    metadata: (payload as any).metadata || {},
-                                } : {}),
-                                ...(change.resourceType.endsWith('testplan') ? {
-                                    testruns: (payload as any).testruns || {},
-                                    metadata: (payload as any).metadata || {},
-                                } : {}),
+                                ...projectData,
+                                ...statePayload,
                             },
                             lastApplied: new Date().toISOString(),
                         });
@@ -338,18 +338,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Modifying... [id=${remoteId}]`);
                         const startTime = Date.now();
 
-                        const payload = resource.evaluate(change.resourceType, change.scenario, { state: stateObj, testDirectory }) as unknown as GitHubIssuePayload;
-                        await resolvePayloadMilestone(payload);
-                        const result = await github.updateIssue(change.issueNumber!, payload);
-
-                        if (result.node_id && github.addToProject) {
-                            const itemId = await github.addToProject(result.node_id);
-                            if (itemId && (payload as any).custom_fields && github.updateProjectItemFields) {
-                                await github.updateProjectItemFields(itemId, (payload as any).custom_fields);
-                            }
-                        }
-
-                        // Sub-issues linking removed: testcases are now embedded in the testrun body.
+                        const { result, issueData, projectData, statePayload } = await applyApiPayload(change, change.issueNumber);
 
                         const elapsed = elapsedSeconds(startTime);
                         console.log(green(`${address}: Modifications complete after ${elapsed}s [id=${remoteId}]`));
@@ -365,25 +354,15 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 localHash: change.localHash,
                                 remoteId,
                                 issueNumber: change.issueNumber!,
-                                title: payload.title,
-                                body: payload.body,
-                                labels: payload.labels,
-                                assignees: (payload as any).assignees,
-                                milestone: (payload as any).milestone || undefined,
-                                custom_fields: (payload as any).custom_fields,
+                                title: issueData.title,
+                                body: issueData.body,
+                                labels: issueData.labels,
+                                assignees: issueData.assignees,
+                                milestone: issueData.milestone || undefined,
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
-                                ...((payload as any).status ? { status: (payload as any).status } : {}),
-                                ...(change.resourceType.endsWith('testrun') ? {
-                                    testcases: (payload as any).testcases || {},
-                                    testcaseTraces: (payload as any).testcaseTraces || {},
-                                    testcaseEvidence: (payload as any).testcaseEvidence || {},
-                                    metadata: (payload as any).metadata || {},
-                                } : {}),
-                                ...(change.resourceType.endsWith('testplan') ? {
-                                    testruns: (payload as any).testruns || {},
-                                    metadata: (payload as any).metadata || {},
-                                } : {}),
+                                ...projectData,
+                                ...statePayload,
                             },
                             lastApplied: new Date().toISOString(),
                         });

@@ -5,9 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.3] - 2026-10-29
+## [1.1.0-beta.4] - 2026-10-30
 
 ### Added
+
+#### 🔌 Agnostic Multi-Service Provider Architecture (`IProvider.apis`)
+- **Arbitrary Provider Services (`Record<string, IProviderApiService>`):** Generalized provider contract allowing any provider adapter to expose multiple custom services (`apis.issue`, `apis.project`, or custom domain dictionaries like `apis.pokedex`, `apis.defect`, etc.) with standard CRUD signatures (`create`, `update`, `delete`, `get`).
+- **Zero-Coupling Provider Interface:** `GitHubProvider` and `LocalProvider` implement the agnostic `apis` map alongside legacy methods for transparent backward compatibility.
+
+#### 🏛️ Declarative Resource Architecture (`api` & `state`)
+- **Payload vs. State Ledger Separation:** Decoupled external API payload generation from internal state tracking in `ResourceTemplate`:
+  - `api?: Record<string, (scenario, context) => any>` defines the payloads sent to provider services (`issue`, `project`).
+  - `state?: Record<string, (scenario, context) => any>` defines the attributes persisted into the cryptographic state ledger.
+- **Dynamic Field Derivation (`deriveFieldsFromTemplate`):** Plan diff fields (`template.fields`) are automatically inferred from `api` and `state` definitions when not explicitly provided, preserving full support for user overrides.
+- **Unified Evaluation API:** Added `resource.evaluateApi()` and `resource.evaluateState()` across all canonical resources (`github_testcase`, `github_testrun`, `github_testplan`, `github_bug`).
 
 #### 🚀 Unified Test Lifecycle CLI (`testform spec`)
 - **100% Flag-Based Design:** Completely non-positional syntax for robust CLI automation and IDE integration.
@@ -33,10 +44,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Terraform Variable Parity:** Automatically detects and loads environment variables prefixed with `TESTFORM_VAR_<NAME>` and `TF_VAR_<NAME>` into `VariableParser`.
 - **Hierarchical Precedence:** Correct precedence established: `default` < `*.vars.yml` < `TESTFORM_VAR_*`/`TF_VAR_*` < `-var-file` < `-var`.
 
+#### 🗄️ Backend Cache Relocation (`.testform/cache/backend.json`)
+- **Relocated Cache State:** Moved `backend.json` into `.testform/cache/backend.json` alongside `lock.json` and `data.json`.
+- **Seamless Backwards-Compatible Migration:** Added automatic fallback to read legacy `.testform/backend.json` if present and safely remove it upon writing the updated cache file.
+
+### Changed & Refactored
+
+#### 🧹 Elimination of Hardcoded Resource Logic in `apply.ts`
+- **Fully Agnostic Dispatch:** Completely eradicated hardcoded conditionals (`if (change.resourceType.endsWith('testrun'))`, `if (change.resourceType.endsWith('testplan'))`) from `src/commands/apply.ts`.
+- **Generic Execution Pipeline:** Execution batches now delegate all external operations to `resource.evaluateApi()` and state persistence to `resource.evaluateState()`.
+
+#### 🔥 Complete Removal of Deprecated Issue Comments Engine
+- **Purged Comments Sync:** Removed `syncTestrunComments` and comment diff evaluation from `src/core/sync.ts`.
+- **Lightweight Remote Footprint:** Removed `comments` template definitions and obsolete comment test cases, preventing redundant API calls and keeping GitHub Issues clutter-free.
+
+#### 🛡️ Strict TypeScript Compilation & Typings Parity
+- **No Implicit Any:** Typed all arrow expressions and parameter schemas across `apply.ts` and `resources.ts` (`(s: any)`, `(context?: any)`).
+- **Optional Chaining Safeguards:** Ensured safe invocation checks across all optional service methods (`github.apis?.issue?.create`, `update`, `project?.create`).
+
+### Fixed
+
 #### 🛡️ Phantom Drift & State Deserialization Normalization
+- **Ghost In-Place Updates:** Fixed spurious `~ update in-place` plan diffs by verifying actual attribute changes before scheduling an update.
 - **CRLF vs LF Normalization:** Order-agnostic, newline-normalized comparison for multiline Gherkin strings preventing spurious phantom drift in Windows environments.
 - **Tag Prefix Normalization:** `@`-prefix-agnostic array comparison preventing drift during state synchronization.
+- **Canonical Address Formatting:** Formatted resource addresses consistently as `provider.resource.shortidentity` across CLI logs.
 
+---
+
+## [1.1.0-beta.3] - 2026-10-29
+
+### Added
 
 #### ⚖️ Rollup Verdict Engine (`calculateRollupVerdict`)
 - **Automated Execution Status Resolution:** Built-in verdict aggregation for `testrun` and `testplan` resources based on strict QA priority rules:

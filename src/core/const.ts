@@ -111,6 +111,11 @@ export const SCOPE_CONFIG = {
         ext: SCOPE_EXT_MAP.testplan,
         resource: SCOPE_RESOURCE_MAP.testplan,
     },
+    testreport: {
+        tag: SCOPE_TAG_MAP.testreport,
+        ext: SCOPE_EXT_MAP.testreport,
+        resource: SCOPE_RESOURCE_MAP.testreport,
+    },
     bug: {
         tag: SCOPE_TAG_MAP.bug,
         ext: SCOPE_EXT_MAP.bug,
