@@ -10,7 +10,8 @@ interface LocalComment {
 
 interface LocalIssue extends IProviderIssueResult {
     comments: LocalComment[];
-    custom_fields: Record<string, string>;
+    custom_fields: Record<string, any>;
+    sub_issues?: (number | string)[];
 }
 
 interface LocalDB {
@@ -124,7 +125,7 @@ export class LocalProvider implements IProvider {
     }
 
     async getIssue(issueId: number | string): Promise<IProviderIssueResult | null> {
-        const issue = this.db.issues.find(i => String(i.number) === String(issueId));
+        const issue = this.db.issues.find(i => String(i.number) === String(issueId) || String(i.id) === String(issueId));
         return issue || null;
     }
 
@@ -171,7 +172,7 @@ export class LocalProvider implements IProvider {
         return String(issueId);
     }
 
-    async updateProjectItemFields(itemId: string, customFields: Record<string, string>): Promise<void> {
+    async updateProjectItemFields(itemId: string, customFields: Record<string, any>): Promise<void> {
         const issue = this.db.issues.find(i => String(i.node_id) === String(itemId) || String(i.number) === String(itemId));
         if (issue) {
             issue.custom_fields = { ...issue.custom_fields, ...customFields };
@@ -179,7 +180,7 @@ export class LocalProvider implements IProvider {
         }
     }
 
-    async getProjectItemFields(issueId: string | number): Promise<Record<string, string>> {
+    async getProjectItemFields(issueId: string | number): Promise<Record<string, any>> {
         const issue = this.db.issues.find(i => String(i.node_id) === String(issueId) || String(i.number) === String(issueId));
         return issue?.custom_fields || {};
     }
@@ -189,7 +190,14 @@ export class LocalProvider implements IProvider {
     }
 
     async addSubIssue(parentIssueId: number | string, subIssueId: number | string): Promise<void> {
-        // No-op for local provider
+        const parent = this.db.issues.find(i => String(i.number) === String(parentIssueId) || String(i.id) === String(parentIssueId));
+        if (parent) {
+            parent.sub_issues ??= [];
+            if (!parent.sub_issues.includes(subIssueId)) {
+                parent.sub_issues.push(subIssueId);
+                this.saveDB();
+            }
+        }
     }
 }
 

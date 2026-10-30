@@ -55,14 +55,14 @@ export interface IProvider {
     /** Lookup milestone ID by title */
     getMilestoneByTitle(title: string): Promise<number | string | undefined>;
 
-    /** Create a comment on an issue */
-    createIssueComment(issueId: number | string, body: string): Promise<{ id: number | string }>;
+    /** @deprecated Issue comments are deprecated. */
+    createIssueComment?(issueId: number | string, body: string): Promise<{ id: number | string }>;
 
-    /** Update a comment */
-    updateIssueComment(commentId: number | string, body: string): Promise<void>;
+    /** @deprecated Issue comments are deprecated. */
+    updateIssueComment?(commentId: number | string, body: string): Promise<void>;
 
-    /** List comments for an issue */
-    listIssueComments(issueId: number | string): Promise<{ id: number | string, body: string }[]>;
+    /** @deprecated Issue comments are deprecated. */
+    listIssueComments?(issueId: number | string): Promise<{ id: number | string, body: string }[]>;
 
     /** Add issue to a Project / Board */
     addToProject?(issueId: string | number): Promise<string | undefined>;

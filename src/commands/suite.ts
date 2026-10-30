@@ -662,8 +662,10 @@ async function runState(options: {
 
     const commentBody = `**Origin:** ${originFile}\n<table border="1" width="100%">\n    <tr>\n        <th colspan="3">Feature Name</th>\n    </tr>\n    <tr>\n        <td>${safeScenario}</td>\n        <td>${tcTitle}</td>\n        <td>${newStatus}</td>\n    </tr>\n    <tr>\n        <td colspan="3"><br/></td>\n    </tr>\n</table>`;
 
-    await ctx.adapter.updateIssueComment(commentId, commentBody);
-    console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
+    if (ctx.adapter.updateIssueComment) {
+        await ctx.adapter.updateIssueComment(commentId, commentBody);
+        console.log(`  -> Updated status comment for ${targetId} to '${newStatus}'`);
+    }
 
     if (!foundRun.attributes.testcases) foundRun.attributes.testcases = {};
     foundRun.attributes.testcases[targetId] = newStatus;

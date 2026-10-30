@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 🔌 Agnostic Multi-Service Provider Architecture (`IProvider.apis`)
 - **Arbitrary Provider Services (`Record<string, IProviderApiService>`):** Generalized provider contract allowing any provider adapter to expose multiple custom services (`apis.issue`, `apis.project`, or custom domain dictionaries like `apis.pokedex`, `apis.defect`, etc.) with standard CRUD signatures (`create`, `update`, `delete`, `get`).
-- **Zero-Coupling Provider Interface:** `GitHubProvider` and `LocalProvider` implement the agnostic `apis` map alongside legacy methods for transparent backward compatibility.
+- **Zero-Coupling Provider Interface:** `GitHubProvider`, `GitLabProvider`, and `LocalProvider` implement the agnostic `apis` map alongside legacy methods for transparent backward compatibility.
+- **🦊 Full Native GitLab Provider (`GitLabProvider`):** Implemented native GitLab REST API v4 integration supporting issues CRUD, status transitions, labels, milestones, issue links (`relates_to`), and multi-service `apis.issue` dispatch with zero third-party dependencies using Node native `fetch`.
+- **💻 Local Provider Hardening:** Added support for arbitrary custom field types (`Record<string, any>`), hierarchy sub-issue linkage persistence, and robust ID/number lookups.
 
 #### 🏛️ Declarative Resource Architecture (`api` & `state`)
 - **Payload vs. State Ledger Separation:** Decoupled external API payload generation from internal state tracking in `ResourceTemplate`:
