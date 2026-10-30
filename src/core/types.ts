@@ -1,5 +1,5 @@
 // ─── Scope ───────────────────────────────────────────────────────────────────
-export type IScope = 'testcase' | 'testrun' | 'testplan' | 'testreport';
+export type IScope = 'testcase' | 'testrun' | 'testplan' | 'testreport' | 'bug';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 export interface IProviderConfig {

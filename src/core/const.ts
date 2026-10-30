@@ -64,6 +64,7 @@ export const SCOPE_RESOURCE_MAP = {
     testrun: 'github_testrun',
     testplan: 'github_testplan',
     testreport: 'github_testreport',
+    bug: 'github_bug',
 } as const;
 
 /**
@@ -75,6 +76,7 @@ const SCOPE_TAG_MAP = {
     testrun: '@testrun',
     testplan: '@testplan',
     testreport: '@testreport',
+    bug: '@bug',
 } as const;
 
 /**
@@ -86,6 +88,7 @@ const SCOPE_EXT_MAP = {
     testrun: '.run.feature',
     testplan: '.plan.feature',
     testreport: '.report.feature',
+    bug: '.bug.feature',
 } as const;
 
 /**
@@ -107,6 +110,11 @@ export const SCOPE_CONFIG = {
         tag: SCOPE_TAG_MAP.testplan,
         ext: SCOPE_EXT_MAP.testplan,
         resource: SCOPE_RESOURCE_MAP.testplan,
+    },
+    bug: {
+        tag: SCOPE_TAG_MAP.bug,
+        ext: SCOPE_EXT_MAP.bug,
+        resource: SCOPE_RESOURCE_MAP.bug,
     },
 } as const;
 

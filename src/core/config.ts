@@ -88,7 +88,7 @@ export class Config {
         const res = this.config.resource;
         if (res && typeof res === 'object') {
             const registered = resource.getRegisteredTypes();
-            const ALLOWED = [...new Set(['testcase', 'testrun', 'testplan', 'global', ...registered])];
+            const ALLOWED = [...new Set(['testcase', 'testrun', 'testplan', 'bug', 'global', ...registered])];
             for (const key of Object.keys(res)) {
                 if (!ALLOWED.includes(key)) {
                     notify.push({
@@ -250,7 +250,7 @@ export class Config {
     }
 
     getIdentity(scope: IScope): string {
-        const defaultId = scope === 'testcase' ? 'tc-*' : scope === 'testrun' ? 'tr-*' : scope === 'testplan' ? 'tp-*' : '*';
+        const defaultId = scope === 'testcase' ? 'tc-*' : scope === 'testrun' ? 'tr-*' : scope === 'testplan' ? 'tp-*' : scope === 'bug' ? 'bg-*' : '*';
         const scopeConf = this.getScopeConf(scope);
 
         let id = scopeConf?.identity;

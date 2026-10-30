@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### 🚀 Unified Test Lifecycle CLI (`testform spec`)
+- **100% Flag-Based Design:** Completely non-positional syntax for robust CLI automation and IDE integration.
+- **Full Canonical Resource Coverage:** Standardized operations across `testcase`, `testrun`, `testplan`, and `bug`:
+  - `new`: Scaffolds a new specification container file using project conventions and identity patterns.
+  - `add`: Appends a scenario or linkage to an existing specification.
+  - `delete`: Removes a specification file or scenario by identity tag.
+  - `mark`: Records execution verdicts, stack traces, and evidence (`testrun`, `bug`).
+  - `status`: Interactive or formatted terminal dashboard with `-show-name` and `-show-detail`.
+- **🔄 Testcase Reverse Lookup:** `testform spec testcase status -target="@tc-01"` automatically queries all existing testruns and bugs in state to show historical verdicts, failure stack traces, and active defect tickets.
+- **🐞 First-Class Bug Resource (`bug` / `@bug` / `@bg-X`):**
+  - Container-level tag `@bug` with scenario-level identity `@bg-X`.
+  - Standard execution statuses: `failed` (active), `passed` (resolved), `pending` (in review).
+  - Explicit metadata steps: `* mark target = ...`, `* mark severity = ...`, `* mark priority = ...`, `* mark trace = ...`, `* mark evidence = ...`.
+- **🧬 Testrun Evolution Mode:** Full support for direct canonical scenario addresses (e.g. `Scenario: Magento/cart.case.feature.@tc-01`) without mandatory `Rule:` grouping, maintaining 100% backward compatibility with legacy `Rule:` suites.
+
+#### 📥 Cucumber JSON Ingestion (`testform import -results="cucumber.json"`)
+- **Automated Test Results Import:** Parses Cucumber JSON reports into canonical testrun feature files.
+- **Base64 Evidence Extraction:** Automatically extracts and decodes Base64 embeddings into physical `.png` files stored in `evidence/`.
+- **Auto-Defect Generation (`-auto-create-bugs`):** Automatically generates linked `@bug` specifications with failure stack traces and screenshot evidence for all failed scenarios.
+
+#### 🌐 Environment Variable Auto-Loading (`TESTFORM_VAR_*` / `TF_VAR_*`)
+- **Terraform Variable Parity:** Automatically detects and loads environment variables prefixed with `TESTFORM_VAR_<NAME>` and `TF_VAR_<NAME>` into `VariableParser`.
+- **Hierarchical Precedence:** Correct precedence established: `default` < `*.vars.yml` < `TESTFORM_VAR_*`/`TF_VAR_*` < `-var-file` < `-var`.
+
+#### 🛡️ Phantom Drift & State Deserialization Normalization
+- **CRLF vs LF Normalization:** Order-agnostic, newline-normalized comparison for multiline Gherkin strings preventing spurious phantom drift in Windows environments.
+- **Tag Prefix Normalization:** `@`-prefix-agnostic array comparison preventing drift during state synchronization.
+
+
 #### ⚖️ Rollup Verdict Engine (`calculateRollupVerdict`)
 - **Automated Execution Status Resolution:** Built-in verdict aggregation for `testrun` and `testplan` resources based on strict QA priority rules:
   1. `failed`: If any child execution is failed, the run/plan evaluates to `failed`.

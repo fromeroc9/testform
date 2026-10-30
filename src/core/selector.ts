@@ -50,6 +50,9 @@ export function detectScopeFromTarget(target: string): IScope | undefined {
     if (clean === 'testcase' || clean.endsWith('.case.feature') || clean.includes('.case.feature') || clean.startsWith('@tc') || clean.includes('.@tc')) {
         return 'testcase';
     }
+    if (clean === 'bug' || clean.endsWith('.bug.feature') || clean.includes('.bug.feature') || clean.startsWith('@bg') || clean.includes('.@bg')) {
+        return 'bug';
+    }
     return undefined;
 }
 

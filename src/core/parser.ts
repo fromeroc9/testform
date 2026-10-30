@@ -58,6 +58,9 @@ export class Parser {
             case 'testplan':
                 delegate = new TestplanParser(this.dir, this.variables);
                 break;
+            case 'bug':
+                delegate = new TestcaseParser(this.dir, this.variables);
+                break;
             default:
                 // Fallback to testcase parser logic for unknown scopes
                 delegate = new TestcaseParser(this.dir, this.variables);

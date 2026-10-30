@@ -1,5 +1,5 @@
 import { IConfig, IScope } from '../core/types';
-import { resolve, normalize, join } from 'path';
+import { resolve, normalize, join, basename } from 'path';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { GitHubProvider, GitHubAdapter } from '../providers/github';
@@ -11,19 +11,225 @@ import { bold, green, red, yellow } from "chalk";
 import { hashScenario } from "./plan";
 import fs from "fs";
 import { Logger } from '../core/logger';
+import { Diag } from '../core/diagnostics';
+import { findNextIdentity } from '../core/editor';
 
-import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP } from '../core/const';
+import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP, TITLE_CLI } from '../core/const';
 import { matchesScope, detectScopeFromTarget } from '../core/selector';
 
 interface ImportCmdOptions {
     dir?: string;
     scope?: IScope;
-    identityArg: string;
-    issueNumber: string;
+    identityArg?: string;
+    issueNumber?: string;
+    results?: string;
+    autoCreateBugs?: boolean;
     lock?: boolean;
     lockTimeout?: string;
     statePath?: string;
     backupPath?: string;
+}
+
+async function runImportResults(options: {
+    dir: string;
+    results: string;
+    autoCreateBugs?: boolean;
+}) {
+    const { dir, results, autoCreateBugs } = options;
+    const fullResultsPath = resolve(dir, results);
+
+    if (!fs.existsSync(fullResultsPath)) {
+        Diag.error({
+            title: `Execution results file not found: ${results}`,
+            detail: [`Verify the file path provided in -results="${results}".`]
+        }).abort();
+        return;
+    }
+
+    let parsedResults: any[];
+    try {
+        const raw = fs.readFileSync(fullResultsPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        parsedResults = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e: any) {
+        Diag.error({
+            title: `Failed to parse results file: ${results}`,
+            detail: [`The file does not contain valid JSON: ${e.message}`]
+        }).abort();
+        return;
+    }
+
+    const configClass = new Config(dir, false);
+    const runsConvention = configClass.getConvention('testrun');
+    const runsDir = runsConvention?.directory || 'tests/runs';
+    const absRunsDir = join(dir, runsDir);
+    if (!fs.existsSync(absRunsDir)) {
+        fs.mkdirSync(absRunsDir, { recursive: true });
+    }
+
+    const evidenceDir = join(dir, 'evidence');
+    if (!fs.existsSync(evidenceDir)) {
+        fs.mkdirSync(evidenceDir, { recursive: true });
+    }
+
+    interface ScenarioResult {
+        target: string;
+        name: string;
+        status: string;
+        trace?: string;
+        evidence: string[];
+    }
+
+    const scenarioResults: ScenarioResult[] = [];
+
+    for (const feature of parsedResults) {
+        const featureUri = (feature.uri || feature.id || '').replace(/\\/g, '/');
+        const elements = feature.elements || [];
+
+        for (const el of elements) {
+            if (el.type === 'background') continue;
+
+            const tags: string[] = (el.tags || []).map((t: any) => t.name || '').filter(Boolean);
+            const tcTag = tags.find((t: string) => t.startsWith('@tc-'));
+
+            let target = '';
+            if (featureUri && tcTag) {
+                target = `${featureUri}.${tcTag}`;
+            } else if (tcTag) {
+                target = tcTag;
+            } else if (featureUri && el.name) {
+                target = `${featureUri}.${el.name}`;
+            } else {
+                target = el.name || 'unnamed-scenario';
+            }
+
+            let status = 'passed';
+            let trace: string | undefined;
+            const evidence: string[] = [];
+
+            for (let stepIdx = 0; stepIdx < (el.steps || []).length; stepIdx++) {
+                const step = el.steps[stepIdx];
+                const sStatus = step.result?.status?.toLowerCase();
+                if (sStatus === 'failed') {
+                    status = 'failed';
+                    if (!trace && step.result?.error_message) {
+                        trace = step.result.error_message.trim();
+                    }
+                } else if (sStatus === 'undefined' || sStatus === 'pending') {
+                    if (status !== 'failed') status = 'pending';
+                } else if (sStatus === 'skipped') {
+                    if (status !== 'failed' && status !== 'pending') status = 'skipped';
+                }
+
+                // Process embeddings
+                for (const emb of step.embeddings || []) {
+                    if (emb.data && emb.mime_type && emb.mime_type.startsWith('image/')) {
+                        const ext = emb.mime_type.includes('jpeg') || emb.mime_type.includes('jpg') ? 'jpg' : 'png';
+                        const rand = Math.random().toString(16).substring(2, 8);
+                        const fileName = `ev_${Date.now()}_${rand}.${ext}`;
+                        const outFilePath = join(evidenceDir, fileName);
+                        try {
+                            const buffer = Buffer.from(emb.data, 'base64');
+                            fs.writeFileSync(outFilePath, buffer);
+                            evidence.push(`evidence/${fileName}`);
+                        } catch {
+                            // ignore write error
+                        }
+                    }
+                }
+            }
+
+            scenarioResults.push({
+                target,
+                name: el.name || target,
+                status,
+                trace,
+                evidence
+            });
+        }
+    }
+
+    if (scenarioResults.length === 0) {
+        console.log(yellow(`\nNo scenario execution elements found in ${results}.`));
+        return;
+    }
+
+    // Determine Run Identity and Filename
+    const now = new Date();
+    const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
+    const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
+    const trTag = findNextIdentity(dir, configClass.getIdentity('testrun')) || '@tr-1';
+
+    const runFileName = `${YYYYMMDD}_${HHmmss}_imported.run.feature`;
+    const runFilePath = join(absRunsDir, runFileName);
+
+    let runContent = `@testrun ${trTag}\nFeature: Results from ${basename(results)}\n\n`;
+
+    for (const sc of scenarioResults) {
+        runContent += `  Scenario: ${sc.target}\n`;
+        runContent += `    * mark status = ${sc.status}\n`;
+        if (sc.trace) {
+            const firstLine = sc.trace.split('\n')[0].replace(/\r/g, '').trim();
+            runContent += `    * mark trace = ${firstLine}\n`;
+        }
+        if (sc.evidence.length > 0) {
+            if (sc.evidence.length === 1) {
+                runContent += `    * mark evidence = ${sc.evidence[0]}\n`;
+            } else {
+                runContent += `    * mark evidence = ${JSON.stringify(sc.evidence)}\n`;
+            }
+        }
+        runContent += `\n`;
+    }
+
+    fs.writeFileSync(runFilePath, runContent.trim() + '\n', 'utf-8');
+    console.log(green(bold(`\n✓ Successfully generated testrun suite: ${runFilePath}`)));
+    console.log(`  Imported ${scenarioResults.length} test scenario result(s).`);
+
+    // Handle auto-create-bugs
+    if (autoCreateBugs) {
+        const failedScenarios = scenarioResults.filter(s => s.status === 'failed');
+        if (failedScenarios.length > 0) {
+            const bugsConvention = configClass.getConvention('bug');
+            const bugsDir = bugsConvention?.directory || 'tests/bugs';
+            const absBugsDir = join(dir, bugsDir);
+            if (!fs.existsSync(absBugsDir)) {
+                fs.mkdirSync(absBugsDir, { recursive: true });
+            }
+
+            const bugFileName = `${YYYYMMDD}_${HHmmss}_bugs.bug.feature`;
+            const bugFilePath = join(absBugsDir, bugFileName);
+
+            let bugContent = `@bug\nFeature: Bugs from ${basename(runFilePath)}\n\n`;
+
+            for (const fail of failedScenarios) {
+                const nextBgTag = findNextIdentity(dir, configClass.getIdentity('bug')) || '@bg-1';
+                bugContent += `  ${nextBgTag}\n`;
+                bugContent += `  Scenario: Bug in ${fail.name}\n`;
+                bugContent += `    * mark target = ${fail.target}\n`;
+                bugContent += `    * mark status = failed\n`;
+                bugContent += `    * mark severity = high\n`;
+                if (fail.trace) {
+                    const firstLine = fail.trace.split('\n')[0].replace(/\r/g, '').trim();
+                    bugContent += `    * mark trace = ${firstLine}\n`;
+                }
+                if (fail.evidence.length > 0) {
+                    if (fail.evidence.length === 1) {
+                        bugContent += `    * mark evidence = ${fail.evidence[0]}\n`;
+                    } else {
+                        bugContent += `    * mark evidence = ${JSON.stringify(fail.evidence)}\n`;
+                    }
+                }
+                bugContent += `\n`;
+            }
+
+            fs.writeFileSync(bugFilePath, bugContent.trim() + '\n', 'utf-8');
+            console.log(green(bold(`✓ Successfully generated bug specification: ${bugFilePath}`)));
+            console.log(`  Created ${failedScenarios.length} bug scenario(s) from failed tests.`);
+        } else {
+            console.log(green(`\n✓ No failed tests encountered. No bug specifications created.`));
+        }
+    }
 }
 
 export const importCmd = async (options: ImportCmdOptions) => {
@@ -32,11 +238,33 @@ export const importCmd = async (options: ImportCmdOptions) => {
         scope: rawScope,
         identityArg,
         issueNumber,
+        results,
+        autoCreateBugs,
         lock = true,
         lockTimeout = '0s',
         statePath,
         backupPath
     } = options;
+
+    if (results) {
+        await runImportResults({ dir, results, autoCreateBugs });
+        return;
+    }
+
+    if (!identityArg || !issueNumber) {
+        Diag.usage({
+            syntax: `${TITLE_CLI} import <address> <issueNumber> | -results="cucumber.json"`,
+            detail: [
+                `Associate an existing remote issue with a local scenario, or import execution results.`,
+                `Examples:`,
+                `  ${TITLE_CLI} import Magento/cart.case.feature.@tc-01 42`,
+                `  ${TITLE_CLI} import -results="cucumber.json"`,
+                `  ${TITLE_CLI} import -results="cucumber.json" -auto-create-bugs`
+            ]
+        }).abort();
+        return;
+    }
+
     const scope: IScope = rawScope || detectScopeFromTarget(identityArg) || 'testcase';
     const logger = new Logger();
     console.log(bold(`Importing ${scope} ${identityArg} from issue #${issueNumber}...`));
@@ -49,7 +277,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
         const state = stateObj;
 
         const basePath = resolve(dir);
-        const configClass = new Config(dir);
+        const configClass = new Config(dir, false);
         const config: IConfig = configClass.getConfig();
         let github: IProviderAdapter;
         if (configClass.getAdapterType() === 'local') {

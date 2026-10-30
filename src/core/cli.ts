@@ -14,7 +14,7 @@ import { ERR_NO_INPUT_ALLOWED } from './const';
 
 // ─── Scope Resolution ─────────────────────────────────────────────────────────
 
-export const VALID_RESOURCES: IScope[] = ['testcase', 'testrun', 'testplan'];
+export const VALID_RESOURCES: IScope[] = ['testcase', 'testrun', 'testplan', 'bug'];
 export const ALL_SCOPES: IScope[] = VALID_RESOURCES;
 
 /**

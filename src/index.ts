@@ -27,6 +27,7 @@ import { modulesCmd } from './commands/modules';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
 import { suiteCmd } from './commands/suite';
+import { specCmd } from './commands/spec';
 import { toolCmd } from './commands/tool';
 import { printCmd } from './commands/print';
 import { queryCmd } from './commands/query';
@@ -384,7 +385,9 @@ export function createCli() {
         });
 
     // ─── import ───────────────────────────────────────────────────────────
-    cli.command('import <address> <issueNumber>', 'Associate an existing remote Issue with a local scenario')
+    cli.command('import [address] [issueNumber]', 'Associate an existing remote Issue with a local scenario or import test execution results')
+        .option('--results <path>', 'Path to cucumber.json test execution results')
+        .option('--auto-create-bugs', 'Automatically generate bug specifications for failed testcases')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
         .option('--state <path>', 'Path to state file')
@@ -396,6 +399,8 @@ export function createCli() {
                 dir: workDir,
                 identityArg: address,
                 issueNumber,
+                results: options.results,
+                autoCreateBugs: Boolean(options.autoCreateBugs || options['auto-create-bugs']),
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',
                 statePath: options.state,
@@ -572,6 +577,49 @@ export function createCli() {
                 fill: Boolean(options.fill),
                 link: typeof options.link === 'string' ? options.link : undefined,
                 mark: typeof options.mark === 'string' ? options.mark : undefined,
+                testDirectory: options.testDirectory,
+                statePath: options.state,
+                backupPath: options.backup,
+                variables: variableParser,
+                verbose: Boolean(options.verbose)
+            });
+        });
+
+    // ─── spec ─────────────────────────────────────────────────────────────
+    cli.command('spec [resource] [action]', 'Manage test lifecycle specifications (testcase, testrun, testplan, bug)')
+        .option('--target <target>', 'Target identifier, address, or tag')
+        .option('--case <case>', 'Target testcase canonical address or tag')
+        .option('--run <run>', 'Target testrun canonical address or tag')
+        .option('--title <title>', 'Specification or scenario title')
+        .option('--status <status>', 'Execution or defect status (passed, failed, pending, skipped)')
+        .option('--trace <trace>', 'Failure stack trace or error log')
+        .option('--evidence <evidence>', 'Path or list of paths to evidence files')
+        .option('--severity <severity>', 'Bug severity (critical, high, medium, low)')
+        .option('--priority <priority>', 'Bug priority (high, medium, low)')
+        .option('--show-name', 'Display scenario title instead of canonical address')
+        .option('--show-detail', 'Display detailed output including trace and evidence')
+        .option('--test-directory <dir>', 'Directory containing test files')
+        .option('--state <path>', 'Path to state file')
+        .option('--backup <path>', 'Path to backup file')
+        .action(async (resource, action, options) => {
+            const workDir = getWorkDir(options);
+            const variableParser = getVariableParser(options, workDir);
+
+            await specCmd({
+                dir: workDir,
+                resource,
+                action,
+                target: options.target,
+                case: options.case,
+                run: options.run,
+                title: options.title,
+                status: options.status,
+                trace: options.trace,
+                evidence: options.evidence,
+                severity: options.severity,
+                priority: options.priority,
+                showName: Boolean(options.showName || options['show-name']),
+                showDetail: Boolean(options.showDetail || options['show-detail']),
                 testDirectory: options.testDirectory,
                 statePath: options.state,
                 backupPath: options.backup,

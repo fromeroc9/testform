@@ -251,6 +251,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 ...((payload as any).status ? { status: (payload as any).status } : {}),
                                 ...(change.resourceType.endsWith('testrun') ? {
                                     testcases: (payload as any).testcases || {},
+                                    testcaseTraces: (payload as any).testcaseTraces || {},
+                                    testcaseEvidence: (payload as any).testcaseEvidence || {},
                                     metadata: (payload as any).metadata || {},
                                 } : {}),
                                 ...(change.resourceType.endsWith('testplan') ? {
@@ -315,6 +317,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 ...((payload as any).status ? { status: (payload as any).status } : {}),
                                 ...(change.resourceType.endsWith('testrun') ? {
                                     testcases: (payload as any).testcases || {},
+                                    testcaseTraces: (payload as any).testcaseTraces || {},
+                                    testcaseEvidence: (payload as any).testcaseEvidence || {},
                                     metadata: (payload as any).metadata || {},
                                 } : {}),
                                 ...(change.resourceType.endsWith('testplan') ? {
@@ -372,6 +376,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 ...((payload as any).status ? { status: (payload as any).status } : {}),
                                 ...(change.resourceType.endsWith('testrun') ? {
                                     testcases: (payload as any).testcases || {},
+                                    testcaseTraces: (payload as any).testcaseTraces || {},
+                                    testcaseEvidence: (payload as any).testcaseEvidence || {},
                                     metadata: (payload as any).metadata || {},
                                 } : {}),
                                 ...(change.resourceType.endsWith('testplan') ? {

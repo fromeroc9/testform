@@ -32,10 +32,10 @@ export class TestrunParser extends TestcaseParser {
             }
 
             // Extract all testcases belonging to this run
-            // Format: "RuleName.ScenarioName"
+            // Format: "RuleName.ScenarioName" or direct canonical address "e.name"
             aggregated.custom.testcases = groupScenarios
-                .filter(e => e.rule && e.name)
-                .map(e => `${e.rule?.name}.${e.name}`);
+                .filter(e => (e.rule && e.name) || (e.name && (e.name.includes('.case.feature') || e.name.includes('@tc-'))))
+                .map(e => (e.rule && e.name) ? `${e.rule.name}.${e.name}` : e.name);
 
             // Also keep the raw group scenarios so we can extract their status fields later
             aggregated.custom.groupScenarios = groupScenarios;

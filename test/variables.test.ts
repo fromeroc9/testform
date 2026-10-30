@@ -167,4 +167,29 @@ variable:
             new VariableParser(['image_tag=latest'], undefined, tmpDir);
         }).toThrow(/The image_tag value must start with 'v'/);
     });
+
+    it('should auto-load variables from TESTFORM_VAR_* and TF_VAR_* environment variables', () => {
+        process.env.TESTFORM_VAR_project = 'OpenCart';
+        process.env.TF_VAR_timeout = '9000';
+
+        try {
+            writeFileSync(join(tmpDir, 'variables.yml'), `
+variable:
+  project:
+    default: "Magento"
+  timeout:
+    default: 5000
+`);
+            const parser = new VariableParser(undefined, undefined, tmpDir);
+            expect(parser.getVars().project).toBe('OpenCart');
+            expect(parser.getVars().timeout).toBe('9000');
+
+            // CLI -var should still have higher precedence
+            const overrideParser = new VariableParser(['timeout=12000'], undefined, tmpDir);
+            expect(overrideParser.getVars().timeout).toBe('12000');
+        } finally {
+            delete process.env.TESTFORM_VAR_project;
+            delete process.env.TF_VAR_timeout;
+        }
+    });
 });

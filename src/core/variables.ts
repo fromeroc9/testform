@@ -35,6 +35,7 @@ export class VariableParser {
         this.dataResolver = new DataResolver(workDir);
         this.loadDeclarations();
         this.loadAutoVarFiles();
+        this.loadEnvVars();
         this.parseVarFiles(varFileArgs);
         this.parseVars(varArgs);
         this.validateVariables();
@@ -166,6 +167,24 @@ export class VariableParser {
             }
         } catch {
             // Ignore readdir errors
+        }
+    }
+
+    /**
+     * Auto-loads variables from environment variables prefixed with TESTFORM_VAR_ or TF_VAR_.
+     */
+    private loadEnvVars() {
+        for (const [key, val] of Object.entries(process.env)) {
+            if (val === undefined) continue;
+            let varName = '';
+            if (key.startsWith('TESTFORM_VAR_')) {
+                varName = key.slice('TESTFORM_VAR_'.length);
+            } else if (key.startsWith('TF_VAR_')) {
+                varName = key.slice('TF_VAR_'.length);
+            }
+            if (varName) {
+                this.vars[varName] = String(val);
+            }
         }
     }
 

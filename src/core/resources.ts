@@ -687,6 +687,39 @@ resource.registry({
                     if (gs.rule?.name && gs.name) {
                         const key = `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/');
                         map[key] = gs.custom?.fields?.status || 'pending';
+                    } else if (gs.name && (gs.name.includes('.case.feature') || gs.name.includes('@tc-'))) {
+                        const key = gs.name.replace(/\\/g, '/');
+                        map[key] = gs.custom?.fields?.status || 'pending';
+                    }
+                }
+                return map;
+            }
+        },
+        {
+            name: 'testcaseTraces',
+            value: (s) => {
+                const groupScenarios = s.custom?.groupScenarios || [];
+                const map: Record<string, string> = {};
+                for (const gs of groupScenarios) {
+                    const trace = gs.custom?.fields?.trace || gs.custom?.fields?.error;
+                    if (trace) {
+                        const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
+                        if (key) map[key] = trace;
+                    }
+                }
+                return map;
+            }
+        },
+        {
+            name: 'testcaseEvidence',
+            value: (s) => {
+                const groupScenarios = s.custom?.groupScenarios || [];
+                const map: Record<string, any> = {};
+                for (const gs of groupScenarios) {
+                    const ev = gs.custom?.fields?.evidence;
+                    if (ev) {
+                        const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
+                        if (key) map[key] = Array.isArray(ev) ? ev : [ev];
                     }
                 }
                 return map;
@@ -772,6 +805,108 @@ resource.registry({
                     map[normTr] = status;
                 }
                 return map;
+            }
+        },
+        {
+            name: 'metadata',
+            value: (s) => s.custom?.metadata || {}
+        }
+    ]
+});
+
+resource.registry({
+    type: 'github_bug',
+    fields: [
+        { name: 'title', value: (s) => s.name || s.feature?.name || '' },
+        {
+            name: 'body',
+            value: (s) => {
+                let body = '';
+                const gherkinSteps = s.steps?.map((sp: any) => `${sp.keyword}${sp.text}`).join('\n');
+                if (gherkinSteps) {
+                    body += '```gherkin\n' + gherkinSteps + '\n```\n\n';
+                }
+                const target = s.custom?.fields?.target || s.custom?.fields?.testcase || '';
+                const testrun = s.feature?.name || s.custom?.fields?.testrun || '';
+                if (target || testrun) {
+                    body += '### 🔗 Context\n';
+                    if (target) body += `- **Testcase:** \`${target}\`\n`;
+                    if (testrun) body += `- **Testrun:** \`${testrun}\`\n`;
+                    body += '\n';
+                }
+                const trace = s.custom?.fields?.trace || s.custom?.fields?.error || '';
+                if (trace) {
+                    body += '### 🚨 Trace\n```text\n' + trace + '\n```\n\n';
+                }
+                const rawEvidence = s.custom?.fields?.evidence;
+                const evidenceList = Array.isArray(rawEvidence) ? rawEvidence : (rawEvidence ? [rawEvidence] : []);
+                if (evidenceList.length > 0) {
+                    body += '### 📸 Evidence\n';
+                    for (const ev of evidenceList) {
+                        body += `- ![Evidence](${ev})\n`;
+                    }
+                    body += '\n';
+                }
+                return body.trim();
+            }
+        },
+        {
+            name: 'labels',
+            value: (s) => {
+                const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
+                return [...new Set([...(s.tags || []), 'bug'].map(String).map(t => t.startsWith('@') ? t.substring(1) : t).filter(t => t !== idTag))];
+            }
+        },
+        { name: 'assignees', value: (s) => (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean) },
+        { name: 'milestone', value: (s) => s.custom?.fields?.milestone || undefined },
+        {
+            name: 'status',
+            value: (s) => s.custom?.fields?.status || 'failed'
+        },
+        {
+            name: 'trace',
+            value: (s) => s.custom?.fields?.trace || s.custom?.fields?.error || undefined
+        },
+        {
+            name: 'evidence',
+            value: (s) => {
+                const ev = s.custom?.fields?.evidence;
+                return Array.isArray(ev) ? ev : (ev ? [ev] : []);
+            }
+        },
+        {
+            name: 'testcase',
+            value: (s) => s.custom?.fields?.target || s.custom?.fields?.testcase || undefined
+        },
+        {
+            name: 'testrun',
+            value: (s) => s.feature?.name || s.custom?.fields?.testrun || undefined
+        },
+        {
+            name: 'severity',
+            value: (s) => s.custom?.fields?.severity || undefined
+        },
+        {
+            name: 'priority',
+            value: (s) => s.custom?.fields?.priority || undefined
+        },
+        {
+            name: 'custom_fields',
+            value: (s) => {
+                const fields = { ...(s.custom?.fields || {}) };
+                delete fields['labels'];
+                delete fields['assignees'];
+                delete fields['milestone'];
+                delete fields['status'];
+                delete fields['severity'];
+                delete fields['priority'];
+                delete fields['trace'];
+                delete fields['error'];
+                delete fields['evidence'];
+                delete fields['target'];
+                delete fields['testcase'];
+                delete fields['testrun'];
+                return fields;
             }
         },
         {

@@ -34,6 +34,7 @@ ${bold(`All other commands:`)}
   refresh       Update the state to match remote systems
   report        Generate multi-dimensional test execution reports
   show          Show the current state or a saved plan
+  spec          Manage test lifecycle specifications (testcase, testrun, testplan, bug)
   state         Advanced state management
   suite         Manage test suites and execution files (init, -fill, -link, -mark, -tags)
   taint         Mark a resource instance as not fully functional
@@ -1403,6 +1404,48 @@ ${bold(`Examples:`)}
   ${TITLE_CLI} suite mark "Validar login exitoso=passed" -target="20260607.run.feature"
 `.trim();
 
+export const HELP_SPEC = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] spec <resource> <action> [options]
+
+  Manage test lifecycle specifications and executions across all resources:
+  testcase, testrun, testplan, and bug.
+
+${bold(`Resources:`)}
+  testcase    Author, organize, and query testcase specifications
+  testrun     Plan, link testcases, record executions, and review run dashboards
+  testplan    Coordinate testruns into master test plans and rollup metrics
+  bug         Track defects, link failures to testcases, and manage resolutions
+
+${bold(`Actions:`)}
+  new         Generate a new specification file for the resource
+  add         Append a scenario or linkage to an existing specification
+  delete      Remove a specification file or scenario
+  mark        Record execution status, traces, and evidence (testrun, bug)
+  status      Display terminal status, dashboards, or reverse lookup (all)
+
+${bold(`Options:`)}
+  -target       Target identifier, tag, or file path
+  -case         Target testcase address or tag
+  -run          Target testrun address or tag
+  -title        Title for the specification or scenario
+  -status       Execution or defect verdict (passed, failed, pending, skipped)
+  -trace        Error stack trace or log message
+  -evidence     Path to evidence screenshot or file
+  -severity     Bug severity (critical, high, medium, low)
+  -priority     Bug priority (high, medium, low)
+  -show-name    Display scenario titles in place of canonical addresses
+  -show-detail  Display full stack traces, evidence files, and metadata
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} spec testrun new -title="Sprint 42 Regression"
+  ${TITLE_CLI} spec testrun add -target="@tr-1" -case="Magento/cart.case.feature.@tc-01"
+  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01" -status=passed
+  ${TITLE_CLI} spec testrun status -target="@tr-1" -show-name -show-detail
+  ${TITLE_CLI} spec testcase status -target="@tc-01" -show-name
+  ${TITLE_CLI} spec bug add -target="bugs.bug.feature" -case="@tc-01" -severity=critical
+  ${TITLE_CLI} spec bug mark -target="@bg-1" -status=passed
+`.trim();
+
 export const HELP_OUTPUT = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] output [options] [NAME]
 
@@ -1490,6 +1533,7 @@ export function getCommandHelp(command: string): string | null {
     case 'suite fill': return HELP_SUITE_FILL;
     case 'suite link': return HELP_SUITE_LINK;
     case 'suite mark': return HELP_SUITE_MARK;
+    case 'spec': return HELP_SPEC;
     case 'functions': return HELP_FUNCTIONS;
     default: return null;
   }

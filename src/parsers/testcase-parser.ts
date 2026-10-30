@@ -45,9 +45,23 @@ export class TestcaseParser extends BaseParser {
 
             if (s.background) {
                 s.background.steps = s.background.steps.filter((step: any) => {
-                    const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+status\s*=\s*(.*)$/i);
+                    const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+([a-zA-Z0-9_-]+)\s*=\s*(.*)$/i);
                     if (markMatch) {
-                        customFields['status'] = markMatch[1]?.trim();
+                        const markKey = markMatch[1].trim().toLowerCase();
+                        const markVal = markMatch[2]?.trim();
+                        if (markKey === 'evidence') {
+                            try {
+                                if (markVal.startsWith('[') && markVal.endsWith(']')) {
+                                    customFields['evidence'] = JSON.parse(markVal);
+                                } else {
+                                    customFields['evidence'] = markVal;
+                                }
+                            } catch {
+                                customFields['evidence'] = markVal;
+                            }
+                        } else {
+                            customFields[markKey] = markVal;
+                        }
                         return false;
                     }
 
@@ -74,9 +88,23 @@ export class TestcaseParser extends BaseParser {
             }
 
             s.steps = s.steps.filter((step: any) => {
-                const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+status\s*=\s*(.*)$/i);
+                const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+([a-zA-Z0-9_-]+)\s*=\s*(.*)$/i);
                 if (markMatch) {
-                    customFields['status'] = markMatch[1]?.trim();
+                    const markKey = markMatch[1].trim().toLowerCase();
+                    const markVal = markMatch[2]?.trim();
+                    if (markKey === 'evidence') {
+                        try {
+                            if (markVal.startsWith('[') && markVal.endsWith(']')) {
+                                customFields['evidence'] = JSON.parse(markVal);
+                            } else {
+                                customFields['evidence'] = markVal;
+                            }
+                        } catch {
+                            customFields['evidence'] = markVal;
+                        }
+                    } else {
+                        customFields[markKey] = markVal;
+                    }
                     return false;
                 }
 
