@@ -26,15 +26,19 @@
  * └────┴──────────────────────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┴───────────────────────────────────┘
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────
- * TABLA 2: ESTRATEGIAS DE ESPECIFICACIÓN Y STATUS (parseSpec & matchesScenarioSpec)
+ * TABLA 2: ESTRATEGIAS DE ESPECIFICACIÓN Y STATUS (parseSpec, matchesScenarioSpec, Rule: Scenario)
  * ─────────────────────────────────────────────────────────────────────────────────────────
  * ┌────┬──────────────────────────────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┬───────────────────────────────────┐
  * │ #  │ Identificador con Estatus        │ Ejemplo de Sintaxis                             │ Interpretación y Extracción                             │ Uso principal                     │
  * ├────┼──────────────────────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┼───────────────────────────────────┤
- * │ 1  │ Tag con Estatus                  │ "@tc-1=passed" o "-case=@tc-1=passed"           │ Identidad: @tc-1 | Estatus: passed                     │ spec testrun mark, suite mark     │
- * │ 2  │ Archivo + Tag con Estatus        │ "checkout.case.feature.@tc-1=failed"            │ Archivo: checkout.case.feature | Tag: @tc-1 | failed    │ spec testrun mark, suite mark     │
- * │ 3  │ Nombre de Escenario con Estatus  │ "Pago con tarjeta=passed"                       │ Nombre: "Pago con tarjeta" | Estatus: passed            │ spec testrun mark, suite mark     │
- * │ 4  │ Archivo Completo Implícito       │ "checkout.case.feature"                         │ Enlaza como bloque 'Rule: checkout.case.feature'        │ spec testrun add, suite link      │
+ * │ 1  │ Tag de Identidad con Arroba      │ "@tc-1=passed" o "Scenario: @tc-01"             │ Identidad: @tc-1 | Estatus: passed                     │ spec testrun, suite mark, testrun │
+ * │ 2  │ Tag sin arroba (Bare Tag)        │ "tc-1=passed" o "Scenario: tc-01"               │ Identidad normalizada: @tc-1 | Estatus: passed          │ spec testrun, suite mark, testrun │
+ * │ 3  │ Dirección Canónica Completa      │ "tests/features/bill.case.feature.@tc-1=failed" │ URI completa vinculada con su tag de identidad          │ spec testrun, suite mark, testrun │
+ * │ 4  │ Basename Archivo + Tag           │ "bill_pay.case.feature.@tc-1=failed"            │ Archivo: bill_pay.case.feature | Tag: @tc-1             │ spec testrun, suite mark, testrun │
+ * │ 5  │ Slug sin extensión + Tag         │ "bill_pay.@tc-1=passed"                         │ Slug: bill_pay | Tag: @tc-1                            │ spec testrun, suite mark, testrun │
+ * │ 6  │ Nombre o Título de Escenario     │ "Pago con tarjeta=passed"                       │ Nombre: "Pago con tarjeta" | Estatus: passed            │ spec testrun, suite mark, testrun │
+ * │ 7  │ Rule como Filtro de Directorio   │ "Rule: tests/features/ParaBank"                 │ Filtro de alcance estilo -test-directory para escenarios│ testrun suites, testplan          │
+ * │ 8  │ Archivo Completo Implícito       │ "checkout.case.feature"                         │ Enlaza como bloque 'Rule: checkout.case.feature'        │ spec testrun add, suite link      │
  * └────┴──────────────────────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┴───────────────────────────────────┘
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────
@@ -352,6 +356,86 @@ export function parseSpec(specArg: string, options: ParseSpecOptions = {}): Pars
 // ─── Scenario & State Key Matching ────────────────────────────────────────────
 
 /**
+ * Normalizes a scenario reference under a Rule into a canonical testcase address or standard format.
+ * Prevents path duplication when scenarioName is already canonical, file-tag, or slug-tag.
+ * Supports all selector strategies from Table 1 and Table 2:
+ *   1. tag: "@tc-01" -> "ruleName.@tc-01"
+ *   2. tag-bare: "tc-01" -> "ruleName.@tc-01"
+ *   3. canonical: "path/to/file.case.feature.@tc-01" -> "path/to/file.case.feature.@tc-01"
+ *   4. file-tag: "file.case.feature.@tc-01" -> "path/to/file.case.feature.@tc-01"
+ *   5. slug-tag: "file.@tc-01" -> "path/to/file.case.feature.@tc-01"
+ *   6. name / title: "Scenario Title" -> "ruleName.Scenario Title"
+ */
+export function normalizeScenarioAddress(ruleName?: string, scenarioName?: string): string {
+    if (!scenarioName) return ruleName || '';
+    const cleanScenario = scenarioName.trim();
+    if (!ruleName) {
+        if (/^(?:tc|tr|tp|bg)-\d+$/i.test(cleanScenario)) {
+            return `@${cleanScenario.toLowerCase()}`;
+        }
+        return cleanScenario;
+    }
+
+    const normRule = ruleName.trim().replace(/\\/g, '/');
+    const normScenario = cleanScenario.replace(/\\/g, '/');
+
+    // Case 1 & 2: Bare tag (tc-01) or @tag (@tc-01)
+    const bareTagMatch = normScenario.match(/^@?([a-z0-9_-]+)$/i);
+    if (bareTagMatch && /^(?:tc|tr|tp|bg)-\d+$/i.test(bareTagMatch[1])) {
+        const atTag = `@${bareTagMatch[1].toLowerCase()}`;
+        return `${normRule}.${atTag}`;
+    }
+
+    // Case 3: Already canonical address containing .feature or .case. or identical rule prefix
+    if (normScenario.includes('.feature.@') || normScenario.includes('.feature.') || normScenario.startsWith(normRule)) {
+        if (normScenario.startsWith(normRule)) {
+            return normScenario;
+        }
+        const featMatch = normScenario.match(/^(.*?\.feature)\.(.*)$/i);
+        if (featMatch) {
+            const scFeat = featMatch[1];
+            const scTail = featMatch[2];
+            if (normRule.endsWith(scFeat) || basename(normRule) === basename(scFeat)) {
+                return `${normRule}.${scTail.startsWith('@') ? scTail : (scTail.startsWith('tc-') ? '@' + scTail : scTail)}`;
+            }
+        }
+        return normScenario;
+    }
+
+    // Case 4: File-tag, e.g. "bill_pay.case.feature.@tc-01" or "bill_pay.case.feature.tc-01"
+    const fileTagMatch = normScenario.match(/^([a-zA-Z0-9_.-]+\.feature)\.(@?[a-zA-Z0-9_-]+)$/i);
+    if (fileTagMatch) {
+        const filePart = fileTagMatch[1];
+        let tagPart = fileTagMatch[2];
+        if (!tagPart.startsWith('@') && /^(?:tc|tr|tp|bg)-\d+$/i.test(tagPart)) {
+            tagPart = `@${tagPart}`;
+        }
+        if (normRule.endsWith(filePart) || basename(normRule) === filePart) {
+            return `${normRule}.${tagPart}`;
+        }
+        const joined = normRule.endsWith('/') ? `${normRule}${filePart}` : `${normRule}/${filePart}`;
+        return `${joined}.${tagPart}`;
+    }
+
+    // Case 5: Slug-tag, e.g. "bill_pay.@tc-01" or "bill_pay.tc-01"
+    const slugTagMatch = normScenario.match(/^([a-zA-Z0-9_-]+)\.(@?[a-zA-Z0-9_-]+)$/i);
+    if (slugTagMatch && !slugTagMatch[1].includes('.')) {
+        const slugPart = slugTagMatch[1];
+        let tagPart = slugTagMatch[2];
+        if (!tagPart.startsWith('@') && /^(?:tc|tr|tp|bg)-\d+$/i.test(tagPart)) {
+            tagPart = `@${tagPart}`;
+        }
+        const ruleBase = basename(normRule).replace(/(\.(case|run|plan|bug))?\.feature$/i, '');
+        if (ruleBase.toLowerCase() === slugPart.toLowerCase()) {
+            return `${normRule}.${tagPart}`;
+        }
+    }
+
+    // Case 6: Title or generic scenario name under rule
+    return `${normRule}.${normScenario}`;
+}
+
+/**
  * Checks whether a featurePart string matches a file path or URI.
  */
 export function matchesFeatureFile(filePath: string, featurePart?: string): boolean {
@@ -576,4 +660,82 @@ export async function promptTargetSuite(
     }
 
     return askSelect('Selecciona la suite de destino (-target):', choices);
+}
+
+/**
+ * Matches a testrun resource in state against any selector from the selector matrix:
+ * 1. Tag (@tr-1)
+ * 2. Bare tag (tr-1)
+ * 3. Canonical address (tests/runs/20261024.run.feature.@tr-1)
+ * 4. File-tag (20261024.run.feature.@tr-1)
+ * 5. Slug-tag (20261024.@tr-1)
+ * 6. Title / Name (e.g. "Regresión Sprint 1")
+ * 7. File path (tests/runs/20261024.run.feature)
+ * 8. Basename (20261024.run.feature)
+ * 9. Slug (20261024)
+ */
+export function matchesTestrunSelector(resource: any, selector: string): boolean {
+    if (!resource || !selector) return false;
+    const normSel = selector.trim().replace(/\\/g, '/');
+    const lowerSel = normSel.toLowerCase();
+    const normId = (resource.identity || '').replace(/\\/g, '/');
+    const lowerId = normId.toLowerCase();
+
+    // 1. Exact match on full identity
+    if (lowerId === lowerSel) return true;
+
+    // Extract parts from resource identity
+    const lastDot = normId.lastIndexOf('.');
+    const idPath = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+    const idTag = lastDot !== -1 ? normId.slice(lastDot + 1).toLowerCase() : '';
+    const cleanIdTag = idTag.replace(/^@/, '');
+    const idBaseName = basename(idPath).toLowerCase();
+    const idSlug = idBaseName.replace(/(\.(run|case|plan|bug))?\.feature$/i, '');
+
+    // 2. Tag with @ or bare tag (e.g. "@tr-1" or "tr-1")
+    const tagMatch = normSel.match(/^@?(tr-\d+)$/i);
+    if (tagMatch) {
+        const cleanSelTag = tagMatch[1].toLowerCase();
+        if (cleanIdTag === cleanSelTag) return true;
+        const resTags: string[] = (resource.attributes?.tags || []).map((t: any) =>
+            typeof t === 'string' ? t.replace(/^@/, '').toLowerCase() : (t?.name || '').replace(/^@/, '').toLowerCase()
+        );
+        if (resTags.includes(cleanSelTag)) return true;
+    }
+
+    // 3. Title / Name match (case-insensitive)
+    const title = (resource.attributes?.title || '').trim().toLowerCase();
+    if (title && title === lowerSel) return true;
+
+    // 4. File-tag (e.g. "20261024.run.feature.@tr-1" or "20261024.run.feature.tr-1")
+    const fileTagMatch = normSel.match(/^([a-zA-Z0-9_.-]+\.feature)\.@?(tr-\d+)$/i);
+    if (fileTagMatch) {
+        const filePart = fileTagMatch[1].toLowerCase();
+        const tagPart = fileTagMatch[2].toLowerCase();
+        if (idBaseName === filePart && cleanIdTag === tagPart) return true;
+    }
+
+    // 5. Slug-tag (e.g. "20261024.@tr-1" or "20261024.tr-1")
+    const slugTagMatch = normSel.match(/^([a-zA-Z0-9_-]+)\.@?(tr-\d+)$/i);
+    if (slugTagMatch && !slugTagMatch[1].includes('.')) {
+        const slugPart = slugTagMatch[1].toLowerCase();
+        const tagPart = slugTagMatch[2].toLowerCase();
+        if (idSlug === slugPart && cleanIdTag === tagPart) return true;
+    }
+
+    // 6. Path / Basename / Slug matches (without tag)
+    const lowerIdPath = idPath.toLowerCase();
+    if (
+        lowerIdPath === lowerSel ||
+        lowerIdPath.endsWith(`/${lowerSel}`) ||
+        lowerIdPath.endsWith(`/${lowerSel}.run.feature`) ||
+        lowerIdPath.endsWith(`/${lowerSel}.feature`) ||
+        idBaseName === lowerSel ||
+        idBaseName.replace(/(\.(run|case|plan|bug))?\.feature$/i, '') === lowerSel ||
+        idSlug === lowerSel
+    ) {
+        return true;
+    }
+
+    return false;
 }

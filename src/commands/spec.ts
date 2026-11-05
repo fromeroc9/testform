@@ -11,7 +11,7 @@ import { findNextIdentity, GherkinEditor } from '../core/editor';
 import { VariableParser } from '../core/variables';
 import { matchesScope, matchesFeatureFile, promptTargetSuite } from '../core/selector';
 import { HELP_SPEC, HELP_SPEC_TESTCASE, HELP_SPEC_TESTRUN, HELP_SPEC_TESTPLAN, HELP_SPEC_BUG } from '../core/help';
-import { runAutocomplete, runTagsSuite, parsePatternFilter, matchesScenarioFilter } from './suite';
+import { runAutocomplete, runTagsSuite, parsePatternFilter, matchesScenarioFilter } from './spec-builder';
 import { isInteractive } from '../core/prompt';
 
 export interface SpecCmdOptions {
@@ -119,12 +119,14 @@ function matchesScenarioInText(line: string, targetCase: string): boolean {
     const cleanCase = targetCase.trim();
     if (scenarioName.toLowerCase() === cleanCase.toLowerCase()) return true;
 
-    const tagMatch = cleanCase.match(/@tc-\d+/i) || cleanCase.match(/@tr-\d+/i) || cleanCase.match(/@tp-\d+/i) || cleanCase.match(/@bg-\d+/i);
+    const tagMatch = cleanCase.match(/@?(?:tc|tr|tp|bg)-\d+/i);
     if (tagMatch) {
-        const tag = tagMatch[0].toLowerCase();
+        const rawTag = tagMatch[0].toLowerCase();
+        const tag = rawTag.startsWith('@') ? rawTag : `@${rawTag}`;
+        const noAt = tag.replace(/^@/, '');
+
         const tagRegex = new RegExp(`(?:^|[\\s./])${tag}(?:[\\s.]|$)`, 'i');
         if (tagRegex.test(scenarioName)) return true;
-        const noAt = tag.replace(/^@/, '');
         const noAtRegex = new RegExp(`(?:^|[\\s./])${noAt}(?:[\\s.]|$)`, 'i');
         if (noAtRegex.test(scenarioName)) return true;
     }

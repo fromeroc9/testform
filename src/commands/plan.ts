@@ -316,7 +316,7 @@ interface PlanCmdOptions {
     parallelism?: string | number;
     compactWarnings?: boolean;
     testDirectory?: string;
-    feature?: boolean;
+    gherkin?: boolean;
 }
 
 export const planCmd = async (options: PlanCmdOptions) => {
@@ -340,7 +340,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
         parallelism,
         compactWarnings = false,
         testDirectory,
-        feature = false
+        gherkin = false
     } = options;
     const logger = new Logger(verbose);
 
@@ -422,7 +422,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
             };
             console.log(JSON.stringify(planData, null, 2));
         } else {
-            resource.summary(plan.changes, true, { state: plan.state, outPath, feature });
+            resource.summary(plan.changes, true, { state: plan.state, outPath, gherkin });
         }
     } finally {
         await stateObj.releaseLock();

@@ -7,6 +7,7 @@
 
 import { TestcaseParser } from './testcase-parser';
 import { ITest, IScope, ParserScenario } from '../core/types';
+import { normalizeScenarioAddress } from '../core/selector';
 
 export class TestrunParser extends TestcaseParser {
     public filter(scenarios: ParserScenario[], test: ITest, scope?: IScope): ParserScenario[] {
@@ -32,10 +33,10 @@ export class TestrunParser extends TestcaseParser {
             }
 
             // Extract all testcases belonging to this run
-            // Format: "RuleName.ScenarioName" or direct canonical address "e.name"
+            // Format: "RuleName.ScenarioName", direct canonical address, or scoped selector
             aggregated.custom.testcases = groupScenarios
                 .filter(e => Boolean(e.name))
-                .map(e => (e.rule && e.name) ? `${e.rule.name}.${e.name}` : e.name);
+                .map(e => normalizeScenarioAddress(e.rule?.name, e.name));
 
             // Also keep the raw group scenarios so we can extract their status fields later
             aggregated.custom.groupScenarios = groupScenarios;

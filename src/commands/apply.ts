@@ -35,7 +35,7 @@ interface ApplyCmdOptions {
     parallelism?: string | number;
     compactWarnings?: boolean;
     testDirectory?: string;
-    feature?: boolean;
+    gherkin?: boolean;
 }
 
 export const applyCmd = async (options: ApplyCmdOptions) => {
@@ -57,7 +57,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         parallelism,
         compactWarnings,
         testDirectory,
-        feature = false
+        gherkin = false
     } = options;
     const logger = new Logger(verbose);
     const stateObj = new State(dir, statePath, backupPath);
@@ -119,7 +119,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             plan = { changes: allChanges, hasChanges: allChanges.length > 0, state: finalState };
 
             // Show plan summary
-            resource.summary(plan.changes, false, { state: plan.state, feature });
+            resource.summary(plan.changes, false, { state: plan.state, gherkin });
 
             if (!plan.hasChanges) {
                 await stateObj.save();

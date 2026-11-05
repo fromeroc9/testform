@@ -1,4 +1,5 @@
 import { basename } from 'path';
+import { matchesTestrunSelector } from '../../core/selector';
 
 export interface GitHubCommentResult {
     identity: string;
@@ -53,11 +54,20 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
         const tagMatch = tc.match(/@?(tc-[a-zA-Z0-9_-]+)/i);
         const tag = tagMatch ? tagMatch[1].toLowerCase() : null;
 
-        const parts = tc.split('.');
-        const scenarioName = parts.pop() || '';
-        const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
         const normTc = tc.replace(/\\/g, '/');
-        const ruleName = parts.join('.');
+        let ruleName = '';
+        let scenarioName = '';
+        const featIdx = normTc.indexOf('.feature.');
+        if (featIdx !== -1) {
+            ruleName = normTc.slice(0, featIdx + 8);
+            scenarioName = normTc.slice(featIdx + 9);
+        } else {
+            const parts = normTc.split('.');
+            scenarioName = parts.pop() || '';
+            ruleName = parts.join('.');
+        }
+
+        const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
         const baseRule = ruleName.replace(/\.[a-zA-Z0-9_-]+\.feature$/i, '').replace(/\.feature$/i, '').replace(/\\/g, '/');
         const ruleBaseName = basename(baseRule);
 
@@ -65,8 +75,8 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
             const normId = (r.identity || '').replace(/\\/g, '/');
             const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
 
-            // Must match rule / file path
-            const matchesRule = normId.includes(baseRule) || normId.includes(ruleBaseName);
+            // Must match rule / file path (or scope directory)
+            const matchesRule = !baseRule || normId.includes(baseRule) || normId.includes(ruleBaseName);
             if (!matchesRule) return false;
 
             // Match by scenario name, tag or wildcard
@@ -176,15 +186,7 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
             const trFileName = basename(trBase);
 
             const runResources = state.getResources('github_testrun').filter((r: any) => {
-                const normId = (r.identity || '').replace(/\\/g, '/');
-                const lastDot = normId.lastIndexOf('.');
-                const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-
-                return base.endsWith(normTr) ||
-                       normId.endsWith(normTr) ||
-                       base.endsWith(trFileName) ||
-                       normId.endsWith(trFileName) ||
-                       base === normTr;
+                return matchesTestrunSelector(r, normTr);
             });
 
             const distinctFiles = new Set(runResources.map((r: any) => {

@@ -80,6 +80,7 @@ export class GherkinEditor {
         let expectedIndent = 0;
         let inDocString = false;
         let docStringIndent = 0;
+        let inRule = false;
 
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
@@ -88,7 +89,7 @@ export class GherkinEditor {
             if (line.trim().startsWith('"""') || line.trim().startsWith('```')) {
                 if (!inDocString) {
                     inDocString = true;
-                    docStringIndent = 6;
+                    docStringIndent = inRule ? 8 : 6;
                     output.push(' '.repeat(docStringIndent) + line.trim());
                 } else {
                     inDocString = false;
@@ -111,31 +112,74 @@ export class GherkinEditor {
                 continue;
             }
 
-            // Determine indentation based on keyword
-            if (trimmed.startsWith('Feature:')) {
+            // Determine indentation based on keyword (English and Spanish)
+            if (trimmed.startsWith('Feature:') || trimmed.startsWith('Característica:')) {
                 expectedIndent = 0;
-            } else if (trimmed.startsWith('Rule:') || trimmed.startsWith('Background:') || trimmed.startsWith('Scenario:') || trimmed.startsWith('Scenario Outline:') || trimmed.startsWith('Example:')) {
+                inRule = false;
+            } else if (trimmed.startsWith('Rule:') || trimmed.startsWith('Regla:')) {
                 expectedIndent = 2;
+                inRule = true;
                 if (output.length > 0 && output[output.length - 1] !== '' && !output[output.length - 1].trim().startsWith('@')) {
                     output.push('');
                 }
-            } else if (trimmed.startsWith('Given ') || trimmed.startsWith('When ') || trimmed.startsWith('Then ') || trimmed.startsWith('And ') || trimmed.startsWith('But ') || trimmed.startsWith('* ')) {
-                expectedIndent = 4;
-            } else if (trimmed.startsWith('Examples:')) {
-                expectedIndent = 4;
+            } else if (
+                trimmed.startsWith('Background:') ||
+                trimmed.startsWith('Antecedentes:') ||
+                trimmed.startsWith('Scenario:') ||
+                trimmed.startsWith('Escenario:') ||
+                trimmed.startsWith('Scenario Outline:') ||
+                trimmed.startsWith('Esquema del escenario:') ||
+                trimmed.startsWith('Example:') ||
+                trimmed.startsWith('Ejemplo:')
+            ) {
+                expectedIndent = inRule ? 4 : 2;
+                if (output.length > 0 && output[output.length - 1] !== '' && !output[output.length - 1].trim().startsWith('@')) {
+                    output.push('');
+                }
+            } else if (
+                trimmed.startsWith('Given ') ||
+                trimmed.startsWith('Dado ') ||
+                trimmed.startsWith('When ') ||
+                trimmed.startsWith('Cuando ') ||
+                trimmed.startsWith('Then ') ||
+                trimmed.startsWith('Entonces ') ||
+                trimmed.startsWith('And ') ||
+                trimmed.startsWith('Y ') ||
+                trimmed.startsWith('But ') ||
+                trimmed.startsWith('Pero ') ||
+                trimmed.startsWith('* ')
+            ) {
+                expectedIndent = inRule ? 6 : 4;
+            } else if (trimmed.startsWith('Examples:') || trimmed.startsWith('Ejemplos:')) {
+                expectedIndent = inRule ? 6 : 4;
                 if (output.length > 0 && output[output.length - 1] !== '') {
                     output.push('');
                 }
             } else if (trimmed.startsWith('|')) {
-                expectedIndent = 6;
+                expectedIndent = inRule ? 8 : 6;
             } else if (trimmed.startsWith('@')) {
-                let nextIndent = 0;
+                let nextIndent = inRule ? 4 : 2;
                 for (let j = i + 1; j < lines.length; j++) {
                     let nextTrimmed = lines[j].trim();
                     if (nextTrimmed === '' || nextTrimmed.startsWith('@')) continue;
-                    if (nextTrimmed.startsWith('Feature:')) nextIndent = 0;
-                    else if (nextTrimmed.startsWith('Rule:') || nextTrimmed.startsWith('Background:') || nextTrimmed.startsWith('Scenario:') || nextTrimmed.startsWith('Scenario Outline:')) nextIndent = 2;
-                    else if (nextTrimmed.startsWith('Examples:')) nextIndent = 4;
+                    if (nextTrimmed.startsWith('Feature:') || nextTrimmed.startsWith('Característica:')) {
+                        nextIndent = 0;
+                    } else if (nextTrimmed.startsWith('Rule:') || nextTrimmed.startsWith('Regla:')) {
+                        nextIndent = 2;
+                    } else if (
+                        nextTrimmed.startsWith('Background:') ||
+                        nextTrimmed.startsWith('Antecedentes:') ||
+                        nextTrimmed.startsWith('Scenario:') ||
+                        nextTrimmed.startsWith('Escenario:') ||
+                        nextTrimmed.startsWith('Scenario Outline:') ||
+                        nextTrimmed.startsWith('Esquema del escenario:') ||
+                        nextTrimmed.startsWith('Example:') ||
+                        nextTrimmed.startsWith('Ejemplo:')
+                    ) {
+                        nextIndent = inRule ? 4 : 2;
+                    } else if (nextTrimmed.startsWith('Examples:') || nextTrimmed.startsWith('Ejemplos:')) {
+                        nextIndent = inRule ? 6 : 4;
+                    }
                     break;
                 }
                 expectedIndent = nextIndent;
@@ -146,7 +190,7 @@ export class GherkinEditor {
             } else if (trimmed.startsWith('#')) {
                 // Comments preserve expected indent
             } else {
-                if (expectedIndent === 0) expectedIndent = 2;
+                if (expectedIndent === 0) expectedIndent = inRule ? 4 : 2;
             }
 
             output.push(' '.repeat(expectedIndent) + trimmed);
@@ -260,6 +304,39 @@ export class GherkinEditor {
     }
 
     /**
+     * Checks if a scenario element name matches the target scenario identifier.
+     * Supports all selector types:
+     * - Tag with @ (@tc-01)
+     * - Bare tag without @ (tc-01)
+     * - File-tag (bill_pay.case.feature.@tc-01)
+     * - Slug-tag (bill_pay.@tc-01)
+     * - Canonical address (path/to/file.case.feature.@tc-01)
+     * - Title / Name
+     */
+    public static matchesScenarioElement(elemName: string, targetName: string): boolean {
+        const cleanElem = elemName.trim().toLowerCase();
+        const cleanTarget = targetName.trim().toLowerCase();
+        if (cleanElem === cleanTarget) return true;
+        if (cleanElem.replace(/^@/, '') === cleanTarget.replace(/^@/, '')) return true;
+
+        // Check if both end with the same identity tag
+        const elemTagMatch = cleanElem.match(/@?([a-z0-9_-]+)$/i);
+        const targetTagMatch = cleanTarget.match(/@?([a-z0-9_-]+)$/i);
+        if (elemTagMatch && targetTagMatch) {
+            const eTag = elemTagMatch[1].replace(/^@/, '');
+            const tTag = targetTagMatch[1].replace(/^@/, '');
+            if (/^(?:tc|tr|tp|bg)-\d+$/i.test(eTag) && /^(?:tc|tr|tp|bg)-\d+$/i.test(tTag) && eTag === tTag) {
+                return true;
+            }
+        }
+
+        if (cleanElem.endsWith(`.${cleanTarget}`) || cleanElem.endsWith(`.${cleanTarget.replace(/^@/, '')}`)) return true;
+        if (cleanTarget.endsWith(`.${cleanElem}`) || cleanTarget.endsWith(`.${cleanElem.replace(/^@/, '')}`)) return true;
+
+        return false;
+    }
+
+    /**
      * Expands or updates a single scenario's status inside a .feature file.
      */
     public static updateScenarioStatus(filePath: string, baseRule: string, scenarioName: string, newStatus: string) {
@@ -278,12 +355,7 @@ export class GherkinEditor {
         // Find existing scenario
         for (const element of rule.elements) {
             if (element instanceof Scenario) {
-                if (
-                    element.name === scenarioName ||
-                    element.name.replace(/^@/, '') === scenarioName.replace(/^@/, '') ||
-                    element.name.endsWith(`.${scenarioName}`) ||
-                    element.name.endsWith(`.${scenarioName.replace(/^@/, '')}`)
-                ) {
+                if (this.matchesScenarioElement(element.name, scenarioName)) {
                     targetScenario = element;
                     break;
                 }
@@ -341,10 +413,7 @@ export class GherkinEditor {
             let targetScenario: Scenario | undefined;
             for (const element of rule.elements) {
                 if (element instanceof Scenario) {
-                    if (
-                        element.name === scenarioName ||
-                        element.name.replace(/^@/, '') === scenarioName.replace(/^@/, '')
-                    ) {
+                    if (this.matchesScenarioElement(element.name, scenarioName)) {
                         targetScenario = element;
                         break;
                     }
@@ -405,7 +474,7 @@ export class GherkinEditor {
             const rule = this.findRule(document.feature, ruleName);
             if (rule) {
                 let scenarioExists = rule.elements.some(element =>
-                    element instanceof Scenario && element.name === scenarioName
+                    element instanceof Scenario && this.matchesScenarioElement(element.name, scenarioName)
                 );
 
                 if (!scenarioExists) {

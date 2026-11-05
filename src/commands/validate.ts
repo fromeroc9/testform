@@ -272,12 +272,31 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
             diagnostics: []
         }, null, 2));
     } else {
+        const uniqueFiles = new Set(allFiltered.map((s: any) => s.uri)).size;
         logger.success('Success! The configuration is valid.', { bold: true });
         logger.blank();
-        logger.info(`  Scenarios: ${totalScenarios}`);
+        logger.info(`  Scenarios: ${totalScenarios} total across ${uniqueFiles} specification file${uniqueFiles === 1 ? '' : 's'}`);
+        for (const [sc, count] of Object.entries(scopeCounts)) {
+            if (count > 0) {
+                const label = `${sc}:`.padEnd(12);
+                logger.info(`    • ${label} ${count}`);
+            }
+        }
+
+        logger.blank();
+        logger.info(`  Configuration Details:`);
+        logger.info(`    Provider:        ${providerType || 'local'}`);
+        logger.info(`    Test Directory:  ${testDirectory || '.'}`);
         if (effectiveTarget) {
             const targetStr = Array.isArray(effectiveTarget) ? effectiveTarget.join(', ') : effectiveTarget;
-            logger.info(`  Target:    ${targetStr}`);
+            logger.info(`    Target Filter:   ${targetStr}`);
+        }
+        if (variables) {
+            const rawVars = variables.getVars ? variables.getVars() : {};
+            const varCount = Object.keys(rawVars).length;
+            if (varCount > 0) {
+                logger.info(`    Variables:       ${varCount} defined`);
+            }
         }
     }
 };

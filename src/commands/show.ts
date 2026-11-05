@@ -13,7 +13,7 @@ interface ShowCmdOptions {
     dir?: string;
     statePath?: string;
     backupPath?: string;
-    feature?: boolean;
+    gherkin?: boolean;
 }
 
 export const showCmd = async (options: ShowCmdOptions = {}) => {
@@ -24,7 +24,7 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
         dir = '.',
         statePath,
         backupPath,
-        feature = false
+        gherkin = false
     } = options;
     const logger = new Logger(verbose);
 
@@ -51,7 +51,7 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
                 } catch {
                     // ignore state init errors when displaying plan
                 }
-                resource.summary(changes, true, { state, feature });
+                resource.summary(changes, true, { state, gherkin });
                 return;
             }
         } catch (err: any) {

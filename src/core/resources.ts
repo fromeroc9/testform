@@ -10,6 +10,7 @@ import {
 } from '../core/types';
 import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
 import { arraysEqual } from '../core/sync';
+import { normalizeScenarioAddress, matchesTestrunSelector } from '../core/selector';
 import { buildGitHubTestplanBody, buildGitHubTestrunBody, buildGitHubBugBody } from '../providers/github/templates';
 
 function deriveFieldsFromTemplate(template: ResourceTemplate): ResourceField[] {
@@ -696,7 +697,7 @@ class Resource {
                 output.push(`  # (because ${address} is not in configuration)`);
             }
 
-            if (context?.feature) {
+            if (context?.gherkin) {
                 output.push(this.formatFeature(change, context));
             } else {
                 output.push(this.format(change, context));
@@ -754,11 +755,8 @@ function extractTestcaseStatusMap(s: any): Record<string, string> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, string> = {};
     for (const gs of groupScenarios) {
-        if (gs.rule?.name && gs.name) {
-            const key = `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/');
-            map[key] = gs.custom?.fields?.status || 'pending';
-        } else if (gs.name) {
-            const key = gs.name.replace(/\\/g, '/');
+        if (gs.name) {
+            const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             map[key] = gs.custom?.fields?.status || 'pending';
         }
     }
@@ -770,8 +768,8 @@ function extractTestcaseTraceMap(s: any): Record<string, string> {
     const map: Record<string, string> = {};
     for (const gs of groupScenarios) {
         const trace = gs.custom?.fields?.trace || gs.custom?.fields?.error;
-        if (trace) {
-            const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
+        if (trace && gs.name) {
+            const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             if (key) map[key] = trace;
         }
     }
@@ -783,8 +781,8 @@ function extractTestcaseEvidenceMap(s: any): Record<string, any> {
     const map: Record<string, any> = {};
     for (const gs of groupScenarios) {
         const ev = gs.custom?.fields?.evidence;
-        if (ev) {
-            const key = (gs.rule?.name && gs.name) ? `${gs.rule.name}.${gs.name}`.replace(/\\/g, '/') : (gs.name || '').replace(/\\/g, '/');
+        if (ev && gs.name) {
+            const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             if (key) map[key] = Array.isArray(ev) ? ev : [ev];
         }
     }
@@ -796,17 +794,9 @@ function calculatePlanRollup(s: any, context?: any): string {
     const state = context?.state;
     if (!state || trList.length === 0) return 'pending';
     const statuses: string[] = [];
+    const runResources = state.getResources('github_testrun');
     for (const tr of trList) {
-        const normTr = String(tr).replace(/\\/g, '/');
-        const trExt = context?.config?.getScopeExtension?.('testrun') || '.run.feature';
-        const trBase = normTr.endsWith('.feature') ? normTr : (normTr.endsWith(trExt) ? normTr : normTr + trExt);
-        const trFileName = basename(trBase);
-        const found = state.getResources('github_testrun').find((r: any) => {
-            const normId = (r.identity || '').replace(/\\/g, '/');
-            const lastDot = normId.lastIndexOf('.');
-            const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-            return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
-        });
+        const found = runResources.find((r: any) => matchesTestrunSelector(r, String(tr)));
         statuses.push(found?.attributes?.status || 'pending');
     }
     return calculateRollupVerdict(statuses);
@@ -816,19 +806,12 @@ function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
     const trList = s.custom?.testruns || [];
     const map: Record<string, string> = {};
     const state = context?.state;
+    const runResources = state ? state.getResources('github_testrun') : [];
     for (const tr of trList) {
         const normTr = String(tr).replace(/\\/g, '/');
         let status = 'pending';
         if (state) {
-            const trExt = context?.config?.getScopeExtension?.('testrun') || '.run.feature';
-            const trBase = normTr.endsWith('.feature') ? normTr : (normTr.endsWith(trExt) ? normTr : normTr + trExt);
-            const trFileName = basename(trBase);
-            const found = state.getResources('github_testrun').find((r: any) => {
-                const normId = (r.identity || '').replace(/\\/g, '/');
-                const lastDot = normId.lastIndexOf('.');
-                const base = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-                return base.endsWith(normTr) || normId.endsWith(normTr) || base.endsWith(trFileName) || base === normTr;
-            });
+            const found = runResources.find((r: any) => matchesTestrunSelector(r, normTr));
             if (found?.attributes?.status) {
                 status = found.attributes.status;
             }

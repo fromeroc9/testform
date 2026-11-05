@@ -4,7 +4,8 @@ import { IScope, ParserScenario } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { DependencyResolver } from '../core/dependencies';
 import { normalizeAddress, addressesMatch } from '../core/utils';
-import { matchesScope } from '../core/selector';
+import { matchesScope, matchesTestrunSelector, matchesTarget } from '../core/selector';
+import { basename } from 'path';
 
 export interface GraphCmdOptions {
     dir?: string;
@@ -30,6 +31,43 @@ interface GraphEdge {
     label?: string;
 }
 
+interface TcItem {
+    id: string;
+    name: string;
+    uri: string;
+    tags: string[];
+    identityTag?: string;
+    scenario: ParserScenario;
+    linkedToRun?: boolean;
+}
+
+interface RunSpec {
+    ruleName?: string;
+    scenarioName?: string;
+    tags?: string[];
+}
+
+interface RunItem {
+    id: string;
+    name: string;
+    uri: string;
+    tags: string[];
+    identityTag?: string;
+    specs: RunSpec[];
+    matchedTestcases: TcItem[];
+    linkedToPlan?: boolean;
+}
+
+interface PlanItem {
+    id: string;
+    name: string;
+    uri: string;
+    tags: string[];
+    identityTag?: string;
+    testrunSelectors: string[];
+    matchedTestruns: RunItem[];
+}
+
 function escapeDot(str: string): string {
     return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
@@ -49,7 +87,7 @@ function findCycleEdges(edges: Array<{ from: string; to: string }>): Set<string>
         adj.get(e.from)!.push(e.to);
     }
 
-    const visited = new Map<string, number>(); // 0: unvisited, 1: visiting (in stack), 2: finished
+    const visited = new Map<string, number>(); // 0: unvisited, 1: visiting, 2: finished
     const cycleEdges = new Set<string>();
 
     function dfs(u: string, path: string[]) {
@@ -59,9 +97,7 @@ function findCycleEdges(edges: Array<{ from: string; to: string }>): Set<string>
         for (const v of adj.get(u) || []) {
             const state = visited.get(v) || 0;
             if (state === 1) {
-                // Back-edge found! u -> v forms a cycle
                 cycleEdges.add(`${u}->${v}`);
-                // All edges on the path from v to u are also part of the cycle
                 const idx = path.indexOf(v);
                 if (idx !== -1) {
                     for (let i = idx; i < path.length - 1; i++) {
@@ -100,94 +136,218 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
     const scenarios = parser.content();
     const depResolver = new DependencyResolver(dir);
 
-    const testcases = scenarios.filter(s => matchesScope(s, 'testcase'));
+    // 1. Separate by scope
+    const testcasesAll = scenarios.filter(s => matchesScope(s, 'testcase'));
     const testrunsAll = scenarios.filter(s => matchesScope(s, 'testrun'));
     const testplansAll = scenarios.filter(s => matchesScope(s, 'testplan'));
 
-    // Group testplans by URI
-    const testplansMap = new Map<string, { name: string, testruns: string[] }>();
-    for (const p of testplansAll) {
-        if (!testplansMap.has(p.uri)) {
-            testplansMap.set(p.uri, { name: p.feature?.name || 'Unnamed Plan', testruns: [] });
-        }
-        if (p.rule?.name) testplansMap.get(p.uri)!.testruns.push(p.rule.name);
-    }
-    const testplans = Array.from(testplansMap.values());
-
-    // Group testruns by URI
-    const testrunsMap = new Map<string, { name: string, testcases: string[], identity: string, uri: string }>();
-    for (const r of testrunsAll) {
-        if (!testrunsMap.has(r.uri)) {
-            testrunsMap.set(r.uri, { name: r.feature?.name || 'Unnamed Run', testcases: [], identity: r.custom?.identity || r.feature?.name || '', uri: r.uri });
-        }
-        if (r.rule?.name) testrunsMap.get(r.uri)!.testcases.push(r.rule.name);
-        else if (r.name) testrunsMap.get(r.uri)!.testcases.push(`${r.feature?.name}.${r.name}`);
-    }
-    const testruns = Array.from(testrunsMap.values());
-
-    if (testplans.length === 0 && testruns.length === 0 && testcases.length === 0) {
+    if (testplansAll.length === 0 && testrunsAll.length === 0 && testcasesAll.length === 0) {
         console.log('No test configurations found.');
         return;
     }
 
-    function findTcs(tcId: string) {
-        let scenarioName = '*';
-        let ruleName = tcId;
-        if (tcId.includes('.feature.')) {
-            const idx = tcId.indexOf('.feature.');
-            ruleName = tcId.substring(0, idx + 8);
-            scenarioName = tcId.substring(idx + 9);
-        } else if (tcId.endsWith('.feature')) {
-            ruleName = tcId;
-            scenarioName = '*';
-        } else if (tcId.includes('.')) {
-            const parts = tcId.split('.');
-            scenarioName = parts.pop() || '*';
-            ruleName = parts.join('.');
-        }
-        const matches = testcases.filter(r => {
-            const matchesFile = !ruleName || r.uri.endsWith(ruleName) || r.uri.includes(ruleName);
-            const matchesScenario = scenarioName === '*' || r.name === scenarioName || r.name.includes(scenarioName) || r.custom?.identity === scenarioName;
-            return matchesFile && matchesScenario;
-        });
+    // 2. Build structured Testcases
+    const testcaseItems: TcItem[] = testcasesAll.map(s => {
+        const rawTags = ((s.tags || []) as any[]).map(t => typeof t === 'string' ? t : (t?.name || ''));
+        const featureTags = ((s.feature?.tags || []) as any[]).map(t => typeof t === 'string' ? t : (t?.name || ''));
+        const allTags = Array.from(new Set([...rawTags, ...featureTags]));
+        const idTag = s.custom?.identity || allTags.find(t => /^@?tc-\d+$/i.test(t));
 
-        // Detect duplicates
-        const uris = Array.from(new Set(matches.map(tc => tc.uri)));
-        if (uris.length > 1) {
-            if (scenarioName !== '*') {
-                const { logger } = require('../core/logger');
-                logger.error(`Ambiguous reference for Scenario '${scenarioName}' under Rule '${ruleName}'. It matches multiple files:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nPlease specify the full file path in your Rule to disambiguate.`);
-            } else {
-                const { logger } = require('../core/logger');
-                logger.warn(`Rule '${ruleName}' matches multiple feature files. Processing all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
-            }
-        }
-        return matches;
+        return {
+            id: `testcase.${s.name}`,
+            name: s.name,
+            uri: s.uri,
+            tags: allTags,
+            identityTag: idTag,
+            scenario: s,
+            linkedToRun: false
+        };
+    });
+
+    // 3. Build structured Testruns (grouped by file URI)
+    const runGroups = new Map<string, ParserScenario[]>();
+    for (const r of testrunsAll) {
+        if (!runGroups.has(r.uri)) runGroups.set(r.uri, []);
+        runGroups.get(r.uri)!.push(r);
     }
 
-    function findMatchingTcNode(dep: string): string {
-        const norm = normalizeAddress(dep);
-        for (const tc of testcases) {
-            const tcKey = tc.custom?.identity || `${tc.uri}.${tc.name}`;
-            const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
-            const tagAddresses = tcTags.map(t => normalizeAddress(`${tc.uri}.${t}`));
-
-            if (
-                addressesMatch(tcKey, dep) ||
-                addressesMatch(tc.name, dep) ||
-                addressesMatch(tc.uri, dep) ||
-                tagAddresses.some(ta => addressesMatch(ta, dep)) ||
-                norm.endsWith(normalizeAddress(tc.name)) ||
-                norm.endsWith(normalizeAddress(tcKey))
-            ) {
-                return `testcase.${tc.name}`;
+    const testrunItems: RunItem[] = Array.from(runGroups.entries()).map(([uri, group]) => {
+        const first = group[0];
+        const runName = first.feature?.name || basename(uri).replace(/(\.(run|case|plan))?\.feature$/i, '');
+        const allTags: string[] = [];
+        for (const s of group) {
+            for (const t of ((s.tags || []) as any[])) {
+                allTags.push(typeof t === 'string' ? t : (t?.name || ''));
+            }
+            for (const t of ((s.feature?.tags || []) as any[])) {
+                allTags.push(typeof t === 'string' ? t : (t?.name || ''));
             }
         }
-        return `testcase.${dep}`;
+        const uniqueTags = Array.from(new Set(allTags));
+        const idTag = first.custom?.identity || uniqueTags.find(t => /^@?tr-\d+$/i.test(t));
+
+        const specs: RunSpec[] = group.map(s => ({
+            ruleName: s.rule?.name,
+            scenarioName: s.name,
+            tags: ((s.tags || []) as any[]).map(t => typeof t === 'string' ? t : (t?.name || ''))
+        }));
+
+        return {
+            id: `testrun.${runName}`,
+            name: runName,
+            uri,
+            tags: uniqueTags,
+            identityTag: idTag,
+            specs,
+            matchedTestcases: [],
+            linkedToPlan: false
+        };
+    });
+
+    // 4. Build structured Testplans (grouped by file URI)
+    const planGroups = new Map<string, ParserScenario[]>();
+    for (const p of testplansAll) {
+        if (!planGroups.has(p.uri)) planGroups.set(p.uri, []);
+        planGroups.get(p.uri)!.push(p);
     }
 
+    const testplanItems: PlanItem[] = Array.from(planGroups.entries()).map(([uri, group]) => {
+        const first = group[0];
+        const planName = first.feature?.name || basename(uri).replace(/(\.(run|case|plan))?\.feature$/i, '');
+        const allTags: string[] = [];
+        for (const s of group) {
+            for (const t of ((s.tags || []) as any[])) {
+                allTags.push(typeof t === 'string' ? t : (t?.name || ''));
+            }
+            for (const t of ((s.feature?.tags || []) as any[])) {
+                allTags.push(typeof t === 'string' ? t : (t?.name || ''));
+            }
+        }
+        const uniqueTags = Array.from(new Set(allTags));
+        const idTag = first.custom?.identity || uniqueTags.find(t => /^@?tp-\d+$/i.test(t));
+
+        const trSelectors = new Set<string>();
+        for (const s of group) {
+            if (s.rule?.name) trSelectors.add(s.rule.name);
+            if (s.name && s.name !== '*') trSelectors.add(s.name);
+        }
+
+        return {
+            id: `testplan.${planName}`,
+            name: planName,
+            uri,
+            tags: uniqueTags,
+            identityTag: idTag,
+            testrunSelectors: Array.from(trSelectors),
+            matchedTestruns: []
+        };
+    });
+
+    // ─── Match Testruns -> Testcases ─────────────────────────────────────────
+    for (const run of testrunItems) {
+        const matched = new Set<TcItem>();
+
+        for (const spec of run.specs) {
+            const ruleName = spec.ruleName?.trim();
+            const scName = spec.scenarioName?.trim();
+
+            if (ruleName) {
+                // Filter testcases by rule (feature file or directory)
+                const normRule = ruleName.replace(/\\/g, '/').toLowerCase();
+                const candidates = testcaseItems.filter(tc => {
+                    const normUri = tc.uri.replace(/\\/g, '/').toLowerCase();
+                    const baseUri = basename(normUri);
+                    const baseRule = basename(normRule);
+                    return (
+                        normUri.endsWith(`/${normRule}`) ||
+                        normUri.endsWith(normRule) ||
+                        normUri.includes(normRule) ||
+                        baseUri === baseRule ||
+                        baseUri.replace(/(\.case)?\.feature$/i, '') === baseRule.replace(/(\.case)?\.feature$/i, '')
+                    );
+                });
+
+                if (!scName || scName === '*') {
+                    for (const c of candidates) matched.add(c);
+                } else {
+                    const lowerSc = scName.toLowerCase();
+                    const cleanScTag = lowerSc.replace(/^@/, '');
+                    for (const c of candidates) {
+                        const lowerName = c.name.toLowerCase();
+                        const cTag = (c.identityTag || '').toLowerCase().replace(/^@/, '');
+                        const tags = c.tags.map(t => t.toLowerCase().replace(/^@/, ''));
+                        const cTarget = c.identityTag ? `${c.uri}.${c.identityTag}` : `${c.uri}.${c.name}`;
+                        if (
+                            lowerName === lowerSc ||
+                            lowerName.includes(lowerSc) ||
+                            cTag === cleanScTag ||
+                            tags.includes(cleanScTag) ||
+                            matchesTarget(cTarget, scName, 'testcase') ||
+                            matchesTarget(c.uri, scName, 'testcase')
+                        ) {
+                            matched.add(c);
+                        }
+                    }
+                }
+            } else if (scName && scName !== '*') {
+                const lowerSc = scName.toLowerCase();
+                const cleanScTag = lowerSc.replace(/^@/, '');
+                for (const tc of testcaseItems) {
+                    const lowerName = tc.name.toLowerCase();
+                    const cTag = (tc.identityTag || '').toLowerCase().replace(/^@/, '');
+                    const tags = tc.tags.map(t => t.toLowerCase().replace(/^@/, ''));
+                    const tcTarget = tc.identityTag ? `${tc.uri}.${tc.identityTag}` : `${tc.uri}.${tc.name}`;
+                    if (
+                        lowerName === lowerSc ||
+                        lowerName.includes(lowerSc) ||
+                        cTag === cleanScTag ||
+                        tags.includes(cleanScTag) ||
+                        matchesTarget(tcTarget, scName, 'testcase') ||
+                        matchesTarget(tc.uri, scName, 'testcase')
+                    ) {
+                        matched.add(tc);
+                    }
+                }
+            }
+        }
+
+        run.matchedTestcases = Array.from(matched);
+    }
+
+    // ─── Match Testplans -> Testruns ─────────────────────────────────────────
+    for (const plan of testplanItems) {
+        const matched = new Set<RunItem>();
+
+        for (const trSel of plan.testrunSelectors) {
+            const found = testrunItems.find(r => {
+                const runRes = {
+                    identity: r.identityTag ? `${r.uri}.${r.identityTag}` : r.uri,
+                    attributes: {
+                        title: r.name,
+                        tags: r.tags,
+                        uri: r.uri
+                    }
+                };
+                return (
+                    matchesTestrunSelector(runRes, trSel) ||
+                    addressesMatch(r.name, trSel) ||
+                    r.uri.endsWith(trSel) ||
+                    basename(r.uri).toLowerCase() === basename(trSel).toLowerCase()
+                );
+            });
+
+            if (found) {
+                matched.add(found);
+                found.linkedToPlan = true;
+            }
+        }
+
+        plan.matchedTestruns = Array.from(matched);
+    }
+
+    // Helper to get dependencies for a testcase
     function getTcDependencies(tc: ParserScenario): string[] {
-        const tcTags = tc.tags ? tc.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
+        const tcTags = ((tc.tags || []) as any[]).map(t => typeof t === 'string' ? t : (t?.name || ''));
         const keysToCheck = [
             tc.name,
             `${tc.uri}.${tc.name}`,
@@ -205,128 +365,118 @@ export const graphCmd = async (options: GraphCmdOptions = {}) => {
         return Array.from(allDeps);
     }
 
+    function findMatchingTcNode(dep: string): string {
+        const norm = normalizeAddress(dep);
+        for (const tc of testcaseItems) {
+            const tcKey = tc.identityTag || `${tc.uri}.${tc.name}`;
+            const tagAddresses = tc.tags.map(t => normalizeAddress(`${tc.uri}.${t}`));
+
+            if (
+                addressesMatch(tcKey, dep) ||
+                addressesMatch(tc.name, dep) ||
+                addressesMatch(tc.uri, dep) ||
+                tagAddresses.some(ta => addressesMatch(ta, dep)) ||
+                norm.endsWith(normalizeAddress(tc.name)) ||
+                norm.endsWith(normalizeAddress(tcKey))
+            ) {
+                return `testcase.${tc.name}`;
+            }
+        }
+        return `testcase.${dep}`;
+    }
+
     const normFormat = (format || 'dot').toLowerCase();
 
-    // If console, string, or tree format is requested, render terminal ASCII tree
+    // ─── Tree Format (Terminal representation) ───────────────────────────────
     if (normFormat === 'tree') {
-        renderTreeGraph({ testplans, testruns, testcases, scope, drawCycles, depResolver, findTcs, getTcDependencies });
+        renderTreeGraph({
+            testplans: testplanItems,
+            testruns: testrunItems,
+            testcases: testcaseItems,
+            scope,
+            drawCycles,
+            getTcDependencies
+        });
         return;
     }
 
-    // Build model of nodes and edges for structured graph output (DOT / Mermaid)
+    // ─── Graph Model Generation (DOT / Mermaid) ──────────────────────────────
+    // Hierarchy: testplan -> testrun -> testcase
     const nodes = new Map<string, GraphNode>();
     const edges: GraphEdge[] = [];
-
     const typeSuffix = type ? ` (${type})` : '';
 
+    const addTestCaseWithDeps = (tc: TcItem, parentRunId?: string) => {
+        if (!nodes.has(tc.id)) {
+            nodes.set(tc.id, { id: tc.id, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
+        }
+        if (parentRunId) {
+            edges.push({ from: parentRunId, to: tc.id, kind: 'contains' });
+            tc.linkedToRun = true;
+        }
+
+        const deps = getTcDependencies(tc.scenario);
+        for (const dep of deps) {
+            const depNodeId = findMatchingTcNode(dep);
+            if (!nodes.has(depNodeId)) {
+                nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
+            }
+            edges.push({ from: depNodeId, to: tc.id, kind: 'depends_on', label: 'depends_on' });
+        }
+    };
+
+    const addTestRunWithCases = (run: RunItem, parentPlanId?: string) => {
+        if (!nodes.has(run.id)) {
+            nodes.set(run.id, { id: run.id, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
+        }
+        if (parentPlanId) {
+            edges.push({ from: parentPlanId, to: run.id, kind: 'contains' });
+            run.linkedToPlan = true;
+        }
+
+        if (scope !== 'testplan') {
+            for (const tc of run.matchedTestcases) {
+                addTestCaseWithDeps(tc, run.id);
+            }
+        }
+    };
+
+    // 1. Process all Testplans (testplan -> testrun -> testcase)
     if (scope === 'testplan' || scope === 'testcase') {
-        for (const plan of testplans) {
-            const planId = `testplan.${plan.name}`;
-            nodes.set(planId, { id: planId, label: `${plan.name}${typeSuffix}`, kind: 'testplan' });
+        for (const plan of testplanItems) {
+            if (!nodes.has(plan.id)) {
+                nodes.set(plan.id, { id: plan.id, label: `${plan.name}${typeSuffix}`, kind: 'testplan' });
+            }
 
-            for (const trId of plan.testruns) {
-                const normTrId = normalizeAddress(trId);
-                const run = testruns.find(r =>
-                    addressesMatch(r.identity, trId) ||
-                    r.name === trId ||
-                    r.name.endsWith(trId) ||
-                    trId.endsWith(r.name) ||
-                    normalizeAddress(r.uri).endsWith(normTrId)
-                );
-
-                if (run) {
-                    const runId = `testrun.${run.name}`;
-                    nodes.set(runId, { id: runId, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
-                    edges.push({ from: planId, to: runId, kind: 'contains' });
-
-                    if (scope !== 'testplan') {
-                        for (const tcId of run.testcases) {
-                            const tcs = findTcs(tcId);
-                            for (const tc of tcs) {
-                                const tcIdNode = `testcase.${tc.name}`;
-                                nodes.set(tcIdNode, { id: tcIdNode, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
-                                edges.push({ from: runId, to: tcIdNode, kind: 'contains' });
-
-                                const deps = getTcDependencies(tc);
-                                for (const dep of deps) {
-                                    const depNodeId = findMatchingTcNode(dep);
-                                    if (!nodes.has(depNodeId)) {
-                                        nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
-                                    }
-                                    edges.push({ from: depNodeId, to: tcIdNode, kind: 'depends_on', label: 'depends_on' });
-                                }
-                            }
-                        }
-                    }
-                }
+            for (const run of plan.matchedTestruns) {
+                addTestRunWithCases(run, plan.id);
             }
         }
 
-        // Orphaned test runs when scope includes testcases
+        // 2. Orphaned Testruns (not attached to any testplan)
+        const orphanedRuns = testrunItems.filter(r => !r.linkedToPlan);
+        for (const run of orphanedRuns) {
+            addTestRunWithCases(run);
+        }
+
+        // 3. Orphaned Testcases (not attached to any testrun)
         if (scope !== 'testplan') {
-            const referencedRuns = new Set(testplans.flatMap(p => p.testruns || []));
-            const orphanedRuns = testruns.filter(r => {
-                return !Array.from(referencedRuns).some(ref =>
-                    addressesMatch(r.identity, ref) ||
-                    r.name === ref ||
-                    normalizeAddress(r.uri).endsWith(normalizeAddress(ref)) ||
-                    ref.endsWith(r.name)
-                );
-            });
-
-            for (const run of orphanedRuns) {
-                const runId = `testrun.${run.name}`;
-                nodes.set(runId, { id: runId, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
-                for (const tcId of run.testcases) {
-                    const tcs = findTcs(tcId);
-                    for (const tc of tcs) {
-                        const tcIdNode = `testcase.${tc.name}`;
-                        nodes.set(tcIdNode, { id: tcIdNode, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
-                        edges.push({ from: runId, to: tcIdNode, kind: 'contains' });
-
-                        const deps = getTcDependencies(tc);
-                        for (const dep of deps) {
-                            const depNodeId = findMatchingTcNode(dep);
-                            if (!nodes.has(depNodeId)) {
-                                nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
-                            }
-                            edges.push({ from: depNodeId, to: tcIdNode, kind: 'depends_on', label: 'depends_on' });
-                        }
-                    }
-                }
+            const orphanedCases = testcaseItems.filter(tc => !tc.linkedToRun);
+            for (const tc of orphanedCases) {
+                addTestCaseWithDeps(tc);
             }
         }
     } else if (scope === 'testrun') {
-        for (const run of testruns) {
-            const runId = `testrun.${run.name}`;
-            nodes.set(runId, { id: runId, label: `${run.name}${typeSuffix}`, kind: 'testrun' });
-            for (const tcId of run.testcases) {
-                const tcs = findTcs(tcId);
-                for (const tc of tcs) {
-                    const tcIdNode = `testcase.${tc.name}`;
-                    nodes.set(tcIdNode, { id: tcIdNode, label: `${tc.name}${typeSuffix}`, kind: 'testcase' });
-                    edges.push({ from: runId, to: tcIdNode, kind: 'contains' });
-
-                    const deps = getTcDependencies(tc);
-                    for (const dep of deps) {
-                        const depNodeId = findMatchingTcNode(dep);
-                        if (!nodes.has(depNodeId)) {
-                            nodes.set(depNodeId, { id: depNodeId, label: `${dep}${typeSuffix}`, kind: 'testcase' });
-                        }
-                        edges.push({ from: depNodeId, to: tcIdNode, kind: 'depends_on', label: 'depends_on' });
-                    }
-                }
-            }
+        for (const run of testrunItems) {
+            addTestRunWithCases(run);
         }
     }
 
-    // Detect cycle edges for highlighting
     const cycleEdges = findCycleEdges(edges);
 
     if (normFormat === 'mermaid') {
         renderMermaidGraph({ nodes: Array.from(nodes.values()), edges, cycleEdges, drawCycles });
     } else {
-        // Default: DOT (Graphviz)
         renderDotGraph({ nodes: Array.from(nodes.values()), edges, cycleEdges, drawCycles });
     }
 };
@@ -421,144 +571,107 @@ function renderMermaidGraph(params: {
  * Renders terminal ASCII/Unicode tree representation.
  */
 function renderTreeGraph(params: {
-    testplans: Array<{ name: string; testruns: string[] }>;
-    testruns: Array<{ name: string; testcases: string[]; identity: string; uri: string }>;
-    testcases: ParserScenario[];
+    testplans: PlanItem[];
+    testruns: RunItem[];
+    testcases: TcItem[];
     scope: IScope;
     drawCycles: boolean;
-    depResolver: DependencyResolver;
-    findTcs: (tcId: string) => ParserScenario[];
     getTcDependencies: (tc: ParserScenario) => string[];
 }): void {
-    const { testplans, testruns, scope, drawCycles, depResolver, findTcs, getTcDependencies } = params;
+    const { testplans, testruns, testcases, scope, drawCycles, getTcDependencies } = params;
 
     console.log(bold('Test Infrastructure Graph\n'));
-
     const link = (str: string) => drawCycles ? magenta(str) : str;
 
     if (scope === 'testplan' || scope === 'testcase') {
+        // 1. Hierarchy from Testplans
         for (const plan of testplans) {
-            const planName = plan.name;
-            console.log(`📦 ${cyan(bold(planName))} ${dim(`(testplan)`)}`);
+            console.log(`📦 ${cyan(bold(plan.name))} ${dim(`(testplan)`)}`);
 
-            const trIds = plan.testruns;
-            for (const [i, trId] of trIds.entries()) {
-                const isLastRun = i === trIds.length - 1;
-                const runPrefix = isLastRun ? '└── ' : '├── ';
-
-                const normTrId = normalizeAddress(trId);
-                const run = testruns.find(r =>
-                    addressesMatch(r.identity, trId) ||
-                    r.name === trId ||
-                    r.name.endsWith(trId) ||
-                    trId.endsWith(r.name) ||
-                    normalizeAddress(r.uri).endsWith(normTrId)
-                );
-
-                if (run) {
-                    const runName = run.name;
-                    console.log(`   ${link(runPrefix)}📂 ${green(runName)} ${dim(`(testrun)`)}`);
+            const runs = plan.matchedTestruns;
+            if (runs.length === 0 && plan.testrunSelectors.length > 0) {
+                for (const sel of plan.testrunSelectors) {
+                    console.log(`   └── 📂 ${dim(sel + ' (Not found)')}`);
+                }
+            } else {
+                for (let i = 0; i < runs.length; i++) {
+                    const run = runs[i];
+                    const isLastRun = i === runs.length - 1;
+                    const runPrefix = isLastRun ? '└── ' : '├── ';
+                    console.log(`   ${link(runPrefix)}📂 ${green(run.name)} ${dim(`(testrun)`)}`);
 
                     if (scope === 'testcase') {
-                        const tcIds = run.testcases;
-                        for (let j = 0; j < tcIds.length; j++) {
-                            const tcId = tcIds.at(j)!;
-                            const isLastTc = j === tcIds.length - 1;
-                            const tcPrefix = isLastRun ? '    ' : '│   ';
+                        const tcs = run.matchedTestcases;
+                        const runIndent = isLastRun ? '    ' : '│   ';
 
-                            const tcs = findTcs(tcId);
+                        for (let j = 0; j < tcs.length; j++) {
+                            const tc = tcs[j];
+                            const isLastTc = j === tcs.length - 1;
+                            const tcPrefix = isLastTc ? '└── ' : '├── ';
+                            console.log(`   ${runIndent}${link(tcPrefix)}📄 ${tc.name} ${dim(`(testcase)`)}`);
 
-                            if (tcs.length > 0) {
-                                for (let k = 0; k < tcs.length; k++) {
-                                    const tc = tcs.at(k)!;
-                                    const tcIsLast = isLastTc && k === tcs.length - 1;
-                                    const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
-                                    console.log(`   ${tcPrefix}${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
-
-                                    const deps = getTcDependencies(tc);
-                                    if (deps.length > 0) {
-                                        const depPrefix = tcIsLast ? '       ' : '│      ';
-                                        console.log(`   ${tcPrefix}${depPrefix}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
-                                    }
-                                }
-                            } else {
-                                const tcConnector = isLastTc ? '└── ' : '├── ';
-                                console.log(`   ${tcPrefix}${link(tcConnector)}📄 ${dim(tcId + ' (Not found)')}`);
+                            const deps = getTcDependencies(tc.scenario);
+                            if (deps.length > 0) {
+                                const depIndent = isLastTc ? '    ' : '│   ';
+                                console.log(`   ${runIndent}${depIndent}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
                             }
                         }
                     }
-                } else {
-                    console.log(`   ${link(runPrefix)}📂 ${dim(trId + ' (Not found)')}`);
                 }
             }
             console.log('');
         }
 
-        if (scope === 'testcase') {
-            const referencedRuns = new Set(testplans.flatMap(p => p.testruns || []));
-            const orphanedRuns = testruns.filter(r => {
-                return !Array.from(referencedRuns).some(ref =>
-                    addressesMatch(r.identity, ref) ||
-                    r.name === ref ||
-                    normalizeAddress(r.uri).endsWith(normalizeAddress(ref)) ||
-                    ref.endsWith(r.name)
-                );
-            });
+        // 2. Orphaned Test Runs
+        const orphanedRuns = testruns.filter(r => !r.linkedToPlan);
+        if (orphanedRuns.length > 0) {
+            console.log(bold('Orphaned Test Runs (Not linked to any testplan)\n'));
+            for (const run of orphanedRuns) {
+                console.log(`📂 ${green(bold(run.name))} ${dim(`(testrun)`)}`);
 
-            if (orphanedRuns.length > 0) {
-                console.log(bold('Orphaned Test Runs (Not linked to any testplan)\n'));
-                for (const run of orphanedRuns) {
-                    const runName = run.name;
-                    console.log(`📂 ${green(runName)} ${dim(`(testrun)`)}`);
-                    const tcIds = run.testcases;
-                    for (let j = 0; j < tcIds.length; j++) {
-                        const tcId = tcIds.at(j)!;
-                        const isLastTc = j === tcIds.length - 1;
+                if (scope === 'testcase') {
+                    const tcs = run.matchedTestcases;
+                    for (let j = 0; j < tcs.length; j++) {
+                        const tc = tcs[j];
+                        const isLastTc = j === tcs.length - 1;
+                        const tcPrefix = isLastTc ? '└── ' : '├── ';
+                        console.log(`   ${link(tcPrefix)}📄 ${tc.name} ${dim(`(testcase)`)}`);
 
-                        const tcs = findTcs(tcId);
-                        if (tcs.length > 0) {
-                            for (let k = 0; k < tcs.length; k++) {
-                                const tc = tcs.at(k)!;
-                                const tcIsLast = isLastTc && k === tcs.length - 1;
-                                const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
-                                console.log(`   ${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
-
-                                const deps = getTcDependencies(tc);
-                                if (deps.length > 0) {
-                                    const depPrefix = tcIsLast ? '       ' : '│      ';
-                                    console.log(`   ${depPrefix}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
-                                }
-                            }
-                        } else {
-                            const tcConnector = isLastTc ? '└── ' : '├── ';
-                            console.log(`   ${link(tcConnector)}📄 ${tcId}`);
+                        const deps = getTcDependencies(tc.scenario);
+                        if (deps.length > 0) {
+                            const depIndent = isLastTc ? '    ' : '│   ';
+                            console.log(`   ${depIndent}└── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
                         }
                     }
-                    console.log('');
                 }
+                console.log('');
+            }
+        }
+
+        // 3. Orphaned Testcases
+        if (scope === 'testcase') {
+            const orphanedCases = testcases.filter(tc => !tc.linkedToRun);
+            if (orphanedCases.length > 0) {
+                console.log(bold('Orphaned Test Cases (Not linked to any testrun)\n'));
+                for (const tc of orphanedCases) {
+                    console.log(`📄 ${tc.name} ${dim(`(testcase)`)}`);
+                    const deps = getTcDependencies(tc.scenario);
+                    if (deps.length > 0) {
+                        console.log(`   └── 🔗 ${cyan('depends_on:')} ${dim(deps.join(', '))}`);
+                    }
+                }
+                console.log('');
             }
         }
     } else if (scope === 'testrun') {
         for (const run of testruns) {
-            const runName = run.name;
-            console.log(`📂 ${green(bold(runName))} ${dim(`(testrun)`)}`);
-            const tcIds = run.testcases;
-            for (let j = 0; j < tcIds.length; j++) {
-                const tcId = tcIds.at(j)!;
-                const isLastTc = j === tcIds.length - 1;
-
-                const tcs = findTcs(tcId);
-                if (tcs.length > 0) {
-                    for (let k = 0; k < tcs.length; k++) {
-                        const tc = tcs.at(k)!;
-                        const tcIsLast = isLastTc && k === tcs.length - 1;
-                        const tcFinalConnector = tcIsLast ? '└── ' : '├── ';
-                        console.log(`   ${link(tcFinalConnector)}📄 ${tc.name} ${dim(`(testcase)`)}`);
-                    }
-                } else {
-                    const tcConnector = isLastTc ? '└── ' : '├── ';
-                    console.log(`   ${link(tcConnector)}📄 ${dim(tcId + ' (Not found)')}`);
-                }
+            console.log(`📂 ${green(bold(run.name))} ${dim(`(testrun)`)}`);
+            const tcs = run.matchedTestcases;
+            for (let j = 0; j < tcs.length; j++) {
+                const tc = tcs[j];
+                const isLastTc = j === tcs.length - 1;
+                const tcPrefix = isLastTc ? '└── ' : '├── ';
+                console.log(`   ${link(tcPrefix)}📄 ${tc.name} ${dim(`(testcase)`)}`);
             }
             console.log('');
         }

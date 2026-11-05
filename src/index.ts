@@ -26,9 +26,7 @@ import { logoutCmd } from './commands/logout';
 import { modulesCmd } from './commands/modules';
 import { workspaceCmd } from './commands/workspace';
 import { reportCmd } from './commands/report';
-import { suiteCmd } from './commands/suite';
 import { specCmd } from './commands/spec';
-import { toolCmd } from './commands/tool';
 import { printCmd } from './commands/print';
 import { queryCmd } from './commands/query';
 import { ephemeralCmd } from './commands/ephemeral';
@@ -204,7 +202,7 @@ export function createCli() {
         .option('--parallelism <n>', 'Concurrent operation limit')
         .option('--compact-warnings', 'Show warnings in compact form')
         .option('--test-directory <dir>', 'Directory containing feature files')
-        .option('--feature', 'Display plan and resources in Gherkin feature/scenario format')
+        .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -229,7 +227,7 @@ export function createCli() {
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
                 testDirectory: options.testDirectory,
-                feature: Boolean(options.feature)
+                gherkin: Boolean(options.gherkin)
             });
         });
 
@@ -249,7 +247,7 @@ export function createCli() {
         .option('--parallelism <n>', 'Concurrent operation limit')
         .option('--compact-warnings', 'Show warnings in compact form')
         .option('--test-directory <dir>', 'Directory containing feature files')
-        .option('--feature', 'Display plan and resources in Gherkin feature/scenario format')
+        .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
         .action(async (planFile, options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -272,7 +270,7 @@ export function createCli() {
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
                 testDirectory: options.testDirectory,
-                feature: Boolean(options.feature)
+                gherkin: Boolean(options.gherkin)
             });
         });
 
@@ -306,7 +304,7 @@ export function createCli() {
         .option('--json', 'Output state in JSON format')
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
-        .option('--feature', 'Display plan and resources in Gherkin feature/scenario format')
+        .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
         .action(async (path, options) => {
             const workDir = getWorkDir(options);
             await showCmd({
@@ -316,7 +314,7 @@ export function createCli() {
                 dir: workDir,
                 statePath: options.state,
                 backupPath: options.backup,
-                feature: Boolean(options.feature)
+                gherkin: Boolean(options.gherkin)
             });
         });
 
@@ -542,7 +540,7 @@ export function createCli() {
 
             await reportCmd({
                 dir: workDir,
-                type: type || 'testcase-summary',
+                type: type,
                 format: options.format || 'md',
                 filter: filterArr,
                 target: options.target,
@@ -551,46 +549,6 @@ export function createCli() {
                 variables: variableParser,
                 out: options.out,
                 statePath: options.state
-            });
-        });
-
-    // ─── suite ───────────────────────────────────────────────────────────
-    cli.command('suite [subcommand] [...args]', '(legacy) Manage test suites and execution files (deprecated: use "spec")')
-        .option('-s, --scope <scope>', 'Suite scope (testrun, testplan)')
-        .option('--fill', 'Autocomplete empty testrun rules with their testcases')
-        .option('--link <id_status>', 'Link a testcase or testrun into a suite')
-        .option('--mark <id_status>', 'Record execution status in a testrun')
-        .option('--include <pattern>', 'Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")')
-        .option('--exclude <pattern>', 'Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)')
-        .option('--title <title>', 'Suite title')
-        .option('--rule <rule>', 'Rule definitions')
-        .option('--target <target>', 'Target feature file (identity tag @tr-N/@tp-N, canonical address, or file path)')
-        .option('--test-directory <dir>', 'Directory containing test files')
-        .option('--state <path>', 'Path to state file')
-        .option('--backup <path>', 'Path to backup file')
-        .action(async (subcommand, subArgs, options) => {
-            const workDir = getWorkDir(options);
-            const variableParser = getVariableParser(options, workDir);
-            const ruleArr = options.rule ? (Array.isArray(options.rule) ? options.rule : [options.rule]) : [];
-
-            await suiteCmd({
-                dir: workDir,
-                subCommand: subcommand,
-                subArgs: subArgs || [],
-                scope: (options.scope as any) || 'testrun',
-                title: options.title,
-                rules: ruleArr,
-                target: options.target,
-                include: options.include,
-                exclude: options.exclude,
-                fill: Boolean(options.fill),
-                link: typeof options.link === 'string' ? options.link : undefined,
-                mark: typeof options.mark === 'string' ? options.mark : undefined,
-                testDirectory: options.testDirectory,
-                statePath: options.state,
-                backupPath: options.backup,
-                variables: variableParser,
-                verbose: Boolean(options.verbose)
             });
         });
 
@@ -644,46 +602,34 @@ export function createCli() {
             });
         });
 
-    // ─── tool ─────────────────────────────────────────────────────────────
-    cli.command('tool <subcommand> [...args]', 'QA utilities (feature, autocomplete, state)')
-        .option('--title <title>', 'Feature title')
-        .option('--rule <rule>', 'Rule definitions')
-        .option('--target <target>', 'Target feature file')
-        .option('--test-directory <dir>', 'Directory containing test files')
-        .option('--state <path>', 'Path to state file')
-        .option('--backup <path>', 'Path to backup file')
-        .action(async (subcommand, subArgs, options) => {
-            const workDir = getWorkDir(options);
-            const variableParser = getVariableParser(options, workDir);
-            const ruleArr = options.rule ? (Array.isArray(options.rule) ? options.rule : [options.rule]) : [];
-
-            await toolCmd({
-                dir: workDir,
-                subCommand: subcommand,
-                subArgs: subArgs || [],
-                scope: (options.scope as any) || 'testcase',
-                title: options.title,
-                rules: ruleArr,
-                target: options.target,
-                testDirectory: options.testDirectory,
-                statePath: options.state,
-                backupPath: options.backup,
-                variables: variableParser,
-                verbose: Boolean(options.verbose)
-            });
-        });
-
     // ─── fmt ──────────────────────────────────────────────────────────────
     cli.command('fmt [targetDir]', 'Rewrites Gherkin configuration files to canonical format')
         .option('--check', 'Check if files are formatted without rewriting')
         .option('--diff', 'Display diffs instead of rewriting files')
         .option('--list', 'List unformatted files', { default: true })
         .option('--write', 'Write reformatted files to disk', { default: true })
-        .option('--recursive', 'Recursively format subdirectories')
+        .option('-r, --recursive', 'Recursively format subdirectories', { default: true })
         .option('--test-directory <dir>', 'Test directory')
         .action(async (targetDir, options) => {
             const workDir = getWorkDir(options);
-            const testDir = options.testDirectory ? resolve(workDir, options.testDirectory) : workDir;
+            let testDir = workDir;
+            if (options.testDirectory) {
+                testDir = resolve(workDir, options.testDirectory);
+            } else {
+                try {
+                    const cfg = new Config(workDir, false);
+                    const globalConf = cfg.getScopeConf('global');
+                    const scaffoldDir = globalConf?.scaffold?.directory || globalConf?.directory || (cfg.getConfig() as any)?.testDirectory || (cfg.getConfig() as any)?.test_directory;
+                    if (scaffoldDir) {
+                        const candidate = resolve(workDir, scaffoldDir);
+                        if (existsSync(candidate)) testDir = candidate;
+                    } else if (existsSync(resolve(workDir, 'tests'))) {
+                        testDir = resolve(workDir, 'tests');
+                    }
+                } catch {
+                    // Ignore config load error
+                }
+            }
             const destDir = targetDir ? resolve(workDir, targetDir) : testDir;
 
             await fmtCmd({
@@ -692,7 +638,7 @@ export function createCli() {
                 diff: options.diff,
                 list: options.list ?? true,
                 write: options.write ?? true,
-                recursive: options.recursive
+                recursive: options.recursive ?? true
             });
         });
 

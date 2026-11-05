@@ -36,7 +36,6 @@ ${bold(`All other commands:`)}
   show          Show the current state or a saved plan
   spec          Manage test lifecycle specifications (testcase, testrun, testplan, bug)
   state         Advanced state management
-  suite         (legacy) Manage test suites and execution files (deprecated: use 'spec')
   taint         Mark a resource instance as not fully functional
   untaint       Remove the 'tainted' state from a resource instance
   version       Show the current ${TITLE_APP} version
@@ -147,7 +146,7 @@ ${bold(`Plan Customization Options:`)}
 
 ${bold(`Other Options:`)}
 
-  -feature            Display plan and resources in Gherkin feature/scenario format.
+  -gherkin            Display plan and resources in Gherkin feature/scenario format.
 
   -compact-warnings   If ${TITLE_APP} produces any warnings that are not
                       accompanied by errors, shows them in a more compact
@@ -256,7 +255,7 @@ ${bold(`Options:`)}
 
   -auto-approve       Skip interactive approval of plan before applying.
 
-  -feature            Display plan and resources in Gherkin feature/scenario format.
+  -gherkin            Display plan and resources in Gherkin feature/scenario format.
 
   -backup=path        Path to backup the existing state file before
                       modifying. Defaults to the "-state" path with
@@ -399,6 +398,7 @@ ${bold(`Options:`)}
   -no-color           If specified, output won't contain any color.
   -json               If specified, output the ${TITLE_APP} plan or state in
                       a machine-readable form.
+  -gherkin            Display plan and resources in Gherkin feature/scenario format.
 `.trim();
 
 export const HELP_FMT = `
@@ -1114,26 +1114,25 @@ ${bold(`Other Options:`)}
 export const HELP_REPORT = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] report <type> [options]
 
-  Generates multi-dimensional test reports from the local state.
-  Available report types are grouped by scope:
+  Generate multi-dimensional test execution reports from local or remote state.
+  Specifying the report <type> is required.
 
-  📦 Scope: Test Case
-    testcase-summary     List of all test cases and their status
-    test-case-activity   Dashboard of test cases with graphs and trends
+${bold(`Available Report Types:`)}
 
-  🏃 Scope: Test Run
+  Scope: Test Case
+    testcase-summary     Execution overview and pass/fail metrics of testcases
+
+  Scope: Test Run
     testrun-summary      Test runs and their pass/fail metrics
-    testrun-detailed     In-depth view of a specific Test Run
+    testrun-detailed     In-depth view of testcases and priorities per testrun
 
-  📋 Scope: Test Plan
-    testplan-summary     Overall Test Plan Progress and linked test runs
+  Scope: Test Plan
+    testplan-summary     Overall Test Plan progress and linked test runs
 
-  🌐 Cross-Scope (Multi-dimensional)
-    defects              List of failed/blocked tests with issue links
+  Cross-Scope / Matrix
+    defects              List of failed/blocked tests with issue tracking links
     traceability         Mapping between requirements/tags and test runs
     coverage             Percentage of passed tests grouped by tags
-    two-dimensional      Status distribution matrix
-    raw                  Extract all data for custom reporting
 
 ${bold(`Options:`)}
 
@@ -1152,15 +1151,22 @@ ${bold(`Options:`)}
                       testplan (@tp-N). When targeting a testplan, reports
                       automatically include all linked testruns and executions.
 
-  -groupBy=field      Group results dynamically by a specific field
+  -group-by=field     Group results dynamically by a specific field
                       (e.g. status, label, assignee, feature, priority).
 
-  -template=path      Path to a custom template file (Word .docx, HTML, etc.).
+  -template=path      Path to a custom template file (.xlsx, .docx, etc.).
 
   -var=key=val        Set a variable value to interpolate in report templates.
                       Use this option more than once to set more than one variable.
 
   -var-file=filename  Load variable values from the given YAML/JSON file.
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} report testcase-summary
+  ${TITLE_CLI} report testrun-summary -target="@tr-1"
+  ${TITLE_CLI} report defects -format=csv -out=defects.csv
+  ${TITLE_CLI} report traceability -group-by=feature -format=md
+  ${TITLE_CLI} report testplan-summary -target="@tp-1" -format=xlsx -out=sprint_report.xlsx
 `.trim();
 
 export const HELP_TEST = `
@@ -1292,39 +1298,6 @@ ${bold(`Options:`)}
                       variables file.
 `.trim();
 
-export const HELP_SUITE = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite [subcommand] [options]
-
-  [DEPRECATED] Manage test suites and execution files (.run.feature and .plan.feature).
-  Note: 'testform suite' is a legacy command maintained for backwards compatibility.
-  For modern, unified lifecycle management across testcase, testrun, testplan,
-  and bug, please use '${TITLE_CLI} spec'.
-
-${bold(`Subcommand:`)}
-  init                       Create a new suite file (.run.feature or .plan.feature)
-
-${bold(`Options:`)}
-  -fill                      Autocomplete empty testrun rules with their testcases
-  -link="<id>=<status>"      Link a testcase or testrun into a suite
-  -mark="<id>=<status>"      Record execution status (* mark status = <status>) in a testrun
-  -include="<pattern>"       Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")
-  -exclude="<pattern>"       Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)
-
-${bold(`Other Options:`)}
-  -target=resource           Required for -fill, -link, -mark. Identifies the suite file:
-                             • Identity Tag (@tr-N / @tp-N):
-                               Unique identifier across workspace (only valid for testrun/testplan;
-                               testcase @tc-N tags can repeat across files).
-                             • Canonical Address:
-                               Immutable full address (e.g. tests/runs/20261024.run.feature.@tr-1).
-                             • Scoped File Path:
-                               File path resolved against -test-directory (e.g. 20261024.run.feature).
-  -test-directory=dir        Optional. Limits search scope for .case.feature files and shortens target paths.
-  -scope=scope               Optional (global). Scope of the suite (testrun | testplan).
-  -title=title               Optional. Human-readable title of the suite.
-  -rule=rule                 Optional. Source .case.feature file(s) to include as Rule blocks.
-`.trim();
-
 export const HELP_FUNCTIONS = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] functions [name] [options]
 
@@ -1340,76 +1313,6 @@ ${bold(`Examples:`)}
   ${TITLE_CLI} functions lower
   ${TITLE_CLI} functions --eval="format('%s/%s', 'https://api.dev.com', 'v1')"
   ${TITLE_CLI} functions --eval="contains(['dev', 'staging'], 'dev')"
-`.trim();
-
-export const HELP_SUITE_INIT = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite init [options]
-
-  Create a new testrun or testplan feature file based on your project conventions.
-  Applies timestamp, hash, and slug naming defined in your config.
-
-${bold(`Options:`)}
-
-  -scope=scope        Required. Must be 'testrun' or 'testplan'.
-  -title=title        An optional title for the suite file.
-  -rule=rule          Include a Rule block (Rule: <rule>) in the generated file.
-                      Can be specified multiple times.
-`.trim();
-
-export const HELP_SUITE_FILL = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite fill -target=<resource>
-
-  [testrun only] Reads each Rule block in the target testrun feature file,
-  finds the referenced .case.feature on disk, and fills its scenarios into
-  the testrun file with 'mark status = pending'.
-
-${bold(`Options:`)}
-
-  -target=resource    Required. Identifies the suite file (path, relative, or @tr-N).
-  -test-directory=dir Optional. Limits the search scope for .case.feature files.
-`.trim();
-
-export const HELP_SUITE_LINK = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite link "<identifier>[=status]" -target=<resource>
-
-  Directly writes Gherkin into the suite file (.run.feature or .plan.feature)
-  without needing to hand-craft Gherkin syntax.
-
-${bold(`Scopes & Modes:`)}
-  1. Scope testrun:
-     - Implicit: ${TITLE_CLI} suite link "checkout.case.feature" -target="@tr-42"
-       Injects:   Rule: checkout.case.feature
-     - Explicit: ${TITLE_CLI} suite link "@tc-1" -target="@tr-42"
-       Injects:   Rule: checkout.case.feature
-                    Scenario: @tc-1
-                      * mark status = pending
-     - Status:   ${TITLE_CLI} suite link "@tc-1=passed" -target="@tr-42"
-
-  2. Scope testplan:
-     - Link run: ${TITLE_CLI} suite link "sprint42.run.feature" -target="@tp-1"
-       Injects:   Rule: sprint42.run.feature
-
-${bold(`Identity Strategies:`)}
-  1. Only tag:       "@tc-1" or "@tc-1=passed"
-  2. File + tag:     "checkout.case.feature.@tc-1=passed" (or "@tc-1")
-  3. Scenario name:  "Pago con tarjeta=passed" (matches scenario title)
-`.trim();
-
-export const HELP_SUITE_MARK = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] suite mark "<identifier>=status" -target=<resource>
-
-  Record or update the execution status of an existing testcase within a testrun,
-  synchronizing both the local .run.feature file and the remote issue comments.
-
-  Note: If the testcase belongs to an implicit Rule, you must expand it first
-  using '${TITLE_CLI} suite fill -target=<resource>' before marking its status.
-
-${bold(`Available statuses:`)} passed, failed, pending, skipped
-
-${bold(`Examples:`)}
-  ${TITLE_CLI} suite mark "@tc-1=passed" -target="@tr-2"
-  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=failed" -target="@tr-2"
-  ${TITLE_CLI} suite mark "Validar login exitoso=passed" -target="20260607.run.feature"
 `.trim();
 
 export const HELP_SPEC = `
@@ -1676,11 +1579,6 @@ export function getCommandHelp(command: string): string | null {
     case 'taint': return HELP_TAINT;
     case 'untaint': return HELP_UNTAINT;
     case 'version': return HELP_VERSION;
-    case 'suite': return HELP_SUITE;
-    case 'suite init': return HELP_SUITE_INIT;
-    case 'suite fill': return HELP_SUITE_FILL;
-    case 'suite link': return HELP_SUITE_LINK;
-    case 'suite mark': return HELP_SUITE_MARK;
     case 'spec': return HELP_SPEC;
     case 'spec testcase': return HELP_SPEC_TESTCASE;
     case 'spec testrun': return HELP_SPEC_TESTRUN;
