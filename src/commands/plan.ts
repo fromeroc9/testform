@@ -23,6 +23,9 @@ import { LifecycleResolver } from '../core/lifecycle';
  */
 export function hashScenario(scenario: ParserScenario, scope?: IScope, ignoreChanges: string[] = []): string {
     const clone: ParserScenario = JSON.parse(JSON.stringify(scenario));
+    if (clone.uri) {
+        clone.uri = clone.uri.replace(/\\/g, '/');
+    }
     const ignored = new Set(ignoreChanges.map(s => s.toLowerCase()));
 
     // Testcases depend on uri and tags, NEVER on the Scenario title
@@ -181,9 +184,9 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         if (!rawIdentity) continue;
         
         if (rawIdentity.startsWith(scenario.uri) || rawIdentity === scenario.uri) {
-            identity = rawIdentity;
+            identity = rawIdentity.replace(/\\/g, '/');
         } else {
-            identity = `${scenario.uri}.${rawIdentity}`;
+            identity = `${scenario.uri}.${rawIdentity}`.replace(/\\/g, '/');
         }
 
         const normId = normalizeAddress(identity);

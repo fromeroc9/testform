@@ -17,6 +17,7 @@ import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
 import { detectScopeFromTarget } from '../core/selector';
+import { normalizeAddress } from '../core/utils';
 
 export function parseBackendOverrides(raw: string | string[], baseDir: string = '.'): Record<string, string> {
     const overrides: Record<string, string> = {};
@@ -161,6 +162,7 @@ export class State {
             provider: parsed.provider ?? config.getAdapterType(),
             resources: (parsed.resources ?? []).map((r: any) => ({
                 ...r,
+                identity: r.identity ? r.identity.replace(/\\/g, '/') : r.identity,
                 type: r.type || (r.identity ? detectScopeFromTarget(r.identity, config) : undefined) || 'testcase',
                 attributes: r.attributes ?? { ...r }
             })),
@@ -297,18 +299,22 @@ export class State {
      * Find a resource by identity.
      */
     findResource(identity: string): StateResource | undefined {
-        return this.state.resources.find(r => r.identity === identity);
+        const norm = normalizeAddress(identity);
+        return this.state.resources.find(r => r.identity === identity || normalizeAddress(r.identity) === norm);
     }
 
     /**
      * Add or update a resource after a successful apply operation.
      */
     upsertResource(resource: StateResource): void {
+        const normIdentity = resource.identity ? resource.identity.replace(/\\/g, '/') : resource.identity;
         const cleanedResource: StateResource = {
             ...resource,
+            identity: normIdentity,
             attributes: cleanAttributes(resource.attributes) as any
         };
-        const idx = this.state.resources.findIndex(r => r.identity === cleanedResource.identity);
+        const targetNorm = normalizeAddress(cleanedResource.identity);
+        const idx = this.state.resources.findIndex(r => r.identity === cleanedResource.identity || normalizeAddress(r.identity) === targetNorm);
         if (idx >= 0) {
             this.state.resources[idx] = cleanedResource;
         } else {
@@ -320,7 +326,8 @@ export class State {
      * Remove a resource after a successful destroy operation.
      */
     removeResource(identity: string): void {
-        this.state.resources = this.state.resources.filter(r => r.identity !== identity);
+        const targetNorm = normalizeAddress(identity);
+        this.state.resources = this.state.resources.filter(r => r.identity !== identity && normalizeAddress(r.identity) !== targetNorm);
     }
 
     /**

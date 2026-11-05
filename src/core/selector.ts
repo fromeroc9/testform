@@ -556,15 +556,17 @@ export function normalizeScenarioAddress(ruleName?: string, scenarioName?: strin
  */
 export function matchesFeatureFile(filePath: string, featurePart?: string): boolean {
     if (!featurePart) return true;
-    const normalizedTarget = featurePart.replace(/\.feature$/i, '');
-    const normalizedFile = filePath.replace(/\.feature$/i, '');
+    const normFile = filePath.replace(/\\/g, '/');
+    const normTarget = featurePart.replace(/\\/g, '/').replace(/\.feature$/i, '');
+    const normalizedFile = normFile.replace(/\.feature$/i, '');
 
     return (
-        filePath === featurePart ||
+        normFile === normTarget ||
+        normFile === featurePart ||
         normalizedFile === normalizedTarget ||
-        filePath.endsWith(featurePart) ||
-        filePath.endsWith('/' + featurePart) ||
-        filePath.endsWith('/' + featurePart + '.feature') ||
+        normFile.endsWith(normTarget) ||
+        normFile.endsWith('/' + normTarget) ||
+        normFile.endsWith('/' + normTarget + '.feature') ||
         basename(normalizedFile) === basename(normalizedTarget)
     );
 }

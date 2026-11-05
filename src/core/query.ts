@@ -1,6 +1,6 @@
 import { State } from './state';
 import { StateResource } from './types';
-import { resolvePath } from './utils';
+import { resolvePath, normalizeAddress } from './utils';
 import { matchesTarget, detectScopeFromTarget } from './selector';
 
 export interface QueryResultItem {
@@ -115,7 +115,8 @@ export class StateQuery {
         const processedTcIdentities = new Set<string>();
 
         for (const [tcIdentity, executions] of executedTcMap.entries()) {
-            const tc = testcases.find(t => t.identity === tcIdentity);
+            const normTcId = normalizeAddress(tcIdentity);
+            const tc = testcases.find(t => t.identity === tcIdentity || normalizeAddress(t.identity) === normTcId);
             if (!tc) continue;
             processedTcIdentities.add(tcIdentity);
 

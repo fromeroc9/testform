@@ -240,7 +240,7 @@ export abstract class BaseParser {
                 const lineNum = match ? parseInt(match[1], 10) : undefined;
                 const fileLines = content.split('\n');
                 const snippet = (lineNum && fileLines[lineNum - 1]) ? fileLines[lineNum - 1].trim() : undefined;
-                const displayPath = relative(projectRoot, file) || file;
+                const displayPath = (relative(projectRoot, file) || file).replace(/\\/g, '/');
 
                 const detail = errMsg
                     .split('\n')
@@ -258,7 +258,7 @@ export abstract class BaseParser {
                     detail,
                 }).abort();
             }
-            rawDoc.uri = relative(projectRoot, file);
+            rawDoc.uri = relative(projectRoot, file).replace(/\\/g, '/');
 
             // Check for Feature-level @module tags to accumulate module scenarios
             const featureTags = (rawDoc.feature?.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name));
@@ -277,7 +277,7 @@ export abstract class BaseParser {
                                 }
                                 modContent = sanitizeTagsWithSpaces(modContent);
                                 const modDoc = parser.parse(modContent);
-                                modDoc.uri = relative(projectRoot, resolvedMod);
+                                modDoc.uri = relative(projectRoot, resolvedMod).replace(/\\/g, '/');
                                 scenarios.push(...this.format(modDoc, resolvedMod));
                             } catch {
                                 // Ignore non-parseable module
