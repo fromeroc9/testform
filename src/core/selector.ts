@@ -1,3 +1,56 @@
+/**
+ * =========================================================================================
+ * TESTFORM SELECTOR & TARGET RESOLUTION MATRIX (src/core/selector.ts)
+ * =========================================================================================
+ * 
+ * Este módulo centraliza la resolución de identidades, filtrado por scopes y direccionamiento
+ * de recursos en Testform (plan, apply, destroy, spec, suite).
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * TABLA 1: ESTRATEGIAS DE RESOLUCIÓN DE -target (matchesTarget & resolveTargetScenario)
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * ┌────┬──────────────────────────────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┬───────────────────────────────────┐
+ * │ #  │ Estrategia de Selección          │ Sintaxis / Ejemplo de Target                    │ Coincide contra (Match Criteria)                        │ Aplicación / Comandos             │
+ * ├────┼──────────────────────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┼───────────────────────────────────┤
+ * │ 1  │ Tag de Identidad (@tag)          │ -target="@tr-4" o -target="@tc-01"              │ Etiqueta única del escenario/archivo (.@tr-4, .@tc-01)  │ plan, apply, spec, suite          │
+ * │ 2  │ Tag sin arroba (tag suelto)      │ -target="tr-4" o -target="tc-01"                │ Coincidencia flexible de tag omitiendo el prefijo '@'   │ plan, apply, spec, suite          │
+ * │ 3  │ Dirección Canónica Completa      │ -target="tests/runs/20261024.run.feature.@tr-1" │ URI completa vinculada con su tag de identidad          │ plan, apply, spec, suite          │
+ * │ 4  │ Dirección con Prefijo Provider   │ -target="github_testcase.auth/login.@tc-1"      │ Dirección estilo Terraform con prefijo de proveedor     │ plan, apply, destroy              │
+ * │ 5  │ Dirección con Prefijo Scope      │ -target="testcase.modules/auth/login"           │ Dirección calificada con tipo de recurso                │ plan, apply, destroy              │
+ * │ 6  │ Ruta Relativa / Scoped Path      │ -target="ParaBank/bill_pay.case.feature"        │ Ruta relativa al workspace o al -test-directory         │ plan, apply, spec, suite          │
+ * │ 7  │ Basename del Archivo (sin ruta)  │ -target="bill_pay.case.feature"                 │ Nombre base del archivo ignorando directorios padres    │ plan, apply, spec, suite          │
+ * │ 8  │ Nombre Corto (Slug sin extensión)│ -target="bill_pay"                              │ Nombre raíz sin sufijos (.case, .run, .plan, .feature)  │ plan, apply, spec, suite          │
+ * │ 9  │ Prefijo de Carpeta / Módulo      │ -target="testcycle" o -target="testcase/ParaBank│ Coincide con todos los recursos bajo esa carpeta        │ plan, apply, spec                 │
+ * │ 10 │ Tipo de Recurso Global           │ -target="testcase" o -target="testrun"          │ Filtra masivamente todos los recursos de ese scope      │ plan, apply, destroy              │
+ * │ 11 │ Array / Múltiples Targets        │ -target=@tc-01 -target=@tc-02                   │ Unión inclusiva (OR) evaluando múltiples objetivos      │ plan, apply, spec                 │
+ * └────┴──────────────────────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┴───────────────────────────────────┘
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * TABLA 2: ESTRATEGIAS DE ESPECIFICACIÓN Y STATUS (parseSpec & matchesScenarioSpec)
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * ┌────┬──────────────────────────────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┬───────────────────────────────────┐
+ * │ #  │ Identificador con Estatus        │ Ejemplo de Sintaxis                             │ Interpretación y Extracción                             │ Uso principal                     │
+ * ├────┼──────────────────────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┼───────────────────────────────────┤
+ * │ 1  │ Tag con Estatus                  │ "@tc-1=passed" o "-case=@tc-1=passed"           │ Identidad: @tc-1 | Estatus: passed                     │ spec testrun mark, suite mark     │
+ * │ 2  │ Archivo + Tag con Estatus        │ "checkout.case.feature.@tc-1=failed"            │ Archivo: checkout.case.feature | Tag: @tc-1 | failed    │ spec testrun mark, suite mark     │
+ * │ 3  │ Nombre de Escenario con Estatus  │ "Pago con tarjeta=passed"                       │ Nombre: "Pago con tarjeta" | Estatus: passed            │ spec testrun mark, suite mark     │
+ * │ 4  │ Archivo Completo Implícito       │ "checkout.case.feature"                         │ Enlaza como bloque 'Rule: checkout.case.feature'        │ spec testrun add, suite link      │
+ * └────┴──────────────────────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┴───────────────────────────────────┘
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * TABLA 3: INCLUSIÓN, EXCLUSIÓN Y FILTRADO (parsePatternFilter, matchesScenarioFilter)
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * ┌────┬──────────────────────────────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┬───────────────────────────────────┐
+ * │ #  │ Estrategia de Selección          │ Ejemplo de CLI                                  │ Criterio de Coincidencia (Coincidence Match)            │ Uso principal                     │
+ * ├────┼──────────────────────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┼───────────────────────────────────┤
+ * │ 1  │ Inclusión por Tag                │ -include=smoke o -include=@smoke                │ Coincidencia exacta o por subcadena sin @               │ spec testrun, suite testrun       │
+ * │ 2  │ Inclusión por Feature Completo   │ -include="checkout.case.feature"                │ Incluye todos los escenarios del archivo .case.feature  │ spec testrun, suite testrun       │
+ * │ 3  │ Inclusión + Exclusión Combinada  │ -include="order.case.feature" -exclude=wip      │ Incluye el feature pero omite escenarios con tag @wip   │ spec testrun, suite testrun       │
+ * │ 4  │ Exclusión Pura (Global)          │ -exclude=manual o -exclude=wip,slow             │ Evalúa todos los casos y descarta los que coincidan     │ spec testrun, suite testrun       │
+ * │ 5  │ Autocompletado Filtrado (-fill)  │ spec testrun -fill -target=@tr-4 -exclude=wip   │ Expande Rules vacías omitiendo los casos excluidos      │ spec testrun, suite fill          │
+ * └────┴──────────────────────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┴───────────────────────────────────┘
+ */
+
 import { join, resolve, basename } from 'path';
 import { IScope } from './types';
 import { SCOPE_CONFIG, TESTCASE_STATUSES, TITLE_CLI } from './const';
@@ -22,7 +75,34 @@ export function matchesScope(s: any, scopeName: IScope, filePattern?: string): b
     if (tags.includes(cfg.tag) || uri.endsWith(cfg.ext)) {
         return true;
     }
+
+    const allTags = [
+        ...(s.feature?.tags || []),
+        ...(s.tags || []),
+    ].map((t: any) => typeof t === 'string' ? t : t?.name || '');
+
+    if (allTags.includes(cfg.tag)) {
+        return true;
+    }
+
+    const prefix = scopeName === 'testcase' ? '@tc-'
+        : scopeName === 'testrun' ? '@tr-'
+        : scopeName === 'testplan' ? '@tp-'
+        : scopeName === 'bug' ? '@bg-'
+        : undefined;
+
+    if (prefix && allTags.some(t => t.toLowerCase().startsWith(prefix))) {
+        return true;
+    }
+
     if (filePattern) {
+        const fp = filePattern.trim();
+        if (fp.startsWith('*') && uri.endsWith(fp.slice(1))) {
+            return true;
+        }
+        if (uri === fp || uri.endsWith(`/${fp}`)) {
+            return true;
+        }
         const clean = filePattern.split('.')[0].trim();
         if (clean && clean !== '*') {
             if (clean.startsWith('*') && uri.endsWith(clean.slice(1))) {
@@ -101,38 +181,66 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             }
         }
 
+        const lowerIdentity = normIdentity.toLowerCase();
+        const lowerT = normT.toLowerCase();
+
         // Strip trailing scenario/identity tag (e.g. .@tc-01, .@tr-1, .@tp-1) if present
         const lastDot = normIdentity.lastIndexOf('.');
         const cleanIdentity = (lastDot !== -1 && normIdentity.slice(lastDot).startsWith('.@'))
             ? normIdentity.slice(0, lastDot)
             : normIdentity;
+        const lowerCleanIdentity = cleanIdentity.toLowerCase();
 
-        const normBase = basename(cleanIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '');
-        const normTarget = basename(normT).replace(/(\.(case|run|plan))?\.feature$/i, '');
-        const hasPath = normT.includes('/');
-
-        if (hasPath) {
-            return (
-                normIdentity === normT ||
-                cleanIdentity === normT ||
-                normIdentity.startsWith(`${normT}.`) ||
-                cleanIdentity.startsWith(`${normT}.`) ||
-                cleanIdentity.endsWith(`/${normT}`) ||
-                cleanIdentity.endsWith(normT)
-            );
+        // 1. Exact match on full identity or clean identity
+        if (lowerIdentity === lowerT || lowerCleanIdentity === lowerT) {
+            return true;
         }
 
-        return (
-            normIdentity === normT ||
-            cleanIdentity === normT ||
-            normIdentity.startsWith(`${normT}.`) ||
-            cleanIdentity.startsWith(`${normT}.`) ||
-            cleanIdentity.endsWith(`/${normT}`) ||
-            cleanIdentity.endsWith(normT) ||
-            basename(cleanIdentity) === normT ||
-            basename(cleanIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '') === normTarget ||
-            normBase === normTarget
-        );
+        // 2. Identity tag matching (e.g. target is "@tr-4" or "tr-4")
+        if (lastDot !== -1 && normIdentity.slice(lastDot).startsWith('.@')) {
+            const tagPart = normIdentity.slice(lastDot + 1).toLowerCase(); // e.g. "@tr-4"
+            if (tagPart === lowerT || tagPart.replace(/^@/, '') === lowerT.replace(/^@/, '')) {
+                return true;
+            }
+        }
+
+        // 3. Target matches end of identity (e.g. "feature.@tc-01", ".@tc-01", "@tc-01")
+        if (
+            lowerIdentity.endsWith(`/${lowerT}`) ||
+            lowerIdentity.endsWith(`.${lowerT}`) ||
+            lowerIdentity.endsWith(lowerT) ||
+            lowerCleanIdentity.endsWith(`/${lowerT}`) ||
+            lowerCleanIdentity.endsWith(lowerT)
+        ) {
+            return true;
+        }
+
+        // 4. Target matches path prefix or folder (e.g. target="testcycle" or target="testcase/ParaBank")
+        if (
+            lowerIdentity.startsWith(`${lowerT}.`) ||
+            lowerIdentity.startsWith(`${lowerT}/`) ||
+            lowerCleanIdentity.startsWith(`${lowerT}.`) ||
+            lowerCleanIdentity.startsWith(`${lowerT}/`)
+        ) {
+            return true;
+        }
+
+        // 5. Basename matching (without path)
+        const normBase = basename(cleanIdentity).replace(/(\.(case|run|plan))?\.feature$/i, '').toLowerCase();
+        const normTarget = basename(normT).replace(/(\.(case|run|plan))?\.feature$/i, '').toLowerCase();
+        const hasPath = normT.includes('/');
+
+        if (!hasPath) {
+            if (
+                basename(cleanIdentity).toLowerCase() === lowerT ||
+                basename(cleanIdentity).toLowerCase().replace(/(\.(case|run|plan))?\.feature$/i, '') === normTarget ||
+                normBase === normTarget
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     });
 }
 

@@ -36,7 +36,7 @@ ${bold(`All other commands:`)}
   show          Show the current state or a saved plan
   spec          Manage test lifecycle specifications (testcase, testrun, testplan, bug)
   state         Advanced state management
-  suite         Manage test suites and execution files (init, -fill, -link, -mark, -tags)
+  suite         (legacy) Manage test suites and execution files (deprecated: use 'spec')
   taint         Mark a resource instance as not fully functional
   untaint       Remove the 'tainted' state from a resource instance
   version       Show the current ${TITLE_APP} version
@@ -1295,7 +1295,10 @@ ${bold(`Options:`)}
 export const HELP_SUITE = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] suite [subcommand] [options]
 
-  Manage test suites and execution files (.run.feature and .plan.feature).
+  [DEPRECATED] Manage test suites and execution files (.run.feature and .plan.feature).
+  Note: 'testform suite' is a legacy command maintained for backwards compatibility.
+  For modern, unified lifecycle management across testcase, testrun, testplan,
+  and bug, please use '${TITLE_CLI} spec'.
 
 ${bold(`Subcommand:`)}
   init                       Create a new suite file (.run.feature or .plan.feature)
@@ -1304,7 +1307,8 @@ ${bold(`Options:`)}
   -fill                      Autocomplete empty testrun rules with their testcases
   -link="<id>=<status>"      Link a testcase or testrun into a suite
   -mark="<id>=<status>"      Record execution status (* mark status = <status>) in a testrun
-  -tags="<address>"          Generate a testrun suite from bracketed tag addresses (e.g. "[@smoke]")
+  -include="<pattern>"       Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")
+  -exclude="<pattern>"       Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)
 
 ${bold(`Other Options:`)}
   -target=resource           Required for -fill, -link, -mark. Identifies the suite file:
@@ -1415,22 +1419,23 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] spec <resource> <action> [option
   testcase, testrun, testplan, and bug.
 
 ${bold(`Resources:`)}
-  testcase    Author, organize, and query testcase specifications
-  testrun     Plan, link testcases, record executions, and review run dashboards
-  testplan    Coordinate testruns into master test plans and rollup metrics
-  bug         Track defects, link failures to testcases, and manage resolutions
+  testcase    Author, organize, and query testcase specifications (.case.feature)
+  testrun     Plan, link testcases, record executions, and review run dashboards (.run.feature)
+  testplan    Coordinate testruns into master test plans and rollup metrics (.plan.feature)
+  bug         Track defects, link failures to testcases, and manage resolutions (.bug.feature)
 
 ${bold(`Actions:`)}
   new         Generate a new specification file for the resource
   add         Append a scenario or linkage to an existing specification
+  fill        Autocomplete empty Rule blocks with testcases (testrun)
   delete      Remove a specification file or scenario
   mark        Record execution status, traces, and evidence (testrun, bug)
   status      Display terminal status, dashboards, or reverse lookup (all)
 
 ${bold(`Options:`)}
-  -target       Target identifier, tag, or file path
-  -case         Target testcase address or tag
-  -run          Target testrun address or tag
+  -target       Target identifier, tag (@tc-N, @tr-N, @tp-N, @bg-N), or file path
+  -case         Target testcase address, tag, or file
+  -run          Target testrun address, tag, or file
   -title        Title for the specification or scenario
   -status       Execution or defect verdict (passed, failed, pending, skipped)
   -trace        Error stack trace or log message
@@ -1439,15 +1444,154 @@ ${bold(`Options:`)}
   -priority     Bug priority (high, medium, low)
   -show-name    Display scenario titles in place of canonical addresses
   -show-detail  Display full stack traces, evidence files, and metadata
+  -test-directory Limit search scope to specific directory
+
+${bold(`Examples by Resource:`)}
+
+  # 1. Testcases:
+  ${TITLE_CLI} spec testcase new -title="Shopping Cart"
+  ${TITLE_CLI} spec testcase add -target="cart.case.feature" -title="Add item with voucher"
+  ${TITLE_CLI} spec testcase status -target="@tc-01" -show-name
+
+  # 2. Test Runs:
+  ${TITLE_CLI} spec testrun new -title="Sprint 42 Nightly"
+  ${TITLE_CLI} spec testrun add -target="@tr-1" -case="cart.case.feature"
+  ${TITLE_CLI} spec testrun add -target="@tr-1" -case="@tc-01" -status=passed
+  ${TITLE_CLI} spec testrun fill -target="@tr-1"
+  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01" -status=passed -trace="OK"
+  ${TITLE_CLI} spec testrun status -target="@tr-1" -show-name -show-detail
+
+  # 3. Test Plans:
+  ${TITLE_CLI} spec testplan new -title="Release 2.0 Master Plan"
+  ${TITLE_CLI} spec testplan add -target="@tp-1" -run="sprint42.run.feature"
+  ${TITLE_CLI} spec testplan status -target="@tp-1" -show-detail
+
+  # 4. Bugs / Defects:
+  ${TITLE_CLI} spec bug new -title="Defects Sprint 42"
+  ${TITLE_CLI} spec bug add -target="bugs.bug.feature" -case="@tc-01" -severity=critical -title="500 Internal Error"
+  ${TITLE_CLI} spec bug mark -target="@bg-1" -status=passed
+  ${TITLE_CLI} spec bug status -show-detail
+`.trim();
+
+export const HELP_SPEC_TESTCASE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] spec testcase <action> [options]
+
+  Author, organize, and query testcase specifications (.case.feature).
+
+${bold(`Actions:`)}
+  new       Create a new testcase specification file
+  add       Append a new scenario into an existing testcase specification
+  delete    Remove a scenario or entire testcase file
+  status    Display execution history and linked defects across all runs
+
+${bold(`Options:`)}
+  -target           Target file path or scenario tag (@tc-N)
+  -title            Title for the feature or scenario
+  -test-directory   Limit search scope to directory
+  -show-name        Display scenario titles in place of canonical addresses
+  -show-detail      Display full stack traces and evidence
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} spec testcase new -title="Shopping Cart"
+  ${TITLE_CLI} spec testcase add -target="cart.case.feature" -title="Add configurable product"
+  ${TITLE_CLI} spec testcase delete -target="@tc-03"
+  ${TITLE_CLI} spec testcase status -target="@tc-01" -show-name
+`.trim();
+
+export const HELP_SPEC_TESTRUN = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] spec testrun <action> [options]
+
+  Plan, link testcases, record executions, and review run dashboards (.run.feature).
+
+${bold(`Actions:`)}
+  new       Create a new testrun specification file
+  add       Link a testcase or Rule (file) into the testrun
+  fill      Autocomplete empty Rule blocks with their underlying testcases
+  mark      Record execution status, error traces, and evidence for a testcase
+  delete    Remove a linked testcase or entire testrun file
+  status    Display testrun execution dashboard with counts, progress, and traces
+
+${bold(`Options:`)}
+  -target           Target testrun identifier (@tr-N), canonical address, or file
+  -case             Target testcase address (@tc-N or file.case.feature.@tc-N) or file
+  -fill             Autocomplete empty Rule blocks with testcases (flag alias)
+  -include          Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")
+  -exclude          Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)
+  -status           Verdict (passed, failed, pending, skipped)
+  -trace            Error stack trace or failure log
+  -evidence         Path to screenshot or attachment
+  -title            Title for the testrun
+  -show-name        Display scenario titles in place of canonical addresses
+  -show-detail      Display full stack traces and evidence
+  -test-directory   Limit search scope to directory
 
 ${bold(`Examples:`)}
   ${TITLE_CLI} spec testrun new -title="Sprint 42 Regression"
-  ${TITLE_CLI} spec testrun add -target="@tr-1" -case="Magento/cart.case.feature.@tc-01"
-  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01" -status=passed
-  ${TITLE_CLI} spec testrun status -target="@tr-1" -show-name -show-detail
-  ${TITLE_CLI} spec testcase status -target="@tc-01" -show-name
-  ${TITLE_CLI} spec bug add -target="bugs.bug.feature" -case="@tc-01" -severity=critical
+  ${TITLE_CLI} spec testrun -include=smoke -exclude=manual
+  ${TITLE_CLI} spec testrun -include="order.case.feature" -exclude=wip
+  ${TITLE_CLI} spec testrun -include="one tag" -test-directory="testcase/ParaBank"
+  ${TITLE_CLI} spec testrun -exclude=manual
+  ${TITLE_CLI} spec testrun -fill -target="@tr-4"
+  ${TITLE_CLI} spec testrun -fill -target="@tr-4" -include=smoke -exclude=wip
+  ${TITLE_CLI} spec testrun add -target="@tr-1" -case="cart.case.feature"
+  ${TITLE_CLI} spec testrun add -target="@tr-1" -case="@tc-01=passed"
+  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01" -status=failed -trace="500 Internal Error" -evidence="fail.png"
+  ${TITLE_CLI} spec testrun status -target="@tr-1" -show-detail
+`.trim();
+
+export const HELP_SPEC_TESTPLAN = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] spec testplan <action> [options]
+
+  Coordinate testruns into master test plans and rollup metrics (.plan.feature).
+
+${bold(`Actions:`)}
+  new       Create a new testplan specification file
+  add       Link a testrun suite into the testplan
+  delete    Remove a linked testrun or entire testplan file
+  status    Display aggregate testplan progress, linked runs, and rollup metrics
+
+${bold(`Options:`)}
+  -target           Target testplan identifier (@tp-N), canonical address, or file
+  -run              Target testrun address (@tr-N or file.run.feature)
+  -title            Title for the testplan
+  -show-name        Display titles in place of canonical addresses
+  -show-detail      Display individual testcase breakdowns within linked runs
+  -test-directory   Limit search scope to directory
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} spec testplan new -title="Release 2.0 Master Plan"
+  ${TITLE_CLI} spec testplan add -target="@tp-1" -run="sprint42.run.feature"
+  ${TITLE_CLI} spec testplan status -target="@tp-1" -show-detail
+`.trim();
+
+export const HELP_SPEC_BUG = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] spec bug <action> [options]
+
+  Track defects, link failures to testcases, and manage resolutions (.bug.feature).
+
+${bold(`Actions:`)}
+  new       Create a new bug specification container file
+  add       Record a new defect linked to a testcase
+  mark      Update defect resolution status (passed/resolved, failed/active)
+  delete    Remove a bug scenario or container file
+  status    Display defect summary, severity/priority, and linked testcases
+
+${bold(`Options:`)}
+  -target           Target bug identifier (@bg-N) or file
+  -case             Associated testcase address or tag (@tc-N)
+  -status           Defect status (failed=active, passed=resolved, pending=in review)
+  -severity         Severity level (critical, high, medium, low)
+  -priority         Priority level (high, medium, low)
+  -trace            Stack trace or defect description
+  -evidence         Path to evidence screenshot or file
+  -title            Bug title
+  -test-directory   Limit search scope to directory
+
+${bold(`Examples:`)}
+  ${TITLE_CLI} spec bug new -title="Sprint 42 Defects"
+  ${TITLE_CLI} spec bug add -target="defects.bug.feature" -case="@tc-01" -title="Crash on checkout" -severity=critical
   ${TITLE_CLI} spec bug mark -target="@bg-1" -status=passed
+  ${TITLE_CLI} spec bug status -show-detail
 `.trim();
 
 export const HELP_OUTPUT = `
@@ -1538,6 +1682,11 @@ export function getCommandHelp(command: string): string | null {
     case 'suite link': return HELP_SUITE_LINK;
     case 'suite mark': return HELP_SUITE_MARK;
     case 'spec': return HELP_SPEC;
+    case 'spec testcase': return HELP_SPEC_TESTCASE;
+    case 'spec testrun': return HELP_SPEC_TESTRUN;
+    case 'spec testplan': return HELP_SPEC_TESTPLAN;
+    case 'spec bug': return HELP_SPEC_BUG;
+    case 'spec defect': return HELP_SPEC_BUG;
     case 'functions': return HELP_FUNCTIONS;
     default: return null;
   }

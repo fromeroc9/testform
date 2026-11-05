@@ -435,4 +435,231 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             expect(bugContent).toContain('* mark evidence = evidence/ev_');
         });
     });
+
+    describe('spec autocomplete & target enhancements', () => {
+        it('should autocomplete empty testrun rules using spec testrun fill', async () => {
+            const caseFile = join(tmpDir, 'tests/features/payment.case.feature');
+            const runFile = join(tmpDir, 'tests/runs/execution.run.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+            require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
+
+            writeFileSync(caseFile, `@testcase\nFeature: Payment\n\n  @tc-1\n  Scenario: Credit Card\n    Given card\n\n  @tc-2\n  Scenario: Cash\n    Given cash\n`, 'utf-8');
+            writeFileSync(runFile, `@testrun @tr-1\nFeature: Execution\n\n  Rule: payment.case.feature\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                action: 'fill',
+                target: '@tr-1'
+            });
+
+            const content = readFileSync(runFile, 'utf-8');
+            expect(content).toContain('Scenario: payment.case.feature.@tc-1');
+            expect(content).toContain('Scenario: payment.case.feature.@tc-2');
+            expect(content).toContain('* mark status = pending');
+        });
+
+        it('should support inline status in -case (e.g. -case="@tc-1=passed")', async () => {
+            const runFile = join(tmpDir, 'tests/runs/inline.run.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
+            writeFileSync(runFile, `@testrun @tr-2\nFeature: Inline Status Run\n\n  Scenario: @tc-1\n    * mark status = pending\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                action: 'mark',
+                target: '@tr-2',
+                case: '@tc-1=passed'
+            });
+
+            const content = readFileSync(runFile, 'utf-8');
+            expect(content).toContain('* mark status = passed');
+        });
+
+        it('should support positional args for testcase in spec testrun mark', async () => {
+            const runFile = join(tmpDir, 'tests/runs/pos.run.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
+            writeFileSync(runFile, `@testrun @tr-3\nFeature: Positional Run\n\n  Scenario: @tc-5\n    * mark status = pending\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                action: 'mark',
+                target: '@tr-3',
+                args: ['@tc-5=skipped']
+            });
+
+            const content = readFileSync(runFile, 'utf-8');
+            expect(content).toContain('* mark status = skipped');
+        });
+
+        it('should resolve sub-command help in getCommandHelp', () => {
+            const { getCommandHelp } = require('../src/core/help');
+            expect(getCommandHelp('spec testcase')).toContain('spec testcase <action>');
+            expect(getCommandHelp('spec testrun')).toContain('spec testrun <action>');
+            expect(getCommandHelp('spec testplan')).toContain('spec testplan <action>');
+            expect(getCommandHelp('spec bug')).toContain('spec bug <action>');
+        });
+
+        it('should autocomplete using flag -fill in spec testrun -fill -target=@tr-1', async () => {
+            const caseFile = join(tmpDir, 'tests/features/order.case.feature');
+            const runFile = join(tmpDir, 'tests/runs/order.run.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+            require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
+
+            writeFileSync(caseFile, `@testcase\nFeature: Order\n\n  @tc-10\n  Scenario: Place Order\n    Given item\n`, 'utf-8');
+            writeFileSync(runFile, `@testrun @tr-10\nFeature: Order Run\n\n  Rule: order.case.feature\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                fill: true,
+                target: '@tr-10'
+            });
+
+            const content = readFileSync(runFile, 'utf-8');
+            expect(content).toContain('Scenario: order.case.feature.@tc-10');
+            expect(content).toContain('* mark status = pending');
+        });
+
+        it('should generate testrun matching tag coincidence using -include=smoke without brackets', async () => {
+            const caseFile = join(tmpDir, 'tests/features/smoke.case.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+            writeFileSync(caseFile, `@testcase\nFeature: Smoke Tests\n\n  @smoke\n  Scenario: Fast Check\n    Given ok\n\n  @manual\n  Scenario: Manual Check\n    Given wait\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                include: 'smoke',
+                title: 'Smoke Suite'
+            });
+
+            const runsDir = join(tmpDir, 'tests/runs');
+            const files = require('fs').readdirSync(runsDir);
+            const smokeRun = files.find((f: string) => f.includes('smoke') || f.endsWith('.run.feature'));
+            expect(smokeRun).toBeDefined();
+
+            const content = readFileSync(join(runsDir, smokeRun!), 'utf-8');
+            expect(content).toContain('Fast Check');
+            expect(content).not.toContain('Manual Check');
+        });
+
+        it('should match multiple or compound tags (e.g. -include="one tag") and respect -test-directory', async () => {
+            const subDir = join(tmpDir, 'testcase/ParaBank');
+            const otherDir = join(tmpDir, 'testcase/Other');
+            require('fs').mkdirSync(subDir, { recursive: true });
+            require('fs').mkdirSync(otherDir, { recursive: true });
+
+            writeFileSync(join(subDir, 'bill.case.feature'), `@testcase\nFeature: Bill\n\n  @one_tag\n  Scenario: Pay Bill\n    Given bill\n`, 'utf-8');
+            writeFileSync(join(otherDir, 'loan.case.feature'), `@testcase\nFeature: Loan\n\n  @one_tag\n  Scenario: Apply Loan\n    Given loan\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                include: 'one_tag',
+                testDirectory: 'testcase/ParaBank',
+                title: 'ParaBank Tag Run'
+            });
+
+            const runsDir = join(tmpDir, 'tests/runs');
+            const files = require('fs').readdirSync(runsDir);
+            const targetRun = files[files.length - 1];
+            const content = readFileSync(join(runsDir, targetRun), 'utf-8');
+
+            expect(content).toContain('Pay Bill');
+            expect(content).not.toContain('Apply Loan');
+        });
+
+        it('should include full feature file and exclude unwanted tags with -include="order.case.feature" -exclude=wip', async () => {
+            const caseFile = join(tmpDir, 'tests/features/order.case.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+            writeFileSync(caseFile, `@testcase\nFeature: Order Feature\n\n  @tc-1\n  Scenario: Order Complete Item\n    Given item\n\n  @tc-2 @wip\n  Scenario: Order Draft Feature\n    Given draft\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                include: 'order.case.feature',
+                exclude: 'wip',
+                title: 'Order Production Run'
+            });
+
+            const runsDir = join(tmpDir, 'tests/runs');
+            const files = require('fs').readdirSync(runsDir);
+            const targetRun = files[files.length - 1];
+            const content = readFileSync(join(runsDir, targetRun), 'utf-8');
+
+            expect(content).toContain('Order Complete Item');
+            expect(content).not.toContain('Order Draft Feature');
+        });
+
+        it('should filter scenarios with -include=smoke -exclude=manual', async () => {
+            const caseFile = join(tmpDir, 'tests/features/filter.case.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+            writeFileSync(caseFile, `@testcase\nFeature: Filter Suite\n\n  @smoke\n  Scenario: Automated Smoke\n    Given auto\n\n  @smoke @manual\n  Scenario: Manual Smoke Scenario\n    Given manual\n\n  @other\n  Scenario: Unrelated Scenario\n    Given none\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                include: 'smoke',
+                exclude: 'manual',
+                title: 'Automated Smoke Run'
+            });
+
+            const runsDir = join(tmpDir, 'tests/runs');
+            const files = require('fs').readdirSync(runsDir);
+            const targetRun = files[files.length - 1];
+            const content = readFileSync(join(runsDir, targetRun), 'utf-8');
+
+            expect(content).toContain('Automated Smoke');
+            expect(content).not.toContain('Manual Smoke Scenario');
+            expect(content).not.toContain('Unrelated Scenario');
+        });
+
+        it('should filter candidate scenarios during -fill with -include and -exclude', async () => {
+            const caseFile = join(tmpDir, 'tests/features/checkout.case.feature');
+            const runFile = join(tmpDir, 'tests/runs/checkout.run.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+            require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
+
+            writeFileSync(caseFile, `@testcase\nFeature: Checkout\n\n  @tc-1 @smoke\n  Scenario: Valid Card\n    Given card\n\n  @tc-2 @smoke @wip\n  Scenario: Crypto Payment\n    Given crypto\n`, 'utf-8');
+            writeFileSync(runFile, `@testrun @tr-25\nFeature: Checkout Run\n\n  Rule: checkout.case.feature\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                fill: true,
+                target: '@tr-25',
+                include: 'smoke',
+                exclude: 'wip'
+            });
+
+            const content = readFileSync(runFile, 'utf-8');
+            expect(content).toContain('Valid Card');
+            expect(content).not.toContain('Crypto Payment');
+        });
+
+        it('should include all testcases except excluded with -exclude=manual', async () => {
+            const caseFile1 = join(tmpDir, 'tests/features/a.case.feature');
+            const caseFile2 = join(tmpDir, 'tests/features/b.case.feature');
+            require('fs').mkdirSync(join(tmpDir, 'tests/features'), { recursive: true });
+
+            writeFileSync(caseFile1, `@testcase\nFeature: A\n\n  Scenario: Normal Case A\n    Given a\n`, 'utf-8');
+            writeFileSync(caseFile2, `@testcase\nFeature: B\n\n  @manual\n  Scenario: Manual Case B\n    Given b\n`, 'utf-8');
+
+            await specCmd({
+                dir: tmpDir,
+                resource: 'testrun',
+                exclude: 'manual',
+                title: 'All Except Manual Run'
+            });
+
+            const runsDir = join(tmpDir, 'tests/runs');
+            const files = require('fs').readdirSync(runsDir);
+            const targetRun = files[files.length - 1];
+            const content = readFileSync(join(runsDir, targetRun), 'utf-8');
+
+            expect(content).toContain('Normal Case A');
+            expect(content).not.toContain('Manual Case B');
+        });
+    });
 });

@@ -23,6 +23,13 @@ describe('Target and Spec Selector (src/core/selector)', () => {
             expect(matchesScope({ uri: 'custom.feature', feature: { tags: ['@testrun'] } }, 'testrun')).toBe(true);
             expect(matchesScope({ uri: 'custom.feature', feature: { tags: ['@testplan'] } }, 'testplan')).toBe(true);
         });
+
+        it('should match scope by identity tags in features or scenarios', () => {
+            expect(matchesScope({ uri: 'custom.feature', tags: ['@tr-4'] }, 'testrun')).toBe(true);
+            expect(matchesScope({ uri: 'custom.feature', feature: { tags: ['@tr-4'] } }, 'testrun')).toBe(true);
+            expect(matchesScope({ uri: 'custom.feature', tags: ['@tc-1'] }, 'testcase')).toBe(true);
+            expect(matchesScope({ uri: 'custom.feature', feature: { tags: ['@tp-2'] } }, 'testplan')).toBe(true);
+        });
     });
 
     describe('detectScopeFromTarget', () => {
@@ -59,6 +66,15 @@ describe('Target and Spec Selector (src/core/selector)', () => {
         it('should match targets formatted as Terraform resource addresses', () => {
             expect(matchesTarget('tests/login.case.feature.@tc-1', 'testcase.tests/login.case.feature.@tc-1', 'testcase')).toBe(true);
             expect(matchesTarget('tests/login.case.feature.@tc-1', 'github_testcase.tests/login.case.feature.@tc-1', 'testcase')).toBe(true);
+        });
+
+        it('should match scenario identity tags (@tr-N, @tc-N) across scoped paths', () => {
+            expect(matchesTarget('testcycle/sprint.run.feature.@tr-4', '@tr-4')).toBe(true);
+            expect(matchesTarget('testcycle/sprint.run.feature.@tr-4', 'tr-4')).toBe(true);
+            expect(matchesTarget('testcase/ParaBank/account_services.case.feature.@tc-01', '@tc-01')).toBe(true);
+            expect(matchesTarget('testcase/ParaBank/account_services.case.feature.@tc-01', 'tc-01')).toBe(true);
+            expect(matchesTarget('testcycle/sprint.run.feature.@tr-40', '@tr-4')).toBe(false);
+            expect(matchesTarget('testcase/ParaBank/account_services.case.feature.@tc-01', '@tc-02')).toBe(false);
         });
     });
 

@@ -555,12 +555,13 @@ export function createCli() {
         });
 
     // ─── suite ───────────────────────────────────────────────────────────
-    cli.command('suite [subcommand] [...args]', 'Manage test suites and execution files (init, fill, link, mark, tags)')
+    cli.command('suite [subcommand] [...args]', '(legacy) Manage test suites and execution files (deprecated: use "spec")')
         .option('-s, --scope <scope>', 'Suite scope (testrun, testplan)')
         .option('--fill', 'Autocomplete empty testrun rules with their testcases')
         .option('--link <id_status>', 'Link a testcase or testrun into a suite')
         .option('--mark <id_status>', 'Record execution status in a testrun')
-        .option('--tags <tags>', 'Filter testcase scenarios by bracketed tag expression to generate testrun (e.g. "[@smoke]" or "file.case.feature.[@smoke]")')
+        .option('--include <pattern>', 'Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")')
+        .option('--exclude <pattern>', 'Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)')
         .option('--title <title>', 'Suite title')
         .option('--rule <rule>', 'Rule definitions')
         .option('--target <target>', 'Target feature file (identity tag @tr-N/@tp-N, canonical address, or file path)')
@@ -580,7 +581,8 @@ export function createCli() {
                 title: options.title,
                 rules: ruleArr,
                 target: options.target,
-                tags: options.tags,
+                include: options.include,
+                exclude: options.exclude,
                 fill: Boolean(options.fill),
                 link: typeof options.link === 'string' ? options.link : undefined,
                 mark: typeof options.mark === 'string' ? options.mark : undefined,
@@ -593,7 +595,7 @@ export function createCli() {
         });
 
     // ─── spec ─────────────────────────────────────────────────────────────
-    cli.command('spec [resource] [action]', 'Manage test lifecycle specifications (testcase, testrun, testplan, bug)')
+    cli.command('spec [resource] [action] [...args]', 'Manage test lifecycle specifications (testcase, testrun, testplan, bug)')
         .option('--target <target>', 'Target identifier, address, or tag')
         .option('--case <case>', 'Target testcase canonical address or tag')
         .option('--run <run>', 'Target testrun canonical address or tag')
@@ -603,12 +605,15 @@ export function createCli() {
         .option('--evidence <evidence>', 'Path or list of paths to evidence files')
         .option('--severity <severity>', 'Bug severity (critical, high, medium, low)')
         .option('--priority <priority>', 'Bug priority (high, medium, low)')
+        .option('--fill', 'Autocomplete empty testrun rules with their testcases')
+        .option('--include <pattern>', 'Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")')
+        .option('--exclude <pattern>', 'Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)')
         .option('--show-name', 'Display scenario title instead of canonical address')
         .option('--show-detail', 'Display detailed output including trace and evidence')
         .option('--test-directory <dir>', 'Directory containing test files')
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
-        .action(async (resource, action, options) => {
+        .action(async (resource, action, subArgs, options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
 
@@ -616,6 +621,7 @@ export function createCli() {
                 dir: workDir,
                 resource,
                 action,
+                args: Array.isArray(subArgs) ? subArgs : (subArgs ? [subArgs] : []),
                 target: options.target,
                 case: options.case,
                 run: options.run,
@@ -623,6 +629,9 @@ export function createCli() {
                 status: options.status,
                 trace: options.trace,
                 evidence: options.evidence,
+                fill: Boolean(options.fill),
+                include: options.include,
+                exclude: options.exclude,
                 severity: options.severity,
                 priority: options.priority,
                 showName: Boolean(options.showName || options['show-name']),
@@ -850,7 +859,7 @@ function handleUnknownCommand(cmd: string): never {
         'force-unlock', 'functions', 'graph', 'import', 'init',
         'login', 'logout', 'modules', 'output', 'plan',
         'policy', 'print', 'providers', 'query', 'refresh',
-        'report', 'show', 'state', 'suite', 'taint',
+        'report', 'show', 'spec', 'state', 'suite', 'taint',
         'tool', 'untaint', 'validate', 'version', 'workspace'
     ];
     const suggestion = suggestCommand(cmd, knownCommands);

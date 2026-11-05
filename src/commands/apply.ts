@@ -112,6 +112,10 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 finalState = sPlan.state;
             }
 
+            if (refresh && !refreshOnly) {
+                console.log('');
+            }
+
             plan = { changes: allChanges, hasChanges: allChanges.length > 0, state: finalState };
 
             // Show plan summary

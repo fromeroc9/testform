@@ -50,27 +50,92 @@ export const IDENTIFIER_STRATEGIES_DETAIL = [
     `  3. Scenario Name:      "Pago con tarjeta=passed"`,
 ];
 
+export interface PatternFilter {
+    filePattern?: string;
+    tags: string[];
+}
+
 /**
- * Parses bracketed tag expressions:
- *   - "checkout.case.feature.[@smoke]" -> { filePattern: "checkout.case.feature", tags: ["@smoke"] }
- *   - "[@smoke]" -> { filePattern: undefined, tags: ["@smoke"] }
- *   - "checkout.case.feature.[@smoke,@critical]" -> { filePattern: "checkout.case.feature", tags: ["@smoke", "@critical"] }
+ * Parses include/exclude patterns into structured filters:
+ *   - "smoke" -> { filePattern: undefined, tags: ["@smoke"] }
+ *   - "smoke, critical" -> [{ tags: ["@smoke"] }, { tags: ["@critical"] }]
+ *   - "checkout.case.feature" -> { filePattern: "checkout.case.feature", tags: [] }
+ *   - "checkout.case.feature:smoke" -> { filePattern: "checkout.case.feature", tags: ["@smoke"] }
  */
-export function parseTagAddress(address: string): { filePattern?: string; tags: string[] } {
-    const trimmed = address.trim();
-    const bracketMatch = trimmed.match(/^(?:(.*)(?:\.|\b))?\[([^\]]+)\]$/);
-    if (!bracketMatch) {
-        throw new Error(`Invalid tag address format: "${address}". Expected format like "[@smoke]" or "checkout.case.feature.[@smoke]".`);
+export function parsePatternFilter(input?: string | string[]): PatternFilter[] {
+    if (!input) return [];
+    const list = Array.isArray(input) ? input : [input];
+    const filters: PatternFilter[] = [];
+
+    for (const raw of list) {
+        if (!raw) continue;
+        const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+        for (const item of parts) {
+            // 1. Colon separator for file:tag (checkout.case.feature:smoke)
+            if (item.includes(':')) {
+                const parts = item.split(':');
+                const filePattern = parts[0].trim();
+                const rawTags = parts.slice(1).join(':').split(',').map(t => t.trim()).filter(Boolean);
+                const tags = rawTags.map(t => t.startsWith('@') ? t : `@${t}`);
+                filters.push({ filePattern, tags });
+                continue;
+            }
+
+            // 2. Feature file pattern without tags
+            if (item.endsWith('.feature') || item.includes('.case.') || item.includes('.run.') || item.includes('/') || item.includes('\\')) {
+                filters.push({ filePattern: item, tags: [] });
+                continue;
+            }
+
+            // 3. Tag name (smoke, @smoke, "one tag")
+            const clean = item.replace(/^\[+|\]+$/g, '');
+            const tag = clean.startsWith('@') ? clean : `@${clean}`;
+            filters.push({ filePattern: undefined, tags: [tag] });
+        }
     }
 
-    let filePattern = bracketMatch[1]?.trim() || undefined;
-    if (filePattern?.endsWith('.')) {
-        filePattern = filePattern.slice(0, -1).trim();
-    }
-    const rawTags = bracketMatch[2].split(',').map(t => t.trim()).filter(Boolean);
-    const tags = rawTags.map(t => t.startsWith('@') ? t : `@${t}`);
+    return filters;
+}
 
-    return { filePattern, tags };
+export function matchesScenarioFilter(scenario: any, filter: PatternFilter): boolean {
+    if (filter.filePattern) {
+        if (!matchesFeatureFile(scenario.uri, filter.filePattern)) {
+            return false;
+        }
+    }
+    if (filter.tags.length > 0) {
+        const cleanTerms = filter.tags.map(t => t.replace(/^@/, '').toLowerCase().trim()).filter(Boolean);
+        const scenarioTags: string[] = [
+            ...(scenario.tags || []),
+            ...(scenario.feature?.tags || [])
+        ].map((t: any) => {
+            if (typeof t === 'string') return t;
+            return t?.name || t?.value || String(t);
+        }).map(t => t.replace(/^@/, '').toLowerCase().trim());
+
+        const hasCoincidence = cleanTerms.some(term =>
+            scenarioTags.some(st => st === term || st.includes(term) || term.includes(st))
+        );
+        if (!hasCoincidence) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Parses tag expressions cleanly:
+ *   - "smoke" -> { filePattern: undefined, tags: ["@smoke"] }
+ *   - "smoke, critical" -> { filePattern: undefined, tags: ["@smoke", "@critical"] }
+ *   - "one tag" -> { filePattern: undefined, tags: ["@one tag"] }
+ *   - "checkout.case.feature:smoke" -> { filePattern: "checkout.case.feature", tags: ["@smoke"] }
+ */
+export function parseTagAddress(addressOrList: string | string[]): { filePattern?: string; tags: string[] } {
+    const filters = parsePatternFilter(addressOrList);
+    if (filters.length === 0) return { filePattern: undefined, tags: [] };
+    const filePattern = filters.find(f => f.filePattern)?.filePattern;
+    const allTags = Array.from(new Set(filters.flatMap(f => f.tags)));
+    return { filePattern, tags: allTags };
 }
 
 // ---------------------------------------------------------------------------
@@ -99,13 +164,15 @@ async function runAdd(options: {
 // suite fill  (testrun only)
 // ---------------------------------------------------------------------------
 
-async function runAutocomplete(options: {
+export async function runAutocomplete(options: {
     dir: string;
     target: string;
     testDirectory?: string;
     variables?: VariableParser;
+    include?: string | string[];
+    exclude?: string | string[];
 }) {
-    const { dir, target, testDirectory, variables } = options;
+    const { dir, target, testDirectory, variables, include, exclude } = options;
     const searchDir = testDirectory ? join(dir, testDirectory) : dir;
 
     const { absolutePath: absoluteRunPath } = await resolveTargetScenario(target, dir, 'testrun', testDirectory, variables);
@@ -132,6 +199,9 @@ async function runAutocomplete(options: {
     const allCaseFiles = Array.from(new Set(allCases.map(s => s.uri)));
 
     let expandedCount = 0;
+
+    const includeFilters = parsePatternFilter(include);
+    const excludeFilters = parsePatternFilter(exclude);
 
     for (const child of ruleChildren) {
         const rule = child?.rule;
@@ -174,7 +244,16 @@ async function runAutocomplete(options: {
         // Build testcases list: "ruleName.scenarioIdentity"
         const config = new Config(dir);
         const caseData = { identity: config.getIdentity('testcase'), fields: config.getFields('testcase') };
-        const filteredCases = caseParser.filter(caseScenarios, caseData, 'testcase') || [];
+        let filteredCases = caseParser.filter(caseScenarios, caseData, 'testcase') || [];
+
+        // Apply include and exclude criteria
+        if (includeFilters.length > 0 || excludeFilters.length > 0) {
+            filteredCases = filteredCases.filter((s: any) => {
+                const isInc = includeFilters.length === 0 || includeFilters.some(f => matchesScenarioFilter(s, f));
+                const isExc = excludeFilters.length > 0 && excludeFilters.some(f => matchesScenarioFilter(s, f));
+                return isInc && !isExc;
+            });
+        }
 
         const testcases = filteredCases.map((s: any) => {
             const id = s.custom?.identity || s.name;
@@ -706,65 +785,55 @@ async function runState(options: {
 // suite tags  (generates .run.feature based on bracketed tag address)
 // ---------------------------------------------------------------------------
 
-async function runTagsSuite(options: {
+export async function runTagsSuite(options: {
     dir: string;
-    tagExpression: string;
+    include?: string | string[];
+    exclude?: string | string[];
     title?: string;
     testDirectory?: string;
     variables?: VariableParser;
 }) {
-    const { dir, tagExpression, title, testDirectory, variables } = options;
+    const { dir, include, exclude, title, testDirectory, variables } = options;
     const searchDir = testDirectory ? join(dir, testDirectory) : dir;
     const config = new Config(dir);
 
-    let parsedAddress: { filePattern?: string; tags: string[] };
-    try {
-        parsedAddress = parseTagAddress(tagExpression);
-    } catch {
+    if (!include && !exclude) {
         Diag.error({
-            title: `Invalid tag address format: '${tagExpression}'`,
+            title: `No testcases specified to include or exclude.`,
             detail: [
-                `Expected bracket address format:`,
-                `  1. File specific:  "checkout.case.feature.[@smoke]"`,
-                `  2. Workspace-wide: "[@smoke]" or "[@smoke,@critical]"`,
+                `Specify criteria using -include=<tag|file> and optional -exclude=<tag|file>`,
+                `Examples:`,
+                `  -include=smoke`,
+                `  -include="checkout.case.feature" -exclude=wip`,
+                `  -exclude=manual`,
             ]
         }).abort();
         return;
     }
 
-    const { filePattern, tags } = parsedAddress;
+    const includeFilters = parsePatternFilter(include);
+    const excludeFilters = parsePatternFilter(exclude);
 
     // Load all testcases
     const parser = new Parser(searchDir, variables);
     const documents = parser.content() || [];
     const allCases = documents.filter(s => matchesScope(s, 'testcase'));
 
-    // Filter by filePattern if provided
-    let candidateCases = allCases;
-    if (filePattern) {
-        candidateCases = candidateCases.filter(s => matchesFeatureFile(s.uri, filePattern));
-        if (candidateCases.length === 0) {
-            Diag.error({
-                title: `No testcase files matched '${filePattern}'.`,
-                detail: [`Available files:`, ...Array.from(new Set(allCases.map(s => `  - ${s.uri}`))).slice(0, 10)]
-            }).abort();
-            return;
-        }
-    }
-
-    // Filter scenarios that contain ANY of the requested tags
-    const matchedScenarios = candidateCases.filter(s => {
-        const scenarioTags = [...(s.tags || []), ...(s.feature?.tags || [])].map(String);
-        return scenarioTags.some(t => tags.includes(t));
+    // Filter scenarios that match inclusion and do NOT match exclusion
+    const matchedScenarios = allCases.filter(s => {
+        const isInc = includeFilters.length === 0 || includeFilters.some(f => matchesScenarioFilter(s, f));
+        const isExc = excludeFilters.length > 0 && excludeFilters.some(f => matchesScenarioFilter(s, f));
+        return isInc && !isExc;
     });
 
     if (matchedScenarios.length === 0) {
         Diag.error({
-            title: `No testcase scenarios found matching tag(s) [${tags.join(', ')}].`,
+            title: `No testcase scenarios found matching criteria (include: ${include || 'all'}, exclude: ${exclude || 'none'}).`,
             detail: [
-                filePattern ? `Searched within: ${filePattern}` : `Searched across all testcase files in workspace.`,
-                `Total testcases evaluated: ${candidateCases.length}`
-            ]
+                testDirectory ? `Search scope limited to: ${testDirectory}` : `Searched across entire workspace.`,
+                `Total testcases evaluated: ${allCases.length}`,
+                `Hint: Verify tags in your .case.feature files or adjust -test-directory.`
+            ].filter(Boolean)
         }).abort();
         return;
     }
@@ -790,14 +859,19 @@ async function runTagsSuite(options: {
     const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
     const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
     const timestamp = now.getTime().toString();
-    const cleanTagSlug = tags.map(t => t.replace('@', '')).join('_').toLowerCase();
+    const allIncludeTags = includeFilters.flatMap(f => f.tags);
+    const cleanTagSlug = allIncludeTags.map(t => t.replace('@', '')).join('_').toLowerCase();
 
-    let generatedTitle = title || `Suite ${tags.join(' ')}`;
-    let slug = cleanTagSlug;
-    if (filePattern) {
-        const baseName = basename(filePattern).replace(/\.feature$/i, '').replace(/\.case$/i, '');
-        slug = `${baseName}_${cleanTagSlug}`;
+    let slug = 'suite';
+    const firstFile = includeFilters.find(f => f.filePattern)?.filePattern;
+    if (firstFile) {
+        const baseName = basename(firstFile).replace(/\.feature$/i, '').replace(/\.case$/i, '');
+        slug = cleanTagSlug ? `${baseName}_${cleanTagSlug}` : baseName;
+    } else if (cleanTagSlug) {
+        slug = cleanTagSlug;
     }
+
+    let generatedTitle = title || (slug !== 'suite' ? `Suite ${slug}` : 'Suite');
 
     let filename = fileTpl
         .replace(/{YYYYMMDD}/g, YYYYMMDD)
@@ -851,7 +925,7 @@ async function runTagsSuite(options: {
     writeFileSync(fullPath, content.trim() + '\n', 'utf-8');
 
     console.log(green(bold(`\nGenerated testrun suite file: ${fullPath}`)));
-    console.log(`  ${green('✓')} Included ${totalCases} scenario(s) matching tag(s) ${tags.join(', ')} across ${grouped.size} file(s).`);
+    console.log(`  ${green('✓')} Included ${totalCases} scenario(s) matching criteria across ${grouped.size} file(s).`);
 }
 
 // ---------------------------------------------------------------------------
@@ -866,7 +940,8 @@ export interface SuiteCmdOptions {
     title?: string;
     rules?: string[];
     target?: string;
-    tags?: string;
+    include?: string | string[];
+    exclude?: string | string[];
     fill?: boolean;
     link?: string;
     mark?: string;
@@ -878,15 +953,19 @@ export interface SuiteCmdOptions {
 }
 
 export const suiteCmd = async (options: SuiteCmdOptions) => {
+    // Deprecation warning for legacy suite command
+    console.log(yellow(`[Warning] 'suite' is a legacy command and is deprecated. Please use 'spec' instead.`));
     const {
         dir, subCommand, subArgs, scope, title, rules,
-        target, tags, fill, link, mark, testDirectory, statePath, backupPath, variables, verbose
+        target, include, exclude, fill, link, mark, testDirectory, statePath, backupPath, variables, verbose
     } = options;
 
     let cmd = (subCommand || '').toLowerCase();
     const effectiveArgs = [...subArgs];
+    const includeString = Array.isArray(include) ? include.join(',') : include;
+    const excludeString = Array.isArray(exclude) ? exclude.join(',') : exclude;
 
-    if (fill) {
+    if (fill || cmd === '-fill' || cmd === '--fill') {
         cmd = 'fill';
     } else if (link) {
         cmd = 'link';
@@ -894,34 +973,37 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
     } else if (mark) {
         cmd = 'mark';
         if (effectiveArgs.length === 0) effectiveArgs.push(mark);
-    } else if (tags) {
+    } else if (includeString || excludeString) {
         cmd = 'tags';
+    } else if (cmd === 'testrun') {
+        if (fill) cmd = 'fill';
+        else if (includeString || excludeString) cmd = 'tags';
     }
 
     let currentScope = scope;
     let currentTitle = title;
     let currentTarget = target;
 
-    // Check if tags flag or bracketed address was directly passed
-    const rawTagAddress = tags || (cmd.includes('[') && cmd.endsWith(']') ? cmd : (effectiveArgs.length > 0 && effectiveArgs[0].includes('[') ? effectiveArgs[0] : undefined));
+    // Check if criteria was passed via flag or arguments
+    const targetExpr = includeString || (effectiveArgs.length > 0 && !cmd ? effectiveArgs[0] : undefined);
 
-    if (cmd === 'tags' || (rawTagAddress && (!cmd || cmd === 'tags' || cmd === 'init' || cmd === 'run'))) {
-        const targetExpr = rawTagAddress || (effectiveArgs.length > 0 ? effectiveArgs[0] : undefined);
-        if (!targetExpr) {
+    if (cmd === 'tags' || (targetExpr && (!cmd || cmd === 'tags' || cmd === 'init' || cmd === 'run' || cmd === 'testrun')) || (exclude && !cmd)) {
+        if (!targetExpr && !exclude) {
             Diag.usage({
-                syntax: `${TITLE_CLI} suite tags "<address>" [-title=<title>]`,
+                syntax: `${TITLE_CLI} suite testrun [-include=<pattern>] [-exclude=<pattern>] [-title=<title>] [-test-directory=<dir>]`,
                 detail: [
-                    `Generates a new testrun suite (.run.feature) by extracting scenarios with matching tags.`,
+                    `Generates a new testrun suite (.run.feature) by extracting scenarios matching include and exclude criteria.`,
                     ``,
-                    `Address strategies:`,
-                    `  1. File-specific tag:  "checkout.case.feature.[@smoke]"  (only scenarios with @smoke from this file)`,
-                    `  2. Workspace-wide tag: "[@smoke]"                       (all scenarios with @smoke from any file)`,
-                    `  3. Multiple tags:      "[@smoke,@critical]"             (scenarios matching any of the specified tags)`,
+                    `Options:`,
+                    `  -include=<tag|file>    Include scenarios matching tag or feature file`,
+                    `  -exclude=<tag|file>    Exclude scenarios matching tag or feature file`,
+                    `  -test-directory=<dir>  Limit search scope for .case.feature files`,
+                    `  -title=<title>         Optional title for the generated testrun suite`,
                     ``,
                     `Examples:`,
-                    `  ${TITLE_CLI} suite -tags="[@smoke]"`,
-                    `  ${TITLE_CLI} suite -tags="checkout.case.feature.[@smoke]"`,
-                    `  ${TITLE_CLI} suite tags "[@smoke]" -title="Smoke Regression"`,
+                    `  ${TITLE_CLI} suite testrun -include=smoke -exclude=manual`,
+                    `  ${TITLE_CLI} suite testrun -include="order.case.feature" -exclude=wip`,
+                    `  ${TITLE_CLI} suite testrun -exclude=manual`,
                 ],
             }).abort();
             return;
@@ -929,7 +1011,8 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
 
         await runTagsSuite({
             dir,
-            tagExpression: targetExpr,
+            include: include || targetExpr,
+            exclude,
             title: currentTitle,
             testDirectory,
             variables
@@ -941,7 +1024,7 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
         if (isInteractive()) {
             cmd = await askSelect('¿Qué operación de suite deseas realizar?', [
                 { label: 'init  - Crear un nuevo archivo de suite (.run.feature o .plan.feature)', value: 'init' },
-                { label: 'tags  - Generar un testrun a partir de tags con corchetes (ej: [@smoke])', value: 'tags' },
+                { label: 'tags  - Generar un testrun a partir de criterios de inclusión/exclusión (ej: -include=smoke)', value: 'tags' },
                 { label: 'fill  - Autocompletar reglas vacías de un testrun con sus casos', value: 'fill' },
                 { label: 'link  - Enlazar casos o runs en la suite (escribe Gherkin implícita/explícitamente)', value: 'link' },
                 { label: 'mark  - Registrar estado de ejecución de un testcase y sincronizar', value: 'mark' },
@@ -957,7 +1040,8 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
                     `  -fill                      Autocomplete empty testrun rules with their testcases`,
                     `  -link="<id>=<status>"      Link a testcase or testrun into a suite`,
                     `  -mark="<id>=<status>"      Record execution status (* mark status = <status>) in a testrun`,
-                    `  -tags="<address>"          Generate a testrun suite from bracketed tag addresses (e.g. "[@smoke]")`,
+                    `  -include="<pattern>"       Include testcases matching tag or feature file (e.g. -include=smoke)`,
+                    `  -exclude="<pattern>"       Exclude testcases matching tag or feature file (e.g. -exclude=manual)`,
                     ``,
                     `Other Options:`,
                     `  -target=<resource>         Required for -fill, -link, -mark. Identifies the suite file:`,
@@ -1022,7 +1106,14 @@ export const suiteCmd = async (options: SuiteCmdOptions) => {
             }
         }
         if (!currentTarget) return;
-        await runAutocomplete({ dir, target: currentTarget, testDirectory, variables });
+        await runAutocomplete({
+            dir,
+            target: currentTarget,
+            testDirectory,
+            variables,
+            include,
+            exclude
+        });
         return;
     }
 

@@ -9,12 +9,16 @@ import { Diag } from '../core/diagnostics';
 import { TITLE_CLI, SCOPE_CONFIG, TESTCASE_STATUSES } from '../core/const';
 import { findNextIdentity, GherkinEditor } from '../core/editor';
 import { VariableParser } from '../core/variables';
-import { matchesScope, matchesFeatureFile } from '../core/selector';
+import { matchesScope, matchesFeatureFile, promptTargetSuite } from '../core/selector';
+import { HELP_SPEC, HELP_SPEC_TESTCASE, HELP_SPEC_TESTRUN, HELP_SPEC_TESTPLAN, HELP_SPEC_BUG } from '../core/help';
+import { runAutocomplete, runTagsSuite, parsePatternFilter, matchesScenarioFilter } from './suite';
+import { isInteractive } from '../core/prompt';
 
 export interface SpecCmdOptions {
     dir: string;
     resource?: string;
     action?: string;
+    args?: string[];
     target?: string;
     case?: string;
     run?: string;
@@ -22,6 +26,9 @@ export interface SpecCmdOptions {
     status?: string;
     trace?: string;
     evidence?: string;
+    fill?: boolean;
+    include?: string | string[];
+    exclude?: string | string[];
     severity?: string;
     priority?: string;
     showName?: boolean;
@@ -90,10 +97,12 @@ function resolveScopeFile(dir: string, target: string, scope: IScope, testDir?: 
         if (base === normTarget || base.replace(/\.feature$/i, '') === normTarget) {
             return f;
         }
-        // Match identity inside file
+        // Match identity inside file with boundary check
         try {
             const content = readFileSync(f, 'utf-8');
-            if (content.toLowerCase().includes(normTarget)) {
+            const escaped = normTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const tagRegex = new RegExp(`(?:^|[\\s"])` + escaped + `(?:[\\s"]|$)`, 'im');
+            if (tagRegex.test(content)) {
                 return f;
             }
         } catch {}
@@ -102,11 +111,37 @@ function resolveScopeFile(dir: string, target: string, scope: IScope, testDir?: 
     return undefined;
 }
 
+function matchesScenarioInText(line: string, targetCase: string): boolean {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('Scenario:')) return false;
+    const scenarioName = trimmed.replace(/^Scenario:\s*/, '').trim();
+
+    const cleanCase = targetCase.trim();
+    if (scenarioName.toLowerCase() === cleanCase.toLowerCase()) return true;
+
+    const tagMatch = cleanCase.match(/@tc-\d+/i) || cleanCase.match(/@tr-\d+/i) || cleanCase.match(/@tp-\d+/i) || cleanCase.match(/@bg-\d+/i);
+    if (tagMatch) {
+        const tag = tagMatch[0].toLowerCase();
+        const tagRegex = new RegExp(`(?:^|[\\s./])${tag}(?:[\\s.]|$)`, 'i');
+        if (tagRegex.test(scenarioName)) return true;
+        const noAt = tag.replace(/^@/, '');
+        const noAtRegex = new RegExp(`(?:^|[\\s./])${noAt}(?:[\\s.]|$)`, 'i');
+        if (noAtRegex.test(scenarioName)) return true;
+    }
+
+    if (cleanCase.endsWith(scenarioName) || scenarioName.endsWith(cleanCase)) {
+        return true;
+    }
+
+    return false;
+}
+
 // ─── TESTCASE HANDLERS ───────────────────────────────────────────────────────
 
 async function handleTestcase(options: SpecCmdOptions) {
     const { dir, action, target, title, showName, showDetail, statePath, backupPath, testDirectory } = options;
     const config = new Config(dir, false);
+    const effectiveTarget = target || (options.args && options.args.length > 0 ? options.args[0] : undefined);
 
     switch (action) {
         case 'new': {
@@ -118,7 +153,7 @@ async function handleTestcase(options: SpecCmdOptions) {
             const safeTitle = title || 'Testcase Specification';
             const slug = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
             const ext = getScopeExtension(config, 'testcase');
-            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `${slug}${ext}`;
+            const filename = effectiveTarget ? (effectiveTarget.endsWith('.feature') ? effectiveTarget : `${effectiveTarget}${ext}`) : `${slug}${ext}`;
             const filePath = resolve(absDir, filename);
 
             if (existsSync(filePath)) {
@@ -137,7 +172,7 @@ async function handleTestcase(options: SpecCmdOptions) {
         }
 
         case 'add': {
-            if (!target) {
+            if (!effectiveTarget) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testcase add -target=<file> [-title="Scenario title"]`,
                     detail: [`Specify -target to indicate which specification file to add the scenario into.`]
@@ -145,10 +180,10 @@ async function handleTestcase(options: SpecCmdOptions) {
                 return;
             }
 
-            const filePath = resolveScopeFile(dir, target, 'testcase', testDirectory);
+            const filePath = resolveScopeFile(dir, effectiveTarget, 'testcase', testDirectory);
             if (!filePath || !existsSync(filePath)) {
                 Diag.error({
-                    title: `Testcase file not found for target: ${target}`,
+                    title: `Testcase file not found for target: ${effectiveTarget}`,
                     detail: [`Verify the file path or name.`]
                 }).abort();
                 return;
@@ -165,7 +200,7 @@ async function handleTestcase(options: SpecCmdOptions) {
         }
 
         case 'delete': {
-            if (!target) {
+            if (!effectiveTarget) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testcase delete -target=<tag|file>`,
                     detail: [`Specify -target with the scenario identity tag or file to remove.`]
@@ -173,8 +208,8 @@ async function handleTestcase(options: SpecCmdOptions) {
                 return;
             }
 
-            if (target.endsWith('.feature')) {
-                const filePath = resolveScopeFile(dir, target, 'testcase', testDirectory);
+            if (effectiveTarget.endsWith('.feature')) {
+                const filePath = resolveScopeFile(dir, effectiveTarget, 'testcase', testDirectory);
                 if (filePath && existsSync(filePath)) {
                     unlinkSync(filePath);
                     console.log(green(bold(`\n✓ Deleted testcase file: ${filePath}`)));
@@ -187,14 +222,14 @@ async function handleTestcase(options: SpecCmdOptions) {
             let found = false;
             for (const f of allFiles) {
                 const content = readFileSync(f, 'utf-8');
-                if (content.includes(target)) {
+                if (content.includes(effectiveTarget)) {
                     const lines = content.split('\n');
                     const newLines: string[] = [];
                     let i = 0;
                     while (i < lines.length) {
                         const line = lines[i];
                         const trimmed = line.trim();
-                        if (trimmed.startsWith('@') && lines.slice(i, i + 2).some(l => l.includes(target))) {
+                        if (trimmed.startsWith('@') && lines.slice(i, i + 2).some(l => l.includes(effectiveTarget))) {
                             i++;
                             if (i < lines.length && lines[i].trim().startsWith('Scenario:')) {
                                 i++;
@@ -208,7 +243,7 @@ async function handleTestcase(options: SpecCmdOptions) {
                             }
                             found = true;
                             continue;
-                        } else if (trimmed.startsWith('Scenario:') && line.includes(target)) {
+                        } else if (trimmed.startsWith('Scenario:') && (line.includes(effectiveTarget) || matchesScenarioInText(line, effectiveTarget))) {
                             i++;
                             while (i < lines.length) {
                                 const nextTrimmed = lines[i].trim();
@@ -225,7 +260,7 @@ async function handleTestcase(options: SpecCmdOptions) {
                     }
                     if (found) {
                         writeFileSync(f, newLines.join('\n'), 'utf-8');
-                        console.log(green(bold(`\n✓ Deleted scenario matching ${target} from ${basename(f)}`)));
+                        console.log(green(bold(`\n✓ Deleted scenario matching ${effectiveTarget} from ${basename(f)}`)));
                         break;
                     }
                 }
@@ -233,7 +268,7 @@ async function handleTestcase(options: SpecCmdOptions) {
 
             if (!found) {
                 Diag.error({
-                    title: `Scenario or file matching "${target}" not found.`,
+                    title: `Scenario or file matching "${effectiveTarget}" not found.`,
                     detail: [`Verify the target identity tag or filename.`]
                 }).abort();
             }
@@ -249,8 +284,8 @@ async function handleTestcase(options: SpecCmdOptions) {
             const bugs = state.getResources('github_bug');
             const testcases = state.getResources('github_testcase');
 
-            if (target) {
-                const cleanTarget = target.trim();
+            if (effectiveTarget) {
+                const cleanTarget = effectiveTarget.trim();
                 const matchedTc = testcases.find((tc: any) => {
                     const normId = (tc.identity || '').replace(/\\/g, '/');
                     const cleanT = cleanTarget.replace(/\\/g, '/');
@@ -372,11 +407,64 @@ async function handleTestcase(options: SpecCmdOptions) {
 // ─── TESTRUN HANDLERS ────────────────────────────────────────────────────────
 
 async function handleTestrun(options: SpecCmdOptions) {
-    const { dir, action, target, case: tcArg, title, status = 'pending', trace, evidence, showName, showDetail, statePath, backupPath, testDirectory } = options;
+    const { dir, action, target, case: tcArg, title, status = 'pending', trace, evidence, showName, showDetail, statePath, backupPath, testDirectory, variables, include, exclude } = options;
     const config = new Config(dir, false);
+
+    let effectiveTarget = target;
+    let effectiveCase = tcArg;
+    let effectiveStatus = status;
+
+    // Positional argument fallback
+    if (!effectiveCase && options.args && options.args.length > 0) {
+        effectiveCase = options.args[0];
+    }
+
+    // Inverted flags: if user provided -run and -target (or -case), normalize
+    if (options.run && !effectiveTarget) {
+        effectiveTarget = options.run;
+    } else if (options.run && effectiveTarget && !effectiveCase) {
+        effectiveCase = effectiveTarget;
+        effectiveTarget = options.run;
+    }
+
+    // Parse inline =status from effectiveCase (e.g. "@tc-01=passed")
+    if (effectiveCase && effectiveCase.includes('=')) {
+        const eqIdx = effectiveCase.lastIndexOf('=');
+        const inlineStatus = effectiveCase.slice(eqIdx + 1).trim();
+        effectiveCase = effectiveCase.slice(0, eqIdx).trim();
+        if (inlineStatus && (!options.status || options.status === 'pending')) {
+            effectiveStatus = inlineStatus;
+        }
+    }
+
+    // Parse inline =status from effectiveTarget if effectiveTarget has = and no case was provided
+    if (effectiveTarget && effectiveTarget.includes('=') && !effectiveCase) {
+        const eqIdx = effectiveTarget.lastIndexOf('=');
+        const inlineStatus = effectiveTarget.slice(eqIdx + 1).trim();
+        const beforeEq = effectiveTarget.slice(0, eqIdx).trim();
+        if (beforeEq.includes('@tc-') || beforeEq.includes('.case.')) {
+            effectiveCase = beforeEq;
+            effectiveTarget = options.run;
+            if (inlineStatus && (!options.status || options.status === 'pending')) {
+                effectiveStatus = inlineStatus;
+            }
+        }
+    }
 
     switch (action) {
         case 'new': {
+            if (include || exclude) {
+                await runTagsSuite({
+                    dir,
+                    include,
+                    exclude,
+                    title,
+                    testDirectory,
+                    variables
+                });
+                break;
+            }
+
             const convention = config.getConvention('testrun');
             const targetDir = convention?.directory || config.getScopeConf('testrun')?.directory || 'tests/runs';
             const absDir = resolve(dir, targetDir);
@@ -390,7 +478,7 @@ async function handleTestrun(options: SpecCmdOptions) {
 
             const runTitle = title || `Test Run ${trTag}`;
             const ext = getScopeExtension(config, 'testrun');
-            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `${YYYYMMDD}_${HHmmss}${ext}`;
+            const filename = effectiveTarget ? (effectiveTarget.endsWith('.feature') ? effectiveTarget : `${effectiveTarget}${ext}`) : `${YYYYMMDD}_${HHmmss}${ext}`;
             const filePath = resolve(absDir, filename);
 
             const scopeTag = (SCOPE_CONFIG as any)['testrun']?.tag || '@testrun';
@@ -400,32 +488,112 @@ async function handleTestrun(options: SpecCmdOptions) {
             break;
         }
 
+        case 'fill': {
+            if (!effectiveTarget) {
+                if (isInteractive()) {
+                    effectiveTarget = await promptTargetSuite(dir, ['testrun'], testDirectory, variables);
+                } else {
+                    Diag.usage({
+                        syntax: `${TITLE_CLI} spec testrun fill -target=<@tr-X|file> [-include=<pattern>] [-exclude=<pattern>] [-test-directory=<dir>]`,
+                        detail: [
+                            `Reads each Rule block in the target testrun feature file,`,
+                            `finds the referenced .case.feature on disk, and fills its scenarios into`,
+                            `the testrun file with 'mark status = pending'.`,
+                            ``,
+                            `Options:`,
+                            `  -target=<@tr-N|file>   Target testrun suite file (required)`,
+                            `  -fill                  Trigger autocomplete (optional flag alias)`,
+                            `  -include=<pattern>     Include scenarios matching tag or feature file`,
+                            `  -exclude=<pattern>     Exclude scenarios matching tag or feature file`,
+                            `  -test-directory=<dir>  Limit search scope for .case.feature files`,
+                            ``,
+                            `Examples:`,
+                            `  ${TITLE_CLI} spec testrun fill -target="@tr-4"`,
+                            `  ${TITLE_CLI} spec testrun -fill -target="@tr-4"`,
+                            `  ${TITLE_CLI} spec testrun -fill -target="@tr-4" -include=smoke -exclude=wip`,
+                        ]
+                    }).abort();
+                    return;
+                }
+            }
+
+            await runAutocomplete({
+                dir,
+                target: effectiveTarget,
+                testDirectory,
+                variables,
+                include,
+                exclude
+            });
+            break;
+        }
+
         case 'add': {
-            if (!target || !tcArg) {
+            if ((include || exclude) && effectiveTarget) {
+                const filePath = resolveScopeFile(dir, effectiveTarget, 'testrun', testDirectory);
+                if (!filePath || !existsSync(filePath)) {
+                    Diag.error({ title: `Testrun file not found for target: ${effectiveTarget}`, detail: [] }).abort();
+                    return;
+                }
+                const searchDir = testDirectory ? join(dir, testDirectory) : dir;
+                const parser = new Parser(searchDir, variables);
+                const allCases = (parser.content() || []).filter(s => matchesScope(s, 'testcase'));
+                const includeFilters = parsePatternFilter(include);
+                const excludeFilters = parsePatternFilter(exclude);
+
+                const matchingScenarios = allCases.filter(s => {
+                    const isInc = includeFilters.length === 0 || includeFilters.some(f => matchesScenarioFilter(s, f));
+                    const isExc = excludeFilters.length > 0 && excludeFilters.some(f => matchesScenarioFilter(s, f));
+                    return isInc && !isExc;
+                });
+
+                if (matchingScenarios.length === 0) {
+                    Diag.error({
+                        title: `No testcase scenarios found matching criteria (include: ${include || 'all'}, exclude: ${exclude || 'none'}).`,
+                        detail: [`Search scope: ${searchDir}`]
+                    }).abort();
+                    return;
+                }
+
+                let appendContent = '';
+                for (const sc of matchingScenarios) {
+                    const id = sc.custom?.identity || sc.name;
+                    appendContent += `\n  Scenario: ${id}\n    * mark status = ${effectiveStatus}\n`;
+                }
+                writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + appendContent, 'utf-8');
+                console.log(green(bold(`\n✓ Linked ${matchingScenarios.length} scenario(s) matching criteria (include: ${include || 'all'}, exclude: ${exclude || 'none'}) to ${basename(filePath)}`)));
+                break;
+            }
+
+            if (!effectiveTarget || !effectiveCase) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testrun add -target=<tag|file> -case=<testcase_address> [-status=pending]`,
-                    detail: [`Specify -target for the testrun and -case for the testcase to link.`]
+                    detail: [
+                        `Specify -target for the testrun and -case for the testcase to link.`,
+                        `Alternatively, specify -include to link testcases matching inclusion criteria:`,
+                        `  ${TITLE_CLI} spec testrun add -target="@tr-4" -include=smoke`
+                    ]
                 }).abort();
                 return;
             }
 
-            const filePath = resolveScopeFile(dir, target, 'testrun', testDirectory);
+            const filePath = resolveScopeFile(dir, effectiveTarget, 'testrun', testDirectory);
             if (!filePath || !existsSync(filePath)) {
                 Diag.error({
-                    title: `Testrun file not found for target: ${target}`,
+                    title: `Testrun file not found for target: ${effectiveTarget}`,
                     detail: [`Verify the target run identifier or file.`]
                 }).abort();
                 return;
             }
 
-            const scenarioContent = `\n  Scenario: ${tcArg}\n    * mark status = ${status}\n`;
+            const scenarioContent = `\n  Scenario: ${effectiveCase}\n    * mark status = ${effectiveStatus}\n`;
             writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + scenarioContent, 'utf-8');
-            console.log(green(bold(`\n✓ Linked testcase ${tcArg} to testrun ${basename(filePath)} with status ${status}`)));
+            console.log(green(bold(`\n✓ Linked testcase ${effectiveCase} to testrun ${basename(filePath)} with status ${effectiveStatus}`)));
             break;
         }
 
         case 'delete': {
-            if (!target) {
+            if (!effectiveTarget) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testrun delete -target=<@tr-X|file> [-case=<testcase_address>]`,
                     detail: [`Specify -target to remove a testrun or -case to remove a testcase from the run.`]
@@ -433,25 +601,25 @@ async function handleTestrun(options: SpecCmdOptions) {
                 return;
             }
 
-            const filePath = resolveScopeFile(dir, target, 'testrun', testDirectory);
+            const filePath = resolveScopeFile(dir, effectiveTarget, 'testrun', testDirectory);
             if (!filePath || !existsSync(filePath)) {
-                Diag.error({ title: `Testrun file not found for target: ${target}`, detail: [] }).abort();
+                Diag.error({ title: `Testrun file not found for target: ${effectiveTarget}`, detail: [] }).abort();
                 return;
             }
 
-            if (!tcArg) {
+            if (!effectiveCase) {
                 unlinkSync(filePath);
                 console.log(green(bold(`\n✓ Deleted testrun file: ${filePath}`)));
                 return;
             }
 
-            // Remove case scenario from run
+            // Remove case scenario from run using matchesScenarioInText
             const content = readFileSync(filePath, 'utf-8');
             const lines = content.split('\n');
             const newLines: string[] = [];
             let skipping = false;
             for (const line of lines) {
-                if (line.includes(`Scenario: ${tcArg}`) || line.includes(`Scenario: ${tcArg.replace(/^@/, '')}`)) {
+                if (matchesScenarioInText(line, effectiveCase)) {
                     skipping = true;
                     continue;
                 }
@@ -465,22 +633,28 @@ async function handleTestrun(options: SpecCmdOptions) {
                 newLines.push(line);
             }
             writeFileSync(filePath, newLines.join('\n'), 'utf-8');
-            console.log(green(bold(`\n✓ Removed testcase ${tcArg} from testrun ${basename(filePath)}`)));
+            console.log(green(bold(`\n✓ Removed testcase ${effectiveCase} from testrun ${basename(filePath)}`)));
             break;
         }
 
         case 'mark': {
-            if (!target || !tcArg) {
+            if (!effectiveTarget || !effectiveCase) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testrun mark -target=<@tr-X|file> -case=<testcase_address> -status=<passed|failed|pending|skipped> [-trace="..."] [-evidence="..."]`,
-                    detail: [`Record execution status, stack trace, and evidence for a testcase inside a testrun.`]
+                    detail: [
+                        `Record execution status, stack trace, and evidence for a testcase inside a testrun.`,
+                        ``,
+                        `You can also provide -case with inline status:`,
+                        `  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01=passed"`,
+                        `  ${TITLE_CLI} spec testrun mark "@tc-01=passed" -target="@tr-1"`
+                    ]
                 }).abort();
                 return;
             }
 
-            const filePath = resolveScopeFile(dir, target, 'testrun', testDirectory);
+            const filePath = resolveScopeFile(dir, effectiveTarget, 'testrun', testDirectory);
             if (!filePath || !existsSync(filePath)) {
-                Diag.error({ title: `Testrun file not found for target: ${target}`, detail: [] }).abort();
+                Diag.error({ title: `Testrun file not found for target: ${effectiveTarget}`, detail: [] }).abort();
                 return;
             }
 
@@ -493,7 +667,7 @@ async function handleTestrun(options: SpecCmdOptions) {
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                if (line.trim().startsWith('Scenario:') && (line.includes(tcArg) || line.includes(tcArg.replace(/^@/, '')))) {
+                if (matchesScenarioInText(line, effectiveCase)) {
                     inTargetScenario = true;
                     foundScenario = true;
                     newLines.push(line);
@@ -506,7 +680,7 @@ async function handleTestrun(options: SpecCmdOptions) {
                         inTargetScenario = false;
                     } else {
                         if (line.includes('mark status =')) {
-                            newLines.push(`    * mark status = ${status}`);
+                            newLines.push(`    * mark status = ${effectiveStatus}`);
                             statusUpdated = true;
                             if (trace) newLines.push(`    * mark trace = ${trace.split('\n')[0]}`);
                             if (evidence) newLines.push(`    * mark evidence = ${evidence}`);
@@ -524,22 +698,22 @@ async function handleTestrun(options: SpecCmdOptions) {
 
             if (!foundScenario) {
                 // Scenario not found, append it!
-                newLines.push(`\n  Scenario: ${tcArg}`);
-                newLines.push(`    * mark status = ${status}`);
+                newLines.push(`\n  Scenario: ${effectiveCase}`);
+                newLines.push(`    * mark status = ${effectiveStatus}`);
                 if (trace) newLines.push(`    * mark trace = ${trace.split('\n')[0]}`);
                 if (evidence) newLines.push(`    * mark evidence = ${evidence}`);
             } else if (!statusUpdated) {
                 // Scenario existed but had no mark step
-                const scIdx = newLines.findIndex(l => l.includes(`Scenario: ${tcArg}`));
+                const scIdx = newLines.findIndex(l => matchesScenarioInText(l, effectiveCase));
                 if (scIdx !== -1) {
-                    newLines.splice(scIdx + 1, 0, `    * mark status = ${status}`);
+                    newLines.splice(scIdx + 1, 0, `    * mark status = ${effectiveStatus}`);
                     if (trace) newLines.splice(scIdx + 2, 0, `    * mark trace = ${trace.split('\n')[0]}`);
                     if (evidence) newLines.splice(scIdx + 3, 0, `    * mark evidence = ${evidence}`);
                 }
             }
 
             writeFileSync(filePath, newLines.join('\n'), 'utf-8');
-            console.log(green(bold(`\n✓ Marked testcase ${tcArg} as ${status} in ${basename(filePath)}`)));
+            console.log(green(bold(`\n✓ Marked testcase ${effectiveCase} as ${effectiveStatus} in ${basename(filePath)}`)));
             break;
         }
 
@@ -550,8 +724,8 @@ async function handleTestrun(options: SpecCmdOptions) {
             const testruns = state.getResources('github_testrun');
             const testcases = state.getResources('github_testcase');
 
-            if (target) {
-                const cleanTarget = target.trim();
+            if (effectiveTarget) {
+                const cleanTarget = effectiveTarget.trim();
                 const tr = testruns.find((r: any) => {
                     const normId = (r.identity || '').replace(/\\/g, '/');
                     return normId === cleanTarget || normId.endsWith(cleanTarget) || cleanTarget.endsWith(normId) ||
@@ -560,7 +734,7 @@ async function handleTestrun(options: SpecCmdOptions) {
 
                 if (!tr) {
                     Diag.error({
-                        title: `Testrun not found in state: ${target}`,
+                        title: `Testrun not found in state: ${effectiveTarget}`,
                         detail: [`Run \`${TITLE_CLI} apply\` first to synchronize the testrun into state.`]
                     }).abort();
                     return;
@@ -637,6 +811,19 @@ async function handleTestplan(options: SpecCmdOptions) {
     const { dir, action, target, run: runArg, title, showName, showDetail, statePath, backupPath, testDirectory } = options;
     const config = new Config(dir, false);
 
+    let effectiveTarget = target;
+    let effectiveRun = runArg;
+
+    if (!effectiveRun && options.args && options.args.length > 0) {
+        effectiveRun = options.args[0];
+    }
+    if (options.run && !effectiveTarget) {
+        effectiveTarget = options.run;
+    } else if (options.run && effectiveTarget && !effectiveRun) {
+        effectiveRun = effectiveTarget;
+        effectiveTarget = options.run;
+    }
+
     switch (action) {
         case 'new': {
             const convention = config.getConvention('testplan');
@@ -648,7 +835,7 @@ async function handleTestplan(options: SpecCmdOptions) {
             const tpTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'testplan');
             const planTitle = title || `Test Plan ${tpTag}`;
             const ext = getScopeExtension(config, 'testplan');
-            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `plan_${tpTag.replace(/^@/, '')}${ext}`;
+            const filename = effectiveTarget ? (effectiveTarget.endsWith('.feature') ? effectiveTarget : `${effectiveTarget}${ext}`) : `plan_${tpTag.replace(/^@/, '')}${ext}`;
             const filePath = resolve(absDir, filename);
 
             const scopeTag = (SCOPE_CONFIG as any)['testplan']?.tag || '@testplan';
@@ -659,7 +846,7 @@ async function handleTestplan(options: SpecCmdOptions) {
         }
 
         case 'add': {
-            if (!target || !runArg) {
+            if (!effectiveTarget || !effectiveRun) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testplan add -target=<tag|file> -run=<testrun_address>`,
                     detail: [`Specify -target for the testplan and -run for the testrun to link.`]
@@ -667,20 +854,20 @@ async function handleTestplan(options: SpecCmdOptions) {
                 return;
             }
 
-            const filePath = resolveScopeFile(dir, target, 'testplan', testDirectory);
+            const filePath = resolveScopeFile(dir, effectiveTarget, 'testplan', testDirectory);
             if (!filePath || !existsSync(filePath)) {
-                Diag.error({ title: `Testplan file not found for target: ${target}`, detail: [] }).abort();
+                Diag.error({ title: `Testplan file not found for target: ${effectiveTarget}`, detail: [] }).abort();
                 return;
             }
 
-            const scenarioContent = `\n  Scenario: ${runArg}\n`;
+            const scenarioContent = `\n  Scenario: ${effectiveRun}\n`;
             writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + scenarioContent, 'utf-8');
-            console.log(green(bold(`\n✓ Linked testrun ${runArg} to testplan ${basename(filePath)}`)));
+            console.log(green(bold(`\n✓ Linked testrun ${effectiveRun} to testplan ${basename(filePath)}`)));
             break;
         }
 
         case 'delete': {
-            if (!target) {
+            if (!effectiveTarget) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec testplan delete -target=<@tp-X|file> [-run=<testrun_address>]`,
                     detail: [`Specify -target to remove a testplan or -run to remove a run from the plan.`]
@@ -688,22 +875,22 @@ async function handleTestplan(options: SpecCmdOptions) {
                 return;
             }
 
-            const filePath = resolveScopeFile(dir, target, 'testplan', testDirectory);
+            const filePath = resolveScopeFile(dir, effectiveTarget, 'testplan', testDirectory);
             if (!filePath || !existsSync(filePath)) {
-                Diag.error({ title: `Testplan file not found for target: ${target}`, detail: [] }).abort();
+                Diag.error({ title: `Testplan file not found for target: ${effectiveTarget}`, detail: [] }).abort();
                 return;
             }
 
-            if (!runArg) {
+            if (!effectiveRun) {
                 unlinkSync(filePath);
                 console.log(green(bold(`\n✓ Deleted testplan file: ${filePath}`)));
                 return;
             }
 
             const content = readFileSync(filePath, 'utf-8');
-            const lines = content.split('\n').filter(l => !l.includes(`Scenario: ${runArg}`));
+            const lines = content.split('\n').filter(l => !l.includes(`Scenario: ${effectiveRun}`));
             writeFileSync(filePath, lines.join('\n'), 'utf-8');
-            console.log(green(bold(`\n✓ Removed testrun ${runArg} from testplan ${basename(filePath)}`)));
+            console.log(green(bold(`\n✓ Removed testrun ${effectiveRun} from testplan ${basename(filePath)}`)));
             break;
         }
 
@@ -714,8 +901,8 @@ async function handleTestplan(options: SpecCmdOptions) {
             const testplans = state.getResources('github_testplan');
             const testruns = state.getResources('github_testrun');
 
-            if (target) {
-                const cleanTarget = target.trim();
+            if (effectiveTarget) {
+                const cleanTarget = effectiveTarget.trim();
                 const plan = testplans.find((p: any) => {
                     const normId = (p.identity || '').replace(/\\/g, '/');
                     return normId === cleanTarget || normId.endsWith(cleanTarget) || cleanTarget.endsWith(normId) ||
@@ -789,6 +976,27 @@ async function handleBug(options: SpecCmdOptions) {
     const { dir, action, target, case: tcArg, run: runArg, title, status = 'failed', severity, priority, trace, evidence, showName, showDetail, statePath, backupPath, testDirectory } = options;
     const config = new Config(dir, false);
 
+    let effectiveTarget = target;
+    let effectiveCase = tcArg;
+    let effectiveStatus = status;
+
+    if (!effectiveCase && options.args && options.args.length > 0) {
+        effectiveCase = options.args[0];
+    }
+    if (options.run && !effectiveTarget) {
+        effectiveTarget = options.run;
+    }
+    if (!effectiveTarget && effectiveCase && (effectiveCase.startsWith('@bg-') || effectiveCase.includes('.bug.'))) {
+        effectiveTarget = effectiveCase;
+        effectiveCase = undefined;
+    }
+
+    if (effectiveTarget && effectiveTarget.includes('=')) {
+        const eqIdx = effectiveTarget.lastIndexOf('=');
+        effectiveStatus = effectiveTarget.slice(eqIdx + 1).trim();
+        effectiveTarget = effectiveTarget.slice(0, eqIdx).trim();
+    }
+
     switch (action) {
         case 'new': {
             const convention = config.getConvention('bug');
@@ -802,7 +1010,7 @@ async function handleBug(options: SpecCmdOptions) {
 
             const bugTitle = title || (runArg ? `Bugs from ${runArg}` : `Defect Container ${YYYYMMDD}`);
             const ext = getScopeExtension(config, 'bug');
-            const filename = target ? (target.endsWith('.feature') ? target : `${target}${ext}`) : `${YYYYMMDD}_${HHmmss}${ext}`;
+            const filename = effectiveTarget ? (effectiveTarget.endsWith('.feature') ? effectiveTarget : `${effectiveTarget}${ext}`) : `${YYYYMMDD}_${HHmmss}${ext}`;
             const filePath = resolve(absDir, filename);
 
             const scopeTag = (SCOPE_CONFIG as any)['bug']?.tag || '@bug';
@@ -813,7 +1021,7 @@ async function handleBug(options: SpecCmdOptions) {
         }
 
         case 'add': {
-            const targetFile = target || runArg;
+            const targetFile = effectiveTarget || runArg;
             if (!targetFile) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec bug add -target=<file> [-case=<testcase_address>] [-title="Bug title"] [-status=failed] [-severity=critical|high|medium|low] [-priority=high|medium|low]`,
@@ -830,11 +1038,11 @@ async function handleBug(options: SpecCmdOptions) {
 
             const idPattern = config.getIdentity('bug');
             const bgTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'bug');
-            const bugScenarioTitle = title || (tcArg ? `Defect in ${tcArg}` : `Bug ${bgTag}`);
+            const bugScenarioTitle = title || (effectiveCase ? `Defect in ${effectiveCase}` : `Bug ${bgTag}`);
 
             let sc = `\n  ${bgTag}\n  Scenario: ${bugScenarioTitle}\n`;
-            if (tcArg) sc += `    * mark target = ${tcArg}\n`;
-            sc += `    * mark status = ${status}\n`;
+            if (effectiveCase) sc += `    * mark target = ${effectiveCase}\n`;
+            sc += `    * mark status = ${effectiveStatus}\n`;
             if (severity) sc += `    * mark severity = ${severity}\n`;
             if (priority) sc += `    * mark priority = ${priority}\n`;
             if (trace) sc += `    * mark trace = ${trace.split('\n')[0]}\n`;
@@ -846,7 +1054,7 @@ async function handleBug(options: SpecCmdOptions) {
         }
 
         case 'delete': {
-            if (!target) {
+            if (!effectiveTarget) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec bug delete -target=<tag|file>`,
                     detail: [`Specify -target to remove a bug scenario or bug specification file.`]
@@ -854,8 +1062,8 @@ async function handleBug(options: SpecCmdOptions) {
                 return;
             }
 
-            if (target.endsWith('.feature')) {
-                const filePath = resolveScopeFile(dir, target, 'bug', testDirectory);
+            if (effectiveTarget.endsWith('.feature')) {
+                const filePath = resolveScopeFile(dir, effectiveTarget, 'bug', testDirectory);
                 if (filePath && existsSync(filePath)) {
                     unlinkSync(filePath);
                     console.log(green(bold(`\n✓ Deleted bug file: ${filePath}`)));
@@ -867,14 +1075,14 @@ async function handleBug(options: SpecCmdOptions) {
             let found = false;
             for (const f of allFiles) {
                 const content = readFileSync(f, 'utf-8');
-                if (content.includes(target)) {
+                if (content.includes(effectiveTarget)) {
                     const lines = content.split('\n');
                     const newLines: string[] = [];
                     let i = 0;
                     while (i < lines.length) {
                         const line = lines[i];
                         const trimmed = line.trim();
-                        if (trimmed.startsWith('@') && lines.slice(i, i + 2).some(l => l.includes(target))) {
+                        if (trimmed.startsWith('@') && lines.slice(i, i + 2).some(l => l.includes(effectiveTarget))) {
                             i++;
                             if (i < lines.length && lines[i].trim().startsWith('Scenario:')) {
                                 i++;
@@ -888,7 +1096,7 @@ async function handleBug(options: SpecCmdOptions) {
                             }
                             found = true;
                             continue;
-                        } else if (trimmed.startsWith('Scenario:') && line.includes(target)) {
+                        } else if (trimmed.startsWith('Scenario:') && (line.includes(effectiveTarget) || matchesScenarioInText(line, effectiveTarget))) {
                             i++;
                             while (i < lines.length) {
                                 const nextTrimmed = lines[i].trim();
@@ -905,20 +1113,20 @@ async function handleBug(options: SpecCmdOptions) {
                     }
                     if (found) {
                         writeFileSync(f, newLines.join('\n'), 'utf-8');
-                        console.log(green(bold(`\n✓ Deleted bug scenario ${target} from ${basename(f)}`)));
+                        console.log(green(bold(`\n✓ Deleted bug scenario ${effectiveTarget} from ${basename(f)}`)));
                         break;
                     }
                 }
             }
 
             if (!found) {
-                Diag.error({ title: `Bug scenario or file matching "${target}" not found.`, detail: [] }).abort();
+                Diag.error({ title: `Bug scenario or file matching "${effectiveTarget}" not found.`, detail: [] }).abort();
             }
             break;
         }
 
         case 'mark': {
-            if (!target) {
+            if (!effectiveTarget) {
                 Diag.usage({
                     syntax: `${TITLE_CLI} spec bug mark -target=<@bg-X> -status=<failed|passed|pending> [-trace="..."] [-evidence="..."]`,
                     detail: [`Update resolution status, stack trace, and evidence for a bug scenario.`]
@@ -931,14 +1139,14 @@ async function handleBug(options: SpecCmdOptions) {
 
             for (const f of allFiles) {
                 const content = readFileSync(f, 'utf-8');
-                if (content.includes(target)) {
+                if (content.includes(effectiveTarget)) {
                     const lines = content.split('\n');
                     const newLines: string[] = [];
                     let inBug = false;
 
                     for (let i = 0; i < lines.length; i++) {
                         const line = lines[i];
-                        if (line.includes(target) && (line.trim().startsWith('@') || line.trim().startsWith('Scenario:'))) {
+                        if ((line.includes(effectiveTarget) || matchesScenarioInText(line, effectiveTarget)) && (line.trim().startsWith('@') || line.trim().startsWith('Scenario:'))) {
                             inBug = true;
                             newLines.push(line);
                             continue;
@@ -948,7 +1156,7 @@ async function handleBug(options: SpecCmdOptions) {
                                 (line.trim().startsWith('Scenario:') && !lines[i - 1]?.trim().startsWith('@'))) {
                                 inBug = false;
                             } else if (line.includes('mark status =')) {
-                                newLines.push(`    * mark status = ${status}`);
+                                newLines.push(`    * mark status = ${effectiveStatus}`);
                                 if (trace) newLines.push(`    * mark trace = ${trace.split('\n')[0]}`);
                                 if (evidence) newLines.push(`    * mark evidence = ${evidence}`);
                                 updated = true;
@@ -962,14 +1170,14 @@ async function handleBug(options: SpecCmdOptions) {
 
                     if (updated) {
                         writeFileSync(f, newLines.join('\n'), 'utf-8');
-                        console.log(green(bold(`\n✓ Updated bug ${target} status to ${status} in ${basename(f)}`)));
+                        console.log(green(bold(`\n✓ Updated bug ${effectiveTarget} status to ${effectiveStatus} in ${basename(f)}`)));
                         break;
                     }
                 }
             }
 
             if (!updated) {
-                Diag.error({ title: `Bug scenario ${target} not found to update.`, detail: [] }).abort();
+                Diag.error({ title: `Bug scenario ${effectiveTarget} not found to update.`, detail: [] }).abort();
             }
             break;
         }
@@ -981,8 +1189,8 @@ async function handleBug(options: SpecCmdOptions) {
             const bugs = state.getResources('github_bug');
             const testcases = state.getResources('github_testcase');
 
-            if (target) {
-                const cleanTarget = target.trim();
+            if (effectiveTarget) {
+                const cleanTarget = effectiveTarget.trim();
                 const bug = bugs.find((b: any) => {
                     const normId = (b.identity || '').replace(/\\/g, '/');
                     return normId === cleanTarget || normId.endsWith(cleanTarget) || cleanTarget.endsWith(normId);
@@ -1043,76 +1251,64 @@ async function handleBug(options: SpecCmdOptions) {
 // ─── Help & Usage ────────────────────────────────────────────────────────────
 
 function printResourceUsage(resource: string) {
-    Diag.usage({
-        syntax: `${TITLE_CLI} spec ${resource} <action> [options]`,
-        detail: [
-            `Available actions for ${resource}: new, add, delete, status${resource === 'testrun' || resource === 'bug' ? ', mark' : ''}`,
-            ``,
-            `Examples:`,
-            `  ${TITLE_CLI} spec ${resource} new -title="Title"`,
-            `  ${TITLE_CLI} spec ${resource} status -show-name -show-detail`,
-        ]
-    }).abort();
+    const res = resource.toLowerCase();
+    if (res === 'testcase') {
+        console.log(HELP_SPEC_TESTCASE);
+        return;
+    }
+    if (res === 'testrun') {
+        console.log(HELP_SPEC_TESTRUN);
+        return;
+    }
+    if (res === 'testplan') {
+        console.log(HELP_SPEC_TESTPLAN);
+        return;
+    }
+    if (res === 'bug' || res === 'defect') {
+        console.log(HELP_SPEC_BUG);
+        return;
+    }
+    printGeneralUsage();
 }
 
 function printGeneralUsage() {
-    Diag.usage({
-        syntax: `${TITLE_CLI} spec <resource> <action> [options]`,
-        detail: [
-            `Manage test lifecycle specifications and executions across all resources.`,
-            ``,
-            `Available Resources:`,
-            `  testcase   - Author, organize, and query testcase specifications`,
-            `  testrun    - Plan, link testcases, record executions, and review run dashboards`,
-            `  testplan   - Coordinate testruns into master test plans and rollup metrics`,
-            `  bug        - Track defects, link failures to testcases, and manage resolutions`,
-            ``,
-            `Standard Actions:`,
-            `  new        - Generate a new specification file for the resource`,
-            `  add        - Append a scenario or linkage to an existing specification`,
-            `  delete     - Remove a specification file or scenario`,
-            `  mark       - Record execution status, traces, and evidence (testrun, bug)`,
-            `  status     - Display terminal status, dashboards, or reverse lookup (all)`,
-            ``,
-            `Options:`,
-            `  -target       Target identifier, tag, or file path`,
-            `  -case         Target testcase address or tag`,
-            `  -run          Target testrun address or tag`,
-            `  -title        Title for the specification or scenario`,
-            `  -status       Execution or defect verdict (passed, failed, pending, skipped)`,
-            `  -trace        Error stack trace or log message`,
-            `  -evidence     Path to evidence screenshot or file`,
-            `  -severity     Bug severity (critical, high, medium, low)`,
-            `  -priority     Bug priority (high, medium, low)`,
-            `  -show-name    Display scenario titles in place of canonical addresses`,
-            `  -show-detail  Display full stack traces, evidence files, and metadata`,
-            ``,
-            `Examples:`,
-            `  ${TITLE_CLI} spec testrun status -target="@tr-1" -show-name -show-detail`,
-            `  ${TITLE_CLI} spec testcase status -target="@tc-01" -show-name`,
-            `  ${TITLE_CLI} spec bug add -target="bugs.bug.feature" -case="@tc-01" -severity=critical`,
-            `  ${TITLE_CLI} spec bug mark -target="@bg-1" -status=passed`
-        ]
-    }).abort();
+    console.log(HELP_SPEC);
 }
 
 // ─── Main Dispatcher ─────────────────────────────────────────────────────────
 
 export const specCmd = async (options: SpecCmdOptions) => {
-    const { resource, action } = options;
+    let { resource, action } = options;
 
-    if (!resource || !action) {
+    const normResource = (resource || '').toLowerCase();
+
+    // Check if -fill was provided as a flag or action
+    if (options.fill || action === 'fill' || action === '-fill' || action === '--fill') {
+        action = 'fill';
+        if (!resource) resource = 'testrun';
+    }
+
+    // Check if -include or -exclude was provided without an action (e.g. `testform spec testrun -include=smoke -exclude=manual`)
+    if (normResource === 'testrun' && !action && (options.include || options.exclude)) {
+        action = 'new';
+    }
+
+    if (!resource) {
         printGeneralUsage();
         return;
     }
 
-    const normResource = resource.toLowerCase();
+    if (!action) {
+        printResourceUsage(resource);
+        return;
+    }
+
     switch (normResource) {
         case 'testcase':
             await handleTestcase(options);
             break;
         case 'testrun':
-            await handleTestrun(options);
+            await handleTestrun({ ...options, action });
             break;
         case 'testplan':
             await handleTestplan(options);

@@ -164,13 +164,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         };
     }
 
-    for (const res of resources) {
-        // Display refreshing text
-        const remoteIdPart = res.attributes.remoteId ? `[id=${res.attributes.remoteId}]` : '';
-        console.log(bold(`${formatResourceAddress(res.type, res.identity)}: Refreshing state... ${remoteIdPart}`));
-    }
-    console.log("");
-
     // Build a lookup map for O(1) access by normalized identity
     const stateMap = new Map(resources.map(r => [normalizeAddress(r.identity), r]));
 
@@ -412,6 +405,10 @@ export const planCmd = async (options: PlanCmdOptions) => {
             
             allChanges.push(...sPlan.changes);
             plan.state = sPlan.state;
+        }
+
+        if (!isJson && refresh && !destroyPlan) {
+            console.log('');
         }
         
         plan.changes = allChanges;

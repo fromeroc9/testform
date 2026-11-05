@@ -203,4 +203,38 @@ describe('Command planCmd', () => {
         const replaceChange = result!.changes.find(c => c.action === 'replace');
         expect(replaceChange).toBeDefined();
     });
+
+    it('should not output consecutive empty lines when state has no resources', async () => {
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([]),
+                filter: vi.fn().mockReturnValue([])
+            };
+        });
+
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([])
+            };
+        });
+
+        await planCmd({ dir: tmpDir, target: 'testcase', refresh: true });
+
+        const calls = mockLog.mock.calls.map(c => c[0]);
+        // Ensure there are no 4 empty lines in a row
+        let maxConsecutiveEmpty = 0;
+        let currentEmpty = 0;
+        for (const call of calls) {
+            if (call === '' || call === undefined) {
+                currentEmpty++;
+                if (currentEmpty > maxConsecutiveEmpty) maxConsecutiveEmpty = currentEmpty;
+            } else {
+                currentEmpty = 0;
+            }
+        }
+        expect(maxConsecutiveEmpty).toBeLessThanOrEqual(1);
+    });
 });
