@@ -123,6 +123,7 @@ export function createCli() {
     cli.option('--no-color', 'Disable colorized console output');
     cli.option('--var <var>', 'Set a variable value (key=value)');
     cli.option('--var-file <file>', 'Load variables from a YAML file');
+    cli.option('--feature', 'Display plan and resources in Gherkin feature/scenario format');
 
     // ─── init ─────────────────────────────────────────────────────────────
     cli.command('init', 'Initialize a new Testform workspace')
@@ -203,6 +204,7 @@ export function createCli() {
         .option('--parallelism <n>', 'Concurrent operation limit')
         .option('--compact-warnings', 'Show warnings in compact form')
         .option('--test-directory <dir>', 'Directory containing feature files')
+        .option('--feature', 'Display plan and resources in Gherkin feature/scenario format')
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -226,7 +228,8 @@ export function createCli() {
                 replaceTargets: options.replace,
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
-                testDirectory: options.testDirectory
+                testDirectory: options.testDirectory,
+                feature: Boolean(options.feature)
             });
         });
 
@@ -246,6 +249,7 @@ export function createCli() {
         .option('--parallelism <n>', 'Concurrent operation limit')
         .option('--compact-warnings', 'Show warnings in compact form')
         .option('--test-directory <dir>', 'Directory containing feature files')
+        .option('--feature', 'Display plan and resources in Gherkin feature/scenario format')
         .action(async (planFile, options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -267,7 +271,8 @@ export function createCli() {
                 replaceTargets: options.replace,
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
-                testDirectory: options.testDirectory
+                testDirectory: options.testDirectory,
+                feature: Boolean(options.feature)
             });
         });
 
@@ -301,6 +306,7 @@ export function createCli() {
         .option('--json', 'Output state in JSON format')
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
+        .option('--feature', 'Display plan and resources in Gherkin feature/scenario format')
         .action(async (path, options) => {
             const workDir = getWorkDir(options);
             await showCmd({
@@ -309,7 +315,8 @@ export function createCli() {
                 verbose: Boolean(options.verbose),
                 dir: workDir,
                 statePath: options.state,
-                backupPath: options.backup
+                backupPath: options.backup,
+                feature: Boolean(options.feature)
             });
         });
 

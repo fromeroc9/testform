@@ -514,6 +514,141 @@ class Resource {
         return lines.join('\n');
     }
 
+    formatFeature(change: PlanChange, context?: any): string {
+        const { action, scenario, resourceType, identity, oldAttributes } = change;
+        const sym = this.getSymbol(action);
+        const symPrefix = action === 'replace' ? `  ${sym} ` : `  ${sym}   `;
+        const stepPrefix = action === 'replace' ? `  ${sym}   ` : `  ${sym}     `;
+        const lines: string[] = [];
+
+        // Check if this is a testrun
+        if (resourceType.endsWith('testrun')) {
+            const featureTitle = scenario?.feature?.name || oldAttributes?.title || 'Test Run';
+            lines.push(`${symPrefix}Feature: ${featureTitle}`);
+            const groupScenarios = scenario?.custom?.groupScenarios || [];
+            if (groupScenarios.length > 0) {
+                let currentRule = '';
+                for (const gs of groupScenarios) {
+                    const ruleName = gs.rule?.name || '';
+                    if (ruleName && ruleName !== currentRule) {
+                        currentRule = ruleName;
+                        lines.push(`${stepPrefix}Rule: ${ruleName}`);
+                    }
+                    if (gs.name) {
+                        const indent = ruleName ? `  ` : ``;
+                        lines.push(`${stepPrefix}${indent}Scenario: ${gs.name}`);
+                        const status = gs.custom?.fields?.status || 'pending';
+                        lines.push(`${stepPrefix}${indent}  * mark status = ${status}`);
+                    }
+                }
+            }
+            return lines.join('\n');
+        }
+
+        // Check if this is a testplan
+        if (resourceType.endsWith('testplan')) {
+            const featureTitle = scenario?.feature?.name || oldAttributes?.title || 'Test Plan';
+            lines.push(`${symPrefix}Feature: ${featureTitle}`);
+            const testruns = scenario?.custom?.testruns || [];
+            for (const tr of testruns) {
+                lines.push(`${stepPrefix}Rule: ${tr}`);
+            }
+            return lines.join('\n');
+        }
+
+        // Standard testcase / scenario format
+        // 1. Tags
+        let tags: string[] = [];
+        if (scenario?.custom?.rawTags && scenario.custom.rawTags.length > 0) {
+            tags = [...scenario.custom.rawTags];
+        } else if (scenario?.tags && scenario.tags.length > 0) {
+            tags = scenario.tags.map((t: any) => typeof t === 'string' ? (t.startsWith('@') ? t : `@${t}`) : `@${t.name}`);
+        } else if (oldAttributes?.labels && oldAttributes.labels.length > 0) {
+            tags = oldAttributes.labels.map((l: string) => l.startsWith('@') ? l : `@${l}`);
+        }
+
+        // Ensure the identity tag (e.g. @tc-02) is present in tags
+        let idTag = scenario?.custom?.identity;
+        if (!idTag && identity) {
+            const lastPart = identity.split('.').pop();
+            if (lastPart && (lastPart.startsWith('@') || lastPart.startsWith('tc-'))) {
+                idTag = lastPart.startsWith('@') ? lastPart : `@${lastPart}`;
+            }
+        }
+        if (idTag) {
+            const cleanId = idTag.startsWith('@') ? idTag : `@${idTag}`;
+            if (!tags.some(t => t.toLowerCase() === cleanId.toLowerCase())) {
+                tags.unshift(cleanId);
+            }
+        }
+
+        // Include any custom fields that are formatted as tags or start with '@'
+        const customFields = scenario?.custom?.fields || oldAttributes?.custom_fields || {};
+        for (const [k, v] of Object.entries(customFields)) {
+            if (typeof v === 'string' && v.startsWith('@')) {
+                const tagFormat = v;
+                if (!tags.some(t => t.toLowerCase() === tagFormat.toLowerCase())) {
+                    tags.push(tagFormat);
+                }
+            }
+        }
+
+        if (tags.length > 0) {
+            lines.push(`${symPrefix}${tags.join(' ')}`);
+        }
+
+        // 2. Scenario Header
+        const keyword = scenario?.keyword || 'Scenario';
+        const title = scenario?.name || oldAttributes?.title || '';
+        if (action === 'change' && oldAttributes?.title && oldAttributes.title !== scenario?.name) {
+            lines.push(`${symPrefix}${keyword}: ${oldAttributes.title} -> ${title}`);
+        } else {
+            lines.push(`${symPrefix}${keyword}: ${title}`);
+        }
+
+        // 3. Steps
+        const stepLines: string[] = [];
+
+        if (scenario?.custom?.rawSteps && scenario.custom.rawSteps.length > 0) {
+            for (const sp of scenario.custom.rawSteps) {
+                const kw = sp.keyword ? (sp.keyword.endsWith(' ') ? sp.keyword : `${sp.keyword} `) : '';
+                stepLines.push(`${kw}${sp.text}`);
+            }
+        } else if (scenario?.steps && scenario.steps.length > 0) {
+            // First include field steps from custom_fields if any
+            for (const [k, v] of Object.entries(customFields)) {
+                if (['labels', 'assignees', 'milestone', 'status'].includes(k)) continue;
+                if (typeof v === 'string' && v.startsWith('@')) continue; // Already in tags
+                if (v !== undefined && v !== null && v !== '') {
+                    stepLines.push(`field ${k} = ${v}`);
+                }
+            }
+            for (const sp of scenario.steps) {
+                const kw = sp.keyword ? (sp.keyword.endsWith(' ') ? sp.keyword : `${sp.keyword} `) : '';
+                stepLines.push(`${kw}${sp.text}`);
+            }
+        } else if (oldAttributes?.body) {
+            // Reconstruct steps from old body
+            const bodyStr = String(oldAttributes.body);
+            const match = bodyStr.match(/```gherkin\s*([\s\S]*?)\s*```/i);
+            const rawGherkin = match ? match[1].trim() : bodyStr.trim();
+            if (rawGherkin) {
+                for (const line of rawGherkin.split('\n')) {
+                    const trimmed = line.trim();
+                    if (trimmed) {
+                        stepLines.push(trimmed);
+                    }
+                }
+            }
+        }
+
+        for (const sLine of stepLines) {
+            lines.push(`${stepPrefix}${sLine}`);
+        }
+
+        return lines.join('\n');
+    }
+
     summary(changes: PlanChange[], isPlanOnly: boolean = true, context?: any) {
         const output: string[] = [];
 
@@ -561,7 +696,11 @@ class Resource {
                 output.push(`  # (because ${address} is not in configuration)`);
             }
 
-            output.push(this.format(change, context));
+            if (context?.feature) {
+                output.push(this.formatFeature(change, context));
+            } else {
+                output.push(this.format(change, context));
+            }
             output.push('');
         }
 

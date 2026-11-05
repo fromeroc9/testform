@@ -40,6 +40,7 @@ interface RefreshStateOptions {
     state: State;
     logger: Logger;
     silent?: boolean;
+    isImplicit?: boolean;
     parallelismRaw?: string | number;
     target?: string | string[];
 }
@@ -51,6 +52,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
         state,
         logger,
         silent = false,
+        isImplicit = false,
         parallelismRaw,
         target
     } = options;
@@ -66,7 +68,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     if (resources.length === 0) {
         await state.save();
-        if (!silent) console.log('No resources in state to refresh.');
+        if (!silent && !isImplicit) console.log('No resources in state to refresh.');
         return;
     }
 

@@ -16,6 +16,10 @@ export class TestcaseParser extends BaseParser {
         const identityMatcher = this.compileIdentityMatcher(identityPattern);
 
         for (const s of scenarios) {
+            const rawTags = s.tags ? [...s.tags] : [];
+            const rawSteps = s.background && s.background.steps && s.background.steps.length > 0
+                ? [...s.background.steps.map((st: any) => ({ ...st })), ...(s.steps || []).map((st: any) => ({ ...st }))]
+                : [...(s.steps || []).map((st: any) => ({ ...st }))];
             const customFields: Record<string, string> = {};
 
             if (scope) {
@@ -169,6 +173,8 @@ export class TestcaseParser extends BaseParser {
                 ...(s.custom ?? {}),
                 identity: identityValue,
                 fields: customFields,
+                rawTags,
+                rawSteps,
             };
         }
 

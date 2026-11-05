@@ -13,6 +13,7 @@ interface ShowCmdOptions {
     dir?: string;
     statePath?: string;
     backupPath?: string;
+    feature?: boolean;
 }
 
 export const showCmd = async (options: ShowCmdOptions = {}) => {
@@ -22,7 +23,8 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
         verbose = false,
         dir = '.',
         statePath,
-        backupPath
+        backupPath,
+        feature = false
     } = options;
     const logger = new Logger(verbose);
 
@@ -49,7 +51,7 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
                 } catch {
                     // ignore state init errors when displaying plan
                 }
-                resource.summary(changes, true, { state });
+                resource.summary(changes, true, { state, feature });
                 return;
             }
         } catch (err: any) {

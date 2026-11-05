@@ -147,6 +147,8 @@ ${bold(`Plan Customization Options:`)}
 
 ${bold(`Other Options:`)}
 
+  -feature            Display plan and resources in Gherkin feature/scenario format.
+
   -compact-warnings   If ${TITLE_APP} produces any warnings that are not
                       accompanied by errors, shows them in a more compact
                       form that includes only the summary messages.
@@ -253,6 +255,8 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] apply [options] [PLAN]
 ${bold(`Options:`)}
 
   -auto-approve       Skip interactive approval of plan before applying.
+
+  -feature            Display plan and resources in Gherkin feature/scenario format.
 
   -backup=path        Path to backup the existing state file before
                       modifying. Defaults to the "-state" path with

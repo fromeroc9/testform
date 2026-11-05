@@ -107,6 +107,8 @@ export interface ParserScenario {
         policy?: ParserPolicy[];
         groupScenarios?: ParserScenario[];
         metadata?: Record<string, any>;
+        rawTags?: string[];
+        rawSteps?: ParserStep[];
         [key: string]: any;
     };
 }
