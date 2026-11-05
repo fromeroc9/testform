@@ -143,7 +143,12 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
                 const startTime = Date.now();
                 try {
-                    if (res.attributes.issueNumber) {
+                    const svcKey = github.apis ? Object.keys(github.apis).find(k => k === res.type || k === 'issue') : null;
+                    const svc = svcKey ? github.apis[svcKey] : null;
+
+                    if (svc?.delete) {
+                        await svc.delete(res.attributes.issueNumber || res.attributes.remoteId);
+                    } else if (res.attributes.issueNumber && github.closeIssue) {
                         await github.closeIssue(res.attributes.issueNumber);
                     }
                     stateObj.removeResource(res.identity);

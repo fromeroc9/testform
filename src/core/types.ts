@@ -52,6 +52,13 @@ export interface ITest {
 
 export interface IConfig {
     version?: string;
+    testform?: {
+        required_version?: string;
+        version?: string;
+        required_providers?: Record<string, string | { source: string; version?: string; constraints?: string }>;
+        backend?: any;
+    };
+    required_providers?: Record<string, string | { source: string; version?: string; constraints?: string }>;
     provider?: IProviderConfig;
     backend?: IBackendConfig | string | Record<string, any>;
     resource?: {

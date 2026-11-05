@@ -10,6 +10,7 @@ import { matchesScope, matchesTarget } from '../core/selector';
 import { DependencyResolver } from '../core/dependencies';
 import { FILE_CONFIG } from '../core/const';
 import { resolveScopes } from '../core/cli';
+import { isGitSource } from '../core/module';
 
 interface ValidateCmdOptions {
     targetPath?: string;
@@ -95,38 +96,106 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
     // Validate provider configuration
     const rawProvider = (config.getConfig() as any).provider;
     const providerType = config.getProviderType();
-    const KNOWN_PROVIDERS = ['github', 'gitlab', 'local', 'custom'];
+    const requiredProviders = config.getRequiredProviders();
+    const reqKeys = Object.keys(requiredProviders);
 
-    const isProviderMissing = !rawProvider ||
-        (typeof rawProvider === 'string' && rawProvider.trim() === '') ||
-        (typeof rawProvider === 'object' && Object.keys(rawProvider).length === 0);
-
-    if (isProviderMissing || !KNOWN_PROVIDERS.includes(providerType)) {
-        const provName = isProviderMissing ? `a provider to be defined in ${FILE_CONFIG}` : `provider "${providerType}"`;
-        if (isJson) {
-            console.log(JSON.stringify({
-                valid: false,
-                error_count: 1,
-                warning_count: 0,
-                diagnostics: [{
-                    severity: 'error',
-                    summary: 'Missing required provider',
-                    detail: `This configuration requires ${provName}, but that provider isn't available. Run "testform init" to configure it.`
-                }]
-            }, null, 2));
-        } else {
-            logger.push({
-                type: 'error',
-                title: 'Missing required provider',
-                detail: [
-                    `This configuration requires ${provName}, but that provider isn't available. You may be able`,
-                    `to install or configure it automatically by running:`,
-                    `  testform init`
-                ],
-                close: true
-            });
+    // 1. Strict Terraform parity: If required_providers is declared, ONLY declared providers are accepted
+    if (reqKeys.length > 0) {
+        if (!requiredProviders[providerType] && providerType !== 'local') {
+            if (isJson) {
+                console.log(JSON.stringify({
+                    valid: false,
+                    error_count: 1,
+                    warning_count: 0,
+                    diagnostics: [{
+                        severity: 'error',
+                        summary: 'Undeclared provider',
+                        detail: `The provider "${providerType}" is configured in the provider block, but it was not declared in testform.required_providers. Declared: ${reqKeys.join(', ')}.`
+                    }]
+                }, null, 2));
+            } else {
+                logger.push({
+                    type: 'error',
+                    title: 'Undeclared provider',
+                    detail: [
+                        `The provider "${providerType}" is configured in the provider block, but it was not declared`,
+                        `in testform.required_providers.`,
+                        `Declared providers in this configuration: ${reqKeys.join(', ')}.`,
+                        '',
+                        `To use "${providerType}", add it under testform.required_providers in ${FILE_CONFIG} and run:`,
+                        `  testform init`
+                    ],
+                    close: true
+                });
+            }
+            return;
         }
-        return;
+
+        // 2. Check if declared provider is installed
+        const spec = requiredProviders[providerType];
+        if (spec && (isGitSource(spec.source) || spec.source.startsWith('@') || spec.source.startsWith('npm::'))) {
+            const installedDir = join(configDir, '.testform', 'providers', providerType);
+            if (!existsSync(installedDir)) {
+                if (isJson) {
+                    console.log(JSON.stringify({
+                        valid: false,
+                        error_count: 1,
+                        warning_count: 0,
+                        diagnostics: [{
+                            severity: 'error',
+                            summary: 'Provider not installed',
+                            detail: `This configuration requires provider "${providerType}" (${spec.source}), but it is not installed in .testform/providers/${providerType}. Run "testform init" to install it.`
+                        }]
+                    }, null, 2));
+                } else {
+                    logger.push({
+                        type: 'error',
+                        title: 'Provider not installed',
+                        detail: [
+                            `This configuration requires provider "${providerType}" (${spec.source}), but that provider`,
+                            `is not installed in .testform/providers/${providerType}.`,
+                            '',
+                            `Run "testform init" to download and install this provider.`
+                        ],
+                        close: true
+                    });
+                }
+                return;
+            }
+        }
+    } else {
+        const KNOWN_PROVIDERS = ['github', 'gitlab', 'local', 'custom'];
+        const isProviderMissing = !rawProvider ||
+            (typeof rawProvider === 'string' && rawProvider.trim() === '') ||
+            (typeof rawProvider === 'object' && Object.keys(rawProvider).length === 0);
+
+        if (isProviderMissing || !KNOWN_PROVIDERS.includes(providerType)) {
+            const provName = isProviderMissing ? `a provider to be defined in ${FILE_CONFIG}` : `provider "${providerType}"`;
+            if (isJson) {
+                console.log(JSON.stringify({
+                    valid: false,
+                    error_count: 1,
+                    warning_count: 0,
+                    diagnostics: [{
+                        severity: 'error',
+                        summary: 'Missing required provider',
+                        detail: `This configuration requires ${provName}, but that provider isn't available. Run "testform init" to configure it.`
+                    }]
+                }, null, 2));
+            } else {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing required provider',
+                    detail: [
+                        `This configuration requires ${provName}, but that provider isn't available. You may be able`,
+                        `to install or configure it automatically by running:`,
+                        `  testform init`
+                    ],
+                    close: true
+                });
+            }
+            return;
+        }
     }
 
     logger.debug(`Found ${documents.length} scenarios across feature files`);

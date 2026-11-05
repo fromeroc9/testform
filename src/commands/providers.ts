@@ -20,7 +20,7 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
 
     let targetDir = dir;
     let subCommand = action;
-    const knownSubcommands = ['lock', 'mirror', 'schema'];
+    const knownSubcommands = ['lock', 'mirror', 'schema', 'scaffold', 'init'];
 
     if (action && !knownSubcommands.includes(action.toLowerCase())) {
         targetDir = action;
@@ -28,6 +28,93 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
     }
 
     const targetFullPath = resolve(process.cwd(), targetDir);
+
+    // Subcommand: scaffold / init generates a provider starter template without needing an existing project
+    if (subCommand && (subCommand.toLowerCase() === 'scaffold' || subCommand.toLowerCase() === 'init')) {
+        const isFullProject = args.includes('--project') || args.includes('--full') || (options as any).project || (options as any).full;
+        const nonFlagArgs = args.filter(a => !a.startsWith('-'));
+        const providerName = (nonFlagArgs[0] || 'custom').toLowerCase().replace(/[^a-z0-9_-]/gi, '');
+        const className = providerName.split(/[-_]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('') + 'Provider';
+
+        if (isFullProject) {
+            // Scaffold complete project structure
+            const projectName = `testform-provider-${providerName}`;
+            const projectDir = nonFlagArgs[1] ? resolve(targetFullPath, nonFlagArgs[1]) : resolve(targetFullPath, projectName);
+
+            const starterTemplateDir = resolve(__dirname, '../../templates/starter-provider');
+            if (existsSync(starterTemplateDir)) {
+                // Copy entire starter template folder recursively
+                mkdirSync(projectDir, { recursive: true });
+                const copyRecursive = (src: string, dest: string) => {
+                    const entries = readdirSync(src, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const srcPath = join(src, entry.name);
+                        const destPath = join(dest, entry.name);
+                        if (entry.isDirectory()) {
+                            mkdirSync(destPath, { recursive: true });
+                            copyRecursive(srcPath, destPath);
+                        } else {
+                            let text = readFileSync(srcPath, 'utf-8');
+                            text = text.replace(/testform-provider-starter/g, projectName)
+                                       .replace(/StarterProvider/g, className)
+                                       .replace(/starter-provider/g, providerName);
+                            writeFileSync(destPath, text, 'utf-8');
+                        }
+                    }
+                };
+                copyRecursive(starterTemplateDir, projectDir);
+            }
+
+            console.log(green(`\n✔ Successfully scaffolded enterprise provider project at:`));
+            console.log(bold(`  ${projectDir}\n`));
+            console.log(`Project Structure:`);
+            console.log(`  ├── package.json`);
+            console.log(`  ├── tsconfig.json`);
+            console.log(`  ├── README.md`);
+            console.log(`  ├── src/`);
+            console.log(`  │   ├── index.ts        (Main provider implementing IProvider)`);
+            console.log(`  │   ├── client.ts       (Typed HTTP API client)`);
+            console.log(`  │   └── types.ts        (Contracts and schemas)`);
+            console.log(`  └── test/`);
+            console.log(`      └── provider.test.ts\n`);
+            console.log(`To publish to your company Git:`);
+            console.log(dim(`  cd ${projectName}\n  git init && git add . && git commit -m "feat: initial provider"\n  git tag v1.0.0\n`));
+            return;
+        }
+
+        // Lightweight single file template
+        const outDir = nonFlagArgs[1] ? resolve(targetFullPath, nonFlagArgs[1]) : resolve(targetFullPath, 'custom-providers');
+        if (!existsSync(outDir)) {
+            mkdirSync(outDir, { recursive: true });
+        }
+
+        const templatePath = resolve(__dirname, '../../templates/provider.template.ts');
+        let content = '';
+        if (existsSync(templatePath)) {
+            content = readFileSync(templatePath, 'utf-8');
+            content = content.replace(/CustomProvider/g, className).replace(/'custom-provider'/g, `'${providerName}'`);
+        } else {
+            content = `export default class ${className} {\n    public name = '${providerName}';\n    constructor(public config: Record<string, any> = {}) {}\n    formatRemoteId(id: number | string) { return '#' + id; }\n    async createIssue(payload: any) { return { id: 1, number: 1, title: payload.title, state: 'open' }; }\n    async updateIssue(id: any, payload: any) { return { id, number: Number(id), title: payload.title || '', state: 'open' }; }\n    async closeIssue(id: any) {}\n    async getIssue(id: any) { return null; }\n    async listIssuesByLabel(label: string) { return []; }\n    async getMilestoneByTitle(title: string) { return undefined; }\n}\n`;
+        }
+
+        const targetFile = resolve(outDir, `${providerName}.ts`);
+        writeFileSync(targetFile, content, 'utf-8');
+
+        console.log(green(`\n✔ Successfully generated provider template at:`));
+        console.log(bold(`  ${targetFile}\n`));
+        console.log(`To use this provider in your project, add to ${bold('main.yml')}:`);
+        console.log(dim(`
+testform:
+  required_providers:
+    ${providerName}: "./${targetFile.replace(/\\/g, '/').replace(resolve(process.cwd()).replace(/\\/g, '/') + '/', '')}"
+
+provider:
+  ${providerName}:
+    # Configure your provider connection parameters here
+`));
+        return;
+    }
+
     const hasConfigFile = CONFIG_FILE_NAMES.some(name => existsSync(resolve(targetFullPath, name)));
 
     if (!hasConfigFile) {
@@ -42,8 +129,20 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
 
     const config = new Config(targetFullPath, false);
     const provider = config.getProviderType() || 'local';
+    const required = config.getRequiredProviders();
 
     if (!subCommand) {
+        if (Object.keys(required).length > 0) {
+            let tree = `\nProviders required by configuration:\n.\n`;
+            const entries = Object.entries(required);
+            for (let i = 0; i < entries.length; i++) {
+                const [name, spec] = entries[i];
+                const prefix = (i === entries.length - 1) ? '└──' : '├──';
+                tree += `${prefix} provider[${name}] ${spec.version || 'local'} (${spec.source})\n`;
+            }
+            console.log(tree);
+            return;
+        }
         console.log(`
 Providers required by configuration:
 .

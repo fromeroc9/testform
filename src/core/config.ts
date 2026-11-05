@@ -118,6 +118,11 @@ export class Config {
     getProviderType(): string {
         const raw: any = this.config.provider;
         if (!raw) {
+            const req = this.getRequiredProviders();
+            const reqKeys = Object.keys(req);
+            if (reqKeys.length > 0) {
+                return reqKeys[0];
+            }
             return 'local';
         }
 
@@ -149,17 +154,54 @@ export class Config {
         return this.getProviderType();
     }
 
+    getRequiredProviders(): Record<string, { source: string; version?: string }> {
+        const tfBlock = (this.config as any).testform;
+        const raw = (tfBlock && typeof tfBlock === 'object' && tfBlock.required_providers !== undefined)
+            ? tfBlock.required_providers
+            : (this.config as any).required_providers;
+
+        const result: Record<string, { source: string; version?: string }> = {};
+        if (!raw || typeof raw !== 'object') {
+            return result;
+        }
+
+        for (const [name, def] of Object.entries(raw)) {
+            if (!def) continue;
+            if (typeof def === 'string') {
+                result[name.toLowerCase()] = { source: def.trim() };
+            } else if (typeof def === 'object') {
+                result[name.toLowerCase()] = {
+                    source: (def as any).source || '',
+                    version: (def as any).version
+                };
+            }
+        }
+        return result;
+    }
+
     getProviderConfig(type?: string): Record<string, any> {
         const targetType = type || this.getProviderType();
         const raw = this.config.provider;
+        const req = this.getRequiredProviders();
 
         if (!raw || typeof raw === 'string') {
+            if (req[targetType]) {
+                return { source: req[targetType].source };
+            }
             return {};
         }
 
         // Dictionary format: raw[targetType]
         if ((raw as any)[targetType] !== undefined && typeof (raw as any)[targetType] === 'object') {
-            return (raw as any)[targetType] || {};
+            const base = (raw as any)[targetType] || {};
+            if (req[targetType] && !base.source) {
+                return { ...base, source: req[targetType].source };
+            }
+            return base;
+        }
+
+        if (req[targetType]) {
+            return { source: req[targetType].source };
         }
 
         return {};

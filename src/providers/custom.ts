@@ -1,6 +1,6 @@
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
 import { pathToFileURL } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { IProvider } from './interface';
 import { logger } from '../core/logger';
 
@@ -37,7 +37,24 @@ export async function loadCustomProvider(
             try {
                 loadedModule = require(localPath);
             } catch (innerErr: any) {
-                throw new Error(`Failed to load custom provider from "${localPath}": ${err.message || err}`);
+                // If it's a TypeScript file, attempt transparent on-the-fly transpilation
+                if (localPath.endsWith('.ts')) {
+                    try {
+                        const ts = require('typescript');
+                        const sourceCode = readFileSync(localPath, 'utf-8');
+                        const transpiled = ts.transpileModule(sourceCode, {
+                            compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+                        }).outputText;
+                        const mod = { exports: {} as any };
+                        const fn = new Function('module', 'exports', 'require', '__filename', '__dirname', transpiled);
+                        fn(mod, mod.exports, require, localPath, dirname(localPath));
+                        loadedModule = mod.exports;
+                    } catch (tsErr: any) {
+                        throw new Error(`Failed to load custom TypeScript provider from "${localPath}": ${tsErr.message || tsErr}`);
+                    }
+                } else {
+                    throw new Error(`Failed to load custom provider from "${localPath}": ${err.message || err}`);
+                }
             }
         }
     } else {

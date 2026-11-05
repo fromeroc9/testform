@@ -11,6 +11,7 @@ import { findFeatureFiles } from '../core/editor';
 import { WorkspaceManager } from '../core/workspace';
 import { askBackendAttribute, isInteractive } from '../core/prompt';
 import { ModuleRegistry, isGitSource, parseGitSource } from '../core/module';
+import { ProviderInstaller, InstalledProviderResult } from '../core/provider-installer';
 
 export const EXPECTED_BACKEND_ARGS: Record<string, string[]> = {
     local: ['path', 'workspace_dir', 'workspace_dir_prefix'],
@@ -689,32 +690,48 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     }
 
     logger.info('Initializing provider plugins...', { bold: true });
-    const resolvedProvider = config.getProviderType() || 'github';
-    logger.info(`- Finding fromeroc9/${resolvedProvider} versions matching "1.0.0"...`);
-    logger.info(`- Installing fromeroc9/${resolvedProvider} v1.0.0...`);
-    logger.info(`- Installed fromeroc9/${resolvedProvider} v1.0.0`);
+    const installer = new ProviderInstaller(dir);
+    const requiredProviders = config.getRequiredProviders();
+    const installedList: InstalledProviderResult[] = [];
 
-    const lockFilePath = join(dir, FILE_LOCK);
-    if (!existsSync(lockFilePath)) {
-        const lockDir = dirname(lockFilePath);
-        if (!existsSync(lockDir)) {
-            mkdirSync(lockDir, { recursive: true });
-        }
-        const lockContent = {
-            provider: {
-                [`registry.testform.io/fromeroc9/${resolvedProvider}`]: {
-                    version: "1.0.0",
-                    constraints: ">= 1.0.0",
-                    hashes: [
-                        "h1:dGVzdGZvcm0tcHJvdmlkZXItbG9jay12ZXJpZmllZA=="
-                    ]
-                }
+    if (Object.keys(requiredProviders).length > 0) {
+        for (const [name, spec] of Object.entries(requiredProviders)) {
+            try {
+                logger.info(`- Installing ${name} from ${spec.source}...`);
+                const result = await installer.install(name, spec, logger);
+                installedList.push(result);
+                logger.success(`- Installed ${name} ${result.version !== 'local' ? `v${result.version}` : ''} (entrypoint: ${basename(result.entrypoint)})`);
+            } catch (err: any) {
+                logger.warn(`Could not install provider "${name}": ${err.message}`);
             }
-        };
-        writeFileSync(lockFilePath, JSON.stringify(lockContent, null, 2), 'utf-8');
-        logger.info(`\n${TITLE_APP} has created a lock file ${FILE_LOCK} to record the provider\nselections it made above. Include this file in your version control repository\nso that ${TITLE_APP} can guarantee to make the same selections by default when you\nrun "${TITLE_CLI} init" in the future.`);
+        }
     } else {
-        logger.info(`- Re-using previous version of fromeroc9/${resolvedProvider} from the dependency lock file`);
+        // Fallback for built-in or legacy custom provider when no required_providers block is specified
+        const resolvedProvider = config.getProviderType() || 'local';
+        const providerConf = config.getProviderConfig(resolvedProvider);
+        if (providerConf.source) {
+            try {
+                const result = await installer.install(resolvedProvider, { source: providerConf.source }, logger);
+                installedList.push(result);
+                logger.success(`- Installed custom ${resolvedProvider} (entrypoint: ${basename(result.entrypoint)})`);
+            } catch (err: any) {
+                logger.warn(`Could not install custom provider "${resolvedProvider}": ${err.message}`);
+            }
+        } else {
+            logger.info(`- Using built-in ${resolvedProvider} provider`);
+            installedList.push({
+                name: resolvedProvider,
+                source: `builtin/${resolvedProvider}`,
+                version: '1.0.0',
+                entrypoint: `builtin/${resolvedProvider}`,
+                hash: 'h1:builtin-provider-verified'
+            });
+        }
+    }
+
+    if (installedList.length > 0) {
+        installer.recordLockfile(installedList);
+        logger.info(`\n${TITLE_APP} has created/updated the lock file .testform.lock.hcl to record the provider\nselections it made above. Include this file in your version control repository\nso that ${TITLE_APP} can guarantee to make the same selections by default when you\nrun "${TITLE_CLI} init" in the future.`);
     }
     logger.blank();
 

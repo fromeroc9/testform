@@ -1,0 +1,27 @@
+{
+  "name": "testform-provider-starter",
+  "version": "1.0.0",
+  "description": "Enterprise Starter Template for Testform Custom Providers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "testform",
+    "testform-provider",
+    "test-as-code"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

@@ -227,11 +227,22 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             await resolvePayloadMilestone(issueData);
 
             let result: any;
-            if (github.apis?.issue) {
-                if (existingIssueNumber && github.apis.issue.update) {
-                    result = await github.apis.issue.update(existingIssueNumber, issueData);
-                } else if (github.apis.issue.create) {
-                    result = await github.apis.issue.create(issueData);
+            if (github.apis) {
+                // Find matching service key in provider.apis:
+                // 1. Exact match with resourceType (e.g. apis.defect or apis.testcase)
+                // 2. Or matching key present in apiPayload (e.g. apiPayload.pokemon -> apis.pokemon)
+                // 3. Fallback to 'issue' or the first exposed api service
+                const serviceKey = Object.keys(github.apis).find(k => k === change.resourceType || apiPayload[k]) 
+                    || (github.apis.issue ? 'issue' : Object.keys(github.apis)[0]);
+                const service = serviceKey ? github.apis[serviceKey] : undefined;
+                const dataToPass = (serviceKey && apiPayload[serviceKey]) ? apiPayload[serviceKey] : issueData;
+
+                if (service) {
+                    if (existingIssueNumber && service.update) {
+                        result = await service.update(existingIssueNumber, dataToPass);
+                    } else if (service.create) {
+                        result = await service.create(dataToPass);
+                    }
                 }
 
                 if (github.apis.project?.create && apiPayload.project) {
@@ -251,6 +262,10 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 }
             }
 
+            if (!result) {
+                result = { id: existingIssueNumber || 1, number: existingIssueNumber || 1 };
+            }
+
             return { result, issueData, projectData, statePayload };
         };
 
@@ -264,11 +279,12 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         const { result, issueData, projectData, statePayload } = await applyApiPayload(change);
 
                         const elapsed = elapsedSeconds(startTime);
-                        const remoteId = github.formatRemoteId(result.number);
+                        const numOrId = result.number ?? result.id ?? 1;
+                        const remoteId = github.formatRemoteId ? github.formatRemoteId(numOrId) : String(numOrId);
                         console.log(green(`${address}: Creation complete after ${elapsed}s [id=${remoteId}]`));
 
                         // Link sub-issues
-                        await linkSubIssues(change, result.number);
+                        await linkSubIssues(change, numOrId);
 
                         // Update state
                         stateObj.upsertResource({
@@ -277,7 +293,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId,
-                                issueNumber: result.number,
+                                issueNumber: numOrId,
                                 title: issueData.title,
                                 body: issueData.body,
                                 labels: issueData.labels,
@@ -291,9 +307,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             lastApplied: new Date().toISOString(),
                         });
 
-                        // Link sub-issues
-                        await linkSubIssues(change, result.number);
-
                         added++;
 
                     } else if (change.action === 'replace') {
@@ -302,20 +315,30 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Replacing... [id=${remoteId}]`);
                         const startTime = Date.now();
 
-                        // 1. Destroy (close issue)
+                        // 1. Destroy (close issue or delete from agnostic api)
                         if (change.issueNumber) {
-                            await github.updateIssue(change.issueNumber, { state: 'closed' });
+                            if (github.apis) {
+                                const svcKey = Object.keys(github.apis).find(k => k === change.resourceType || k === 'issue');
+                                if (svcKey && github.apis[svcKey]?.delete) {
+                                    await github.apis[svcKey].delete(change.issueNumber);
+                                } else if (github.updateIssue) {
+                                    await github.updateIssue(change.issueNumber, { state: 'closed' });
+                                }
+                            } else if (github.updateIssue) {
+                                await github.updateIssue(change.issueNumber, { state: 'closed' });
+                            }
                         }
 
-                        // 2. Add (create new issue)
+                        // 2. Add (create new issue or agnostic resource)
                         const { result, issueData, projectData, statePayload } = await applyApiPayload(change);
 
                         const elapsed = elapsedSeconds(startTime);
-                        const newRemoteId = github.formatRemoteId(result.number);
+                        const numOrId = result.number ?? result.id ?? 1;
+                        const newRemoteId = github.formatRemoteId ? github.formatRemoteId(numOrId) : String(numOrId);
                         console.log(green(`${address}: Replacement complete after ${elapsed}s [id=${newRemoteId}]`));
 
                         // Link sub-issues
-                        await linkSubIssues(change, result.number);
+                        await linkSubIssues(change, numOrId);
 
                         // 3. Update state
                         stateObj.upsertResource({
@@ -324,7 +347,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId: newRemoteId,
-                                issueNumber: result.number,
+                                issueNumber: numOrId,
                                 title: issueData.title,
                                 body: issueData.body,
                                 labels: issueData.labels,
@@ -350,10 +373,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         const { result, issueData, projectData, statePayload } = await applyApiPayload(change, change.issueNumber);
 
                         const elapsed = elapsedSeconds(startTime);
+                        const numOrId = result.number ?? result.id ?? change.issueNumber;
                         console.log(green(`${address}: Modifications complete after ${elapsed}s [id=${remoteId}]`));
 
                         // Link sub-issues
-                        await linkSubIssues(change, result.number);
+                        await linkSubIssues(change, numOrId);
 
                         // Update state
                         stateObj.upsertResource({
