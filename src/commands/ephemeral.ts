@@ -1,10 +1,11 @@
-﻿import { resolve, join } from 'path';
+import { resolve, join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { bold, green, yellow, red, cyan, dim, gray } from 'chalk';
 import { IScope } from '../core/types';
 import { applyCmd } from './apply';
 import { destroyCmd } from './destroy';
 import { TITLE_APP, TITLE_CLI } from '../core/const';
+import { HELP_EPHEMERAL } from '../core/help';
 
 export interface EphemeralCmdOptions {
     subcommand?: string;
@@ -51,12 +52,7 @@ export const ephemeralCmd = async (options: EphemeralCmdOptions) => {
     } = options;
 
     if (!subcommand) {
-        console.error(red(`\nError: Missing subcommand for ${TITLE_CLI} ephemeral.`));
-        console.log(`\nUsage:`);
-        console.log(`  ${TITLE_CLI} ephemeral up <id> [options]      Deploy an isolated ephemeral sandbox`);
-        console.log(`  ${TITLE_CLI} ephemeral down <id> [options]    Destroy all remote issues and clean sandbox`);
-        console.log(`  ${TITLE_CLI} ephemeral list [options]         List all active ephemeral sandboxes`);
-        console.log(`  ${TITLE_CLI} ephemeral show <id> [options]    Inspect an ephemeral sandbox\n`);
+        console.log(HELP_EPHEMERAL);
         process.exit(1);
     }
 
@@ -283,8 +279,7 @@ export const ephemeralCmd = async (options: EphemeralCmdOptions) => {
         }
 
         default:
-            console.error(red(`\nUnknown ephemeral subcommand: "${subcommand}".`));
-            console.log(`Available subcommands: up, down, list, show\n`);
+            console.error(red(`\nUnknown ephemeral subcommand: "${subcommand}".\n\n`) + HELP_EPHEMERAL);
             process.exit(1);
     }
 };

@@ -207,10 +207,18 @@ export class StateQuery {
 
     private toQueryItem(res: StateResource, status: string, testRunId: string): QueryResultItem {
         const cScope = this.getCanonicalScope(res.type);
-        const rawCustom = (res.attributes.custom_fields || {}) as Record<string, any>;
+        const rawCustom = (res.attributes.custom_fields || res.attributes.fields || {}) as Record<string, any>;
         const customFields: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawCustom)) {
             customFields[k.toLowerCase()] = String(v);
+        }
+        for (const [k, v] of Object.entries(res.attributes || {})) {
+            if (['title', 'status', 'labels', 'assignees', 'milestone', 'issueNumber', 'remoteId', 'createdAt', 'updatedAt', 'testcases', 'testcaseStatuses', 'testruns', 'custom_fields', 'fields'].includes(k)) continue;
+            if (v !== undefined && v !== null && typeof v !== 'object') {
+                if (!customFields[k.toLowerCase()]) {
+                    customFields[k.toLowerCase()] = String(v);
+                }
+            }
         }
 
         const labels = Array.isArray(res.attributes.labels)

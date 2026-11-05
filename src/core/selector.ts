@@ -63,6 +63,7 @@ import { Config } from './config';
 import { VariableParser } from './variables';
 import { Diag } from './diagnostics';
 import { askSelect } from './prompt';
+import { normalizeAddress } from './utils';
 
 // ─── Scope Utilities ──────────────────────────────────────────────────────────
 
@@ -200,21 +201,28 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             return true;
         }
 
-        // 2. Identity tag matching (e.g. target is "@tr-4" or "tr-4")
+        // 2. Identity tag matching (e.g. target is "@tr-4" or "tr-4" or "@tc-1" matching "@tc-01")
         if (lastDot !== -1 && normIdentity.slice(lastDot).startsWith('.@')) {
             const tagPart = normIdentity.slice(lastDot + 1).toLowerCase(); // e.g. "@tr-4"
-            if (tagPart === lowerT || tagPart.replace(/^@/, '') === lowerT.replace(/^@/, '')) {
+            const normTagPart = tagPart.replace(/@?([a-z]+)-0*(\d+)/i, '$1-$2');
+            const normLowerT = lowerT.replace(/@?([a-z]+)-0*(\d+)/i, '$1-$2');
+            if (tagPart === lowerT || tagPart.replace(/^@/, '') === lowerT.replace(/^@/, '') || normTagPart === normLowerT) {
                 return true;
             }
         }
 
-        // 3. Target matches end of identity (e.g. "feature.@tc-01", ".@tc-01", "@tc-01")
+        // 3. Target matches end of identity (e.g. "feature.@tc-01", ".@tc-01", "@tc-01", or "ParaBank/account_services.case.feature.@tc-1")
+        const idNormTag = lowerIdentity.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
+        const tNormTag = lowerT.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
         if (
             lowerIdentity.endsWith(`/${lowerT}`) ||
             lowerIdentity.endsWith(`.${lowerT}`) ||
             lowerIdentity.endsWith(lowerT) ||
             lowerCleanIdentity.endsWith(`/${lowerT}`) ||
-            lowerCleanIdentity.endsWith(lowerT)
+            lowerCleanIdentity.endsWith(lowerT) ||
+            idNormTag.endsWith(`/${tNormTag}`) ||
+            idNormTag.endsWith(`.${tNormTag}`) ||
+            idNormTag.endsWith(tNormTag)
         ) {
             return true;
         }
@@ -245,6 +253,114 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
         }
 
         return false;
+    });
+}
+
+/**
+ * Resolves a single resource from state by selector expression, identity, or address.
+ * Supports:
+ * - Exact identity match
+ * - Type-prefixed address (e.g. testcase.ParaBank/account_services.case.feature.@tc-1)
+ * - Provider-prefixed address (e.g. github_testcase.ParaBank/account_services.case.feature.@tc-1)
+ * - Scoped path suffix (e.g. ParaBank/account_services.case.feature.@tc-1)
+ * - File basename + tag (e.g. account_services.case.feature.@tc-1)
+ * - Identity tag (@tc-1 or tc-1 matching @tc-01)
+ * - Slug / title / remoteId
+ */
+export function findResourceInState(resources: any[], target: string): any | undefined {
+    if (!target || !Array.isArray(resources)) return undefined;
+    const cleanTarget = target.trim();
+    if (!cleanTarget) return undefined;
+
+    // 1. Direct exact match (identity or type.identity)
+    const exact = resources.find(r => 
+        r && (
+            r.identity === cleanTarget || 
+            `${r.type}.${r.identity}` === cleanTarget
+        )
+    );
+    if (exact) return exact;
+
+    // 2. Normalized match with normalizeAddress
+    const normClean = normalizeAddress(cleanTarget);
+    const normMatched = resources.find(r => 
+        r && (
+            normalizeAddress(r.identity) === normClean ||
+            normalizeAddress(`${r.type}.${r.identity}`) === normClean
+        )
+    );
+    if (normMatched) return normMatched;
+
+    // 3. Robust selector matching via matchesTarget
+    const selectorMatched = resources.find(r => 
+        r && (
+            matchesTarget(r.identity, cleanTarget, r.type) ||
+            matchesTarget(`${r.type}.${r.identity}`, cleanTarget, r.type)
+        )
+    );
+    if (selectorMatched) return selectorMatched;
+
+    // 4. Flexible suffix matching ignoring differences in root path (e.g. tests/features/)
+    // or leading zero differences in @tc-01 vs @tc-1
+    const normT = cleanTarget.replace(/\\/g, '/').replace(/^(?:[a-zA-Z0-9_-]+_)?(?:testcase|testrun|testplan|bug)\./i, '');
+    const normTNormalizedTag = normT.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2').toLowerCase();
+
+    const suffixMatched = resources.find(r => {
+        if (!r || !r.identity) return false;
+        const normId = r.identity.replace(/\\/g, '/').replace(/^(?:[a-zA-Z0-9_-]+_)?(?:testcase|testrun|testplan|bug)\./i, '');
+        const normIdLower = normId.toLowerCase();
+        const normTLower = normT.toLowerCase();
+
+        if (normIdLower === normTLower || normIdLower.endsWith(`/${normTLower}`) || normTLower.endsWith(`/${normIdLower}`)) {
+            return true;
+        }
+
+        const normIdNormalizedTag = normId.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2').toLowerCase();
+        if (normIdNormalizedTag === normTNormalizedTag || normIdNormalizedTag.endsWith(`/${normTNormalizedTag}`) || normTNormalizedTag.endsWith(`/${normIdNormalizedTag}`)) {
+            return true;
+        }
+
+        return false;
+    });
+    if (suffixMatched) return suffixMatched;
+
+    // 5. Fallback: match by remoteId or issueNumber if selector is numeric or starts with '#'
+    const numMatch = cleanTarget.replace(/^#/, '');
+    if (/^\d+$/.test(numMatch)) {
+        const idMatched = resources.find(r => 
+            r && r.attributes && (
+                String(r.attributes.issueNumber) === numMatch ||
+                String(r.attributes.remoteId) === numMatch
+            )
+        );
+        if (idMatched) return idMatched;
+    }
+
+    return undefined;
+}
+
+/**
+ * Filters resources in state matching any of the given selectors.
+ */
+export function filterResourcesInState(resources: any[], selectors: string[]): any[] {
+    if (!selectors || selectors.length === 0) return resources;
+    return resources.filter(r => {
+        if (!r) return false;
+        const fullAddress = `${r.type}.${r.identity}`;
+        return selectors.some(sel => {
+            const cleanSel = sel.trim();
+            if (!cleanSel) return false;
+            return (
+                r.identity === cleanSel ||
+                fullAddress === cleanSel ||
+                fullAddress.startsWith(cleanSel) ||
+                r.identity.startsWith(cleanSel) ||
+                normalizeAddress(r.identity) === normalizeAddress(cleanSel) ||
+                normalizeAddress(fullAddress) === normalizeAddress(cleanSel) ||
+                matchesTarget(r.identity, cleanSel, r.type) ||
+                matchesTarget(fullAddress, cleanSel, r.type)
+            );
+        });
     });
 }
 

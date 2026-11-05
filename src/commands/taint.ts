@@ -3,6 +3,7 @@ import { State } from '../core/state';
 import { TITLE_CLI } from '../core/const';
 import { TestformError } from '../core/errors';
 import { normalizeAddress } from '../core/utils';
+import { findResourceInState } from '../core/selector';
 
 interface TaintCmdOptions {
     dir?: string;
@@ -31,16 +32,8 @@ export const taintCmd = async (options: TaintCmdOptions) => {
     await state.acquireLock(lock, lockTimeout);
 
     try {
-        let res: any = null;
-        for (const type of ['testcase', 'testrun', 'testplan']) {
-            const identity = identityRaw.replace(new RegExp(`^([a-zA-Z0-9_-]+_)?${type}\\.`), '');
-            res = state.getResources(type).find((r: any) => 
-                r.identity === identity ||
-                normalizeAddress(r.identity) === normalizeAddress(identity) ||
-                normalizeAddress(r.identity) === normalizeAddress(identityRaw)
-            );
-            if (res) break;
-        }
+        const rawResources = state.getResources();
+        const res = findResourceInState(rawResources, identityRaw);
 
         if (!res) {
             if (allowMissing) {

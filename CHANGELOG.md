@@ -5,9 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.4] - 2026-10-30
+## [1.1.0-beta.4] - 2026-11-05
 
 ### Added
+
+#### 📑 Report Template Interpolation Engine (Terraform `${var.*}` Parity)
+- **Natural Terraform Expression Syntax in Excel and Word Templates:** Enhanced Excel (`xlsx`) and Word (`docx`) report rendering to natively parse `${var.my_variable}` placeholders alongside `${report.title}`, `${date}`, `${total}`, and `${table}` anchors.
+- **Multi-Tier Robust Delimiter Fallback:** Implemented automated multi-pass patching in Word (`DocxFormat`) trying `${...}` first, followed by `{...}` and `{{...}}` to maintain complete flexibility across institutional document templates.
+- **Full Cell-Level Placeholder Replacement in Excel (`XlsxFormat`):** Replaced hardcoded delimiters with universal matcher detecting `${var.name}`, `{var.name}`, `${name}`, and `{name}` across workbooks.
+
+#### 🗃️ Centralized CLI Help System (`src/core/help.ts`)
+- **Single Source of Truth for Command Documentation:** Moved all embedded usage helpers and inline error descriptions from individual command modules (`report.ts`, `workspace.ts`, `state.ts`, `ephemeral.ts`) into centralized constants in `src/core/help.ts`.
+- **Emoji-Free Clean Report Help:** Standardized `testform report` output when called without arguments to present clean, structured CLI documentation aligned with Terraform standards.
+
+#### 🌳 Dependency Graph Hierarchy Normalization (`testform graph`)
+- **Strict Architectural Hierarchy:** Ensured `testplan` -> `testrun` -> `testcase` relationship traversal across DOT, Mermaid, and terminal Tree rendering.
+- **Type-Safe Target Matching:** Resolved TypeScript strict mode errors in selector target resolution (`matchesTarget`) and scenario tag extraction.
+
+#### 🔍 Enriched Validation Diagnostics (`testform validate`)
+- **Detailed Scenario & Scope Summary:** Upgraded validation success output to report scenario counts partitioned per scope (`testcase`, `testrun`, `testplan`), total specification files, provider type, test directory, target filters, and active variable counts.
+
+#### 🚫 Complete Elimination of Legacy Compatibility Debt (`suite` & `tool`)
+- **Zero Backward Compatibility:** Fully purged legacy `testform suite` and `testform tool` command shims, removing them from command routers, suggestions, tests, and help indices.
+- **Modern Spec Builder Extraction:** Relocated active specification parsing and autocomplete utilities (`parsePatternFilter`, `matchesScenarioFilter`, `runAutocomplete`, `runTagsSuite`) into dedicated module `src/commands/spec-builder.ts`.
+- **Refactored Vitest Suite:** Updated `test/suite.test.ts` to directly validate `spec-builder.ts` pattern filters without legacy references.
 
 #### 🔌 Agnostic Multi-Service Provider Architecture (`IProvider.apis`)
 - **Arbitrary Provider Services (`Record<string, IProviderApiService>`):** Generalized provider contract allowing any provider adapter to expose multiple custom services (`apis.issue`, `apis.project`, or custom domain dictionaries like `apis.pokedex`, `apis.defect`, etc.) with standard CRUD signatures (`create`, `update`, `delete`, `get`).

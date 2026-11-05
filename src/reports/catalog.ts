@@ -12,6 +12,81 @@ function resolveItemUrl(d: QueryResultItem): string | undefined {
     return undefined;
 }
 
+export function formatHeaderTitle(field: string): string {
+    return field
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+export function enrichWithCustomFields(
+    data: ReportData,
+    items: QueryResultItem[],
+    requestedFields?: string[]
+): ReportData {
+    if (items.length === 0 || (data.rows.length === 1 && items.length === 0)) {
+        return data;
+    }
+
+    if (requestedFields && requestedFields.some(f => f.toLowerCase() === 'none' || f.toLowerCase() === 'false')) {
+        return data;
+    }
+
+    let fieldsToInclude: string[] = [];
+    if (!requestedFields || requestedFields.length === 0 || requestedFields.includes('all') || requestedFields.includes('*')) {
+        const fieldSet = new Set<string>();
+        for (const it of items) {
+            if (it.custom_fields) {
+                for (const k of Object.keys(it.custom_fields)) {
+                    if (k) fieldSet.add(k);
+                }
+            }
+            const rawAttrs = (it.originalResource?.attributes || {}) as Record<string, any>;
+            const rawFields = rawAttrs.custom_fields || rawAttrs.fields || {};
+            if (typeof rawFields === 'object') {
+                for (const k of Object.keys(rawFields)) {
+                    if (k) fieldSet.add(k);
+                }
+            }
+        }
+        fieldsToInclude = Array.from(fieldSet);
+    } else {
+        fieldsToInclude = requestedFields;
+    }
+
+    if (fieldsToInclude.length === 0) return data;
+
+    const existingHeadersLower = new Set(data.headers.map(h => h.toLowerCase()));
+    const finalFields = fieldsToInclude.filter(f => !existingHeadersLower.has(f.toLowerCase()));
+    if (finalFields.length === 0) return data;
+
+    const newHeaders = [...data.headers, ...finalFields.map(f => formatHeaderTitle(f))];
+    const newRows = data.rows.map((row, idx) => {
+        const item = items[idx];
+        if (!item) return row;
+        const extraCells = finalFields.map(f => {
+            const lowerF = f.toLowerCase();
+            const val = item.custom_fields?.[lowerF]
+                ?? item.custom_fields?.[f]
+                ?? resolvePath(item.originalResource, `attributes.custom_fields.${lowerF}`)
+                ?? resolvePath(item.originalResource, `attributes.custom_fields.${f}`)
+                ?? resolvePath(item.originalResource, `attributes.fields.${lowerF}`)
+                ?? resolvePath(item.originalResource, `attributes.fields.${f}`)
+                ?? resolvePath(item.originalResource, `attributes.${lowerF}`)
+                ?? resolvePath(item.originalResource, `attributes.${f}`)
+                ?? resolvePath(item.originalResource, f)
+                ?? '-';
+            return String(val);
+        });
+        return [...row, ...extraCells];
+    });
+
+    return {
+        ...data,
+        headers: newHeaders,
+        rows: newRows
+    };
+}
+
 export const builtinReports: Record<string, IReport> = {
     // ── 1. Resumen de Casos de Prueba ─────────────────────────────────────────
     'testcase-summary': {
@@ -21,7 +96,7 @@ export const builtinReports: Record<string, IReport> = {
             const tcItems = ctx.items.filter(it => it.canonicalScope === 'testcase');
             const items = tcItems.length > 0 ? tcItems : ctx.items;
 
-            return {
+            const resData: ReportData = {
                 title: 'Informe de Casos de Prueba',
                 metrics: {
                     total: ctx.stats.total,
@@ -42,6 +117,8 @@ export const builtinReports: Record<string, IReport> = {
                     d.assignees[0] || '-'
                 ])
             };
+
+            return enrichWithCustomFields(resData, items, ctx.fields);
         }
     },
 
@@ -90,7 +167,7 @@ export const builtinReports: Record<string, IReport> = {
             const executed = ctx.items.filter(i => i.canonicalScope === 'testcase' && i.testRunId);
             const items = executed.length > 0 ? executed : ctx.items.filter(i => i.canonicalScope === 'testcase');
 
-            return {
+            const resData: ReportData = {
                 title: 'Test Run Detailed Report',
                 metrics: {
                     total_runs: ctx.stats.totalRuns,
@@ -111,6 +188,8 @@ export const builtinReports: Record<string, IReport> = {
                     ];
                 })
             };
+
+            return enrichWithCustomFields(resData, items, ctx.fields);
         }
     },
 
@@ -165,7 +244,7 @@ export const builtinReports: Record<string, IReport> = {
         collect(ctx: ReportContext): ReportData {
             const failures = ctx.items.filter(d => ['failed', 'blocked'].includes(d.status.toLowerCase()));
 
-            return {
+            const resData: ReportData = {
                 title: 'Informe de Defectos',
                 metrics: {
                     total_defectos: failures.length,
@@ -190,6 +269,9 @@ export const builtinReports: Record<string, IReport> = {
                     })
                     : [['-', 'Sin defectos', 'No se encontraron pruebas fallidas o bloqueadas.', 'Passed', '-', '-']]
             };
+
+            if (failures.length === 0) return resData;
+            return enrichWithCustomFields(resData, failures, ctx.fields);
         }
     },
 
@@ -322,7 +404,9 @@ export const builtinReports: Record<string, IReport> = {
             const total = items.length;
             const rate = total > 0 ? Math.round((automatedCount / total) * 100) : 0;
 
-            return {
+            const sliced = items.slice(0, 50);
+
+            const resData: ReportData = {
                 title: 'Test Case Activity & Automation',
                 metrics: {
                     total_casos: total,
@@ -331,7 +415,7 @@ export const builtinReports: Record<string, IReport> = {
                     tasa_automatizacion: `${rate}%`
                 },
                 headers: ['ID', 'Título', 'Prioridad', 'Automatizado', 'Modificado', 'Asignado'],
-                rows: items.slice(0, 50).map(d => {
+                rows: sliced.map(d => {
                     const priority = d.custom_fields['priority'] || resolvePath(d.originalResource, 'attributes.custom_fields.priority') || 'Medium';
                     const autoVal = String(d.custom_fields['automation'] || d.custom_fields['automate'] || 'No');
                     return [
@@ -344,6 +428,8 @@ export const builtinReports: Record<string, IReport> = {
                     ];
                 })
             };
+
+            return enrichWithCustomFields(resData, sliced, ctx.fields);
         }
     },
 
@@ -352,7 +438,7 @@ export const builtinReports: Record<string, IReport> = {
         name: 'raw',
         description: 'Raw unaggregated export of all filtered state resources',
         collect(ctx: ReportContext): ReportData {
-            return {
+            const resData: ReportData = {
                 title: 'Raw Data Export',
                 metrics: {
                     total_recursos: ctx.items.length
@@ -392,6 +478,16 @@ export const builtinReports: Record<string, IReport> = {
                     })
                 }
             };
+
+            return enrichWithCustomFields(resData, ctx.items, ctx.fields);
         }
     }
 };
+
+// Aliases for cross-scope and multi-word report naming
+builtinReports['cross-defects'] = builtinReports['defects'];
+builtinReports['cross-traceability'] = builtinReports['traceability'];
+builtinReports['cross-coverage'] = builtinReports['coverage'];
+builtinReports['cross-twodimensional'] = builtinReports['two-dimensional'];
+builtinReports['cross-two-dimensional'] = builtinReports['two-dimensional'];
+

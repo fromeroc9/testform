@@ -9,7 +9,19 @@ import { logger } from '../core/logger';
 import { TestformError } from '../core/errors';
 
 export async function resolveReport(name: string, dir: string = process.cwd()): Promise<IReport> {
-    const cleanName = (name || 'testcase-summary').trim().toLowerCase();
+    let cleanName = (name || '').trim().toLowerCase().replace(/\s+/g, '-');
+
+    const aliases: Record<string, string> = {
+        'cross-defects': 'defects',
+        'cross-traceability': 'traceability',
+        'cross-coverage': 'coverage',
+        'cross-twodimensional': 'two-dimensional',
+        'cross-two-dimensional': 'two-dimensional',
+        'testcase-activity': 'test-case-activity'
+    };
+    if (aliases[cleanName]) {
+        cleanName = aliases[cleanName];
+    }
 
     // 1. Core catalog
     if (builtinReports[cleanName]) {
@@ -67,7 +79,23 @@ export async function resolveFormat(
     formatName: string = 'md',
     dir: string = process.cwd()
 ): Promise<IReportFormat> {
-    const cleanFmt = (formatName || 'md').trim().toLowerCase();
+    let cleanFmt = (formatName || 'md').trim().toLowerCase();
+
+    const formatAliases: Record<string, string> = {
+        'markdown': 'md',
+        'mark-down': 'md',
+        'text': 'md',
+        'txt': 'md',
+        'excel': 'xlsx',
+        'xls': 'xlsx',
+        'spreadsheet': 'xlsx',
+        'word': 'docx',
+        'doc': 'docx',
+        'document': 'docx'
+    };
+    if (formatAliases[cleanFmt]) {
+        cleanFmt = formatAliases[cleanFmt];
+    }
 
     // 1. Formato local exclusivo definido dentro del reporte
     if (report.formats && report.formats[cleanFmt]) {

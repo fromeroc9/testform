@@ -190,4 +190,64 @@ describe('Command reportCmd', () => {
         expect(logs).toContain('@sprint-1');
         expect(logs).toContain('@sprint-2');
     });
+
+    it('should include custom fields when requested via fields option', async () => {
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
+
+        await reportCmd({ dir: tmpDir, type: 'testcase-summary', format: 'md', filter: [], fields: 'priority' });
+
+        const logs = mockLog.mock.calls.join('\n');
+        expect(logs).toContain('# Informe de Casos de Prueba');
+        expect(logs).toContain('Priority');
+        expect(logs).toContain('high');
+    });
+
+    it('should include all custom fields when fields=all is requested', async () => {
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
+
+        await reportCmd({ dir: tmpDir, type: 'testcase-summary', format: 'md', filter: [], fields: 'all' });
+
+        const logs = mockLog.mock.calls.join('\n');
+        expect(logs).toContain('# Informe de Casos de Prueba');
+        expect(logs).toContain('Priority');
+        expect(logs).toContain('high');
+    });
+
+    it('should include custom fields by default in native reports when present in items', async () => {
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: (type: string) => {
+                    if (type === 'github_testcase') return mockTestCases;
+                    if (type === 'github_testrun') return mockTestRuns;
+                    return [];
+                }
+            };
+        });
+
+        await reportCmd({ dir: tmpDir, type: 'testcase-summary', format: 'md', filter: [] });
+
+        const logs = mockLog.mock.calls.join('\n');
+        expect(logs).toContain('# Informe de Casos de Prueba');
+        expect(logs).toContain('Priority');
+        expect(logs).toContain('high');
+    });
 });

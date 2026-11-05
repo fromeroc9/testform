@@ -15,7 +15,7 @@ import { Diag } from '../core/diagnostics';
 import { findNextIdentity } from '../core/editor';
 
 import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP, TITLE_CLI } from '../core/const';
-import { matchesScope, detectScopeFromTarget } from '../core/selector';
+import { matchesScope, detectScopeFromTarget, matchesTarget } from '../core/selector';
 
 interface ImportCmdOptions {
     dir?: string;
@@ -322,8 +322,9 @@ export const importCmd = async (options: ImportCmdOptions) => {
                 ? rawId
                 : `${s.uri}.${rawId}`;
 
-            // Exact match or ends with the arg (e.g. test1.run.feature or tc1.case.feature.tc-01)
-            return fullId === identityArg || fullId.endsWith(identityArg) || identityArg.endsWith(fullId);
+            // Exact match, ends with, or matches via target selector
+            return fullId === identityArg || fullId.endsWith(identityArg) || identityArg.endsWith(fullId) ||
+                matchesTarget(fullId, identityArg, scope) || matchesTarget(rawId, identityArg, scope);
         });
 
         if (matchedScenario) {

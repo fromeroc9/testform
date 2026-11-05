@@ -4,6 +4,8 @@ import { resolve } from 'path';
 import { State, cleanAttributes } from '../core/state';
 import { TITLE_CLI } from '../core/const';
 import { formatHclValue, normalizeAddress } from '../core/utils';
+import { HELP_STATE_PUSH, HELP_STATE_SHOW, HELP_STATE_RM, HELP_STATE_MV } from '../core/help';
+import { findResourceInState, filterResourcesInState } from '../core/selector';
 
 interface StateCmdOptions {
     dir?: string;
@@ -55,7 +57,7 @@ export const stateCmd = async (options: StateCmdOptions) => {
 
     if (action === 'push') {
         if (args.length !== 1) {
-            console.error(red(`Usage: ${TITLE_CLI} state push [path]`));
+            console.error(red('Error: Exactly one state file path expected.\n\n') + HELP_STATE_PUSH);
             process.exit(1);
         }
         const localPath = resolve(process.cwd(), args[0]);
@@ -101,10 +103,7 @@ export const stateCmd = async (options: StateCmdOptions) => {
                 filtered = filtered.filter(r => r.attributes.issueNumber?.toString() === id || r.attributes.remoteId === id);
             }
             if (args.length > 0) {
-                filtered = filtered.filter(r => {
-                    const fullAddress = `${r.type}.${r.identity}`;
-                    return args.some(addr => fullAddress.startsWith(addr) || r.identity.startsWith(addr));
-                });
+                filtered = filterResourcesInState(filtered, args);
             }
             return filtered;
         };
@@ -135,17 +134,11 @@ export const stateCmd = async (options: StateCmdOptions) => {
 
         } else if (action === 'show') {
             if (args.length !== 1) {
-                console.error(red(`Exactly one argument expected.\nUsage: ${TITLE_CLI} [global options] state show [options] ADDRESS`));
+                console.error(red('Error: Exactly one argument expected.\n\n') + HELP_STATE_SHOW);
                 process.exit(1);
             }
             const address = args[0];
-            const identity = address.includes('.') ? address.split('.').slice(1).join('.') : address;
-            const res = rawResources.find(r => 
-                normalizeAddress(r.identity) === normalizeAddress(identity) || 
-                normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(identity) ||
-                normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(address) ||
-                normalizeAddress(r.identity) === normalizeAddress(address)
-            );
+            const res = findResourceInState(rawResources, address);
 
             if (!res) {
                 console.error(red(`No instance found for the given address!`));
@@ -172,25 +165,19 @@ export const stateCmd = async (options: StateCmdOptions) => {
             }
         } else if (action === 'rm') {
             if (args.length === 0) {
-                console.error(red(`At least one address is required.\n\nUsage: ${TITLE_CLI} [global options] state rm [options] ADDRESS...`));
+                console.error(red('Error: At least one address is required.\n\n') + HELP_STATE_RM);
                 process.exit(1);
             }
             
             let removedCount = 0;
             for (const arg of args) {
-                const identity = arg.includes('.') ? arg.split('.').slice(1).join('.') : arg;
-                const matched = rawResources.find(r => 
-                    normalizeAddress(r.identity) === normalizeAddress(identity) || 
-                    normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(identity) ||
-                    normalizeAddress(`${r.type}.${r.identity}`) === normalizeAddress(arg) ||
-                    normalizeAddress(r.identity) === normalizeAddress(arg)
-                );
+                const matched = findResourceInState(rawResources, arg);
                 if (matched) {
                     if (dryRun) {
-                        console.log(`Would remove ${arg}`);
+                        console.log(`Would remove ${matched.type}.${matched.identity}`);
                     } else {
                         state.removeResource(matched.identity);
-                        console.log(`Removed ${arg}`);
+                        console.log(`Removed ${matched.type}.${matched.identity}`);
                     }
                     removedCount++;
                 } else {
@@ -204,16 +191,14 @@ export const stateCmd = async (options: StateCmdOptions) => {
             }
         } else if (action === 'mv') {
             if (args.length !== 2) {
-                console.error(red(`Exactly two arguments expected.\n\nUsage: ${TITLE_CLI} [global options] state mv [options] SOURCE DESTINATION`));
+                console.error(red('Error: Exactly two arguments expected.\n\n') + HELP_STATE_MV);
                 process.exit(1);
             }
             const source = args[0];
             const dest = args[1];
             
-            const sourceIdentity = source.includes('.') ? source.split('.').slice(1).join('.') : source;
             const destIdentity = dest.includes('.') ? dest.split('.').slice(1).join('.') : dest;
-
-            const res = rawResources.find(r => r.identity === sourceIdentity || `${r.type}.${r.identity}` === sourceIdentity);
+            const res = findResourceInState(rawResources, source);
             if (!res) {
                 console.error(red(`Error: Source resource ${source} not found in state.`));
                 process.exit(1);

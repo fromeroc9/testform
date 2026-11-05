@@ -35,7 +35,7 @@ export const MarkdownFormat: IReportFormat = {
                 }
             };
             let res = interpolateExpressions(raw, evalCtx);
-            res = res.replace(/\$\{report\.title\}/g, data.title);
+            res = res.replace(/\$\{report\.title\}/g, data.title).replace(/\{report\.title\}/g, data.title);
             if (data.metrics) {
                 for (const [k, v] of Object.entries(data.metrics)) {
                     res = res.replace(new RegExp(`\\$\\{report\\.metrics\\.${k}\\}`, 'g'), String(v));
@@ -278,7 +278,7 @@ export const DocxFormat: IReportFormat = {
                 patches['table'] = tablePatch;
                 patches['report.table'] = tablePatch;
 
-                // 1. Intentar parcheo con marcadores ${...} (Estándar de Testform)
+                // 1. Intentar parcheo con marcadores ${...} (Estándar de Testform estilo Terraform: ${var.nombre})
                 try {
                     const patched = await patchDocument({
                         outputType: "nodebuffer",
@@ -291,7 +291,8 @@ export const DocxFormat: IReportFormat = {
                     });
                     return Buffer.from(patched);
                 } catch {
-                    // 2. Fallback a marcadores {{...}} para compatibilidad con plantillas heredadas
+                    try { const patched = await patchDocument({ outputType: "nodebuffer", data: templateBuffer, patches, placeholderDelimiters: { start: "{", end: "}" } }); return Buffer.from(patched); } catch {}
+                    // 3. Fallback a marcadores {{...}}
                     const patched = await patchDocument({
                         outputType: "nodebuffer",
                         data: templateBuffer,
@@ -400,19 +401,23 @@ export const XlsxFormat: IReportFormat = {
         // Interpolador de marcadores ${...} en celdas de Excel
         const interpolateCell = (val: string): string => {
             let res = val;
-            res = res.replace(/\$\{date\}/g, dateStr);
-            res = res.replace(/\$\{report\.title\}/g, data.title);
-            res = res.replace(/\$\{title\}/g, data.title);
+            res = res.replace(/\$\{date\}/g, dateStr).replace(/\{date\}/g, dateStr);
+            res = res.replace(/\$\{report\.title\}/g, data.title).replace(/\{report\.title\}/g, data.title);
+            res = res.replace(/\$\{title\}/g, data.title).replace(/\{title\}/g, data.title);
             if (data.metrics) {
                 for (const [k, v] of Object.entries(data.metrics)) {
                     res = res.replace(new RegExp(`\\$\\{report\\.metrics\\.${k}\\}`, 'g'), String(v));
                     res = res.replace(new RegExp(`\\$\\{report\\.${k}\\}`, 'g'), String(v));
                     res = res.replace(new RegExp(`\\$\\{${k}\\}`, 'g'), String(v));
+                res = res.replace(new RegExp(`\\{var\\.${k}\\}`, 'g'), String(v));
+                res = res.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
                 }
             }
             for (const [k, v] of Object.entries(vars)) {
                 res = res.replace(new RegExp(`\\$\\{var\\.${k}\\}`, 'g'), String(v));
                 res = res.replace(new RegExp(`\\$\\{${k}\\}`, 'g'), String(v));
+                res = res.replace(new RegExp(`\\{var\\.${k}\\}`, 'g'), String(v));
+                res = res.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
             }
             return res;
         };
@@ -423,10 +428,10 @@ export const XlsxFormat: IReportFormat = {
         worksheet.eachRow({ includeEmpty: false }, (row: any, rowNumber: number) => {
             row.eachCell({ includeEmpty: false }, (cell: any, colNumber: number) => {
                 if (typeof cell.value === 'string') {
-                    if (cell.value.includes('${table}') || cell.value.includes('${report.table}')) {
+                    if (cell.value.includes('${table}') || cell.value.includes('${report.table}') || cell.value.includes('{table}') || cell.value.includes('{report.table}')) {
                         tableAnchor = { row: rowNumber, col: colNumber };
                         cell.value = '';
-                    } else if (cell.value.includes('${')) {
+                    } else if (cell.value.includes('${') || cell.value.includes('{')) {
                         cell.value = interpolateCell(cell.value);
                     }
                 }
@@ -496,8 +501,11 @@ export const XlsxFormat: IReportFormat = {
 
 export const coreFormats: Record<string, IReportFormat> = {
     md: MarkdownFormat,
+    markdown: MarkdownFormat,
     json: JsonFormat,
     csv: CsvFormat,
     docx: DocxFormat,
-    xlsx: XlsxFormat
+    word: DocxFormat,
+    xlsx: XlsxFormat,
+    excel: XlsxFormat
 };

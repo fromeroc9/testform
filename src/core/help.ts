@@ -1119,20 +1119,13 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] report <type> [options]
 
 ${bold(`Available Report Types:`)}
 
-  Scope: Test Case
-    testcase-summary     Execution overview and pass/fail metrics of testcases
-
-  Scope: Test Run
-    testrun-summary      Test runs and their pass/fail metrics
-    testrun-detailed     In-depth view of testcases and priorities per testrun
-
-  Scope: Test Plan
-    testplan-summary     Overall Test Plan progress and linked test runs
-
-  Cross-Scope / Matrix
-    defects              List of failed/blocked tests with issue tracking links
-    traceability         Mapping between requirements/tags and test runs
-    coverage             Percentage of passed tests grouped by tags
+  testcase     summary          Execution overview and pass/fail metrics of testcases
+  testrun      summary          Test runs and their pass/fail metrics
+  testrun      detailed         In-depth view of testcases and priorities per testrun
+  testplan     summary          Overall Test Plan progress and linked test runs
+  cross        defects          List of failed/blocked tests with issue tracking links
+  cross        traceability     Mapping between requirements/tags and test runs
+  cross        coverage         Percentage of passed tests grouped by tags
 
 ${bold(`Options:`)}
 
@@ -1154,6 +1147,10 @@ ${bold(`Options:`)}
   -group-by=field     Group results dynamically by a specific field
                       (e.g. status, label, assignee, feature, priority).
 
+  -fields=fields      Include custom fields as additional columns in reports
+                      (comma-separated list e.g. -fields=severity,priority,
+                      or -fields=all to include all custom fields).
+
   -template=path      Path to a custom template file (.xlsx, .docx, etc.).
 
   -var=key=val        Set a variable value to interpolate in report templates.
@@ -1162,11 +1159,13 @@ ${bold(`Options:`)}
   -var-file=filename  Load variable values from the given YAML/JSON file.
 
 ${bold(`Examples:`)}
-  ${TITLE_CLI} report testcase-summary
-  ${TITLE_CLI} report testrun-summary -target="@tr-1"
-  ${TITLE_CLI} report defects -format=csv -out=defects.csv
-  ${TITLE_CLI} report traceability -group-by=feature -format=md
-  ${TITLE_CLI} report testplan-summary -target="@tp-1" -format=xlsx -out=sprint_report.xlsx
+  ${TITLE_CLI} report testcase summary
+  ${TITLE_CLI} report testcase summary -fields=severity,priority
+  ${TITLE_CLI} report testrun summary -target="@tr-1"
+  ${TITLE_CLI} report cross defects -fields=all -format=xlsx -out=defects.xlsx
+  ${TITLE_CLI} report cross defects -format=csv -out=defects.csv
+  ${TITLE_CLI} report cross traceability -group-by=feature -format=md
+  ${TITLE_CLI} report testplan summary -target="@tp-1" -format=xlsx -out=sprint_report.xlsx
 `.trim();
 
 export const HELP_TEST = `

@@ -525,30 +525,40 @@ export function createCli() {
         });
 
     // ─── report ───────────────────────────────────────────────────────────
-    cli.command('report [type]', 'Generate test metrics and matrices (summary, traceability, coverage, etc.)')
+    cli.command('report [type] [subType]', 'Generate test metrics and matrices (summary, traceability, coverage, etc.)')
         .option('--format <format>', 'Report output format (md, json, csv, xlsx, docx)', { default: 'md' })
         .option('--filter <filter>', 'Filter report items (key=value or inferred text search)')
         .option('--target <target>', 'Target a specific resource, testrun (@tr-N), or testplan (@tp-N)')
         .option('--group-by <field>', 'Group report items dynamically by field')
+        .option('--fields <fields>', 'Include custom fields as additional columns in reports (comma-separated or "all")')
         .option('--template <path>', 'Path to custom template file')
         .option('-o, --out <path>', 'Write report to destination file')
         .option('--state <path>', 'Path to state file')
-        .action(async (type, options) => {
-            const workDir = getWorkDir(options);
-            const variableParser = getVariableParser(options, workDir);
-            const filterArr = options.filter ? (Array.isArray(options.filter) ? options.filter : [options.filter]) : [];
+        .action(async (type, subType, rawOptions) => {
+            let actualType = type;
+            let options = rawOptions;
+            if (subType && typeof subType === 'object') {
+                options = subType;
+            } else if (typeof subType === 'string' && subType.trim() !== '') {
+                actualType = `${type}-${subType.trim()}`;
+            }
+
+            const workDir = getWorkDir(options || {});
+            const variableParser = getVariableParser(options || {}, workDir);
+            const filterArr = options?.filter ? (Array.isArray(options.filter) ? options.filter : [options.filter]) : [];
 
             await reportCmd({
                 dir: workDir,
-                type: type,
-                format: options.format || 'md',
+                type: actualType,
+                format: options?.format || 'md',
                 filter: filterArr,
-                target: options.target,
-                groupBy: options.groupBy || options['group-by'],
-                template: options.template,
+                target: options?.target,
+                groupBy: options?.groupBy || options?.['group-by'],
+                fields: options?.fields,
+                template: options?.template,
                 variables: variableParser,
-                out: options.out,
-                statePath: options.state
+                out: options?.out,
+                statePath: options?.state
             });
         });
 
@@ -805,8 +815,8 @@ function handleUnknownCommand(cmd: string): never {
         'force-unlock', 'functions', 'graph', 'import', 'init',
         'login', 'logout', 'modules', 'output', 'plan',
         'policy', 'print', 'providers', 'query', 'refresh',
-        'report', 'show', 'spec', 'state', 'suite', 'taint',
-        'tool', 'untaint', 'validate', 'version', 'workspace'
+        'report', 'show', 'spec', 'state', 'taint',
+        'untaint', 'validate', 'version', 'workspace'
     ];
     const suggestion = suggestCommand(cmd, knownCommands);
     if (suggestion) {

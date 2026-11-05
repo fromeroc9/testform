@@ -2,6 +2,7 @@ import { red, green, bold } from 'chalk';
 import { Logger } from '../core/logger';
 import { State } from '../core/state';
 import { TITLE_CLI } from '../core/const';
+import { HELP_WORKSPACE } from '../core/help';
 
 interface WorkspaceCmdOptions {
     dir: string;
@@ -17,7 +18,7 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
     const name = args[1];
 
     if (!subcommand) {
-        logger.error(`Usage: ${TITLE_CLI} workspace [subcommand] [options] [args]`);
+        console.log(HELP_WORKSPACE);
         process.exit(1);
     }
 
@@ -108,7 +109,7 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
             break;
 
         default:
-            logger.error(`Invalid workspace subcommand: ${subcommand}`);
+            logger.error(`Invalid workspace subcommand: "${subcommand}".\n\n${HELP_WORKSPACE}`);
             process.exit(1);
     }
 };

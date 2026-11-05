@@ -14,6 +14,7 @@ export interface ReportContext {
     variables: Record<string, string>;
     groupBy?: string;
     target?: string | string[];
+    fields?: string[];
     options: Record<string, any>;
     stateQuery: StateQuery;
 }
