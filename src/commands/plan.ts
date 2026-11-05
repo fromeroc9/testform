@@ -403,7 +403,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
         for (const s of scopesToRun) {
             if (refresh && !destroyPlan) {
-                await refreshState({ dir, scope: s, state: stateObj, logger, silent: isJson, parallelismRaw: parallelism, target });
+                await refreshState({ dir, scope: s, state: stateObj, logger, silent: isJson, isImplicit: true, parallelismRaw: parallelism, target });
             }
 
             const sPlan = await calculatePlan({

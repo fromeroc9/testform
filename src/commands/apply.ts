@@ -94,10 +94,13 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             let allChanges: any[] = [];
             let finalState = stateObj;
 
+            if (refresh && !refreshOnly) {
+                console.log(MSG_ACQUIRING_LOCK);
+            }
+
             for (const s of scopesToRun) {
                 if (refresh && !refreshOnly) {
-                    console.log(MSG_ACQUIRING_LOCK);
-                    await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw: parallelism, target });
+                    await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, isImplicit: true, parallelismRaw: parallelism, target });
                 }
 
                 // Calculate plan (read-only)

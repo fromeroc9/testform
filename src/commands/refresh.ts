@@ -161,7 +161,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     await state.save();
 
-    if (!silent) {
+    if (!silent && !isImplicit && (refreshed + removed > 0)) {
         console.log('');
         console.log(green(bold(`Refresh complete! ${refreshed} resource(s) refreshed, ${removed} removed.`)));
     }
@@ -208,9 +208,27 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
         const effectiveTarget = target || (options as any).scope;
         const realTarget = effectiveTarget || (options as any).scope;
-    const scopesToRun = resolveScopes(realTarget);
+        const scopesToRun = resolveScopes(realTarget);
+
+        let totalResources = 0;
         for (const s of scopesToRun) {
-            await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, parallelismRaw, target });
+            const resType = SCOPE_RESOURCE_MAP[s];
+            if (resType) {
+                let resList = stateObj.getResources(resType);
+                if (target) {
+                    resList = resList.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
+                }
+                totalResources += resList.length;
+            }
+        }
+
+        if (totalResources === 0) {
+            console.log('No resources in state to refresh.');
+            return;
+        }
+
+        for (const s of scopesToRun) {
+            await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, isImplicit: false, parallelismRaw, target });
         }
     });
 };

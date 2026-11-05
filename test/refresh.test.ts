@@ -178,4 +178,30 @@ describe('Command refreshCmd', () => {
         expect(logs).toContain('No issue number');
         expect(logs).toContain('1 removed');
     });
+
+    it('does not log "No resources in state to refresh" during implicit refresh (plan/apply)', async () => {
+        const mockSave = vi.fn();
+        const mockState: any = {
+            init: vi.fn<any>().mockResolvedValue(undefined),
+            acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+            releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+            getResources: vi.fn().mockReturnValue([]),
+            save: mockSave
+        };
+
+        const { refreshState } = await import('../src/commands/refresh');
+        const { Logger } = await import('../src/core/logger');
+
+        mockLog.mockClear();
+        await refreshState({
+            dir: tmpDir,
+            scope: 'testcase',
+            state: mockState,
+            logger: new Logger(false),
+            isImplicit: true
+        });
+
+        const logs = mockLog.mock.calls.join(' ');
+        expect(logs).not.toContain('No resources in state to refresh');
+    });
 });
