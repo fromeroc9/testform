@@ -84,7 +84,7 @@ describe('Policy identity-required', () => {
 
     it('should be registered as an active system policy', () => {
         expect(policyDef).toBeDefined();
-        expect(policyDef.scope).toEqual(['testcase', 'testrun', 'testplan']);
+        expect(policyDef.scope).toEqual(['testcase', 'testrun', 'testplan', 'bug']);
     });
 
     it('should detect missing identity in testcase scope', () => {
@@ -186,6 +186,189 @@ describe('Policy identity-required', () => {
         policyDef.action([runValid], rules, 'testrun');
 
         expect(rules.length).toBe(0);
+    });
+
+    it('should detect missing identity in bug scope', () => {
+        const bugWithoutId: ParserScenario = {
+            uri: 'tests/bugs/checkout.bug.feature',
+            feature: { tags: ['@bug'], keyword: 'Feature', name: 'Checkout Defect', description: '', location: 1 },
+            location: 5,
+            keyword: 'Scenario',
+            name: 'Bug in Cart',
+            description: '',
+            steps: [],
+            tags: [],
+            custom: {}
+        };
+
+        const rules: PolicyRule[] = [];
+        policyDef.action([bugWithoutId], rules, 'bug');
+
+        expect(rules.length).toBe(1);
+        expect(rules[0].id).toBe('identity-required');
+        expect(rules[0].detail).toContain('@bg-1');
+    });
+});
+
+describe('Policy bug-target-integrity', () => {
+    const policyDef = (policy as any).builtinPolicies['bug-target-integrity'];
+
+    it('should be registered as an active system policy for bug scope', () => {
+        expect(policyDef).toBeDefined();
+        expect(policyDef.scope).toContain('bug');
+        expect(policyDef.severity).toBe('warning');
+    });
+
+    it('should warn when bug scenario has no target, trace, or target tag', () => {
+        const untargetedBug: ParserScenario = {
+            uri: 'tests/bugs/login.bug.feature',
+            feature: { tags: ['@bug'], keyword: 'Feature', name: 'Login Bugs', description: '', location: 1 },
+            location: 5,
+            keyword: 'Scenario',
+            name: 'Crash on submit',
+            description: '',
+            steps: [
+                { keyword: 'Given', text: 'app crashed' }
+            ],
+            tags: [],
+            custom: { identity: '@bg-1' }
+        };
+
+        const rules: PolicyRule[] = [];
+        policyDef.action([untargetedBug], rules, 'bug');
+
+        expect(rules.length).toBe(1);
+        expect(rules[0].id).toBe('bug-target-missing');
+        expect(rules[0].type).toBe('warning');
+    });
+
+    it('should pass when bug scenario specifies target in steps', () => {
+        const targetedBug: ParserScenario = {
+            uri: 'tests/bugs/login.bug.feature',
+            feature: { tags: ['@bug'], keyword: 'Feature', name: 'Login Bugs', description: '', location: 1 },
+            location: 5,
+            keyword: 'Scenario',
+            name: 'Crash on submit',
+            description: '',
+            steps: [
+                { keyword: '*', text: 'mark target = auth.case.feature.@tc-1' }
+            ],
+            tags: [],
+            custom: { identity: '@bg-1' }
+        };
+
+        const rules: PolicyRule[] = [];
+        policyDef.action([targetedBug], rules, 'bug');
+
+        expect(rules.length).toBe(0);
+    });
+});
+
+describe('PolicyEngine - CLI filtering by severity, include, and exclude', () => {
+    it('should filter candidate scenarios using glob include and exclude patterns', () => {
+        const scenarios: ParserScenario[] = [
+            {
+                uri: 'tests/features/cart.case.feature',
+                feature: { tags: ['@testcase'], keyword: 'Feature', name: 'Cart', description: '', location: 1 },
+                location: 3,
+                keyword: 'Scenario',
+                name: 'Add item',
+                description: '',
+                steps: [
+                    { keyword: 'Given', text: 'empty cart' },
+                    { keyword: 'When', text: 'add item' },
+                    { keyword: 'Then', text: 'cart has 1 item' }
+                ],
+                tags: ['@smoke'],
+                custom: { identity: '@tc-1' }
+            },
+            {
+                uri: 'tests/legacy/old.case.feature',
+                feature: { tags: ['@testcase'], keyword: 'Feature', name: 'Legacy', description: '', location: 1 },
+                location: 3,
+                keyword: 'Scenario',
+                name: 'Old step',
+                description: '',
+                steps: [],
+                tags: [],
+                custom: {}
+            }
+        ];
+
+        // Without exclude, old.case.feature fails identity-required
+        const resUnfiltered = policy.scan(scenarios, 'testcase');
+        expect(resUnfiltered.hasErrors).toBe(true);
+        expect(resUnfiltered.errorCount).toBeGreaterThan(0);
+
+        // With exclude='tests/legacy/**', legacy files are skipped
+        const resFiltered = policy.scan(scenarios, 'testcase', {
+            exclude: 'tests/legacy/**'
+        });
+        expect(resFiltered.hasErrors).toBe(false);
+        expect(resFiltered.errorCount).toBe(0);
+    });
+
+    it('should allow non-blocking warnings when severity is set to error', () => {
+        const scenarios: ParserScenario[] = [
+            {
+                uri: 'tests/features/cart.case.feature',
+                feature: { tags: ['@testcase'], keyword: 'Feature', name: 'Cart', description: '', location: 1 },
+                location: 3,
+                keyword: 'Scenario',
+                name: 'Add item',
+                description: '',
+                steps: [
+                    { keyword: 'Given', text: 'empty cart' },
+                    { keyword: 'When', text: 'add item' },
+                    { keyword: 'Then', text: 'cart has 1 item' }
+                ],
+                tags: [],
+                custom: {
+                    identity: '@tc-1',
+                    policy: [
+                        { type: 'undeclared-field', field: 'extra_tag' }
+                    ]
+                }
+            }
+        ];
+
+        // Normal scan collects warning for undeclared-field, but hasErrors is false!
+        const res = policy.scan(scenarios, 'testcase');
+        expect(res.hasWarnings).toBe(true);
+        expect(res.hasErrors).toBe(false);
+
+        // scanner() returns false (does not block plan)
+        const isBlocking = policy.scanner(scenarios, 'testcase');
+        expect(isBlocking).toBe(false);
+    });
+
+    it('should treat warnings as blocking only when strict=true', () => {
+        const scenarios: ParserScenario[] = [
+            {
+                uri: 'tests/features/cart.case.feature',
+                feature: { tags: ['@testcase'], keyword: 'Feature', name: 'Cart', description: '', location: 1 },
+                location: 3,
+                keyword: 'Scenario',
+                name: 'Add item',
+                description: '',
+                steps: [
+                    { keyword: 'Given', text: 'empty cart' },
+                    { keyword: 'When', text: 'add item' },
+                    { keyword: 'Then', text: 'cart has 1 item' }
+                ],
+                tags: [],
+                custom: {
+                    identity: '@tc-1',
+                    policy: [
+                        { type: 'undeclared-field', field: 'extra_tag' }
+                    ]
+                }
+            }
+        ];
+
+        // In strict mode, warnings become blocking errors
+        const isBlockingStrict = policy.scanner(scenarios, 'testcase', false, false, { strict: true });
+        expect(isBlockingStrict).toBe(true);
     });
 });
 

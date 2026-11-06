@@ -229,6 +229,14 @@ ${bold(`Options:`)}
   -query                If specified, the command will also filter and validate
                         specific test scenarios across the configuration.
 
+  -include=pattern      Include features matching glob or tag criteria (e.g. -include="tests/checkout/**", -include=smoke).
+
+  -exclude=pattern      Exclude features matching glob or tag criteria (e.g. -exclude="tests/legacy/**", -exclude=wip).
+
+  -severity=level       Minimum policy severity threshold: error, warning, or advisory.
+
+  -strict               Treat policy warnings as blocking errors.
+
   -var 'foo=bar'        Set a value for one of the input variables in the root
                         module of the configuration. Use this option more than
                         once to set more than one variable.
@@ -941,6 +949,14 @@ ${bold(`Options:`)}
 
   -test-directory=path  Set the ${TITLE_APP} test directory, defaults to "tests".
 
+  -include=pattern      Include features matching glob or tag criteria (e.g. -include="tests/checkout/**", -include=smoke).
+
+  -exclude=pattern      Exclude features matching glob or tag criteria (e.g. -exclude="tests/legacy/**", -exclude=wip).
+
+  -severity=level       Minimum policy severity threshold: error, warning, or advisory.
+
+  -strict               Treat policy warnings as blocking errors.
+
   -var 'foo=bar'        Set a value for one of the input variables in the root
                         module of the configuration. Use this option more than
                         once to set more than one variable.
@@ -1532,7 +1548,9 @@ ${bold(`Options:`)}
 
   -show=ID          Show detailed information and rule definitions for a policy.
 
-  -scope=SCOPE      Filter policies by scope (testcase, testrun, testplan).
+  -scaffold=NAME    Scaffold a new custom policy file in .testform/policies/<name>.ts.
+
+  -scope=SCOPE      Filter policies by scope (testcase, testrun, testplan, bug).
 
   -json             Produce output in a machine-readable JSON format.
 `.trim();

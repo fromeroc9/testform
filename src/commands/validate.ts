@@ -22,6 +22,11 @@ interface ValidateCmdOptions {
     testDirectory?: string;
     noTests?: boolean;
     query?: string;
+    include?: string | string[];
+    exclude?: string | string[];
+    severity?: 'error' | 'warning' | 'advisory';
+    strict?: boolean;
+    compactWarnings?: boolean;
 }
 
 export const validateCmd = async (options: ValidateCmdOptions) => {
@@ -34,7 +39,12 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
         isJson = false,
         testDirectory,
         noTests = false,
-        query
+        query,
+        include,
+        exclude,
+        severity,
+        strict = false,
+        compactWarnings = false
     } = options;
     const logger = new Logger(verbose);
     if (!isJson) {
@@ -321,7 +331,12 @@ export const validateCmd = async (options: ValidateCmdOptions) => {
         }
         for (const sc of Object.keys(scopeCounts) as IScope[]) {
             const scFiltered = allFiltered.filter(s => matchesScope(s, sc, config.getMatch?.(sc)));
-            const hasViolations = policy.scanner(scFiltered, sc, isJson);
+            const hasViolations = policy.scanner(scFiltered, sc, isJson, compactWarnings, {
+                severity,
+                include,
+                exclude,
+                strict
+            });
             if (hasViolations) {
                 const err = new Error("Please fix them before continuing.");
                 err.name = "Policy violations found";

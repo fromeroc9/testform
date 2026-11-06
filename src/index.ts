@@ -166,6 +166,11 @@ export function createCli() {
         .option('--target <target>', 'Target a specific resource or feature file')
         .option('--var <var>', 'Set a variable value (key=value)')
         .option('--var-file <file>', 'Load variable values from a YAML file')
+        .option('--include <pattern>', 'Include features or scenarios matching glob or tag criteria')
+        .option('--exclude <pattern>', 'Exclude features or scenarios matching glob or tag criteria')
+        .option('--severity <level>', 'Minimum severity threshold (error, warning, advisory)')
+        .option('--strict', 'Treat policy warnings as blocking errors')
+        .option('--compact-warnings', 'Show warnings in compact form')
         .action(async (targetPath, options) => {
             const workDir = getWorkDir(options);
             const validateDir = targetPath || workDir;
@@ -180,7 +185,12 @@ export function createCli() {
                 isJson: options.json,
                 testDirectory: options.testDirectory,
                 noTests: options.tests === false,
-                query: options.query
+                query: options.query,
+                include: options.include,
+                exclude: options.exclude,
+                severity: options.severity,
+                strict: Boolean(options.strict),
+                compactWarnings: Boolean(options.compactWarnings)
             });
         });
 
@@ -770,7 +780,8 @@ export function createCli() {
         .option('--enable <id>', 'Enable a specific policy')
         .option('--disable <id>', 'Disable a specific policy')
         .option('--show <id>', 'Show detailed description of a policy')
-        .option('-s, --scope <scope>', 'Filter policies by scope (testcase, testrun, testplan)')
+        .option('--scaffold <name>', 'Scaffold a new custom policy file in .testform/policies/')
+        .option('-s, --scope <scope>', 'Filter policies by scope (testcase, testrun, testplan, bug)')
         .option('--json', 'Output policies in JSON format')
         .action(async (options) => {
             const workDir = getWorkDir(options);
@@ -781,6 +792,7 @@ export function createCli() {
                 enable: options.enable,
                 disable: options.disable,
                 show: options.show,
+                scaffold: options.scaffold,
                 json: Boolean(options.json),
                 verbose: Boolean(options.verbose)
             });

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 import YAML from 'yaml';
 import chalk from 'chalk';
@@ -16,6 +16,7 @@ export interface PolicyCmdOptions {
     enable?: string;
     disable?: string;
     show?: string;
+    scaffold?: string;
     json?: boolean;
     verbose?: boolean;
 }
@@ -85,7 +86,7 @@ function updateConfigFilePolicy(dir: string, policyId: string, enabled: boolean)
 }
 
 export const policyCmd = async (options: PolicyCmdOptions): Promise<void> => {
-    const { dir, scope, enable, disable, show, json: isJson, verbose } = options;
+    const { dir, scope, enable, disable, show, scaffold, json: isJson, verbose } = options;
     const logger = new Logger(verbose);
 
     // 1. Auto-discover custom policies from .testform/policies, ./policies, and .testform/modules/**/policies
@@ -96,6 +97,41 @@ export const policyCmd = async (options: PolicyCmdOptions): Promise<void> => {
     const policiesConfig = configObj.getPolicies();
     if (policiesConfig) {
         policy.configure(policiesConfig);
+    }
+
+    // ─── Action: Scaffold New Policy ─────────────────────────────────────────
+    if (scaffold) {
+        const name = scaffold.trim().replace(/\.ts$/i, '');
+        const targetDir = resolve(dir, '.testform', 'policies');
+        if (!existsSync(targetDir)) {
+            mkdirSync(targetDir, { recursive: true });
+        }
+        const targetFile = resolve(targetDir, `${name}.ts`);
+        const varName = name.replace(/[^a-zA-Z0-9_]/g, '_');
+        const template = `import { PolicyDefinition, PolicyRule, IScope, ParserScenario } from '@fromeroc9/testform';
+
+export const ${varName}: PolicyDefinition = {
+    id: "${name}",
+    description: "Custom quality policy ${name}",
+    scope: ["testcase"],
+    severity: "error",
+    action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
+        for (const scenario of scenarios) {
+            // Implement custom quality rules
+        }
+    }
+};
+
+export default ${varName};
+`;
+        writeFileSync(targetFile, template, 'utf-8');
+        if (isJson) {
+            console.log(JSON.stringify({ scaffold: name, path: targetFile }));
+        } else {
+            console.log(green(`\nSuccess! Created custom policy scaffold at:`));
+            console.log(gray(`  ${targetFile}\n`));
+        }
+        return;
     }
 
     // ─── Action: Enable Policy ───────────────────────────────────────────────

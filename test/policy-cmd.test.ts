@@ -3,7 +3,7 @@ import { policyCmd } from '../src/commands/policy';
 import { policy, registerPolicy } from '../src/core/policy';
 import { getCommandHelp, HELP_POLICY } from '../src/core/help';
 import { Config } from '../src/core/config';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -179,5 +179,19 @@ module.exports = ({ registerPolicy }) => {
         expect(modPolicy).toBeDefined();
         expect(modPolicy?.type).toBe('user');
         expect(modPolicy?.description).toContain('Jira issue linkage');
+    });
+
+    it('should scaffold a new policy file in .testform/policies/', async () => {
+        await policyCmd({
+            dir: tmpDir,
+            scaffold: 'enforce-timeout'
+        });
+
+        const scaffoldPath = join(tmpDir, '.testform', 'policies', 'enforce-timeout.ts');
+        expect(existsSync(scaffoldPath)).toBe(true);
+
+        const content = readFileSync(scaffoldPath, 'utf-8');
+        expect(content).toContain('id: "enforce-timeout"');
+        expect(content).toContain('export const enforce_timeout');
     });
 });
