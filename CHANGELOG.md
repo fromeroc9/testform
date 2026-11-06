@@ -5,16 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.6] - 2026-11-06
-
-### Changed
-- **Provider-Agnostic Core Domain Resources:**
-  - Removed legacy `github_` prefix technical debt from core resource types: migrated `github_testcase`, `github_testrun`, `github_testplan`, and `github_bug` to universal domain primitives (`testcase`, `testrun`, `testplan`, `bug`).
-  - Added transparent backward compatibility in `src/core/resources.ts` and `src/core/state.ts`: legacy `github_*` resources in existing `testform.state` files are seamlessly recognized, queried, and upgraded without breaking state continuity or causing plan destruction.
-  - Updated CLI command outputs (`state list`, `state show`, `plan`, `apply`) to format resources cleanly as `testcase`, `testrun`, etc.
-
----
-
 ## [1.1.0-beta.5] - 2026-11-06
 
 ### Added
@@ -163,6 +153,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Seamless Backwards-Compatible Migration:** Added automatic fallback to read legacy `.testform/backend.json` if present and safely remove it upon writing the updated cache file.
 
 ### Changed & Refactored
+
+### Changed
+- **Provider-Agnostic Core Domain Resources:**
+  - Removed legacy `github_` prefix technical debt from core resource types: migrated `github_testcase`, `github_testrun`, `github_testplan`, and `github_bug` to universal domain primitives (`testcase`, `testrun`, `testplan`, `bug`).
+  - Added transparent backward compatibility in `src/core/resources.ts` and `src/core/state.ts`: legacy `github_*` resources in existing `testform.state` files are seamlessly recognized, queried, and upgraded without breaking state continuity or causing plan destruction.
+  - Updated CLI command outputs (`state list`, `state show`, `plan`, `apply`) to format resources cleanly as `testcase`, `testrun`, etc.
 
 #### 🧹 Clean Sequential Architecture across all Providers (`GitHub`, `GitLab`, `Local`)
 - **Strict Method Sequencing:** Reordered `IProvider` interface and all implementations (`GitHubProvider`, `GitLabProvider`, `LocalProvider`) into logical, predictable sections:
