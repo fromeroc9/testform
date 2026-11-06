@@ -71,7 +71,7 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
         const baseRule = ruleName.replace(/\.[a-zA-Z0-9_-]+\.feature$/i, '').replace(/\.feature$/i, '').replace(/\\/g, '/');
         const ruleBaseName = basename(baseRule);
 
-        const tcResources = state.getResources('github_testcase').filter((r: any) => {
+        const tcResources = state.getResources('testcase').filter((r: any) => {
             const normId = (r.identity || '').replace(/\\/g, '/');
             const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
 
@@ -185,7 +185,7 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
             const trBase = normTr.endsWith('.feature') ? normTr : (normTr.endsWith(trExt) ? normTr : normTr + trExt);
             const trFileName = basename(trBase);
 
-            const runResources = state.getResources('github_testrun').filter((r: any) => {
+            const runResources = state.getResources('testrun').filter((r: any) => {
                 return matchesTestrunSelector(r, normTr);
             });
 
@@ -240,7 +240,7 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
         const state = context.state;
 
         const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}.${s.custom.identity}` : s.uri;
-        const existingRun = state.getResources('github_testrun').find((r: any) => r.identity === runIdentity);
+        const existingRun = state.getResources('testrun').find((r: any) => r.identity === runIdentity);
         const existingStatuses = existingRun?.attributes?.testcases || existingRun?.attributes?.testcaseStatuses || {};
 
         const sortedTestcases = [...testcases].sort((a: string, b: string) => {
@@ -260,7 +260,7 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
             const ruleBaseName = basename(baseRule);
             const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
 
-            const tcResources = state.getResources('github_testcase').filter((r: any) => {
+            const tcResources = state.getResources('testcase').filter((r: any) => {
                 const normId = (r.identity || '').replace(/\\/g, '/');
                 const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
 

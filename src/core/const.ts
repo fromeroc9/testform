@@ -56,15 +56,15 @@ export const FILE_BACKEND = ".testform/cache/backend.json";
 // ─── Scope Maps ───────────────────────────────────────────────────────────────
 
 /**
- * Maps each scope name to its corresponding GitHub resource type string.
+ * Maps each scope name to its corresponding resource type string.
  * Used to eliminate hardcoded resource type strings across commands.
  */
 export const SCOPE_RESOURCE_MAP = {
-    testcase: 'github_testcase',
-    testrun: 'github_testrun',
-    testplan: 'github_testplan',
-    testreport: 'github_testreport',
-    bug: 'github_bug',
+    testcase: 'testcase',
+    testrun: 'testrun',
+    testplan: 'testplan',
+    testreport: 'testreport',
+    bug: 'bug',
 } as const;
 
 /**

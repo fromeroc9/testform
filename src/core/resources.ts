@@ -870,7 +870,10 @@ function calculatePlanRollup(s: any, context?: any): string {
     const state = context?.state;
     if (!state || trList.length === 0) return 'pending';
     const statuses: string[] = [];
-    const runResources = state.getResources('github_testrun');
+    let runResources = state.getResources('testrun');
+    if (!runResources || runResources.length === 0) {
+        runResources = state.getResources('github_testrun');
+    }
     for (const tr of trList) {
         const found = runResources.find((r: any) => matchesTestrunSelector(r, String(tr)));
         statuses.push(found?.attributes?.status || 'pending');
@@ -882,7 +885,10 @@ function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
     const trList = s.custom?.testruns || [];
     const map: Record<string, string> = {};
     const state = context?.state;
-    const runResources = state ? state.getResources('github_testrun') : [];
+    let runResources = state ? state.getResources('testrun') : [];
+    if (state && (!runResources || runResources.length === 0)) {
+        runResources = state.getResources('github_testrun') || [];
+    }
     for (const tr of trList) {
         const normTr = String(tr).replace(/\\/g, '/');
         let status = 'pending';
@@ -902,8 +908,8 @@ function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
 export const resource = new Resource();
 export const registerResource = (template: ResourceTemplate) => resource.registry(template, 'user');
 
-resource.registry({
-    type: 'github_testcase',
+const testcaseTemplate: ResourceTemplate = {
+    type: 'testcase',
     attributes: (s: any) => ({
         title: s.name,
         body: '```gherkin\n' + (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```',
@@ -928,10 +934,10 @@ resource.registry({
         status: (s: any) => s.custom?.fields?.status || 'pending',
         metadata: (s: any) => s.custom?.metadata || {}
     }
-});
+};
 
-resource.registry({
-    type: 'github_testrun',
+const testrunTemplate: ResourceTemplate = {
+    type: 'testrun',
     attributes: (s: any, context?: any) => ({
         title: s.feature?.name || '',
         body: buildGitHubTestrunBody(s, context),
@@ -963,10 +969,10 @@ resource.registry({
         testcaseEvidence: (s: any) => extractTestcaseEvidenceMap(s),
         metadata: (s: any) => s.custom?.metadata || {}
     }
-});
+};
 
-resource.registry({
-    type: 'github_testplan',
+const testplanTemplate: ResourceTemplate = {
+    type: 'testplan',
     attributes: (s: any, context?: any) => ({
         title: s.feature?.name || '',
         body: buildGitHubTestplanBody(s, context),
@@ -992,10 +998,10 @@ resource.registry({
         testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context),
         metadata: (s: any) => s.custom?.metadata || {}
     }
-});
+};
 
-resource.registry({
-    type: 'github_bug',
+const bugTemplate: ResourceTemplate = {
+    type: 'bug',
     attributes: (s: any) => ({
         title: s.name || s.feature?.name || '',
         body: buildGitHubBugBody(s),
@@ -1035,4 +1041,16 @@ resource.registry({
         testrun: (s: any) => s.feature?.name || s.custom?.fields?.testrun || undefined,
         metadata: (s: any) => s.custom?.metadata || {}
     }
-});
+};
+
+// Register primary agnostic domain resources
+resource.registry(testcaseTemplate);
+resource.registry(testrunTemplate);
+resource.registry(testplanTemplate);
+resource.registry(bugTemplate);
+
+// Backward compatibility: register legacy github_* aliases
+resource.registry({ ...testcaseTemplate, type: 'github_testcase' });
+resource.registry({ ...testrunTemplate, type: 'github_testrun' });
+resource.registry({ ...testplanTemplate, type: 'github_testplan' });
+resource.registry({ ...bugTemplate, type: 'github_bug' });

@@ -160,12 +160,16 @@ export class State {
             lineage: parsed.lineage ?? randomUUID(),
             lastSync: parsed.lastSync ?? '',
             provider: parsed.provider ?? config.getAdapterType(),
-            resources: (parsed.resources ?? []).map((r: any) => ({
-                ...r,
-                identity: r.identity ? r.identity.replace(/\\/g, '/') : r.identity,
-                type: r.type || (r.identity ? detectScopeFromTarget(r.identity, config) : undefined) || 'testcase',
-                attributes: r.attributes ?? { ...r }
-            })),
+            resources: (parsed.resources ?? []).map((r: any) => {
+                const rawType = r.type || (r.identity ? detectScopeFromTarget(r.identity, config) : undefined) || 'testcase';
+                const normType = rawType.includes('_') ? rawType.split('_').slice(1).join('_') : rawType;
+                return {
+                    ...r,
+                    identity: r.identity ? r.identity.replace(/\\/g, '/') : r.identity,
+                    type: normType,
+                    attributes: r.attributes ?? { ...r }
+                };
+            }),
             outputs: parsed.outputs ?? {},
         };
     }
@@ -308,9 +312,12 @@ export class State {
      */
     upsertResource(resource: StateResource): void {
         const normIdentity = resource.identity ? resource.identity.replace(/\\/g, '/') : resource.identity;
+        const rawType = resource.type || (resource.identity ? detectScopeFromTarget(resource.identity) : undefined) || 'testcase';
+        const normType = rawType.includes('_') ? rawType.split('_').slice(1).join('_') : rawType;
         const cleanedResource: StateResource = {
             ...resource,
             identity: normIdentity,
+            type: normType,
             attributes: cleanAttributes(resource.attributes) as any
         };
         const targetNorm = normalizeAddress(cleanedResource.identity);

@@ -282,9 +282,9 @@ async function handleTestcase(options: SpecCmdOptions) {
             const state = new State(dir, statePath, backupPath);
             await state.init();
 
-            const testruns = state.getResources('github_testrun');
-            const bugs = state.getResources('github_bug');
-            const testcases = state.getResources('github_testcase');
+            const testruns = state.getResources('testrun');
+            const bugs = state.getResources('bug');
+            const testcases = state.getResources('testcase');
 
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
@@ -723,8 +723,8 @@ async function handleTestrun(options: SpecCmdOptions) {
             const state = new State(dir, statePath, backupPath);
             await state.init();
 
-            const testruns = state.getResources('github_testrun');
-            const testcases = state.getResources('github_testcase');
+            const testruns = state.getResources('testrun');
+            const testcases = state.getResources('testcase');
 
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
@@ -900,8 +900,8 @@ async function handleTestplan(options: SpecCmdOptions) {
             const state = new State(dir, statePath, backupPath);
             await state.init();
 
-            const testplans = state.getResources('github_testplan');
-            const testruns = state.getResources('github_testrun');
+            const testplans = state.getResources('testplan');
+            const testruns = state.getResources('testrun');
 
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
@@ -1188,8 +1188,8 @@ async function handleBug(options: SpecCmdOptions) {
             const state = new State(dir, statePath, backupPath);
             await state.init();
 
-            const bugs = state.getResources('github_bug');
-            const testcases = state.getResources('github_testcase');
+            const bugs = state.getResources('bug');
+            const testcases = state.getResources('testcase');
 
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();

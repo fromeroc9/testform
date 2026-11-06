@@ -47,7 +47,7 @@ export function formatIdentityDisplay(identity?: string): string {
  * Formats a resource address string following the Terraform convention:
  * provider.resource.shortidentity (e.g. "github.testcase.customer.case.feature.@tc-01")
  *
- * @param type     - The resource type (e.g. `'github_testcase'`).
+ * @param type     - The resource type (e.g. `'testcase'`).
  * @param identity - The resource identity (e.g. `'testcase/Magento/customer.case.feature.@tc-01'`).
  * @returns A formatted address like `"github.testcase.customer.case.feature.@tc-01"`.
  */

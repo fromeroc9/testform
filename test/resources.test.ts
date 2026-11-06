@@ -105,7 +105,7 @@ describe('Resource Registry and User Overrides', () => {
 
         const mockState = {
             getResources: (type: string) => {
-                if (type === 'github_testrun') {
+                if (type === 'github_testrun' || type === 'testrun') {
                     return [
                         { identity: 'testruns/run-1.run.feature.@tr-1', attributes: { status: 'passed' } },
                         { identity: 'testruns/run-2.run.feature.@tr-2', attributes: { status: 'failed' } }

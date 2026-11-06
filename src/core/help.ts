@@ -594,10 +594,10 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] state identities [options] -json
 
   The addresses must either be module addresses or absolute resource
   addresses, such as:
-      github_testcase.example
+      testcase.example
       module.example
       module.example.module.child
-      module.example.github_testcase.example
+      module.example.testcase.example
 
   An error will be returned if any of the resources or modules given as
   filter addresses do not exist in the state.
@@ -625,10 +625,10 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] state list [options] [address...
 
   The addresses must either be module addresses or absolute resource
   addresses, such as:
-      github_testcase.example
+      testcase.example
       module.example
       module.example.module.child
-      module.example.github_testcase.example
+      module.example.testcase.example
 
   An error will be returned if any of the resources or modules given as
   filter addresses do not exist in the state.
@@ -1302,7 +1302,7 @@ ${bold(`Argument:`)} "featureFile@tc-N=status"
 ${bold(`Examples:`)}
 
   ${TITLE_CLI} test state "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"
-  ${TITLE_CLI} test state "github_testcase.agencia/cuenta.feature.@tc-3=failed" -target="20260607.run.feature"
+  ${TITLE_CLI} test state "testcase.agencia/cuenta.feature.@tc-3=failed" -target="20260607.run.feature"
 `.trim();
 
 export const HELP_PRINT = `
