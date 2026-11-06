@@ -5,6 +5,7 @@ import { Config } from '../core/config';
 import { TITLE_APP, TITLE_CLI, CONFIG_FILE_NAMES, FILE_LOCK } from '../core/const';
 import { HELP_PROVIDERS } from '../core/help';
 import { logger } from '../core/logger';
+import { resourceCmd } from './resource';
 
 export interface ProvidersCmdOptions {
     dir?: string;
@@ -20,7 +21,7 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
 
     let targetDir = dir;
     let subCommand = action;
-    const knownSubcommands = ['lock', 'mirror', 'schema', 'scaffold', 'init'];
+    const knownSubcommands = ['lock', 'mirror', 'schema', 'scaffold', 'init', 'resource', 'resources'];
 
     if (action && !knownSubcommands.includes(action.toLowerCase())) {
         targetDir = action;
@@ -28,6 +29,20 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
     }
 
     const targetFullPath = resolve(process.cwd(), targetDir);
+
+    // Subcommand: resource / resources manages or scaffolds custom resource templates
+    if (subCommand && (subCommand.toLowerCase() === 'resource' || subCommand.toLowerCase() === 'resources')) {
+        const nonFlagArgs = args.filter(a => !a.startsWith('-'));
+        const [resAction, resName] = nonFlagArgs;
+        await resourceCmd({
+            dir: targetFullPath,
+            action: resAction,
+            name: resName,
+            json: isJson,
+            verbose: false
+        });
+        return;
+    }
 
     // Subcommand: scaffold / init generates a provider starter template without needing an existing project
     if (subCommand && (subCommand.toLowerCase() === 'scaffold' || subCommand.toLowerCase() === 'init')) {

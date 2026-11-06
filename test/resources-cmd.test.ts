@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { resourceCmd } from '../src/commands/resource';
+import { providersCmd } from '../src/commands/providers';
 import { resource } from '../src/core/resources';
 import { getCommandHelp } from '../src/core/help';
-import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-describe('Resource Command and Management', () => {
+describe('Providers Resource Subcommand and Management', () => {
     let tmpDir: string;
 
     beforeEach(() => {
-        tmpDir = mkdtempSync(join(tmpdir(), 'testform-resource-test-'));
+        tmpDir = mkdtempSync(join(tmpdir(), 'testform-providers-resource-test-'));
     });
 
     afterEach(() => {
@@ -21,26 +21,26 @@ describe('Resource Command and Management', () => {
         }
     });
 
-    it('should provide Terraform-style help for resource command', () => {
-        const help = getCommandHelp('resource');
+    it('should provide Terraform-style help for providers resource subcommand', () => {
+        const help = getCommandHelp('providers resource');
         expect(help).toBeDefined();
-        expect(help).toContain('Usage: testform [global options] resource [action] [name] [options]');
+        expect(help).toContain('Usage: testform [global options] providers resource [action] [name] [options]');
         expect(help).toContain('list');
         expect(help).toContain('show <name>');
         expect(help).toContain('scaffold <name>');
         expect(help).toContain('-json');
     });
 
-    it('should scaffold a new custom resource template file', async () => {
+    it('should scaffold a new custom resource template via providers resource scaffold', async () => {
         const logs: string[] = [];
         const originalLog = console.log;
         console.log = (...args: any[]) => logs.push(args.join(' '));
 
         try {
-            await resourceCmd({
+            await providersCmd({
                 dir: tmpDir,
-                action: 'scaffold',
-                name: 'pokemon_badge'
+                action: 'resource',
+                args: ['scaffold', 'pokemon_badge']
             });
 
             const targetFile = join(tmpDir, '.testform', 'resources', 'pokemon_badge.ts');
@@ -61,17 +61,17 @@ describe('Resource Command and Management', () => {
         }
     });
 
-    it('should scaffold with --json output', async () => {
+    it('should scaffold with --json output via providersCmd', async () => {
         const logs: string[] = [];
         const originalLog = console.log;
         console.log = (...args: any[]) => logs.push(args.join(' '));
 
         try {
-            await resourceCmd({
+            await providersCmd({
                 dir: tmpDir,
-                action: 'scaffold',
-                name: 'custom_order',
-                json: true
+                action: 'resource',
+                args: ['scaffold', 'custom_order'],
+                isJson: true
             });
 
             const output = logs.join('\n').trim();
@@ -84,7 +84,7 @@ describe('Resource Command and Management', () => {
         }
     });
 
-    it('should list registered resource templates as JSON', async () => {
+    it('should list registered resource templates as JSON via providers resource', async () => {
         // Register a mock resource template
         resource.registry({
             type: 'test_item',
@@ -96,10 +96,11 @@ describe('Resource Command and Management', () => {
         console.log = (...args: any[]) => logs.push(args.join(' '));
 
         try {
-            await resourceCmd({
+            await providersCmd({
                 dir: tmpDir,
-                action: 'list',
-                json: true
+                action: 'resource',
+                args: ['list'],
+                isJson: true
             });
 
             const output = logs.join('\n').trim();
@@ -111,7 +112,7 @@ describe('Resource Command and Management', () => {
         }
     });
 
-    it('should show template details with action show', async () => {
+    it('should show template details via providers resource show', async () => {
         resource.registry({
             type: 'detailed_item',
             attributes: () => ({ title: 'item' }),
@@ -123,11 +124,11 @@ describe('Resource Command and Management', () => {
         console.log = (...args: any[]) => logs.push(args.join(' '));
 
         try {
-            await resourceCmd({
+            await providersCmd({
                 dir: tmpDir,
-                action: 'show',
-                name: 'detailed_item',
-                json: true
+                action: 'resource',
+                args: ['show', 'detailed_item'],
+                isJson: true
             });
 
             const output = logs.join('\n').trim();

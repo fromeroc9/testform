@@ -125,6 +125,6 @@ export default ${varName}Resource;
         console.log(`  • ${cyan(rType.padEnd(28))}${hasLifecycle}`);
     }
     console.log('');
-    console.log(gray(`Use '${bold('testform resource scaffold <name>')}' to generate a new template.`));
+    console.log(gray(`Use '${bold('testform providers resource scaffold <name>')}' to generate a new template.`));
     console.log('');
 };
