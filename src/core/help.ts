@@ -33,6 +33,7 @@ ${bold(`All other commands:`)}
   query         Query and filter managed test resources in state
   refresh       Update the state to match remote systems
   report        Generate multi-dimensional test execution reports
+  resource      Inspect or scaffold custom resource templates
   show          Show the current state or a saved plan
   spec          Manage test lifecycle specifications (testcase, testrun, testplan, bug)
   state         Advanced state management
@@ -1555,9 +1556,29 @@ ${bold(`Options:`)}
   -json             Produce output in a machine-readable JSON format.
 `.trim();
 
+export const HELP_RESOURCE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] resource [action] [name] [options]
+
+  Inspects or scaffolds custom resource templates registered in the configuration,
+  modules, or local workspace (.testform/resources/).
+
+${bold(`Actions:`)}
+
+  list               List all registered resource types (default action).
+
+  show <name>        Show details of a specific resource template.
+
+  scaffold <name>    Generate a new resource template file in .testform/resources/<name>.ts.
+
+${bold(`Options:`)}
+
+  -json              Produce output in a machine-readable JSON format.
+`.trim();
+
 export function getCommandHelp(command: string): string | null {
   switch (command) {
     case 'policy': return HELP_POLICY;
+    case 'resource': return HELP_RESOURCE;
     case 'init': return HELP_INIT;
     case 'validate': return HELP_VALIDATE;
     case 'plan': return HELP_PLAN;

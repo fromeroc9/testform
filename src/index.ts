@@ -33,6 +33,7 @@ import { ephemeralCmd } from './commands/ephemeral';
 import { providersCmd } from './commands/providers';
 import { functionsCmd } from './commands/functions';
 import { policyCmd } from './commands/policy';
+import { resourceCmd } from './commands/resource';
 import { IScope } from './core/types';
 import { VariableParser } from './core/variables';
 import chalk from 'chalk';
@@ -808,6 +809,20 @@ export function createCli() {
             });
         });
 
+    // ─── resource ─────────────────────────────────────────────────────────
+    cli.command('resource [action] [name]', 'Inspect or scaffold custom resource templates')
+        .option('--json', 'Output resource templates in JSON format')
+        .action(async (action, name, options) => {
+            const workDir = getWorkDir(options);
+            await resourceCmd({
+                dir: workDir,
+                action: typeof action === 'string' ? action : undefined,
+                name: typeof name === 'string' ? name : undefined,
+                json: Boolean(options?.json),
+                verbose: Boolean(options?.verbose)
+            });
+        });
+
     // ─── version ──────────────────────────────────────────────────────────
     cli.command('version', 'Show detailed version information')
         .option('--json', 'Output the version information as a JSON object.')
@@ -827,7 +842,7 @@ function handleUnknownCommand(cmd: string): never {
         'force-unlock', 'functions', 'graph', 'import', 'init',
         'login', 'logout', 'modules', 'output', 'plan',
         'policy', 'print', 'providers', 'query', 'refresh',
-        'report', 'show', 'spec', 'state', 'taint',
+        'report', 'resource', 'show', 'spec', 'state', 'taint',
         'untaint', 'validate', 'version', 'workspace'
     ];
     const suggestion = suggestCommand(cmd, knownCommands);
