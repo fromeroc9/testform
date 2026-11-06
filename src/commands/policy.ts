@@ -108,7 +108,22 @@ export const policyCmd = async (options: PolicyCmdOptions): Promise<void> => {
         }
         const targetFile = resolve(targetDir, `${name}.ts`);
         const varName = name.replace(/[^a-zA-Z0-9_]/g, '_');
-        const template = `import { PolicyDefinition, PolicyRule, IScope, ParserScenario } from '@fromeroc9/testform';
+
+        const candidateTemplates = [
+            resolve(__dirname, '../../templates/policy.template.ts'),
+            resolve(__dirname, '../templates/policy.template.ts'),
+            resolve(__dirname, 'templates/policy.template.ts'),
+            resolve(process.cwd(), 'templates/policy.template.ts')
+        ];
+        const templatePath = candidateTemplates.find(p => existsSync(p));
+
+        let template = '';
+        if (templatePath && existsSync(templatePath)) {
+            template = readFileSync(templatePath, 'utf-8')
+                .replace(/\{\{POLICY_VAR\}\}/g, varName)
+                .replace(/\{\{POLICY_ID\}\}/g, name);
+        } else {
+            template = `import { PolicyDefinition, PolicyRule, IScope, ParserScenario } from '@fromeroc9/testform';
 
 export const ${varName}: PolicyDefinition = {
     id: "${name}",
@@ -124,6 +139,8 @@ export const ${varName}: PolicyDefinition = {
 
 export default ${varName};
 `;
+        }
+
         writeFileSync(targetFile, template, 'utf-8');
         if (isJson) {
             console.log(JSON.stringify({ scaffold: name, path: targetFile }));

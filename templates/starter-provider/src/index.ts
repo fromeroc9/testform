@@ -1,65 +1,46 @@
-import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '@fromeroc9/testform';
-import { IProviderConfig } from './types';
-import { ApiClient } from './client';
+import { IProvider, IProviderResourceHandler } from '@fromeroc9/testform';
+import { StarterApiClient } from './client';
+import { IStarterProviderConfig } from './types';
 
-export default class StarterProvider implements IProvider {
+export class StarterProvider implements IProvider {
     public name = 'starter-provider';
-    private client: ApiClient;
+    private client: StarterApiClient;
 
+    constructor(public config: IStarterProviderConfig = {}) {
+        this.client = new StarterApiClient(config);
+    }
+
+    /**
+     * Formats the remote identifier shown in CLI output and state file.
+     * Examples: 'REMOTE#105', '#105', 'QA-402'
+     */
+    formatRemoteId(id: number | string): string {
+        return `REMOTE#${id}`;
+    }
+
+    /**
+     * Multi-resource CRUD handler bus.
+     */
     public resources: Record<string, IProviderResourceHandler> = {
-        issue: {
-            create: async (data: IProviderIssuePayload) => this.createIssue(data),
-            read: async (id: number | string) => this.getIssue(id),
-            update: async (id: number | string, data: Partial<IProviderIssuePayload>) => this.updateIssue(id, data),
-            delete: async (id: number | string) => this.closeIssue(id),
+        testcase: {
+            create: async (attrs, context) => this.client.createResource(attrs),
+            read: async (id, context) => this.client.getResource(id),
+            update: async (id, attrs, context) => this.client.updateResource(id, attrs),
+            delete: async (id, context) => this.client.deleteResource(id),
+            // REST aliases
+            post: async (attrs, context) => this.client.createResource(attrs),
+            get: async (id, context) => this.client.getResource(id),
+            patch: async (id, attrs, context) => this.client.updateResource(id, attrs),
+            put: async (id, attrs, context) => this.client.updateResource(id, attrs)
         }
     };
 
-    constructor(public config: IProviderConfig = {}) {
-        this.client = new ApiClient(config);
+    /**
+     * Backward compatibility alias for resources.
+     */
+    public get apis(): Record<string, IProviderResourceHandler> {
+        return this.resources;
     }
-
-    formatRemoteId(id: number | string): string {
-        return `#${id}`;
-    }
-
-    async createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult> {
-        const res = await this.client.post('/issues', payload);
-        return {
-            id: res.id,
-            number: res.id,
-            title: payload.title,
-            body: payload.body,
-            state: 'open',
-            labels: payload.labels
-        };
-    }
-
-    async getIssue(issueId: number | string): Promise<IProviderIssueResult | null> {
-        return null;
-    }
-
-    async updateIssue(issueId: number | string, payload: Partial<IProviderIssuePayload>): Promise<IProviderIssueResult> {
-        await this.client.put(`/issues/${issueId}`, payload);
-        return {
-            id: issueId,
-            number: Number(issueId),
-            title: payload.title || '',
-            state: 'open'
-        };
-    }
-
-    async closeIssue(issueId: number | string): Promise<void> {
-        await this.client.delete(`/issues/${issueId}`);
-    }
-
-    async listIssuesByLabel(label: string): Promise<IProviderIssueResult[]> {
-        return [];
-    }
-
-    async getMilestoneByTitle(title: string): Promise<number | string | undefined> {
-        return undefined;
-    }
-
-    async addSubIssue(parentIssueId: number | string, subIssueId: number | string): Promise<void> {}
 }
+
+export default StarterProvider;

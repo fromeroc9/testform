@@ -1,18 +1,10 @@
-# testform-provider-starter
+# Testform Provider: Starter
 
-Custom Testform provider plugin for platform integration.
+Custom provider template implementing the agnostic Testform `IProvider` specification.
 
-## Development
+## Usage in Testform Projects
 
-```bash
-npm install
-npm test
-npm run build
-```
-
-## Consumption in Testform
-
-Declare this provider in your `main.yml`:
+Add this provider to your project's `main.yml`:
 
 ```yaml
 testform:
@@ -21,5 +13,19 @@ testform:
 
 provider:
   starter-provider:
-    token_env: "PROVIDER_TOKEN"
+    baseUrl: "https://api.myplatform.com"
+    tokenEnv: "STARTER_API_TOKEN"
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run unit tests
+npm test
+
+# Build distribution bundle
+npm run build
 ```

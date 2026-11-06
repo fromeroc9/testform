@@ -1,7 +1,7 @@
-import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '@fromeroc9/testform';
+import { IProvider, IProviderResourceHandler } from '@fromeroc9/testform';
 
 export interface ICustomProviderConfig {
-    host?: string;
+    baseUrl?: string;
     token?: string;
     tokenEnv?: string;
     [key: string]: any;
@@ -10,54 +10,51 @@ export interface ICustomProviderConfig {
 export default class CustomProvider implements IProvider {
     public name = 'custom-provider';
 
-    public resources: Record<string, IProviderResourceHandler> = {
-        issue: {
-            create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
-            read: async (id: number | string) => this.getIssue(id),
-            update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
-            delete: async (id: number | string) => this.closeIssue(id),
-        }
-    };
-
-    constructor(public config: ICustomProviderConfig = {}) {}
-
+    /**
+     * Formats remote identifiers for terminal displays and state ledger.
+     * Examples: '#101', 'QA-504', 'GL#203', 'REMOTE:42'
+     */
     formatRemoteId(id: number | string): string {
         return `#${id}`;
     }
 
-    async createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult> {
-        return {
-            id: 1,
-            number: 1,
-            title: payload.title,
-            body: payload.body,
-            state: 'open',
-            labels: payload.labels
-        };
+    /**
+     * Agnostic resource bus exposing standard CRUD lifecycle methods and REST aliases.
+     * Define any entity your provider manages (e.g. testcase, defect, testrun, badge).
+     */
+    public resources: Record<string, IProviderResourceHandler> = {
+        testcase: {
+            create: async (attributes: any, context?: any) => {
+                // Perform remote API creation (e.g. POST /api/v1/testcases)
+                return {
+                    id: Date.now(),
+                    number: Math.floor(Math.random() * 1000),
+                    ...attributes
+                };
+            },
+            read: async (id: number | string, context?: any) => {
+                // Perform remote lookup (e.g. GET /api/v1/testcases/:id)
+                return null;
+            },
+            update: async (id: number | string, attributes: any, context?: any) => {
+                // Perform remote update (e.g. PUT/PATCH /api/v1/testcases/:id)
+                return {
+                    id,
+                    ...attributes
+                };
+            },
+            delete: async (id: number | string, context?: any) => {
+                // Perform remote deletion (e.g. DELETE /api/v1/testcases/:id)
+            }
+        }
+    };
+
+    /**
+     * Backward compatibility alias for resources.
+     */
+    public get apis(): Record<string, IProviderResourceHandler> {
+        return this.resources;
     }
 
-    async getIssue(issueId: number | string): Promise<IProviderIssueResult | null> {
-        return null;
-    }
-
-    async updateIssue(issueId: number | string, payload: Partial<IProviderIssuePayload>): Promise<IProviderIssueResult> {
-        return {
-            id: issueId,
-            number: Number(issueId),
-            title: payload.title || '',
-            state: 'open'
-        };
-    }
-
-    async closeIssue(issueId: number | string): Promise<void> {}
-
-    async listIssuesByLabel(label: string): Promise<IProviderIssueResult[]> {
-        return [];
-    }
-
-    async getMilestoneByTitle(title: string): Promise<number | string | undefined> {
-        return undefined;
-    }
-
-    async addSubIssue(parentIssueId: number | string, subIssueId: number | string): Promise<void> {}
+    constructor(public config: ICustomProviderConfig = {}) {}
 }
