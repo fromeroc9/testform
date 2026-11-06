@@ -918,18 +918,6 @@ const testcaseTemplate: ResourceTemplate = {
         milestone: s.custom?.fields?.milestone || undefined,
         custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
     }),
-    api: {
-        issue: (s: any) => ({
-            title: s.name,
-            body: '```gherkin\n' + (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```',
-            labels: extractLabels(s),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-        }),
-        project: (s: any) => ({
-            fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
-        })
-    },
     state: {
         status: (s: any) => s.custom?.fields?.status || 'pending',
         metadata: (s: any) => s.custom?.metadata || {}
@@ -946,18 +934,6 @@ const testrunTemplate: ResourceTemplate = {
         milestone: s.custom?.fields?.milestone || undefined,
         custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
     }),
-    api: {
-        issue: (s: any, context?: any) => ({
-            title: s.feature?.name || '',
-            body: buildGitHubTestrunBody(s, context),
-            labels: extractLabels(s),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-        }),
-        project: (s: any) => ({
-            fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
-        })
-    },
     state: {
         status: (s: any) => {
             const groupScenarios = s.custom?.groupScenarios || [];
@@ -981,18 +957,6 @@ const testplanTemplate: ResourceTemplate = {
         milestone: s.custom?.fields?.milestone || undefined,
         custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
     }),
-    api: {
-        issue: (s: any, context?: any) => ({
-            title: s.feature?.name || '',
-            body: buildGitHubTestplanBody(s, context),
-            labels: extractLabels(s),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-        }),
-        project: (s: any) => ({
-            fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
-        })
-    },
     state: {
         status: (s: any, context?: any) => calculatePlanRollup(s, context),
         testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context),
@@ -1013,21 +977,6 @@ const bugTemplate: ResourceTemplate = {
             'trace', 'error', 'evidence', 'target', 'testcase', 'testrun'
         ])
     }),
-    api: {
-        issue: (s: any) => ({
-            title: s.name || s.feature?.name || '',
-            body: buildGitHubBugBody(s),
-            labels: extractLabels(s, 'bug'),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-        }),
-        project: (s: any) => ({
-            fields: extractCustomFields(s.custom?.fields, [
-                'labels', 'assignees', 'milestone', 'status', 'severity', 'priority',
-                'trace', 'error', 'evidence', 'target', 'testcase', 'testrun'
-            ])
-        })
-    },
     state: {
         status: (s: any) => s.custom?.fields?.status || 'failed',
         severity: (s: any) => s.custom?.fields?.severity || undefined,
