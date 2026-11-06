@@ -6,12 +6,12 @@ import { loadDriver } from '../core/driver';
 import { logger } from '../core/logger';
 
 const STATUS_ICONS: Record<string, string> = {
-    passed: 'passed',
-    failed: 'failed',
-    pending: 'pending',
-    blocked: 'blocked',
-    skipped: 'skipped',
-    unexecuted: 'unexecuted'
+    passed: '✅ passed',
+    failed: '❌ failed',
+    pending: '⏳ pending',
+    blocked: '🚫 blocked',
+    skipped: '⏭️ skipped',
+    unexecuted: '⚪ unexecuted'
 };
 
 // ── 1. Formato Markdown ───────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export const MarkdownFormat: IReportFormat = {
                 const formattedRow = row.map(cell => {
                     const str = String(cell);
                     const icon = STATUS_ICONS[str.toLowerCase()];
-                    return str;
+                    return icon || str;
                 });
                 lines.push(`| ${formattedRow.join(' | ')} |`);
             }

@@ -267,7 +267,14 @@ async function executeRemoteDrift(
             });
 
             try {
-                const issue = await github.getIssue(issueNum);
+                const providerResources = (github as any).resources || (github as any).apis;
+                const resHandler = providerResources
+                    ? (providerResources[resourceType] || providerResources[resourceType.replace(/^.*_/, '')] || providerResources.issue || Object.values(providerResources)[0])
+                    : null;
+                const issue = resHandler?.read
+                    ? await resHandler.read(issueNum)
+                    : (resHandler?.get ? await resHandler.get(issueNum) : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(issueNum) : null));
+
                 if (!issue) {
                     driftedItems.push({
                         identity: res.identity,

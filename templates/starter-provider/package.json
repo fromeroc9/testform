@@ -1,0 +1,20 @@
+{
+  "name": "testform-provider-starter",
+  "version": "1.0.0",
+  "description": "Testform integration provider plugin",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "testform",
+    "testform-provider"
+  ],
+  "devDependencies": {
+    "@fromeroc9/testform": "^1.1.0-beta.4",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}

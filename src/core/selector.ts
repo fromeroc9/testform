@@ -559,6 +559,7 @@ export function matchesFeatureFile(filePath: string, featurePart?: string): bool
     const normFile = filePath.replace(/\\/g, '/');
     const normTarget = featurePart.replace(/\\/g, '/').replace(/\.feature$/i, '');
     const normalizedFile = normFile.replace(/\.feature$/i, '');
+    const normalizedTarget = normTarget;
 
     return (
         normFile === normTarget ||
@@ -677,7 +678,7 @@ export async function resolveTargetScenario(
     const { target, dir: workDir, scopeKey: scope, testDirectory: tDir, variables: vars } = opts;
     const searchDir = tDir ? join(workDir, tDir) : workDir;
     const parser = new Parser(searchDir, vars);
-    const config = new Config(workDir);
+    const config = new Config(workDir, false);
 
     const data = {
         identity: config.getIdentity(scope),
@@ -754,7 +755,7 @@ export async function promptTargetSuite(
 
     for (const sc of scopes) {
         const scDocs = documents.filter(s => matchesScope(s, sc));
-        const config = new Config(workDir);
+        const config = new Config(workDir, false);
         const data = { identity: config.getIdentity(sc), fields: config.getFields(sc) };
         const filtered = parser.filter(scDocs, data, sc) || [];
 

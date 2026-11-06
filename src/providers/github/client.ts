@@ -1,8 +1,8 @@
+import chalk from 'chalk';
 import { IGitHubConfig } from '../../core/types';
-import { logger as notify } from '../../core/logger';
-import { Credentials } from '../../core/credentials';
 import { logger } from '../../core/logger';
-import { IProvider, IProviderAdapter, IProviderIssuePayload, IProviderIssueResult } from '../interface';
+import { Credentials } from '../../core/credentials';
+import { IProvider, IProviderAdapter, IProviderIssuePayload, IProviderIssueResult, IProviderApiService, IProviderResourceHandler } from '../interface';
 import { TITLE_CLI, VERSION_CLI } from '../../core/const';
 
 class Mutex {
@@ -17,21 +17,34 @@ const projectMutex = new Mutex();
 
 export class GitHubProvider implements IProvider {
     public name = 'github';
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Configuration & State Fields
+    // ──────────────────────────────────────────────────────────────────────────
+
     private token: string;
     private owner: string;
     private repo: string;
     private projectId?: number | string;
     private config: IGitHubConfig;
 
-    /**
-     * Dictionary of service APIs exposed by GitHubProvider.
-     */
-    public apis = {
+    private projectNodeId?: string;
+    private projectFields?: any[];
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Agnostic Multi-Resource Bus (Mode 2)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public resources: Record<string, IProviderResourceHandler> = {
         issue: {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
+            read: async (id: number | string) => this.getIssue(id),
             update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
             delete: async (id: number | string) => this.closeIssue(id),
+            post: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             get: async (id: number | string) => this.getIssue(id),
+            patch: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
+            put: async (id: number | string, data: IProviderIssuePayload, _context?: any) => this.updateIssue(id, data),
         },
         project: {
             create: async (data: { fields?: Record<string, any> }, context?: any) => {
@@ -46,9 +59,33 @@ export class GitHubProvider implements IProvider {
             update: async (itemId: string, data: { fields?: Record<string, any> }) => {
                 if (!itemId || !data.fields) return;
                 await this.updateProjectItemFields(itemId, data.fields);
+            },
+            post: async (data: { fields?: Record<string, any> }, context?: any) => {
+                const issueNodeId = context?.issueResult?.node_id;
+                if (!issueNodeId || !this.projectId) return undefined;
+                const itemId = await this.addToProject(issueNodeId);
+                if (itemId && data.fields) {
+                    await this.updateProjectItemFields(itemId, data.fields);
+                }
+                return itemId;
+            },
+            patch: async (itemId: string, data: { fields?: Record<string, any> }) => {
+                if (!itemId || !data.fields) return;
+                await this.updateProjectItemFields(itemId, data.fields);
             }
         }
     };
+
+    /**
+     * Backward compatibility alias for resources.
+     */
+    public get apis(): Record<string, IProviderResourceHandler> {
+        return this.resources;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Constructor
+    // ──────────────────────────────────────────────────────────────────────────
 
     constructor(config: IGitHubConfig) {
         this.config = config;
@@ -67,86 +104,32 @@ export class GitHubProvider implements IProvider {
         this.projectId = config.projectId;
     }
 
-    private async ensureToken(): Promise<void> {
-        if (this.token) return;
+    // ──────────────────────────────────────────────────────────────────────────
+    // 1. Identity & Formatting
+    // ──────────────────────────────────────────────────────────────────────────
 
-        notify.push({ type: 'error', title: `GitHub token not found`, detail: [`Environment variable "${this.config.tokenEnv}" is not set.`], close: true });
+    /**
+     * Get the remote ID format: "owner/repo:issueNumber"
+     */
+    formatRemoteId(issueNumber: number | string): string {
+        return `${this.repo}:${issueNumber}`;
     }
 
-    private async request(method: string, path: string, body?: any, attempt = 1): Promise<any> {
-        await this.ensureToken();
-        const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
-        const maxAttempts = 5;
-
+    /**
+     * Get the node_id of an issue (needed for GraphQL Project v2 operations).
+     */
+    async getIssueNodeId(issueNumber: number | string): Promise<string | null> {
         try {
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'X-GitHub-Api-Version': '2022-11-28',
-                    'Content-Type': 'application/json',
-                    'User-Agent': `${TITLE_CLI}/${VERSION_CLI}`,
-                },
-                body: body ? JSON.stringify(body) : undefined,
-            });
-
-            if (response.status === 403 || response.status === 429) {
-                const errorText = await response.text();
-                const isRateLimit = response.status === 429 ||
-                    errorText.toLowerCase().includes('rate limit') ||
-                    errorText.toLowerCase().includes('abuse') ||
-                    errorText.toLowerCase().includes('secondary');
-
-                if (isRateLimit && attempt <= maxAttempts) {
-                    const retryAfterHeader = response.headers.get('retry-after');
-                    const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : (attempt * 3);
-                    const chalk = require('chalk');
-                    console.warn(chalk.yellow(`\n⚠️ GitHub Rate Limit / Secondary Rate Limit hit. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
-                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-                    return this.request(method, path, body, attempt + 1);
-                } else {
-                    const error = new Error(errorText);
-                    error.name = `GitHub API Error [${response.status}]`;
-                    throw error;
-                }
-            }
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                const error = new Error(errorText);
-                error.name = `GitHub API Error [${response.status}]`;
-                throw error;
-            }
-
-            // Handle empty responses (like 204 No Content)
-            if (response.status === 204) {
-                return null;
-            }
-
-            return await response.json();
-        } catch (error: any) {
-            if (attempt <= maxAttempts && (!error.name || !error.name.startsWith('GitHub API Error'))) {
-                const retryAfter = attempt * 3;
-                const chalk = require('chalk');
-                console.warn(chalk.yellow(`\n⚠️ Network error: ${error.message}. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
-                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-                return this.request(method, path, body, attempt + 1);
-            }
-            throw error;
+            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`);
+            return data.node_id ?? null;
+        } catch {
+            return null;
         }
     }
 
-    private async graphql(query: string, variables: any = {}): Promise<any> {
-        await this.ensureToken();
-        const response = await this.request('POST', 'https://api.github.com/graphql', { query, variables });
-        if (response.errors && response.errors.length > 0) {
-            const error = new Error(JSON.stringify(response.errors));
-            error.name = 'GitHub API Error';
-            throw error;
-        }
-        return response.data;
-    }
+    // ──────────────────────────────────────────────────────────────────────────
+    // 2. Primary Issue Lifecycle (Mode 1: Issue-based)
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Create a GitHub Issue.
@@ -169,6 +152,28 @@ export class GitHubProvider implements IProvider {
             created_at: data.created_at,
             updated_at: data.updated_at,
         };
+    }
+
+    /**
+     * Get a specific issue by number (for refresh and reading).
+     */
+    async getIssue(issueNumber: number | string): Promise<IProviderIssueResult | null> {
+        try {
+            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`);
+            return {
+                id: data.id,
+                number: data.number,
+                title: data.title ?? '',
+                body: data.body ?? '',
+                state: data.state,
+                node_id: data.node_id,
+                labels: data.labels?.map((l: any) => l.name) ?? [],
+                assignees: data.assignees?.map((a: any) => a.login) ?? [],
+                milestone: data.milestone?.title ?? '',
+            };
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -201,28 +206,6 @@ export class GitHubProvider implements IProvider {
         await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
             state: 'closed',
         });
-    }
-
-    /**
-     * Get a specific issue by number (for refresh).
-     */
-    async getIssue(issueNumber: number | string): Promise<IProviderIssueResult | null> {
-        try {
-            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`);
-            return {
-                id: data.id,
-                number: data.number,
-                title: data.title ?? '',
-                body: data.body ?? '',
-                state: data.state,
-                node_id: data.node_id,
-                labels: data.labels?.map((l: any) => l.name) ?? [],
-                assignees: data.assignees?.map((a: any) => a.login) ?? [],
-                milestone: data.milestone?.title ?? '',
-            };
-        } catch {
-            return null;
-        }
     }
 
     /**
@@ -266,45 +249,29 @@ export class GitHubProvider implements IProvider {
         }
     }
 
-    /**
-     * Create a comment on an issue.
-     */
-    async createIssueComment(issueNumber: number | string, body: string): Promise<{ id: number | string }> {
-        const data = await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments`, { body });
-        return { id: data.id };
-    }
+    // ──────────────────────────────────────────────────────────────────────────
+    // 3. Hierarchical Relationships
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Update an existing comment.
+     * Add a sub-issue to a parent issue (REST API).
      */
-    async updateIssueComment(commentId: number | string, body: string): Promise<void> {
-        await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`, { body });
-    }
-
-    /**
-     * List all comments on an issue.
-     */
-    async listIssueComments(issueNumber: number | string): Promise<{ id: number | string, body: string }[]> {
-        const results: { id: number | string, body: string }[] = [];
-        let page = 1;
-
-        while (true) {
-            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments?per_page=100&page=${page}`);
-            if (data.length === 0) break;
-
-            for (const comment of data) {
-                results.push({ id: comment.id, body: comment.body });
+    async addSubIssue(parentIssueNumber: number | string, subIssueId: number | string): Promise<void> {
+        try {
+            await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${parentIssueNumber}/sub_issues`, {
+                sub_issue_id: subIssueId,
+                replace_parent: true
+            });
+        } catch (error: any) {
+            if (!error.message?.includes('422')) {
+                throw error;
             }
-
-            if (data.length < 100) break;
-            page++;
         }
-
-        return results;
     }
 
-    private projectNodeId?: string;
-    private projectFields?: any[];
+    // ──────────────────────────────────────────────────────────────────────────
+    // 4. Project Boards (GitHub Projects V2)
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Resolve the GraphQL node ID for a Project V2 and cache its fields.
@@ -342,7 +309,7 @@ export class GitHubProvider implements IProvider {
                     this.projectFields = nodeResult.node.fields?.nodes || [];
                     return { id: this.projectNodeId!, fields: this.projectFields! };
                 }
-            } catch (error) {
+            } catch {
                 // Not a valid node ID or inaccessible
             }
         }
@@ -370,7 +337,7 @@ export class GitHubProvider implements IProvider {
                     this.projectFields = userResult.user.projectV2.fields.nodes;
                     return { id: this.projectNodeId!, fields: this.projectFields! };
                 }
-            } catch (error) {
+            } catch {
                 // Not a user or project not found
             }
 
@@ -391,12 +358,11 @@ export class GitHubProvider implements IProvider {
                     this.projectFields = orgResult.organization.projectV2.fields.nodes;
                     return { id: this.projectNodeId!, fields: this.projectFields! };
                 }
-            } catch (error: any) {
+            } catch {
                 // Not an org or project not found
             }
         }
 
-        const chalk = require('chalk');
         console.warn(chalk.yellow(`\n⚠️ Warning: Could not resolve GitHub Project V2 with ID ${this.projectId} for owner "${this.owner}".`));
         console.warn(chalk.yellow(`   If "${this.owner}" is a User account and you are authenticating via a GitHub App,`));
         console.warn(chalk.yellow(`   note that GitHub Apps are technically not allowed to access User-level Projects.`));
@@ -574,7 +540,7 @@ export class GitHubProvider implements IProvider {
                                     fieldValues(first: 100) {
                                         nodes {
                                             ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
-                                            ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2FieldCommon { name } } }
+                                             ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2FieldCommon { name } } }
                                             ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }
                                             ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
                                             ... on ProjectV2ItemFieldIterationValue { title field { ... on ProjectV2FieldCommon { name } } }
@@ -611,39 +577,128 @@ export class GitHubProvider implements IProvider {
         }
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // 5. Deprecated Comment Operations (Backward Compatibility)
+    // ──────────────────────────────────────────────────────────────────────────
+
     /**
-     * Get the node_id of an issue (needed for GraphQL Project v2 operations).
+     * @deprecated Create a comment on an issue.
      */
-    async getIssueNodeId(issueNumber: number | string): Promise<string | null> {
-        try {
-            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`);
-            return data.node_id ?? null;
-        } catch {
-            return null;
+    async createIssueComment(issueNumber: number | string, body: string): Promise<{ id: number | string }> {
+        const data = await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments`, { body });
+        return { id: data.id };
+    }
+
+    /**
+     * @deprecated Update an existing comment.
+     */
+    async updateIssueComment(commentId: number | string, body: string): Promise<void> {
+        await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`, { body });
+    }
+
+    /**
+     * @deprecated List all comments on an issue.
+     */
+    async listIssueComments(issueNumber: number | string): Promise<{ id: number | string, body: string }[]> {
+        const results: { id: number | string, body: string }[] = [];
+        let page = 1;
+
+        while (true) {
+            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}/comments?per_page=100&page=${page}`);
+            if (data.length === 0) break;
+
+            for (const comment of data) {
+                results.push({ id: comment.id, body: comment.body });
+            }
+
+            if (data.length < 100) break;
+            page++;
         }
+
+        return results;
     }
 
-    /**
-     * Get the remote ID format: "owner/repo:issueNumber"
-     */
-    formatRemoteId(issueNumber: number | string): string {
-        return `${this.repo}:${issueNumber}`;
+    // ──────────────────────────────────────────────────────────────────────────
+    // 6. Private HTTP & GraphQL Transport Helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private async ensureToken(): Promise<void> {
+        if (this.token) return;
+        logger.error(`GitHub token not found. Environment variable "${this.config.tokenEnv}" is not set.`);
+        throw new Error(`Environment variable "${this.config.tokenEnv}" is not set.`);
     }
 
-    /**
-     * Add a sub-issue to a parent issue (REST API).
-     */
-    async addSubIssue(parentIssueNumber: number | string, subIssueId: number | string): Promise<void> {
+    private async request(method: string, path: string, body?: any, attempt = 1): Promise<any> {
+        await this.ensureToken();
+        const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
+        const maxAttempts = 5;
+
         try {
-            await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${parentIssueNumber}/sub_issues`, {
-                sub_issue_id: subIssueId,
-                replace_parent: true
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'X-GitHub-Api-Version': '2022-11-28',
+                    'Content-Type': 'application/json',
+                    'User-Agent': `${TITLE_CLI}/${VERSION_CLI}`,
+                },
+                body: body ? JSON.stringify(body) : undefined,
             });
-        } catch (error: any) {
-            if (!error.message.includes('422')) {
+
+            if (response.status === 403 || response.status === 429) {
+                const errorText = await response.text();
+                const isRateLimit = response.status === 429 ||
+                    errorText.toLowerCase().includes('rate limit') ||
+                    errorText.toLowerCase().includes('abuse') ||
+                    errorText.toLowerCase().includes('secondary');
+
+                if (isRateLimit && attempt <= maxAttempts) {
+                    const retryAfterHeader = response.headers.get('retry-after');
+                    const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : (attempt * 3);
+                    console.warn(chalk.yellow(`\n⚠️ GitHub Rate Limit / Secondary Rate Limit hit. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                    return this.request(method, path, body, attempt + 1);
+                } else {
+                    const error = new Error(errorText);
+                    error.name = `GitHub API Error [${response.status}]`;
+                    throw error;
+                }
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = new Error(errorText);
+                error.name = `GitHub API Error [${response.status}]`;
                 throw error;
             }
+
+            // Handle empty responses (like 204 No Content)
+            if (response.status === 204) {
+                return null;
+            }
+
+            return await response.json();
+        } catch (error: any) {
+            if (attempt <= maxAttempts && (!error.name || !error.name.startsWith('GitHub API Error'))) {
+                const retryAfter = attempt * 3;
+                console.warn(chalk.yellow(`\n⚠️ Network error: ${error.message}. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
+                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                return this.request(method, path, body, attempt + 1);
+            }
+            throw error;
         }
+    }
+
+    private async graphql(query: string, variables: any = {}): Promise<any> {
+        await this.ensureToken();
+        const response = await this.request('POST', 'https://api.github.com/graphql', { query, variables });
+        if (response.errors && response.errors.length > 0) {
+            const error = new Error(JSON.stringify(response.errors));
+            error.name = 'GitHub API Error';
+            throw error;
+        }
+        return response.data;
     }
 }
 

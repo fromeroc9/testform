@@ -234,6 +234,25 @@ export interface ResourceField {
     knownAfterApply?: boolean;
 }
 
+export interface ResourceLifecycleHooks {
+    /** Runs before resource creation (e.g. pre-validation, token acquisition). */
+    beforeCreate?(args: { attributes: any; scenario: ParserScenario; context: any }): Promise<void> | void;
+    /** Runs after resource creation; receives remote ID and live provider instance for custom functions. */
+    afterCreate?(args: { id: string | number; attributes: any; provider: any; scenario: ParserScenario; context: any }): Promise<void> | void;
+    /** Runs before resource modification. */
+    beforeUpdate?(args: { id: string | number; attributes: any; provider: any; scenario: ParserScenario; context: any }): Promise<void> | void;
+    /** Runs after resource modification. */
+    afterUpdate?(args: { id: string | number; attributes: any; diff?: any; provider: any; scenario: ParserScenario; context: any }): Promise<void> | void;
+    /** Runs before resource deletion. */
+    beforeDelete?(args: { id: string | number; provider: any; context: any }): Promise<void> | void;
+    /** Runs after resource deletion. */
+    afterDelete?(args: { id: string | number; provider: any; context: any }): Promise<void> | void;
+}
+
+export type ResourceAttributesDefinition =
+    | ((scenario: ParserScenario, context?: any) => Record<string, any>)
+    | Record<string, ((scenario: ParserScenario, context?: any) => any) | any>;
+
 export type ResourceApiDefinition = Record<
     string,
     ((scenario: ParserScenario, context?: any) => any) | Record<string, ((scenario: ParserScenario, context?: any) => any) | any> | any
@@ -247,8 +266,16 @@ export type ResourceStateDefinition = Record<
 export interface ResourceTemplate {
     type: string;
     /**
-     * Dictionary of payloads mapping directly to the provider's exposed APIs
-     * (e.g. { issue: (s) => ({ title, body }), project: (s) => ({ fields }) }).
+     * Canonical attributes extracted from the Gherkin scenario.
+     * Can be an evaluator function returning attributes, or an attributes dictionary.
+     */
+    attributes?: ResourceAttributesDefinition;
+    /**
+     * Optional lifecycle hooks to orchestrate provider actions before/after CRUD events.
+     */
+    lifecycle?: ResourceLifecycleHooks;
+    /**
+     * @deprecated Legacy dictionary of payloads mapping directly to the provider's exposed APIs. Prefer `attributes`.
      */
     api?: ResourceApiDefinition;
     /**

@@ -15,6 +15,16 @@ import { buildGitHubTestplanBody, buildGitHubTestrunBody, buildGitHubBugBody } f
 
 function deriveFieldsFromTemplate(template: ResourceTemplate): ResourceField[] {
     const fields: ResourceField[] = [];
+    if (template.attributes) {
+        if (typeof template.attributes === 'object' && template.attributes !== null) {
+            for (const [k, v] of Object.entries(template.attributes)) {
+                fields.push({
+                    name: k,
+                    value: typeof v === 'function' ? v : () => v
+                });
+            }
+        }
+    }
     if (template.api) {
         for (const [k, v] of Object.entries(template.api)) {
             if (k === 'issue') {
@@ -204,8 +214,8 @@ class Resource {
         const exported = loadedModule?.default || loadedModule;
         if (!exported) return;
 
-        // 1. Direct template definition: { type, fields, comments }
-        if (exported.type && Array.isArray(exported.fields)) {
+        // 1. Direct template definition: { type, fields, attributes, comments }
+        if (exported.type && (Array.isArray(exported.fields) || exported.attributes || exported.api)) {
             this.registry(exported, 'user');
             return;
         }
@@ -213,7 +223,7 @@ class Resource {
         // 2. Array of template definitions
         if (Array.isArray(exported)) {
             for (const item of exported) {
-                if (item?.type && Array.isArray(item.fields)) {
+                if (item?.type && (Array.isArray(item.fields) || item.attributes || item.api)) {
                     this.registry(item, 'user');
                 }
             }
@@ -231,6 +241,54 @@ class Resource {
                 // Ignore factory error
             }
         }
+    }
+
+    /**
+     * Evaluates canonical attributes defined on the resource template.
+     * Attributes map directly to the provider's resource handler payload.
+     */
+    evaluateAttributes(type: string, scenario: ParserScenario, context?: any): Record<string, any> {
+        const template = this.get(type);
+        if (template.attributes) {
+            if (typeof template.attributes === 'function') {
+                return template.attributes(scenario, context) || {};
+            }
+            if (typeof template.attributes === 'object' && template.attributes !== null) {
+                const result: Record<string, any> = {};
+                for (const [k, v] of Object.entries(template.attributes)) {
+                    result[k] = typeof v === 'function' ? v(scenario, context) : v;
+                }
+                return result;
+            }
+        }
+
+        // Backward compatibility: derive attributes from legacy api definition
+        const apiData = this.evaluateApi(type, scenario, context);
+        if (apiData) {
+            const result: Record<string, any> = {};
+            if (apiData.issue && typeof apiData.issue === 'object') {
+                Object.assign(result, apiData.issue);
+            }
+            if (apiData.project && typeof apiData.project === 'object') {
+                result.custom_fields = apiData.project.fields || {};
+            }
+            for (const [k, v] of Object.entries(apiData)) {
+                if (k !== 'issue' && k !== 'project') {
+                    result[k] = v;
+                }
+            }
+            return result;
+        }
+
+        return this.evaluate(type, scenario, context);
+    }
+
+    /**
+     * Retrieves optional lifecycle hooks defined on the resource template.
+     */
+    getLifecycle(type: string): import('./types').ResourceLifecycleHooks | undefined {
+        const template = this.findTemplate(type);
+        return template?.lifecycle;
     }
 
     evaluateApi(type: string, scenario: ParserScenario, context?: any): Record<string, any> {
@@ -313,6 +371,18 @@ class Resource {
     evaluate(type: string, scenario: ParserScenario, context?: any): Record<string, any> {
         const template = this.get(type);
         const result: Record<string, any> = {};
+        if (template.attributes) {
+            if (typeof template.attributes === 'function') {
+                const attrs = template.attributes(scenario, context);
+                if (attrs && typeof attrs === 'object') {
+                    Object.assign(result, attrs);
+                }
+            } else if (typeof template.attributes === 'object' && template.attributes !== null) {
+                for (const [k, v] of Object.entries(template.attributes)) {
+                    result[k] = typeof v === 'function' ? v(scenario, context) : v;
+                }
+            }
+        }
         for (const field of template.fields || []) {
             if (field.knownAfterApply) continue;
             result[field.name] = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
@@ -321,8 +391,14 @@ class Resource {
     }
 
     hasFieldChanges(type: string, scenario: ParserScenario, oldAttributes: Record<string, any>, context?: any): boolean {
+        const ignoreChanges = new Set<string>((context?.ignoreChanges || []).map((f: string) => f.toLowerCase()));
         const newAttributes = this.evaluate(type, scenario, context);
         for (const [k, raw] of Object.entries(newAttributes)) {
+            const kLower = k.toLowerCase();
+            if (ignoreChanges.has(kLower)) continue;
+            if ((kLower === 'labels' || kLower === 'tags') && (ignoreChanges.has('labels') || ignoreChanges.has('tags'))) continue;
+            if ((kLower === 'steps' || kLower === 'body') && (ignoreChanges.has('steps') || ignoreChanges.has('body'))) continue;
+            if (kLower === 'title' && (ignoreChanges.has('title') || ignoreChanges.has('name'))) continue;
             const oldRaw = oldAttributes ? oldAttributes[k] : undefined;
 
             if (raw === undefined && oldRaw === undefined) continue;
@@ -697,7 +773,7 @@ class Resource {
                 output.push(`  # (because ${address} is not in configuration)`);
             }
 
-            if (context?.gherkin) {
+            if (context?.gherkin || context?.feature) {
                 output.push(this.formatFeature(change, context));
             } else {
                 output.push(this.format(change, context));
@@ -828,6 +904,14 @@ export const registerResource = (template: ResourceTemplate) => resource.registr
 
 resource.registry({
     type: 'github_testcase',
+    attributes: (s: any) => ({
+        title: s.name,
+        body: '```gherkin\n' + (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```',
+        labels: extractLabels(s),
+        assignees: extractAssignees(s),
+        milestone: s.custom?.fields?.milestone || undefined,
+        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+    }),
     api: {
         issue: (s: any) => ({
             title: s.name,
@@ -848,6 +932,14 @@ resource.registry({
 
 resource.registry({
     type: 'github_testrun',
+    attributes: (s: any, context?: any) => ({
+        title: s.feature?.name || '',
+        body: buildGitHubTestrunBody(s, context),
+        labels: extractLabels(s),
+        assignees: extractAssignees(s),
+        milestone: s.custom?.fields?.milestone || undefined,
+        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+    }),
     api: {
         issue: (s: any, context?: any) => ({
             title: s.feature?.name || '',
@@ -875,6 +967,14 @@ resource.registry({
 
 resource.registry({
     type: 'github_testplan',
+    attributes: (s: any, context?: any) => ({
+        title: s.feature?.name || '',
+        body: buildGitHubTestplanBody(s, context),
+        labels: extractLabels(s),
+        assignees: extractAssignees(s),
+        milestone: s.custom?.fields?.milestone || undefined,
+        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+    }),
     api: {
         issue: (s: any, context?: any) => ({
             title: s.feature?.name || '',
@@ -896,6 +996,17 @@ resource.registry({
 
 resource.registry({
     type: 'github_bug',
+    attributes: (s: any) => ({
+        title: s.name || s.feature?.name || '',
+        body: buildGitHubBugBody(s),
+        labels: extractLabels(s, 'bug'),
+        assignees: extractAssignees(s),
+        milestone: s.custom?.fields?.milestone || undefined,
+        custom_fields: extractCustomFields(s.custom?.fields, [
+            'labels', 'assignees', 'milestone', 'status', 'severity', 'priority',
+            'trace', 'error', 'evidence', 'target', 'testcase', 'testrun'
+        ])
+    }),
     api: {
         issue: (s: any) => ({
             title: s.name || s.feature?.name || '',

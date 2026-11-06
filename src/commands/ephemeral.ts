@@ -52,6 +52,7 @@ export const ephemeralCmd = async (options: EphemeralCmdOptions) => {
     } = options;
 
     if (!subcommand) {
+        console.error(red('No subcommand provided. Use "testform ephemeral --help" for usage.'));
         console.log(HELP_EPHEMERAL);
         process.exit(1);
     }

@@ -7,6 +7,7 @@
  */
 
 import { bold, green, red } from 'chalk';
+import { resource } from '../core/resources';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
@@ -143,14 +144,34 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
                 const startTime = Date.now();
                 try {
-                    const svcKey = github.apis ? Object.keys(github.apis).find(k => k === res.type || k === 'issue') : null;
-                    const svc = svcKey ? github.apis[svcKey] : null;
+                    const lifecycle = resource.getLifecycle(res.type);
+                    const targetId = res.attributes.issueNumber || res.attributes.remoteId;
+                    if (lifecycle?.beforeDelete) {
+                        await lifecycle.beforeDelete({
+                            id: targetId,
+                            provider: github,
+                            context: { state: stateObj }
+                        });
+                    }
+
+                    const providerResources = github.resources || github.apis;
+                    const svcKey = providerResources ? Object.keys(providerResources).find(k => k === res.type || res.type.endsWith(`_${k}`) || k === 'issue') : null;
+                    const svc = (providerResources && svcKey) ? providerResources[svcKey] : null;
 
                     if (svc?.delete) {
                         await svc.delete(res.attributes.issueNumber || res.attributes.remoteId);
-                    } else if (res.attributes.issueNumber && github.closeIssue) {
-                        await github.closeIssue(res.attributes.issueNumber);
+                    } else if (res.attributes.issueNumber && (github as any).closeIssue) {
+                        await (github as any).closeIssue(res.attributes.issueNumber);
                     }
+
+                    if (lifecycle?.afterDelete) {
+                        await lifecycle.afterDelete({
+                            id: targetId,
+                            provider: github,
+                            context: { state: stateObj }
+                        });
+                    }
+
                     stateObj.removeResource(res.identity);
                     const elapsed = elapsedSeconds(startTime);
                     console.log(green(`${address}: Destruction complete after ${elapsed}s [id=${remoteId}]`));

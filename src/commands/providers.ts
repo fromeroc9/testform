@@ -1,5 +1,5 @@
-import { existsSync, writeFileSync, mkdirSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { existsSync, writeFileSync, mkdirSync, readdirSync, readFileSync } from 'fs';
+import { resolve, dirname, join } from 'path';
 import { bold, green, yellow, cyan, dim } from 'chalk';
 import { Config } from '../core/config';
 import { TITLE_APP, TITLE_CLI, CONFIG_FILE_NAMES, FILE_LOCK } from '../core/const';
@@ -41,8 +41,14 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
             const projectName = `testform-provider-${providerName}`;
             const projectDir = nonFlagArgs[1] ? resolve(targetFullPath, nonFlagArgs[1]) : resolve(targetFullPath, projectName);
 
-            const starterTemplateDir = resolve(__dirname, '../../templates/starter-provider');
-            if (existsSync(starterTemplateDir)) {
+            const candidateDirs = [
+                resolve(__dirname, '../../templates/starter-provider'),
+                resolve(__dirname, '../templates/starter-provider'),
+                resolve(__dirname, 'templates/starter-provider'),
+                resolve(process.cwd(), 'templates/starter-provider')
+            ];
+            const starterTemplateDir = candidateDirs.find(d => existsSync(d));
+            if (starterTemplateDir && existsSync(starterTemplateDir)) {
                 // Copy entire starter template folder recursively
                 mkdirSync(projectDir, { recursive: true });
                 const copyRecursive = (src: string, dest: string) => {
@@ -88,13 +94,19 @@ export const providersCmd = async (options: ProvidersCmdOptions = {}) => {
             mkdirSync(outDir, { recursive: true });
         }
 
-        const templatePath = resolve(__dirname, '../../templates/provider.template.ts');
+        const candidateTemplates = [
+            resolve(__dirname, '../../templates/provider.template.ts'),
+            resolve(__dirname, '../templates/provider.template.ts'),
+            resolve(__dirname, 'templates/provider.template.ts'),
+            resolve(process.cwd(), 'templates/provider.template.ts')
+        ];
+        const templatePath = candidateTemplates.find(p => existsSync(p)) || candidateTemplates[0];
         let content = '';
         if (existsSync(templatePath)) {
             content = readFileSync(templatePath, 'utf-8');
             content = content.replace(/CustomProvider/g, className).replace(/'custom-provider'/g, `'${providerName}'`);
         } else {
-            content = `export default class ${className} {\n    public name = '${providerName}';\n    constructor(public config: Record<string, any> = {}) {}\n    formatRemoteId(id: number | string) { return '#' + id; }\n    async createIssue(payload: any) { return { id: 1, number: 1, title: payload.title, state: 'open' }; }\n    async updateIssue(id: any, payload: any) { return { id, number: Number(id), title: payload.title || '', state: 'open' }; }\n    async closeIssue(id: any) {}\n    async getIssue(id: any) { return null; }\n    async listIssuesByLabel(label: string) { return []; }\n    async getMilestoneByTitle(title: string) { return undefined; }\n}\n`;
+            content = `export default class ${className} {\n    public name = '${providerName}';\n    public resources = {\n        issue: {\n            create: async (attributes: any) => ({ id: 1, number: 1, ...attributes }),\n            read: async (id: any) => null,\n            update: async (id: any, attributes: any) => ({ id, ...attributes }),\n            delete: async (id: any) => {}\n        }\n    };\n    constructor(public config: Record<string, any> = {}) {}\n    formatRemoteId(id: number | string) { return '#' + id; }\n}\n`;
         }
 
         const targetFile = resolve(outDir, `${providerName}.ts`);

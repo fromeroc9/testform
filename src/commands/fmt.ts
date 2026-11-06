@@ -35,11 +35,11 @@ export const fmtCmd = async (options: FmtCmdOptions) => {
         diff = false,
         list = true,
         write = true,
-        recursive = true
+        recursive = false
     } = options;
     const files = findFeatureFiles(dir, recursive);
     if (files.length === 0) {
-        console.log(`No .feature files found in ${dir}.`);
+        console.log('No .feature files found.');
         return;
     }
 

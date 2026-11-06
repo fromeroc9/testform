@@ -338,12 +338,16 @@ export const importCmd = async (options: ImportCmdOptions) => {
             console.log(yellow(`Import will proceed with the exact identity provided, but it might not map to any local file.`));
         }
 
-        // Fetch from GitHub
-        console.log(`Fetching issue #${issueNum} from GitHub...`);
-        const issue = await github.getIssue(issueNum);
+        // Fetch from Provider
+        console.log(`Fetching issue #${issueNum} from remote provider...`);
+        const providerResources = (github as any).resources || (github as any).apis;
+        const resHandler = providerResources?.[scope] || providerResources?.issue || (providerResources ? Object.values(providerResources)[0] : null);
+        const issue = resHandler?.read
+            ? await resHandler.read(issueNum)
+            : (resHandler?.get ? await resHandler.get(issueNum) : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(issueNum) : null));
 
         if (!issue) {
-            console.error(red(`Issue #${issueNum} not found in GitHub repository.`));
+            console.error(red(`Issue #${issueNum} not found in GitHub repository or remote provider.`));
             process.exit(1);
         }
 
@@ -361,7 +365,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
         // Fetch custom fields
         let customFields: Record<string, string> = {};
         if (issue.node_id) {
-            customFields = github.getProjectItemFields ? await github.getProjectItemFields(issue.node_id) : {};
+            customFields = (github as any).getProjectItemFields ? await (github as any).getProjectItemFields(issue.node_id) : {};
         }
 
         // Auto-reconstruct code if not matched
@@ -448,7 +452,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
                 if (gherkinBody) {
                     const tagLine = tagsToAppend.length > 0 ? `  ${tag} ${tagsToAppend.join(' ')}\n` : `  ${tag}\n`;
                     const keywordLines = keywordsToAppend.length > 0 ? keywordsToAppend.map(k => `    ${k}\n`).join('') : '';
-                    const bodyLines = gherkinBody.split('\n').map(l => `    ${l}`).join('\n') + `\n`;
+                    const bodyLines = gherkinBody.split('\n').map((l: string) => `    ${l}`).join('\n') + `\n`;
 
                     const scenarioContent = `\n\n${tagLine}  Scenario: ${issue.title}\n${keywordLines}${bodyLines}`;
                     fs.appendFileSync(filePath, scenarioContent);

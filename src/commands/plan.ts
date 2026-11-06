@@ -43,11 +43,26 @@ export function hashScenario(scenario: ParserScenario, scope?: IScope, ignoreCha
         clone.tags = [];
         if (clone.feature) {
             clone.feature.tags = [];
+            if (clone.feature.custom) {
+                delete clone.feature.custom.rawTags;
+            }
+        }
+        if (clone.custom) {
+            delete clone.custom.rawTags;
+            delete clone.custom.tags;
+            if (clone.custom.fields) {
+                delete clone.custom.fields.labels;
+                delete clone.custom.fields.tags;
+            }
         }
     }
 
     if (ignored.has('steps') || ignored.has('body')) {
         clone.steps = [];
+        if (clone.custom) {
+            delete clone.custom.rawSteps;
+            delete clone.custom.steps;
+        }
     }
 
     if (ignored.has('custom_fields') && clone.custom) {
@@ -220,7 +235,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 oldAttributes: existing.attributes,
             });
         } else if (existing.attributes.localHash !== localHash) {
-            const hasActualChanges = resource.hasFieldChanges(RESOURCE_TYPE, scenario, existing.attributes, { state, testDirectory: dir });
+            const hasActualChanges = resource.hasFieldChanges(RESOURCE_TYPE, scenario, existing.attributes, { state, testDirectory: dir, ignoreChanges: lc.ignore_changes });
             if (!hasActualChanges) {
                 // If there are zero attribute differences, don't generate a ghost update in-place.
                 // Heal the in-memory hash so state converges.

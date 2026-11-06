@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### ⚡ Agnostic Provider & Resource Architecture (Terraform Parity: `attributes`, `lifecycle`, `resources`)
+- **Agnostic Resource Definition (`attributes` & `lifecycle` in `ResourceTemplate`):**
+  - Canonical `attributes` mapping (`(scenario, context) => Record<string, any>` or dictionary) that outputs pure domain data for providers.
+  - Full lifecycle orchestration hooks: `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDelete`, `afterDelete`.
+  - In `afterCreate({ id, attributes, provider })`, the live provider instance is injected, allowing resources to invoke custom provider actions (such as `provider.subirFotoPokemon(id, attributes.foto)` or arbitrary SDK operations) without intermediate friction.
+  - Clean separation: `state?: Record<string, ...>` for pure internal persistence into `testform.state`.
+- **Agnostic Provider Contract (`public resources: Record<string, IProviderResourceHandler>`):**
+  - **Standard CRUD Lifecycle Methods (Primary Standard):** `create(attributes, context)`, `read(id, context)`, `update(id, attributes, context)`, `delete(id, context)`.
+  - Optional REST aliases: `post`, `get`, `patch`, `put`.
+  - Open index signature `[customAction: string]: ((...args: any[]) => Promise<any>) | undefined` for arbitrary provider RPC methods and operations.
+- **Core Engine Integration (`applyCmd`, `destroyCmd`):**
+  - `applyCmd` prioritizes `handler.create` and `handler.update`, dispatching through `lifecycle.beforeCreate` -> `handler.create` -> `lifecycle.afterCreate`.
+  - `destroyCmd` and replace flows dispatch through `lifecycle.beforeDelete` -> `handler.delete` -> `lifecycle.afterDelete`.
+- **Built-in Providers & Scaffolding Templates Updated:**
+  - `GitHubProvider`, `GitLabProvider`, and `LocalProvider` expose `public resources` with standard CRUD methods (`create`, `read`, `update`, `delete`).
+  - Scaffolding templates (`templates/provider.template.ts`, `templates/starter-provider/src/index.ts`, `src/commands/providers.ts`) generate modern `create`, `read`, `update`, `delete` CRUD handlers.
+- **Unit Test Suite Coverage:**
+  - Validated custom domain resource `register-pokemon` registering `attributes`, `lifecycle.afterCreate`, and provider `resources['register-pokemon'].create` invoking `subirFotoPokemon` in `test/resources.test.ts`.
+
+#### 📦 Dynamic Provider Registry & Terraform Parity (`testform.required_providers`)
+- **Declarative Required Providers Syntax:** Added full parsing support for `testform.required_providers` in `main.yml`, enabling string shortcuts and object definitions with version constraints matching Terraform parity.
+- **Universal Provider Downloader (`src/core/provider-installer.ts`):** Implemented multi-channel download engine supporting:
+  - Git subpaths for single TypeScript/JavaScript files (`git::https://...//provider.ts?ref=v1.2.0`).
+  - Full Git repository cloning (`git::https://...`).
+  - Local directory linking/copying (`./custom-providers/...`).
+  - NPM packages (`@org/pkg` or `npm::`).
+- **Cryptographic Lockfile (`.testform.lock.hcl`):** Automatically computes and verifies `h1:<base64>` SHA-256 hashes recorded in `.testform.lock.hcl` and cached in `.testform/cache/lock.json` for deterministic, bit-for-bit reproducible executions across workstations and CI/CD pipelines.
+- **On-the-Fly TypeScript Transpilation:** Transparent in-memory transpilation fallback in `src/providers/custom.ts`, allowing direct execution of `.ts` provider files without precompilation steps.
+- **Strict Whitelist & Installation Enforcement:** Engine halts immediately with actionable errors if a provider is configured in `provider:` without being declared in `testform.required_providers` (`Error: Undeclared provider "<name>"`) or if a declared provider has not been installed (`Error: Provider "<name>" is not installed. Run "testform init"`).
+- **Automated Provider Scaffolding CLI (`testform providers scaffold`):**
+  - Mode 1: Generates single-file `.ts` template ready to implement.
+  - Mode 2 (`--project`): Generates full enterprise project repository with `package.json`, `tsconfig.json`, `README.md`, `src/index.ts`, `src/client.ts`, `src/types.ts`, and Vitest test suite (`test/provider.test.ts`).
+
 #### 📑 Report Template Interpolation Engine (Terraform `${var.*}` Parity)
 - **Natural Terraform Expression Syntax in Excel and Word Templates:** Enhanced Excel (`xlsx`) and Word (`docx`) report rendering to natively parse `${var.my_variable}` placeholders alongside `${report.title}`, `${date}`, `${total}`, and `${table}` anchors.
 - **Multi-Tier Robust Delimiter Fallback:** Implemented automated multi-pass patching in Word (`DocxFormat`) trying `${...}` first, followed by `{...}` and `{{...}}` to maintain complete flexibility across institutional document templates.
@@ -73,6 +106,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed & Refactored
 
+#### 🧹 Clean Sequential Architecture across all Providers (`GitHub`, `GitLab`, `Local`)
+- **Strict Method Sequencing:** Reordered `IProvider` interface and all implementations (`GitHubProvider`, `GitLabProvider`, `LocalProvider`) into logical, predictable sections:
+  1. Configuration & State Properties.
+  2. Agnostic Service Bus (`apis: Record<string, IProviderApiService>`).
+  3. Constructor & Initialization.
+  4. Identity & Remote Formatting (`formatRemoteId`).
+  5. Primary Issue Lifecycle (`createIssue`, `getIssue`, `updateIssue`, `closeIssue`, `listIssuesByLabel`, `getMilestoneByTitle`).
+  6. Hierarchical Relationships (`addSubIssue`).
+  7. Project Boards & Custom Fields (`addToProject`, `updateProjectItemFields`, `getProjectItemFields`).
+  8. Deprecated Comment Methods (cleanly isolated at the bottom for backward compatibility).
+  9. Private Transport & Storage Helpers.
+- **Top-Level Variable Hoisting:** Relocated scattered properties (e.g. `projectNodeId`, `projectFields`) from the middle of method blocks to class-level declarations.
+- **Deduplicated Imports:** Cleaned duplicated logger and chalk imports across provider modules.
+
+#### 🔄 Decoupled Agnostic Provider Dispatching (`apply.ts` & `destroy.ts`)
+- **Dynamic Service Resolution:** Refactored `applyApiPayload` in `src/commands/apply.ts` to dynamically match resource types (`change.resourceType`) and payload keys against `provider.apis[serviceKey]` CRUD operations (`create`, `update`).
+- **Agnostic Destruction Dispatch:** Enhanced `destroyCmd` in `src/commands/destroy.ts` and `apply.ts (replace)` to invoke `provider.apis[serviceKey].delete` before falling back to `closeIssue`.
+- **Flexible ID Normalization:** Normalized remote ID capture supporting both `result.number` and `result.id` via `provider.formatRemoteId()`.
+
 #### 🧹 Elimination of Hardcoded Resource Logic in `apply.ts`
 - **Fully Agnostic Dispatch:** Completely eradicated hardcoded conditionals (`if (change.resourceType.endsWith('testrun'))`, `if (change.resourceType.endsWith('testplan'))`) from `src/commands/apply.ts`.
 - **Generic Execution Pipeline:** Execution batches now delegate all external operations to `resource.evaluateApi()` and state persistence to `resource.evaluateState()`.
@@ -87,6 +139,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### 🛠️ TypeScript Compilation & ncc Build Fixes
+- **Missing File System Imports (`src/commands/providers.ts`):** Added missing `readdirSync`, `readFileSync`, and `join` imports used during provider template scaffolding.
+- **Strict Optional Chaining in Destroy (`src/commands/destroy.ts`):** Resolved TS18048 (`'github.apis' is possibly 'undefined'`) with safe narrowing.
+- **Normalized Target Typo (`src/core/selector.ts`):** Fixed undefined variable `normalizedTarget` in `matchesFeatureFile` to safely match feature paths against scenario targets.
+
 #### 🛡️ Phantom Drift & State Deserialization Normalization
 - **Ghost In-Place Updates:** Fixed spurious `~ update in-place` plan diffs by verifying actual attribute changes before scheduling an update.
 - **CRLF vs LF Normalization:** Order-agnostic, newline-normalized comparison for multiline Gherkin strings preventing spurious phantom drift in Windows environments.
@@ -98,6 +155,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0-beta.3] - 2026-10-29
 
 ### Added
+
+
 
 #### ⚖️ Rollup Verdict Engine (`calculateRollupVerdict`)
 - **Automated Execution Status Resolution:** Built-in verdict aggregation for `testrun` and `testplan` resources based on strict QA priority rules:
@@ -232,6 +291,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+
+
 #### 🎯 Target Scoping for Reports (`testform report -target`)
 - **Granular Scoping:** Added `-target` option across the reporting engine to restrict outputs to a specific testrun (`-target=@tr-1` or `-target=sprint1.run.feature`) or an entire testplan (`-target=@tp-1`).
 - **Automated Testplan Expansion:** When targeting a test plan (`testplan`), `StateQuery.filterByTarget` inspects `attributes.testruns`, recursively discovers all linked runs, and scopes the report to include all associated test cases and execution outcomes.
@@ -266,6 +327,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-10-26
 
 ### Added
+
+
 
 #### 📊 Modular Reporting & Multi-Format Analytics Engine (`testform report`)
 - **Full Architecture Modularization:** Completely eradicated monolithic reporting code into an extensible, decoupled engine (`src/reports/`) separating data extraction (`collect`), formatting (`render`), and dynamic template patching.
@@ -408,6 +471,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.17] - 2026-06-12
 
 ### Added
+
+
 - **Testplan Duplicate Testruns Policy:** Added a policy rule `duplicate-testruns-in-testplan` that validates both local duplicate testruns inside the same testplan file and global duplicate testruns declared across different testplan files.
 
 ### Changed
@@ -419,6 +484,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.15] - 2026-06-10
 
 ### Added
+
+
 - **GitHub API Resiliency:** Implemented automatic rate limit retries (handling `403` and `429` secondary rate limits) in the request pipeline. Reads the `retry-after` header to pause execution and retry up to 5 times. Added a custom `User-Agent: testform/<version>` to identify API requests.
 
 ### Changed
@@ -450,6 +517,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.12] - 2026-06-07
 
 ### Added
+
+
 - **Gherkin Editor:** Added a Gherkin editor command and internal dependency support.
 
 ### Fixed
@@ -471,6 +540,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.9] - 2026-06-06
 
 ### Added
+
+
 - **Debug Command:** Added a new dedicated \`debug\` command to assist developers in troubleshooting parsing logic. It accepts a specific feature file and a \`-format\` flag (either \`gherkin\` or \`testform\`) to output its JSON AST before or after Testform's internal filtering.
 - **Generate Rule Support:** Enhanced the documentation for the \`generate\` command to properly describe the \`-rule\` flag, which injects Business Rule blocks (\`Rule: <name>\`) into newly generated feature files and validates their existence in the workspace.
 
@@ -492,6 +563,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.6] - 2026-06-05
 
 ### Added
+
+
 - **Authentication:** Native GitHub App Authentication. Supports configuring `appId`, `privateKey`, and `installationId` directly in `testform.json` or through local credentials for autonomous background authentication using `@octokit/auth-app`.
 
 ### Changed
@@ -500,6 +573,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.5] - 2026-06-05
 
 ### Added
+
+
 - **Test Runs:** Added default test run description and implemented locale-aware sorting for test cases and resources.
 - **Resource Adapters:** Updated resource adapter configuration and dependencies.
 
@@ -527,6 +602,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.3] - 2026-06-05
 
 ### Added
+
+
 - **Generate Command:** Implemented the `testform generate` command to generate test scenarios automatically.
 - **Reporting:** Implemented reporting logic for test cases and test runs.
 - **Status Updates & Autocompletion:** `apply -set-status` now supports updating testcase statuses directly in your local `.feature` files (using the `* link status = <status>` syntax). It inherently autocompletes the target scenario locally if it was previously implicit, ensuring the file remains the single source of truth without manual intervention.
@@ -561,6 +638,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-06-04
 
 ### Added
+
+
 - **Initial Release:** First stable release of the CLI.
 - **Test-as-Code Paradigm:** Introduced the ability to define Test Cases, Test Runs, and Test Plans using Gherkin (`.feature`) files.
 - **Native GitHub Integration:** Full support for creating, updating, and syncing test cases as GitHub Issues and GitHub Projects V2 items.

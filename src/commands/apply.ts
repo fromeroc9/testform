@@ -6,7 +6,7 @@ import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { calculatePlan } from './plan';
-import { IScope, GitHubIssuePayload } from '../core/types';
+import { IScope } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { OutputResolver } from '../core/outputs';
 import { refreshState } from './refresh';
@@ -157,9 +157,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         let destroyed = 0;
 
         // Helper to resolve milestone titles to IDs
-        const resolvePayloadMilestone = async (payload: GitHubIssuePayload) => {
+        const resolvePayloadMilestone = async (payload: any) => {
             if (typeof payload.milestone === 'string' && payload.milestone) {
-                payload.milestone = await github.getMilestoneByTitle(payload.milestone);
+                if (typeof (github as any).getMilestoneByTitle === 'function') {
+                    payload.milestone = await (github as any).getMilestoneByTitle(payload.milestone);
+                }
             } else if (!payload.milestone) {
                 delete payload.milestone;
             }
@@ -181,9 +183,13 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     for (const runResource of runResources) {
                         if (runResource?.attributes?.issueNumber) {
                             try {
-                                const issueDetails = await github.getIssue(runResource.attributes.issueNumber as number);
+                                const providerResources = github.resources || github.apis;
+                                const issueHandler = providerResources?.testrun || providerResources?.issue;
+                                const issueDetails = issueHandler?.read
+                                    ? await issueHandler.read(runResource.attributes.issueNumber)
+                                    : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(runResource.attributes.issueNumber as number) : null);
                                 if (issueDetails && issueDetails.id) {
-                                    if (github.addSubIssue) await github.addSubIssue(parentIssueNumber, issueDetails.id);
+                                    if ((github as any).addSubIssue) await (github as any).addSubIssue(parentIssueNumber, issueDetails.id);
                                     console.log(`  -> Linked testrun ${runResource.identity} as sub-issue to testplan`);
                                 }
                             } catch (e: any) {
@@ -218,47 +224,118 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
         // Helper to execute API and state payload dispatch
         const applyApiPayload = async (change: any, existingIssueNumber?: number) => {
-            const apiPayload = resource.evaluateApi(change.resourceType, change.scenario, { state: stateObj, testDirectory });
+            const attributes = resource.evaluateAttributes(change.resourceType, change.scenario, { state: stateObj, testDirectory });
             const statePayload = resource.evaluateState(change.resourceType, change.scenario, { state: stateObj, testDirectory });
+            const lifecycle = resource.getLifecycle(change.resourceType);
 
-            const issueData = apiPayload.issue || apiPayload;
-            const projectData = apiPayload.project?.fields ? { custom_fields: apiPayload.project.fields } : (apiPayload.custom_fields ? { custom_fields: apiPayload.custom_fields } : {});
+            // Backward compatibility data extraction for legacy issue/project attributes
+            const issueData: any = { ...attributes };
+            const projectData = (attributes.custom_fields && Object.keys(attributes.custom_fields).length > 0)
+                ? { custom_fields: attributes.custom_fields }
+                : {};
 
             await resolvePayloadMilestone(issueData);
 
+            const providerResources = github.resources || github.apis;
             let result: any;
-            if (github.apis) {
-                // Find matching service key in provider.apis:
-                // 1. Exact match with resourceType (e.g. apis.defect or apis.testcase)
-                // 2. Or matching key present in apiPayload (e.g. apiPayload.pokemon -> apis.pokemon)
-                // 3. Fallback to 'issue' or the first exposed api service
-                const serviceKey = Object.keys(github.apis).find(k => k === change.resourceType || apiPayload[k]) 
-                    || (github.apis.issue ? 'issue' : Object.keys(github.apis)[0]);
-                const service = serviceKey ? github.apis[serviceKey] : undefined;
-                const dataToPass = (serviceKey && apiPayload[serviceKey]) ? apiPayload[serviceKey] : issueData;
 
-                if (service) {
-                    if (existingIssueNumber && service.update) {
-                        result = await service.update(existingIssueNumber, dataToPass);
-                    } else if (service.create) {
-                        result = await service.create(dataToPass);
-                    }
+            if (existingIssueNumber) {
+                // ─── UPDATE FLOW ───
+                if (lifecycle?.beforeUpdate) {
+                    await lifecycle.beforeUpdate({
+                        id: existingIssueNumber,
+                        attributes,
+                        provider: github,
+                        scenario: change.scenario,
+                        context: { state: stateObj, testDirectory }
+                    });
                 }
 
-                if (github.apis.project?.create && apiPayload.project) {
-                    await github.apis.project.create(apiPayload.project, { issueResult: result });
+                if (providerResources) {
+                    const serviceKey = Object.keys(providerResources).find(k => k === change.resourceType || change.resourceType.endsWith(`_${k}`))
+                        || (providerResources.issue ? 'issue' : Object.keys(providerResources)[0]);
+                    const service = serviceKey ? providerResources[serviceKey] : undefined;
+
+                    if (service) {
+                        if (service.update) {
+                            result = await service.update(existingIssueNumber, issueData, { scenario: change.scenario, state: stateObj });
+                        } else if (service.patch) {
+                            result = await service.patch(existingIssueNumber, issueData, { scenario: change.scenario, state: stateObj });
+                        } else if (service.put) {
+                            result = await service.put(existingIssueNumber, issueData, { scenario: change.scenario, state: stateObj });
+                        }
+                    }
+
+                    if (providerResources.project && projectData.custom_fields) {
+                        if (providerResources.project.update) {
+                            await providerResources.project.update(String(existingIssueNumber), { fields: projectData.custom_fields });
+                        } else if (providerResources.project.patch) {
+                            await providerResources.project.patch(String(existingIssueNumber), { fields: projectData.custom_fields });
+                        }
+                    }
+                } else if ((github as any).updateIssue) {
+                    result = await (github as any).updateIssue(existingIssueNumber, issueData);
+                }
+
+                if (lifecycle?.afterUpdate) {
+                    await lifecycle.afterUpdate({
+                        id: existingIssueNumber,
+                        attributes,
+                        diff: change.oldAttributes,
+                        provider: github,
+                        scenario: change.scenario,
+                        context: { state: stateObj, testDirectory }
+                    });
                 }
             } else {
-                if (existingIssueNumber) {
-                    result = await github.updateIssue(existingIssueNumber, issueData);
-                } else {
-                    result = await github.createIssue(issueData);
+                // ─── CREATE FLOW ───
+                if (lifecycle?.beforeCreate) {
+                    await lifecycle.beforeCreate({
+                        attributes,
+                        scenario: change.scenario,
+                        context: { state: stateObj, testDirectory, provider: github }
+                    });
                 }
-                if (result?.node_id && github.addToProject && projectData.custom_fields) {
-                    const itemId = await github.addToProject(result.node_id);
-                    if (itemId && github.updateProjectItemFields) {
-                        await github.updateProjectItemFields(itemId, projectData.custom_fields);
+
+                if (providerResources) {
+                    const serviceKey = Object.keys(providerResources).find(k => k === change.resourceType || change.resourceType.endsWith(`_${k}`))
+                        || (providerResources.issue ? 'issue' : Object.keys(providerResources)[0]);
+                    const service = serviceKey ? providerResources[serviceKey] : undefined;
+
+                    if (service) {
+                        if (service.create) {
+                            result = await service.create(issueData, { scenario: change.scenario, state: stateObj });
+                        } else if (service.post) {
+                            result = await service.post(issueData, { scenario: change.scenario, state: stateObj });
+                        }
                     }
+
+                    if (providerResources.project && projectData.custom_fields) {
+                        if (providerResources.project.create) {
+                            await providerResources.project.create({ fields: projectData.custom_fields }, { issueResult: result });
+                        } else if (providerResources.project.post) {
+                            await providerResources.project.post({ fields: projectData.custom_fields }, { issueResult: result });
+                        }
+                    }
+                } else {
+                    result = (github as any).createIssue ? await (github as any).createIssue(issueData) : undefined;
+                    if (result?.node_id && (github as any).addToProject && projectData.custom_fields) {
+                        const itemId = await (github as any).addToProject(result.node_id);
+                        if (itemId && (github as any).updateProjectItemFields) {
+                            await (github as any).updateProjectItemFields(itemId, projectData.custom_fields);
+                        }
+                    }
+                }
+
+                const createdId = result?.number ?? result?.id ?? 1;
+                if (lifecycle?.afterCreate) {
+                    await lifecycle.afterCreate({
+                        id: createdId,
+                        attributes,
+                        provider: github,
+                        scenario: change.scenario,
+                        context: { state: stateObj, testDirectory }
+                    });
                 }
             }
 
@@ -266,7 +343,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 result = { id: existingIssueNumber || 1, number: existingIssueNumber || 1 };
             }
 
-            return { result, issueData, projectData, statePayload };
+            return { result, issueData: attributes, projectData, statePayload };
         };
 
         await executeInBatches(orderedChanges, parallelismNum, async (change) => {
@@ -316,16 +393,34 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         const startTime = Date.now();
 
                         // 1. Destroy (close issue or delete from agnostic api)
+                        const lifecycle = resource.getLifecycle(change.resourceType);
                         if (change.issueNumber) {
-                            if (github.apis) {
-                                const svcKey = Object.keys(github.apis).find(k => k === change.resourceType || k === 'issue');
-                                if (svcKey && github.apis[svcKey]?.delete) {
-                                    await github.apis[svcKey].delete(change.issueNumber);
-                                } else if (github.updateIssue) {
-                                    await github.updateIssue(change.issueNumber, { state: 'closed' });
+                            if (lifecycle?.beforeDelete) {
+                                await lifecycle.beforeDelete({
+                                    id: change.issueNumber,
+                                    provider: github,
+                                    context: { state: stateObj, testDirectory }
+                                });
+                            }
+
+                            const providerResources = github.resources || github.apis;
+                            if (providerResources) {
+                                const svcKey = Object.keys(providerResources).find(k => k === change.resourceType || change.resourceType.endsWith(`_${k}`) || k === 'issue');
+                                if (svcKey && providerResources[svcKey]?.delete) {
+                                    await providerResources[svcKey].delete(change.issueNumber);
+                                } else if ((github as any).updateIssue) {
+                                    await (github as any).updateIssue(change.issueNumber, { state: 'closed' });
                                 }
-                            } else if (github.updateIssue) {
-                                await github.updateIssue(change.issueNumber, { state: 'closed' });
+                            } else if ((github as any).updateIssue) {
+                                await (github as any).updateIssue(change.issueNumber, { state: 'closed' });
+                            }
+
+                            if (lifecycle?.afterDelete) {
+                                await lifecycle.afterDelete({
+                                    id: change.issueNumber,
+                                    provider: github,
+                                    context: { state: stateObj, testDirectory }
+                                });
                             }
                         }
 
@@ -408,8 +503,36 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Destroying... [id=${remoteId}]`);
                         const startTime = Date.now();
 
+                        const lifecycle = resource.getLifecycle(change.resourceType);
+                        const targetId = change.issueNumber || remoteId;
+                        if (lifecycle?.beforeDelete) {
+                            await lifecycle.beforeDelete({
+                                id: targetId,
+                                provider: github,
+                                context: { state: stateObj, testDirectory }
+                            });
+                        }
+
                         if (change.issueNumber) {
-                            await github.closeIssue(change.issueNumber);
+                            const providerResources = github.resources || github.apis;
+                            if (providerResources) {
+                                const svcKey = Object.keys(providerResources).find(k => k === change.resourceType || change.resourceType.endsWith(`_${k}`) || k === 'issue');
+                                if (svcKey && providerResources[svcKey]?.delete) {
+                                    await providerResources[svcKey].delete(change.issueNumber);
+                                } else if ((github as any).closeIssue) {
+                                    await (github as any).closeIssue(change.issueNumber);
+                                }
+                            } else if ((github as any).closeIssue) {
+                                await (github as any).closeIssue(change.issueNumber);
+                            }
+                        }
+
+                        if (lifecycle?.afterDelete) {
+                            await lifecycle.afterDelete({
+                                id: targetId,
+                                provider: github,
+                                context: { state: stateObj, testDirectory }
+                            });
                         }
 
                         const elapsed = elapsedSeconds(startTime);

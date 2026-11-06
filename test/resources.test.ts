@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resource, registerResource } from '../src/core/resources';
 import { ParserScenario } from '../src/core/types';
 import { calculateRollupVerdict } from '../src/core/utils';
@@ -175,5 +175,91 @@ describe('Resource Registry and User Overrides', () => {
         const flatEvaluated = resource.evaluate('pokedex_creature', mockScenario);
         expect(flatEvaluated.status).toBe('caught');
         expect(flatEvaluated.pokemon).toBeDefined();
+    });
+
+    it('should support attributes definition and lifecycle hooks for custom resources (pokedex & register-pokemon example)', async () => {
+        const subirFotoMock = vi.fn();
+        const fakePokedexProvider = {
+            name: 'pokedex',
+            resources: {
+                'register-pokemon': {
+                    create: vi.fn().mockResolvedValue({ id: 'pk-025', number: 25 })
+                }
+            },
+            subirFotoPokemon: subirFotoMock
+        };
+
+        const beforeCreateMock = vi.fn();
+        const afterCreateMock = vi.fn(async ({ id, attributes, provider }: any) => {
+            if (provider?.subirFotoPokemon) {
+                await provider.subirFotoPokemon(id, attributes.foto);
+            }
+        });
+
+        registerResource({
+            type: 'register-pokemon',
+            attributes: (s: any) => ({
+                nombre: s.name,
+                tipo: s.custom?.fields?.tipo ?? 'Eléctrico',
+                nivel: s.custom?.fields?.nivel ?? 25,
+                foto: s.custom?.fields?.foto ?? 'https://img.pokemondb.net/sprites/home/normal/pikachu.png'
+            }),
+            lifecycle: {
+                beforeCreate: beforeCreateMock,
+                afterCreate: afterCreateMock
+            },
+            state: {
+                region: () => 'Kanto'
+            }
+        });
+
+        const mockScenario: any = {
+            name: 'Pikachu',
+            custom: {
+                fields: {
+                    tipo: 'Eléctrico',
+                    nivel: 25,
+                    foto: 'https://img.pokemondb.net/sprites/home/normal/pikachu.png'
+                }
+            }
+        };
+
+        // 1. Evaluate attributes
+        const attrs = resource.evaluateAttributes('register-pokemon', mockScenario);
+        expect(attrs).toEqual({
+            nombre: 'Pikachu',
+            tipo: 'Eléctrico',
+            nivel: 25,
+            foto: 'https://img.pokemondb.net/sprites/home/normal/pikachu.png'
+        });
+
+        // 2. Evaluate state
+        const stateData = resource.evaluateState('register-pokemon', mockScenario);
+        expect(stateData).toEqual({
+            region: 'Kanto'
+        });
+
+        // 3. Lifecycle hook retrieval & invocation
+        const lifecycle = resource.getLifecycle('register-pokemon');
+        expect(lifecycle).toBeDefined();
+        expect(lifecycle?.beforeCreate).toBe(beforeCreateMock);
+        expect(lifecycle?.afterCreate).toBe(afterCreateMock);
+
+        await lifecycle?.beforeCreate?.({ attributes: attrs, scenario: mockScenario, context: {} });
+        expect(beforeCreateMock).toHaveBeenCalledWith(expect.objectContaining({ attributes: attrs }));
+
+        // Provider CRUD simulation with primary standard method `create`
+        const result = await fakePokedexProvider.resources['register-pokemon'].create(attrs);
+        expect(result.id).toBe('pk-025');
+
+        // Post-creation hook with custom function invocation for photo upload
+        await lifecycle?.afterCreate?.({
+            id: result.id,
+            attributes: attrs,
+            provider: fakePokedexProvider,
+            scenario: mockScenario,
+            context: {}
+        });
+        expect(subirFotoMock).toHaveBeenCalledWith('pk-025', 'https://img.pokemondb.net/sprites/home/normal/pikachu.png');
     });
 });

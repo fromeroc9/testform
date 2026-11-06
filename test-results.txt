@@ -1,0 +1,702 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mC:/Users/flavi/Desktop/repositorio/testform[39m
+
+ [32m✓[39m test/core/driver.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 178[2mms[22m[39m
+ [31m❯[39m test/fmt.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 57[2mms[22m[39m
+   [31m❯[39m Command fmtCmd [2m(5)[22m
+[31m     [31m×[31m should output message if no feature files are found[39m[32m 18[2mms[22m[39m
+     [32m✓[39m should format a feature file and write it by default[32m 8[2mms[22m[39m
+     [32m✓[39m should not write if write=false[32m 6[2mms[22m[39m
+     [32m✓[39m should exit with code 3 if check=true and files are unformatted[32m 7[2mms[22m[39m
+[31m     [31m×[31m should format recursively if recursive=true[39m[32m 12[2mms[22m[39m
+[90mstdout[2m | test/policy-cmd.test.ts[2m > [22m[2mPolicy Command and Management[2m > [22m[2mshould disable and enable a policy, persisting to main.yml
+[22m[39m
+Policy "required-gherkin" has been disabled.
+Updated configuration in C:\Users\flavi\AppData\Local\Temp\testform-policy-test-wmfZkQ\main.yml
+
+
+[90mstdout[2m | test/policy-cmd.test.ts[2m > [22m[2mPolicy Command and Management[2m > [22m[2mshould disable and enable a policy, persisting to main.yml
+[22m[39m
+Success! Policy "required-gherkin" has been enabled.
+Updated configuration in C:\Users\flavi\AppData\Local\Temp\testform-policy-test-wmfZkQ\main.yml
+
+
+ [31m❯[39m test/feature-view.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 21[2mms[22m[39m
+   [31m❯[39m Resource -feature view [2m(4)[22m
+     [32m✓[39m formats a testcase in Gherkin scenario format when action is add (+)[32m 4[2mms[22m[39m
+     [32m✓[39m formats a testcase in Gherkin scenario format when action is change (~)[32m 1[2mms[22m[39m
+     [32m✓[39m formats a destroyed testcase reconstructing from state attributes (-)[32m 1[2mms[22m[39m
+[31m     [31m×[31m resource.summary uses formatFeature when context.feature is true[39m[32m 13[2mms[22m[39m
+[90mstdout[2m | test/policy-cmd.test.ts[2m > [22m[2mPolicy Command and Management[2m > [22m[2mshould auto-discover custom policies from .testform/policies/
+[22m[39m
+ID                              SCOPE                        TYPE      STATUS      DESCRIPTION
+──────────────────────────────  ───────────────────────────  ────────  ──────────  ──────────────────────────────
+custom-naming-rule              testcase                     custom    enabled     Custom enterprise naming check
+duplicate-testruns-in-testplan  testplan                     system    enabled     Prevents duplicate testruns inside the same or across testplans
+identity-required               testcase, testrun, testplan  system    enabled     Enforces identity tags (@tc-X, @tr-X, @tp-X)
+identity-unique                 testcase, testrun, testplan  system    enabled     Verifies identity tag uniqueness within scope
+no-feature-tags                 testcase, testrun, testplan  system    enabled     Restricts non-standard tags at the Feature level
+required-fields                 testcase, testrun, testplan  system    enabled     Ensures required fields defined in configuration are present
+required-gherkin                testcase                     system    enabled     Validates required Gherkin structure and keywords (Given, When, Then)
+undeclared-fields               testcase                     system    enabled     Warns about scenario fields not declared in configuration
+
+
+[90mstdout[2m | test/policy-cmd.test.ts[2m > [22m[2mPolicy Command and Management[2m > [22m[2mshould auto-discover shared module policies from .testform/modules/<mod>/policies/
+[22m[39m
+ID                              SCOPE                        TYPE      STATUS      DESCRIPTION
+──────────────────────────────  ───────────────────────────  ────────  ──────────  ──────────────────────────────
+custom-naming-rule              testcase                     custom    enabled     Custom enterprise naming check
+duplicate-testruns-in-testplan  testplan                     system    enabled     Prevents duplicate testruns inside the same or across testplans
+identity-required               testcase, testrun, testplan  system    enabled     Enforces identity tags (@tc-X, @tr-X, @tp-X)
+identity-unique                 testcase, testrun, testplan  system    enabled     Verifies identity tag uniqueness within scope
+module-jira-compliance          testcase, testrun            custom    enabled     Enforces Jira issue linkage across 200 projects
+no-feature-tags                 testcase, testrun, testplan  system    enabled     Restricts non-standard tags at the Feature level
+required-fields                 testcase, testrun, testplan  system    enabled     Ensures required fields defined in configuration are present
+required-gherkin                testcase                     system    enabled     Validates required Gherkin structure and keywords (Given, When, Then)
+undeclared-fields               testcase                     system    enabled     Warns about scenario fields not declared in configuration
+
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould infer free-text search when filter has no "="
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-1YjPzP\search-out.json
+
+ [32m✓[39m test/policy-cmd.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 141[2mms[22m[39m
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould filter by custom fields (priority=high)
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-81rB9m\priority-out.json
+
+ [31m❯[39m test/refresh.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 68[2mms[22m[39m
+   [31m❯[39m Command refreshCmd [2m(5)[22m
+[31m     [31m×[31m should report no resources if state is empty[39m[32m 14[2mms[22m[39m
+     [32m✓[39m should refresh a resource and sync title[32m 20[2mms[22m[39m
+     [32m✓[39m should remove a resource if issue is closed[32m 9[2mms[22m[39m
+     [32m✓[39m should remove a resource if it lacks an issue number[32m 10[2mms[22m[39m
+     [32m✓[39m does not log "No resources in state to refresh" during implicit refresh (plan/apply)[32m 5[2mms[22m[39m
+[90mstdout[2m | test/provider-installer.test.ts[2m > [22m[2mProviderInstaller & Dynamic Registry[2m > [22m[2mscaffolds a full enterprise provider project structure with --project
+[22m[39m
+✔ Successfully scaffolded enterprise provider project at:
+  C:\Users\flavi\AppData\Local\Temp\testform-dyn-provider-Qge377\my-gitlab-provider
+
+Project Structure:
+  ├── package.json
+  ├── tsconfig.json
+  ├── README.md
+  ├── src/
+  │   ├── index.ts        (Main provider implementing IProvider)
+  │   ├── client.ts       (Typed HTTP API client)
+  │   └── types.ts        (Contracts and schemas)
+  └── test/
+      └── provider.test.ts
+
+To publish to your company Git:
+  cd testform-provider-gitlab
+  git init && git add . && git commit -m "feat: initial provider"
+  git tag v1.0.0
+
+
+[90mstdout[2m | test/lifecycle.test.ts[2m > [22m[2mLifecycle Meta-Arguments (Phase 3)[2m > [22m[2mshould block destruction when prevent_destroy is active
+[22m[39m╷
+│ Error: Instance cannot be destroyed
+│
+│   Resource github.testcase.login.case.feature.@tc-1 has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.
+╵
+
+ [31m❯[39m test/plan.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 95[2mms[22m[39m
+   [31m❯[39m Command planCmd [2m(7)[22m
+     [32m✓[39m should generate a plan successfully[32m 16[2mms[22m[39m
+     [32m✓[39m should output plan to a file if outPath is specified[32m 16[2mms[22m[39m
+     [32m✓[39m should output JSON when isJson is true[32m 6[2mms[22m[39m
+     [32m✓[39m should set exit code to 2 if detailedExitCode is true and there are changes[32m 7[2mms[22m[39m
+     [32m✓[39m should return empty changes when refreshOnly is true[32m 24[2mms[22m[39m
+     [32m✓[39m should force replace resources matching replaceTargets[32m 15[2mms[22m[39m
+[31m     [31m×[31m should not output consecutive empty lines when state has no resources[39m[32m 9[2mms[22m[39m
+ [31m❯[39m test/report.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 128[2mms[22m[39m
+   [31m❯[39m Command reportCmd [2m(10)[22m
+[31m     [31m×[31m should generate testcase-summary markdown[39m[32m 18[2mms[22m[39m
+     [32m✓[39m should generate testrun-summary markdown[32m 11[2mms[22m[39m
+     [32m✓[39m should filter correctly by label[32m 24[2mms[22m[39m
+     [32m✓[39m should filter correctly by custom field[32m 12[2mms[22m[39m
+     [32m✓[39m should output csv format correctly[32m 8[2mms[22m[39m
+     [32m✓[39m should generate defects report[32m 7[2mms[22m[39m
+     [32m✓[39m should handle two-dimensional matrix[32m 13[2mms[22m[39m
+     [32m✓[39m should include custom fields when requested via fields option[32m 9[2mms[22m[39m
+     [32m✓[39m should include all custom fields when fields=all is requested[32m 14[2mms[22m[39m
+     [32m✓[39m should include custom fields by default in native reports when present in items[32m 8[2mms[22m[39m
+ [32m✓[39m test/import.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 176[2mms[22m[39m
+ [32m✓[39m test/provider-installer.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 213[2mms[22m[39m
+ [31m❯[39m test/ephemeral.test.ts [2m([22m[2m13 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 160[2mms[22m[39m
+   [31m❯[39m Command ephemeralCmd [2m(13)[22m
+     [32m✓[39m should validate sandbox IDs correctly[32m 10[2mms[22m[39m
+[31m     [31m×[31m should fail if no subcommand is provided[39m[32m 18[2mms[22m[39m
+     [32m✓[39m should fail if unknown subcommand is provided[32m 6[2mms[22m[39m
+     [32m✓[39m ephemeral up [2m(3)[22m
+       [32m✓[39m should reject missing sandbox id[32m 5[2mms[22m[39m
+       [32m✓[39m should reject invalid sandbox id format[32m 5[2mms[22m[39m
+       [32m✓[39m should create sandbox directory, metadata, and invoke applyCmd with isolated state[32m 20[2mms[22m[39m
+     [32m✓[39m ephemeral down [2m(3)[22m
+       [32m✓[39m should reject missing sandbox id[32m 2[2mms[22m[39m
+       [32m✓[39m should warn gracefully if sandbox does not exist and force is false[32m 3[2mms[22m[39m
+       [32m✓[39m should invoke destroyCmd and delete isolated sandbox folder[32m 13[2mms[22m[39m
+     [32m✓[39m ephemeral list and show [2m(4)[22m
+       [32m✓[39m should list empty message when no sandboxes exist[32m 5[2mms[22m[39m
+       [32m✓[39m should list empty json array when no sandboxes exist with --json[32m 3[2mms[22m[39m
+       [32m✓[39m should list active sandboxes in table and json formats[32m 53[2mms[22m[39m
+       [32m✓[39m should show sandbox details[32m 8[2mms[22m[39m
+ [31m❯[39m test/lifecycle.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 192[2mms[22m[39m
+   [31m❯[39m Lifecycle Meta-Arguments (Phase 3) [2m(5)[22m
+     [32m✓[39m should parse lifecycle configuration from resource block and tags[32m 30[2mms[22m[39m
+     [32m✓[39m should parse lifecycle defined inside resource.yml following Terraform parity[32m 11[2mms[22m[39m
+     [32m✓[39m should block destruction when prevent_destroy is active[32m 36[2mms[22m[39m
+     [32m✓[39m should ignore changes in detectAttributeDrift when ignore_changes is specified[32m 4[2mms[22m[39m
+[31m     [31m×[31m should ignore tag changes in plan calculation when ignore_changes: [labels] is active[39m[32m 106[2mms[22m[39m
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould generate valid Word (.docx) document buffer
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-a2Pw7q\output.docx
+
+[90mstdout[2m | test/config-yaml.test.ts[2m > [22m[2mYAML Configuration Support[2m > [22m[2mshould ignore testform.json since only YAML config files are supported
+[22m[39m╷
+│ Error: No configuration files
+│
+│   Plan requires configuration to be present. Planning without a configuration would mark everything for
+│   destruction, which is normally not what is desired. If you would like to destroy everything, run plan with the
+│   -destroy option. Otherwise, create a Testform configuration file (main.yml) and try again.
+╵
+
+[90mstdout[2m | test/config-yaml.test.ts[2m > [22m[2mYAML Configuration Support[2m > [22m[2mshould generate main.yml by default on initCmd with testform block
+[22m[39mInitializing the backend...
+
+[90mstdout[2m | test/config-yaml.test.ts[2m > [22m[2mYAML Configuration Support[2m > [22m[2mshould generate main.yml by default on initCmd with testform block
+[22m[39m
+Successfully configured the backend "local"! Testform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+- Using built-in github provider
+
+Testform has created/updated the lock file .testform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Testform can guarantee to make the same selections by default when you
+run "testform init" in the future.
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources. All Testform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Testform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+
+[90mstdout[2m | test/config-yaml.test.ts[2m > [22m[2mYAML Configuration Support[2m > [22m[2mshould respect and load existing testform.yml for backward compatibility
+[22m[39mInitializing the backend...
+
+[90mstdout[2m | test/config-yaml.test.ts[2m > [22m[2mYAML Configuration Support[2m > [22m[2mshould respect and load existing testform.yml for backward compatibility
+[22m[39m
+Successfully configured the backend "local"! Testform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+- Using built-in local provider
+
+Testform has created/updated the lock file .testform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Testform can guarantee to make the same selections by default when you
+run "testform init" in the future.
+
+Testform has been successfully initialized!
+
+You may now begin working with Testform. Try running "testform plan" to see
+any changes that are required for your test management resources. All Testform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Testform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+
+ [31m❯[39m test/spec.test.ts [2m([22m[2m20 tests[22m[2m | [22m[31m9 failed[39m[2m)[22m[33m 430[2mms[22m[39m
+   [31m❯[39m Testform Spec Command Tree & Results Ingestion [2m(20)[22m
+     [32m✓[39m spec testcase [2m(4)[22m
+       [32m✓[39m should create a new testcase specification file[32m 25[2mms[22m[39m
+       [32m✓[39m should add a scenario to an existing testcase specification[32m 22[2mms[22m[39m
+       [32m✓[39m should delete a scenario by identity tag[32m 11[2mms[22m[39m
+       [32m✓[39m should display reverse lookup status querying linked runs and bugs[32m 70[2mms[22m[39m
+     [32m✓[39m spec testrun [2m(2)[22m
+       [32m✓[39m should create new testrun in evolution mode and link testcases[32m 24[2mms[22m[39m
+       [32m✓[39m should display testrun dashboard with -show-name and -show-detail[32m 23[2mms[22m[39m
+     [32m✓[39m spec testplan [2m(1)[22m
+       [32m✓[39m should create testplan and link testruns[32m 15[2mms[22m[39m
+     [32m✓[39m spec bug [2m(1)[22m
+       [32m✓[39m should create bug container, add bug scenarios, and mark bug resolution[32m 29[2mms[22m[39m
+     [32m✓[39m import -results="cucumber.json" -auto-create-bugs [2m(1)[22m
+       [32m✓[39m should ingest cucumber.json, decode Base64 embeddings to PNGs, create run and auto-create bugs[32m 24[2mms[22m[39m
+     [31m❯[39m spec autocomplete & target enhancements [2m(11)[22m
+[31m       [31m×[31m should autocomplete empty testrun rules using spec testrun fill[39m[32m 35[2mms[22m[39m
+       [32m✓[39m should support inline status in -case (e.g. -case="@tc-1=passed")[32m 16[2mms[22m[39m
+       [32m✓[39m should support positional args for testcase in spec testrun mark[32m 16[2mms[22m[39m
+[31m       [31m×[31m should resolve sub-command help in getCommandHelp[39m[32m 16[2mms[22m[39m
+[31m       [31m×[31m should autocomplete using flag -fill in spec testrun -fill -target=@tr-1[39m[32m 10[2mms[22m[39m
+[31m       [31m×[31m should generate testrun matching tag coincidence using -include=smoke without brackets[39m[32m 11[2mms[22m[39m
+[31m       [31m×[31m should match multiple or compound tags (e.g. -include="one tag") and respect -test-directory[39m[32m 15[2mms[22m[39m
+[31m       [31m×[31m should include full feature file and exclude unwanted tags with -include="order.case.feature" -exclude=wip[39m[32m 12[2mms[22m[39m
+[31m       [31m×[31m should filter scenarios with -include=smoke -exclude=manual[39m[32m 17[2mms[22m[39m
+[31m       [31m×[31m should filter candidate scenarios during -fill with -include and -exclude[39m[32m 22[2mms[22m[39m
+[31m       [31m×[31m should include all testcases except excluded with -exclude=manual[39m[32m 12[2mms[22m[39m
+ [32m✓[39m test/config-yaml.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 210[2mms[22m[39m
+ [32m✓[39m test/init.test.ts [2m([22m[2m25 tests[22m[2m)[22m[33m 673[2mms[22m[39m
+[90mstdout[2m | test/variables.test.ts[2m > [22m[2mVariableParser Hierarchy, Auto-load *.vars.yml and AST Engine[2m > [22m[2mshould validate enum restriction on variable declaration
+[22m[39m╷
+│ Error: Variable enum validation error: "environment"
+│
+│   Value "qa" is not in the allowed list: [dev, staging, prod].
+╵
+
+[90mstdout[2m | test/variables.test.ts[2m > [22m[2mVariableParser Hierarchy, Auto-load *.vars.yml and AST Engine[2m > [22m[2mshould evaluate custom validation condition and throw error_message when condition fails
+[22m[39m╷
+│ Error: The image_tag value must start with 'v'.
+│
+│   The image_tag value must start with 'v'.
+╵
+
+ [32m✓[39m test/variables.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 179[2mms[22m[39m
+ [32m✓[39m test/data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 749[2mms[22m[39m
+   [32m✓[39m Data Sources System (Phase 2) [2m(7)[22m
+     [33m[2m✓[22m[39m should resolve http data source with GET and POST requests, auto-parsing JSON[33m 629[2mms[22m[39m
+ [32m✓[39m test/providers/local.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 86[2mms[22m[39m
+ [32m✓[39m test/graph.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 258[2mms[22m[39m
+ [32m✓[39m test/editor.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 121[2mms[22m[39m
+ [32m✓[39m test/diff.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 142[2mms[22m[39m
+ [32m✓[39m test/output.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m test/cli.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m test/backend-http.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m test/module_repower.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 141[2mms[22m[39m
+ [32m✓[39m test/validate.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 100[2mms[22m[39m
+ [32m✓[39m test/modules-cmd.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m test/apply.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m test/providers.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m test/depends_on.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m test/providers/gitlab.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m test/backend/github.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould generate valid Excel (.xlsx) workbook buffer
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-1pmOL5\output.xlsx
+
+ [32m✓[39m test/state.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m test/module.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+ [32m✓[39m test/expressions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould interpolate ${var.*} and ${report.*} in Excel (.xlsx) template cells
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-z8Bp0h\interpolated.xlsx
+
+ [32m✓[39m test/taint.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould autoload custom report from .testform/reports/ without modifying main.yml
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-AtLfVE\custom-out.json
+
+ [32m✓[39m test/diagnostics.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould autoload custom global format from .testform/reports/
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-Cs1Ntr\output.xml
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould scope report to a single testrun when -target is specified
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-NtCnVx\target-run.json
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould scope report to a testplan and expand its linked testruns when -target is specified
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-9g7g3b\target-plan.json
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould format unknown report error using Terraform diagnostic convention
+[22m[39m╷
+│ Error: Report type "non-existent-report" not found
+│
+│   Available built-in reports:
+│     testcase-summary, testrun-summary, testrun-detailed, testplan-summary, defects, traceability, coverage, two-dimensional, test-case-activity, raw, cross-defects, cross-traceability, cross-coverage, cross-twodimensional, cross-two-dimensional
+│
+│   Or create a custom report script in:
+│     .testform/reports/non-existent-report.ts
+╵
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould format unknown format error using Terraform diagnostic convention
+[22m[39m╷
+│ Error: Format "non-existent-format" not found
+│
+│   Available core formats:
+│     md, markdown, json, csv, docx, word, xlsx, excel
+│
+│   Or create a custom format script in:
+│     .testform/reports/non-existent-format.format.ts
+╵
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould format missing template file error using Terraform diagnostic convention
+[22m[39m╷
+│ Error: Template file not found: non-existent-template.docx
+│
+│   The specified Word template path does not exist on disk.
+│   Verify the path or omit the -template flag to use the default template.
+╵
+
+[90mstdout[2m | test/modular-reports.test.ts[2m > [22m[2mModular Reports & Formats Engine[2m > [22m[2mshould not emit github issueUrl in raw report when provider is local or has no remote url
+[22m[39mReport saved to C:\Users\flavi\AppData\Local\Temp\testform-modular-test-TmYH0h\raw-local.json
+
+ [32m✓[39m test/modular-reports.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 1860[2mms[22m[39m
+   [32m✓[39m Modular Reports & Formats Engine [2m(15)[22m
+     [33m[2m✓[22m[39m should generate valid Excel (.xlsx) workbook buffer[33m 1290[2mms[22m[39m
+ [32m✓[39m test/login.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m test/sync.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m test/destroy.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m test/functions-cmd.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m test/logout.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m test/policy.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m test/query.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m test/selector.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m test/workspace.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m test/resources.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m test/suite.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m test/show.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m test/force-unlock.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 17 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m test/ephemeral.test.ts[2m > [22mCommand ephemeralCmd[2m > [22mshould fail if no subcommand is provided
+[31m[1mAssertionError[22m: expected "error" to be called at least once[39m
+[36m [2m❯[22m test/ephemeral.test.ts:[2m58:27[22m[39m
+    [90m 56|[39m     it('should fail if no subcommand is provided', async () => {
+    [90m 57|[39m         await expect(ephemeralCmd({ dir: tmpDir, subcommand: '' })).re…
+    [90m 58|[39m         expect(mockError).toHaveBeenCalled();
+    [90m   |[39m                           [31m^[39m
+    [90m 59|[39m     });
+    [90m 60|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/feature-view.test.ts[2m > [22mResource -feature view[2m > [22mresource.summary uses formatFeature when context.feature is true
+[31m[1mAssertionError[22m: expected 'Testform used the selected providers …' not to contain 'resource "github_testcase"'[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- resource "github_testcase"[39m
+[31m+ Testform used the selected providers to generate the following execution plan. Resource actions are indicated with the[39m
+[31m+ following symbols:[39m
+[31m+   + create[39m
+[31m+[39m
+[31m+ Testform will perform the following actions:[39m
+[31m+[39m
+[31m+   # github.testcase.auth.case.feature.@tc-01 will be created[39m
+[31m+   + resource "github_testcase" "auth.case.feature.@tc-01" {[39m
+[31m+       + title           = "Login exitoso"[39m
+[31m+       + body            = <<-EOT[39m
+[31m+             ```gherkin[39m
+[31m+             Given usuario en home[39m
+[31m+             ```[39m
+[31m+         EOT[39m
+[31m+       + labels          = [][39m
+[31m+       + assignees       = [][39m
+[31m+       + custom_fields   = {[39m
+[31m+         }[39m
+[31m+       + status          = "pending"[39m
+[31m+       + metadata        = {[39m
+[31m+         }[39m
+[31m+     }[39m
+[31m+[39m
+[31m+ Plan: 1 to add, 0 to change, 0 to destroy.[39m
+[31m+[39m
+[31m+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m
+[31m+[39m
+[31m+ Note: You didn't use the -out option to save this plan, so Testform can't guarantee to take exactly these[39m
+[31m+ actions if you run "testform apply" now.[39m
+
+[36m [2m❯[22m test/feature-view.test.ts:[2m197:32[22m[39m
+    [90m195|[39m
+    [90m196|[39m         // Should NOT contain HCL resource syntax
+    [90m197|[39m         expect(loggedText).not.toContain('resource "github_testcase"');
+    [90m   |[39m                                [31m^[39m
+    [90m198|[39m         // Should contain Gherkin Scenario
+    [90m199|[39m         expect(loggedText).toContain('Scenario: Login exitoso');
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/fmt.test.ts[2m > [22mCommand fmtCmd[2m > [22mshould output message if no feature files are found
+[31m[1mAssertionError[22m: expected "log" to be called with arguments: [ 'No .feature files found.' ][90m
+
+Received:
+
+[1m  1st log call:
+
+[22m[2m  [[22m
+[32m-   "No .feature files found.",[90m
+[31m+   "No .feature files found in C:\\Users\\flavi\\AppData\\Local\\Temp\\testform-fmt-test-EMX6TG.",[90m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m test/fmt.test.ts:[2m35:25[22m[39m
+    [90m 33|[39m     it('should output message if no feature files are found', async ()…
+    [90m 34|[39m         await fmtCmd({ dir: tmpDir });
+    [90m 35|[39m         expect(mockLog).toHaveBeenCalledWith('No .feature files found.…
+    [90m   |[39m                         [31m^[39m
+    [90m 36|[39m     });
+    [90m 37|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/fmt.test.ts[2m > [22mCommand fmtCmd[2m > [22mshould format recursively if recursive=true
+[31m[1mAssertionError[22m: expected "log" to be called with arguments: [ 'No .feature files found.' ][90m
+
+Received:
+
+[1m  1st log call:
+
+[22m[2m  [[22m
+[32m-   "No .feature files found.",[90m
+[31m+   "C:\\Users\\flavi\\AppData\\Local\\Temp\\testform-fmt-test-cSrg0N\\sub\\test.feature",[90m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m test/fmt.test.ts:[2m84:25[22m[39m
+    [90m 82|[39m         // Without recursive, it shouldn't find it
+    [90m 83|[39m         await fmtCmd({ dir: tmpDir });
+    [90m 84|[39m         expect(mockLog).toHaveBeenCalledWith('No .feature files found.…
+    [90m   |[39m                         [31m^[39m
+    [90m 85|[39m
+    [90m 86|[39m         mockLog.mockClear();
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/lifecycle.test.ts[2m > [22mLifecycle Meta-Arguments (Phase 3)[2m > [22mshould ignore tag changes in plan calculation when ignore_changes: [labels] is active
+[31m[1mAssertionError[22m: expected 1 to be +0 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 1[39m
+
+[36m [2m❯[22m test/lifecycle.test.ts:[2m242:38[22m[39m
+    [90m240|[39m
+    [90m241|[39m         // Because labels is in ignore_changes, hash calculation strip…
+    [90m242|[39m         expect(plan2.changes.length).toBe(0);
+    [90m   |[39m                                      [31m^[39m
+    [90m243|[39m         expect(plan2.hasChanges).toBe(false);
+    [90m244|[39m     });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/plan.test.ts[2m > [22mCommand planCmd[2m > [22mshould not output consecutive empty lines when state has no resources
+[31m[1mTypeError[22m: state.save is not a function[39m
+[36m [2m❯[22m refreshState src/commands/refresh.ts:[2m70:21[22m[39m
+    [90m 68|[39m
+    [90m 69|[39m     if (resources.length === 0) {
+    [90m 70|[39m         await state.save();
+    [90m   |[39m                     [31m^[39m
+    [90m 71|[39m         if (!silent && !isImplicit) console.log('No resources in state…
+    [90m 72|[39m         return;
+[90m [2m❯[22m Module.planCmd src/commands/plan.ts:[2m402:23[22m[39m
+[90m [2m❯[22m test/plan.test.ts:[2m224:9[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/refresh.test.ts[2m > [22mCommand refreshCmd[2m > [22mshould report no resources if state is empty
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called at least once[39m
+[36m [2m❯[22m test/refresh.test.ts:[2m52:26[22m[39m
+    [90m 50|[39m         const logs = mockLog.mock.calls.join(' ');
+    [90m 51|[39m         expect(logs).toContain('No resources in state to refresh');
+    [90m 52|[39m         expect(mockSave).toHaveBeenCalled();
+    [90m   |[39m                          [31m^[39m
+    [90m 53|[39m     });
+    [90m 54|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/report.test.ts[2m > [22mCommand reportCmd[2m > [22mshould generate testcase-summary markdown
+[31m[1mAssertionError[22m: expected '# Informe de Casos de Prueba\n\n**tot…' to contain '✅ passed'[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- ✅ passed[39m
+[31m+ # Informe de Casos de Prueba[39m
+[31m+[39m
+[31m+ **total:** `2` | **passed:** `1` | **failed:** `1` | **pending:** `0` | **blocked:** `0` | **skipped:** `0` | **unexecuted:** `0` | **tasa_exito:** `50%`[39m
+[31m+[39m
+[31m+ | ID | Título | Etiquetas | Estado | Asignado | Priority |[39m
+[31m+ | --- | --- | --- | --- | --- | --- |[39m
+[31m+ | tc1 | Test 1 | @sprint-1 | passed | user1 | - |[39m
+[31m+ | tc2 | Test 2 | @sprint-2 | failed | user2 | high |[39m
+[31m+[39m
+
+[36m [2m❯[22m test/report.test.ts:[2m71:22[22m[39m
+    [90m 69|[39m         expect(logs).toContain('# Informe de Casos de Prueba');
+    [90m 70|[39m         expect(logs).toContain('tc1');
+    [90m 71|[39m         expect(logs).toContain('✅ passed');
+    [90m   |[39m                      [31m^[39m
+    [90m 72|[39m         expect(logs).toContain('tc2');
+    [90m 73|[39m         expect(logs).toContain('❌ failed');
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould autocomplete empty testrun rules using spec testrun fill
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m resolveTargetScenario src/core/selector.ts:[2m681:20[22m[39m
+[90m [2m❯[22m runAutocomplete src/commands/spec-builder.ts:[2m104:53[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m522:19[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m449:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould resolve sub-command help in getCommandHelp
+[31m[1mError[22m: Cannot find module '../src/core/help'
+Require stack:
+- C:\Users\flavi\Desktop\repositorio\testform\test\spec.test.ts[39m
+[36m [2m❯[22m test/spec.test.ts:[2m497:40[22m[39m
+    [90m495|[39m
+    [90m496|[39m         it('should resolve sub-command help in getCommandHelp', () => {
+    [90m497|[39m             const { getCommandHelp } = require('../src/core/help');
+    [90m   |[39m                                        [31m^[39m
+    [90m498|[39m             expect(getCommandHelp('spec testcase')).toContain('spec te…
+    [90m499|[39m             expect(getCommandHelp('spec testrun')).toContain('spec tes…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould autocomplete using flag -fill in spec testrun -fill -target=@tr-1
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m resolveTargetScenario src/core/selector.ts:[2m681:20[22m[39m
+[90m [2m❯[22m runAutocomplete src/commands/spec-builder.ts:[2m104:53[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m522:19[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m513:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould generate testrun matching tag coincidence using -include=smoke without brackets
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m runTagsSuite src/commands/spec-builder.ts:[2m228:20[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m459:23[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m530:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould match multiple or compound tags (e.g. -include="one tag") and respect -test-directory
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m runTagsSuite src/commands/spec-builder.ts:[2m228:20[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m459:23[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m556:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould include full feature file and exclude unwanted tags with -include="order.case.feature" -exclude=wip
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m runTagsSuite src/commands/spec-builder.ts:[2m228:20[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m459:23[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m578:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould filter scenarios with -include=smoke -exclude=manual
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m runTagsSuite src/commands/spec-builder.ts:[2m228:20[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m459:23[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m600:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould filter candidate scenarios during -fill with -include and -exclude
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m resolveTargetScenario src/core/selector.ts:[2m681:20[22m[39m
+[90m [2m❯[22m runAutocomplete src/commands/spec-builder.ts:[2m104:53[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m522:19[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m627:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spec.test.ts[2m > [22mTestform Spec Command Tree & Results Ingestion[2m > [22mspec autocomplete & target enhancements[2m > [22mshould include all testcases except excluded with -exclude=manual
+[31m[1mTestformError[22m: Configuration is missing the "version" or "testform" field[39m
+[36m [2m❯[22m Logger.push src/core/logger.ts:[2m192:25[22m[39m
+    [90m190|[39m
+    [90m191|[39m         if (close) {
+    [90m192|[39m             const err = new TestformError(options.title);
+    [90m   |[39m                         [31m^[39m
+    [90m193|[39m             (err as any).logged = true;
+    [90m194|[39m             throw err;
+[90m [2m❯[22m Config.required src/core/config.ts:[2m441:20[22m[39m
+[90m [2m❯[22m new Config src/core/config.ts:[2m19:18[22m[39m
+[90m [2m❯[22m runTagsSuite src/commands/spec-builder.ts:[2m228:20[22m[39m
+[90m [2m❯[22m handleTestrun src/commands/spec.ts:[2m459:23[22m[39m
+[90m [2m❯[22m specCmd src/commands/spec.ts:[2m1313:19[22m[39m
+[90m [2m❯[22m test/spec.test.ts:[2m649:19[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/17]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m42 passed[39m[22m[90m (50)[39m
+[2m      Tests [22m [1m[31m17 failed[39m[22m[2m | [22m[1m[32m401 passed[39m[22m[90m (418)[39m
+[2m   Start at [22m 22:15:32
+[2m   Duration [22m 3.34s[2m (import 62%, tests 24%, transform 10%, worker 3%)[22m
+
+[2m    Isolate [22m [33m50 workers spawned[39m[2m · ~281ms startup each (spawn + environment, per file)[22m
+[2m            [22m [2mat least ~655ms faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+

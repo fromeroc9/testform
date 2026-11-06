@@ -5,6 +5,7 @@ import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { State } from '../src/core/state';
+import { getCommandHelp } from '../src/core/help';
 
 describe('Testform Spec Command Tree & Results Ingestion', () => {
     let tmpDir: string;
@@ -494,7 +495,6 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
         });
 
         it('should resolve sub-command help in getCommandHelp', () => {
-            const { getCommandHelp } = require('../src/core/help');
             expect(getCommandHelp('spec testcase')).toContain('spec testcase <action>');
             expect(getCommandHelp('spec testrun')).toContain('spec testrun <action>');
             expect(getCommandHelp('spec testplan')).toContain('spec testplan <action>');

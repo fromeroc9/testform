@@ -182,7 +182,7 @@ export async function runAutocomplete(options: {
         }
 
         // Build testcases list: "ruleName.scenarioIdentity"
-        const config = new Config(dir);
+        const config = new Config(dir, false);
         const caseData = { identity: config.getIdentity('testcase'), fields: config.getFields('testcase') };
         let filteredCases = caseParser.filter(caseScenarios, caseData, 'testcase') || [];
 
@@ -225,7 +225,7 @@ export async function runTagsSuite(options: {
 }) {
     const { dir, include, exclude, title, testDirectory, variables } = options;
     const searchDir = testDirectory ? join(dir, testDirectory) : dir;
-    const config = new Config(dir);
+    const config = new Config(dir, false);
 
     if (!include && !exclude) {
         Diag.error({

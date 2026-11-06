@@ -67,7 +67,9 @@ export const refreshState = async (options: RefreshStateOptions) => {
     }
 
     if (resources.length === 0) {
-        await state.save();
+        if (typeof state.save === 'function') {
+            await state.save();
+        }
         if (!silent && !isImplicit) console.log('No resources in state to refresh.');
         return;
     }
@@ -105,26 +107,39 @@ export const refreshState = async (options: RefreshStateOptions) => {
         if (!silent) console.log(`${formatResourceAddress(res.type, res.identity)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
 
         try {
-            if (!res.attributes.issueNumber) {
+            const targetId = res.attributes.issueNumber || res.attributes.remoteId;
+            if (!targetId) {
                 if (!silent) console.log(yellow(`  ${res.identity}: No issue number — removing from state`));
                 state.removeResource(res.identity);
                 removed++;
                 return;
             }
 
-            const issue = await github.getIssue(res.attributes.issueNumber);
+            const providerResources = github.resources || github.apis;
+            const resHandler = providerResources
+                ? (providerResources[res.type] || providerResources[res.type.replace(/^.*_/, '')] || providerResources.issue || Object.values(providerResources)[0])
+                : undefined;
+
+            let issue: any = null;
+            if (resHandler?.read) {
+                issue = await resHandler.read(targetId);
+            } else if (resHandler?.get) {
+                issue = await resHandler.get(targetId);
+            } else if (typeof (github as any).getIssue === 'function') {
+                issue = await (github as any).getIssue(targetId);
+            }
 
             if (!issue) {
-                if (!silent) console.log(red(`  ${res.identity}: Issue #${res.attributes.issueNumber} not found — removing from state`));
+                if (!silent) console.log(red(`  ${res.identity}: Issue #${targetId} not found — removing from state`));
                 state.removeResource(res.identity);
                 removed++;
-            } else if (issue.state === 'closed') {
-                if (!silent) console.log(yellow(`  ${res.identity}: Issue #${res.attributes.issueNumber} is closed — removing from state`));
+            } else if (issue.state === 'closed' || issue.status === 'deleted') {
+                if (!silent) console.log(yellow(`  ${res.identity}: Issue #${targetId} is closed — removing from state`));
                 state.removeResource(res.identity);
                 removed++;
             } else {
-                const remoteCustomFields = (issue.node_id && github.getProjectItemFields)
-                    ? await github.getProjectItemFields(issue.node_id)
+                const remoteCustomFields = (issue.node_id && (github as any).getProjectItemFields)
+                    ? await (github as any).getProjectItemFields(issue.node_id)
                     : undefined;
 
                 const lifecycle = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
@@ -138,7 +153,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 if (hasDrift) {
                     res.attributes = { ...res.attributes, ...newAttributes };
                     if (!silent) {
-                        console.log(yellow(`  ! Drift detected on remote for ${formatIdentityDisplay(res.identity)} (Issue #${res.attributes.issueNumber})`));
+                        console.log(yellow(`  ! Drift detected on remote for ${formatIdentityDisplay(res.identity)} (Issue #${targetId})`));
                         console.log(dim(`    Run 'testform diff --remote' to inspect differences or interactively pull changes.`));
                     }
                     // Invalidate localHash to force a plan diff
@@ -223,6 +238,9 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
         }
 
         if (totalResources === 0) {
+            if (typeof stateObj.save === 'function') {
+                await stateObj.save();
+            }
             console.log('No resources in state to refresh.');
             return;
         }
