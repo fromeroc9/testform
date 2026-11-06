@@ -88,6 +88,7 @@ export interface ParserFeature {
     name: string;
     description: string;
     location: number;
+    custom?: Record<string, any>;
 }
 
 interface ParserPolicy {

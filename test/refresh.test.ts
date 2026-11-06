@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
-import { refreshCmd } from '../src/commands/refresh';
+import { refreshCmd, refreshState } from '../src/commands/refresh';
+import { Logger } from '../src/core/logger';
 import { State } from '../src/core/state';
 import { GitHubAdapter } from '../src/providers/github';
 import { join } from 'path';
@@ -188,9 +189,6 @@ describe('Command refreshCmd', () => {
             getResources: vi.fn().mockReturnValue([]),
             save: mockSave
         };
-
-        const { refreshState } = await import('../src/commands/refresh');
-        const { Logger } = await import('../src/core/logger');
 
         mockLog.mockClear();
         await refreshState({

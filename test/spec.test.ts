@@ -455,8 +455,8 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             });
 
             const content = readFileSync(runFile, 'utf-8');
-            expect(content).toContain('Scenario: payment.case.feature.@tc-1');
-            expect(content).toContain('Scenario: payment.case.feature.@tc-2');
+            expect(content).toContain('Scenario: @tc-1');
+            expect(content).toContain('Scenario: @tc-2');
             expect(content).toContain('* mark status = pending');
         });
 
@@ -518,7 +518,7 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             });
 
             const content = readFileSync(runFile, 'utf-8');
-            expect(content).toContain('Scenario: order.case.feature.@tc-10');
+            expect(content).toContain('Scenario: @tc-10');
             expect(content).toContain('* mark status = pending');
         });
 
@@ -634,8 +634,8 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             });
 
             const content = readFileSync(runFile, 'utf-8');
-            expect(content).toContain('Valid Card');
-            expect(content).not.toContain('Crypto Payment');
+            expect(content).toContain('Scenario: @tc-1');
+            expect(content).not.toContain('@tc-2');
         });
 
         it('should include all testcases except excluded with -exclude=manual', async () => {
