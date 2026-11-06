@@ -213,6 +213,8 @@ export function createCli() {
         .option('--compact-warnings', 'Show warnings in compact form')
         .option('--test-directory <dir>', 'Directory containing feature files')
         .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
+        .option('--gherkins', 'Alias for --gherkin')
+        .option('--feature', 'Alias for --gherkin')
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -237,7 +239,7 @@ export function createCli() {
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
                 testDirectory: options.testDirectory,
-                gherkin: Boolean(options.gherkin)
+                gherkin: Boolean(options.gherkin || options.feature || options.gherkins)
             });
         });
 
@@ -258,6 +260,8 @@ export function createCli() {
         .option('--compact-warnings', 'Show warnings in compact form')
         .option('--test-directory <dir>', 'Directory containing feature files')
         .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
+        .option('--gherkins', 'Alias for --gherkin')
+        .option('--feature', 'Alias for --gherkin')
         .action(async (planFile, options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -280,7 +284,7 @@ export function createCli() {
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
                 testDirectory: options.testDirectory,
-                gherkin: Boolean(options.gherkin)
+                gherkin: Boolean(options.gherkin || options.feature || options.gherkins)
             });
         });
 
@@ -315,6 +319,8 @@ export function createCli() {
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
         .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
+        .option('--gherkins', 'Alias for --gherkin')
+        .option('--feature', 'Alias for --gherkin')
         .action(async (path, options) => {
             const workDir = getWorkDir(options);
             await showCmd({
@@ -324,7 +330,7 @@ export function createCli() {
                 dir: workDir,
                 statePath: options.state,
                 backupPath: options.backup,
-                gherkin: Boolean(options.gherkin)
+                gherkin: Boolean(options.gherkin || options.feature || options.gherkins)
             });
         });
 
