@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.5] - 2026-11-06
+
+### Added
+
+#### 🛡️ Modular Policy Engine & Multi-Tier Severity Governance
+- **Modularized Policies Architecture (`src/policies/`):**
+  - Extracted policy logic into dedicated domain modules: `types.ts`, `catalog.ts`, `engine.ts`, `loader.ts`, and `index.ts`.
+  - Added support for the `bug` scope (`@bg-*`) across all policy scanners and evaluators.
+  - Added `bug-target-integrity` rule to enforce that bug scenarios declare an target scenario, test run, or failure trace.
+- **Severity Discrimination & Non-Blocking Warnings:**
+  - Implemented 3 policy severity levels: `error` (blocking), `warning` (advisory/informational, non-blocking by default), and `advisory`.
+  - Distinguishes fatal errors from warnings in `plan` and `validate`, allowing workflows with minor warnings (like `undeclared-fields`) to proceed smoothly without aborting.
+- **Advanced CLI Filtering Flags on `validate`:**
+  - `-include=pattern`: Filter scanned features by glob or tag criteria (e.g. `-include="tests/checkout/**"`, `-include=smoke`).
+  - `-exclude=pattern`: Exclude features matching glob or tag criteria (e.g. `-exclude="tests/legacy/**"`, `-exclude=wip`).
+  - `-severity=level`: Minimum severity threshold to report (`error`, `warning`, `advisory`).
+  - `-strict`: Elevate policy warnings to blocking errors for strict CI/CD pipelines.
+  - `-compact-warnings`: Condensed single-line diagnostic output for warnings.
+- **Dynamic Policy Loading & Scaffolding:**
+  - Custom policies auto-discovered from `.testform/policies/*.ts`, `./policies/*.ts`, and shared modules.
+  - Scaffolding generator via `testform policy --scaffold <name>`, creating typed custom policies using `templates/policy.template.ts`.
+
+#### 🧩 Resource Management Subcommand (`testform providers resource`)
+- **Consolidated Resource Management under Providers:**
+  - Integrated `resource` management directly under `testform providers` for strict architectural cohesion with providers.
+  - `testform providers resource scaffold <name>`: Bootstraps `.testform/resources/<name>.ts` with typed attributes, state, and lifecycle hooks.
+  - `testform providers resource list`: Lists all registered resource types across the workspace, indicating `[lifecycle hooks]`.
+  - `testform providers resource show <name>`: Displays template details, attribute evaluators, state fields, and lifecycle hooks.
+  - Full machine-readable `--json` support across all resource subcommands.
+
+#### 🗂️ Standardized Scaffolding Templates (`templates/`)
+- **Centralized Templates Directory:**
+  - `templates/policy.template.ts`: Standard policy scaffold template.
+  - `templates/provider.template.ts`: Agnostic CRUD `IProvider` template (`create`, `read`, `update`, `delete`).
+  - `templates/starter-provider/`: Full enterprise project scaffold with TypeScript, client, types, and Vitest suite (`testform providers scaffold <name> --project`).
+  - `templates/resource.template.ts`: Standard `ResourceTemplate` scaffold template.
+
+### Fixed
+
+#### 🥒 Feature & Gherkin View CLI Aliases (`plan`, `apply`, `show`)
+- **Universal CLI Flag Parsing:**
+  - Added `--feature` and `--gherkins` aliases alongside `--gherkin` in `plan`, `apply`, and `show`.
+  - Evaluates `Boolean(options.gherkin || options.feature || options.gherkins)`, ensuring native Gherkin scenario representation with change diff symbols (`+`, `-`, `~`) is displayed seamlessly with any flag variation.
+
+#### 🪟 Cross-Platform State Path Normalization
+- **Windows Backslash Canonicalization:**
+  - Automatically normalizes Windows backslash paths (`\`) into canonical POSIX forward slashes (`/`) in `testform.state`, ensuring cross-platform state file portability between Windows, Linux, and macOS.
+
 ## [1.1.0-beta.4] - 2026-11-05
 
 ### Added
