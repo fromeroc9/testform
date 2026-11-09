@@ -320,6 +320,21 @@ export function findResourceInState(resources: any[], target: string): any | und
             return true;
         }
 
+        // Dot-notation namespace match: e.g. "pix.boleto.case.feature.@tc-01" -> matches "boleto.case.feature.@tc-01"
+        if (normT.includes('.')) {
+            const firstDot = normT.indexOf('.');
+            const withoutNamespace = normT.substring(firstDot + 1).toLowerCase();
+            const withoutNamespaceTag = withoutNamespace.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
+            if (
+                normIdLower.endsWith(`/${withoutNamespace}`) ||
+                normIdLower.endsWith(withoutNamespace) ||
+                normIdNormalizedTag.endsWith(`/${withoutNamespaceTag}`) ||
+                normIdNormalizedTag.endsWith(withoutNamespaceTag)
+            ) {
+                return true;
+            }
+        }
+
         return false;
     });
     if (suffixMatched) return suffixMatched;
@@ -561,15 +576,36 @@ export function matchesFeatureFile(filePath: string, featurePart?: string): bool
     const normalizedFile = normFile.replace(/\.feature$/i, '');
     const normalizedTarget = normTarget;
 
-    return (
+    if (
         normFile === normTarget ||
         normFile === featurePart ||
         normalizedFile === normalizedTarget ||
-        normFile.endsWith(normTarget) ||
         normFile.endsWith('/' + normTarget) ||
         normFile.endsWith('/' + normTarget + '.feature') ||
-        basename(normalizedFile) === basename(normalizedTarget)
-    );
+        normalizedFile.endsWith('/' + normalizedTarget) ||
+        (!normTarget.includes('/') && basename(normalizedFile) === basename(normalizedTarget))
+    ) {
+        return true;
+    }
+
+    // Dot-notation namespace match: e.g. "pix.boleto.case.feature" or "pix.boleto"
+    const dotParts = normTarget.split('.');
+    if (dotParts.length >= 2) {
+        const nsPrefix = dotParts[0].toLowerCase();
+        const filePart = dotParts.slice(1).join('.');
+        const filePartNorm = filePart.replace(/\.feature$/i, '');
+        if (
+            (normalizedFile.toLowerCase().includes(`/${nsPrefix}/`) || normalizedFile.toLowerCase().includes(nsPrefix)) &&
+            (normalizedFile.endsWith('/' + filePart) ||
+             normalizedFile.endsWith('/' + filePartNorm) ||
+             basename(normalizedFile) === filePart ||
+             basename(normalizedFile) === basename(filePartNorm))
+        ) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**

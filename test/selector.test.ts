@@ -3,6 +3,8 @@ import {
     matchesScope,
     detectScopeFromTarget,
     matchesTarget,
+    matchesFeatureFile,
+    findResourceInState,
     parseSpec,
     matchesScenarioSpec,
     matchesStateKey,
@@ -168,6 +170,48 @@ describe('Target and Spec Selector (src/core/selector)', () => {
             expect(matchesStateKey(stateKey, title, { casePart: 'validar credenciales correctas' })).toBe(true);
             expect(matchesStateKey(stateKey, title, { casePart: '@tc-1', rawIdentifier: stateKey })).toBe(true);
             expect(matchesStateKey(stateKey, title, { featurePart: 'other.feature', casePart: '@tc-1' })).toBe(false);
+        });
+    });
+
+    describe('Canonical Addresses: Suffix Matching & Basename Resolution', () => {
+        it('should match file paths by suffix (e.g. folder3/A.feature)', () => {
+            const fullPath = 'folder1/folder2/folder3/A.case.feature';
+            expect(matchesFeatureFile(fullPath, 'folder3/A.case.feature')).toBe(true);
+            expect(matchesFeatureFile(fullPath, 'A.case.feature')).toBe(true);
+            expect(matchesFeatureFile(fullPath, 'folder4/A.case.feature')).toBe(false);
+        });
+
+        it('should match resources in state by scoped suffix', () => {
+            const resources = [
+                { type: 'testcase', identity: 'testcase/folder1/folder2/folder3/A.case.feature.@tc-01' },
+                { type: 'testcase', identity: 'testcase/folder4/A.case.feature.@tc-01' },
+            ];
+
+            const found3 = findResourceInState(resources, 'folder3/A.case.feature.@tc-01');
+            expect(found3).toBeDefined();
+            expect(found3?.identity).toContain('folder3');
+
+            const found4 = findResourceInState(resources, 'folder4/A.case.feature.@tc-01');
+            expect(found4).toBeDefined();
+            expect(found4?.identity).toContain('folder4');
+        });
+    });
+
+    describe('Dot-Notation Namespaces (@ns / @namespace)', () => {
+        it('should match feature file with namespace dot prefix (e.g. pix.boleto.case.feature)', () => {
+            const filePath = 'tests/features/payments/pix/boleto.case.feature';
+            expect(matchesFeatureFile(filePath, 'pix.boleto.case.feature')).toBe(true);
+            expect(matchesFeatureFile(filePath, 'payments.boleto.case.feature')).toBe(true);
+        });
+
+        it('should find resource in state using namespace address', () => {
+            const resources = [
+                { type: 'testcase', identity: 'testcase/payments/pix/boleto.case.feature.@tc-01' },
+            ];
+
+            const found = findResourceInState(resources, 'pix.boleto.case.feature.@tc-01');
+            expect(found).toBeDefined();
+            expect(found?.identity).toBe('testcase/payments/pix/boleto.case.feature.@tc-01');
         });
     });
 });
