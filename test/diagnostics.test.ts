@@ -28,7 +28,7 @@ describe('Diagnostic Components (Terraform-styled)', () => {
 
         const notifyObj = diag.toNotify();
         expect(notifyObj.type).toBe('error');
-        expect(notifyObj.title).toBe('Cannot mark status on implicit rule');
+        expect(notifyObj.title).toBe('Cannot set status on implicit rule');
         expect(notifyObj.detail).toEqual(expect.arrayContaining([
             'on tests/run1.run.feature line 12, in rule "checkout.case.feature":',
             '  12:   Rule: checkout.case.feature',

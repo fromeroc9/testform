@@ -8,18 +8,19 @@
 
 import { Parser as Parse, AstBuilder, GherkinClassicTokenMatcher } from "@cucumber/gherkin";
 import { Background, FeatureChild, GherkinDocument, IdGenerator, RuleChild, Step, TableCell, Tag } from "@cucumber/messages";
-import { readFileSync, statSync, readdirSync } from "fs";
-import { join, relative } from "path";
+import { readFileSync } from "fs";
+import { relative } from "path";
 import {
     IField, IScope, ITest,
     ParserFeature, ParserScenario, ParserStep, ParserBackground, ParserRule
 } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { CONFIG_FILE_NAMES } from '../core/const';
-import { parseModuleTargets, parseModuleTag, resolveModulePath, loadModuleSteps, ModuleRegistry } from '../core/module';
+import { parseModuleTargets, resolveModulePath, loadModuleSteps, ModuleRegistry } from '../core/module';
 import { reassembleSplitTags, sanitizeTagsWithSpaces, restoreTagsWithSpaces } from '../core/utils';
 import { findFeatureFiles } from '../core/editor';
 import { Diag } from '../core/diagnostics';
+import { AstCache } from '../core/cache';
 
 export const FIELD_PATTERN = /^(?:field)\s+([A-Za-z0-9_.\- ]+?)\s*=\s*(.+)$/i;
 
@@ -222,9 +223,18 @@ export abstract class BaseParser {
         const featureFiles = this.find(this.dir);
         const scenarios: ParserScenario[] = [];
         const projectRoot = this.findProjectRoot(this.dir);
+        const cache = new AstCache(projectRoot);
 
         const loadedModules = new Set<string>();
         for (const file of featureFiles) {
+            if (!this.variables) {
+                const cachedScenarios = cache.get(file);
+                if (cachedScenarios) {
+                    scenarios.push(...cachedScenarios);
+                    continue;
+                }
+            }
+
             let content = readFileSync(file, "utf-8");
             if (this.variables) {
                 content = this.variables.applyToTemplate(content);
@@ -287,9 +297,14 @@ export abstract class BaseParser {
                 }
             }
 
-            scenarios.push(...this.format(rawDoc, file));
+            const formatted = this.format(rawDoc, file);
+            if (!this.variables) {
+                cache.set(file, formatted);
+            }
+            scenarios.push(...formatted);
         }
 
+        cache.save();
         return scenarios;
     }
 

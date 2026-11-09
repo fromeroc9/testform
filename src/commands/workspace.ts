@@ -1,4 +1,4 @@
-import { red, green, bold } from 'chalk';
+import { green } from 'chalk';
 import { Logger } from '../core/logger';
 import { State } from '../core/state';
 import { TITLE_CLI } from '../core/const';

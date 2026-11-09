@@ -329,7 +329,7 @@ export async function runTagsSuite(options: {
         for (const sc of scenarios) {
             const scName = sc.name || 'Unnamed Scenario';
             content += `    Scenario: ${scName}\n`;
-            content += `      * mark status = pending\n\n`;
+            content += `      * set status = pending\n\n`;
             totalCases++;
         }
     }

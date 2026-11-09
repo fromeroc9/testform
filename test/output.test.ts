@@ -4,7 +4,6 @@ import { resolve } from 'path';
 import { OutputResolver } from '../src/core/outputs';
 import { State } from '../src/core/state';
 import { VariableParser } from '../src/core/variables';
-import { outputCmd } from '../src/commands/output';
 
 describe('Output System (Phase 1)', () => {
     const testDir = resolve(__dirname, 'tmp-output-test');

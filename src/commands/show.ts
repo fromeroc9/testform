@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import pathLib from 'path';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
-import { TITLE_APP, TITLE_CLI } from '../core/const';
+import { TITLE_APP } from '../core/const';
 import { resource } from '../core/resources';
 
 interface ShowCmdOptions {
@@ -88,7 +88,7 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
             const remoteId = res.attributes.remoteId ?? '(unknown)';
             const status = res.attributes.issueNumber ? green('synced') : yellow('pending');
 
-            const formattedIdentity = res.identity;
+            const formattedIdentity = res.address || (res as any).identity;
 
             console.log(`  ${cyan(res.type)}.${bold(formattedIdentity)} [id=${remoteId}] ${status}`);
             console.log(`    title:        ${res.attributes.title}`);

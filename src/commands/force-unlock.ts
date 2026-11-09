@@ -1,7 +1,5 @@
-import { existsSync, readFileSync, unlinkSync } from 'fs';
-import { resolve } from 'path';
 import * as readline from 'readline';
-import { bold, red, green } from 'chalk';
+import { red, green } from 'chalk';
 import { State } from '../core/state';
 import { TITLE_APP } from '../core/const';
 

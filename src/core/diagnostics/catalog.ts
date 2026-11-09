@@ -66,11 +66,11 @@ export class Diag {
         return new Diagnostic({ ...props, type: 'warning' });
     }
 
-    /** Diagnostic when attempting to mark status on an unexpanded implicit rule */
+    /** Diagnostic when attempting to set status on an unexpanded implicit rule */
     static implicitRule(props: ImplicitRuleDiagProps): Diagnostic {
         return new Diagnostic({
             type: 'error',
-            title: 'Cannot mark status on implicit rule',
+            title: 'Cannot set status on implicit rule',
             location: {
                 file: props.file,
                 line: props.line,

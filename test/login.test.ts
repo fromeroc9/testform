@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { loginCmd } from '../src/commands/login';
 import { Credentials } from '../src/core/credentials';
 import * as readline from 'readline';
@@ -45,7 +45,7 @@ describe('Command loginCmd', () => {
         });
 
         // Simulate user typing a valid token
-        mockQuestion.mockImplementation(((questionText: string, cb: any) => {
+        mockQuestion.mockImplementation(((_questionText: string, cb: any) => {
             cb('my-secret-token');
         }) as any);
 
@@ -60,7 +60,7 @@ describe('Command loginCmd', () => {
 
     it('should abort if an empty token is provided', async () => {
         // Simulate user typing an empty token
-        mockQuestion.mockImplementation(((questionText: string, cb: any) => {
+        mockQuestion.mockImplementation(((_questionText: string, cb: any) => {
             cb('   ');
         }) as any);
 
@@ -80,7 +80,7 @@ describe('Command loginCmd', () => {
             };
         });
 
-        mockQuestion.mockImplementation(((questionText: string, cb: any) => {
+        mockQuestion.mockImplementation(((_questionText: string, cb: any) => {
             cb('token123');
         }) as any);
 

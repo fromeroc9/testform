@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { IGitHubConfig } from '../../core/types';
 import { logger } from '../../core/logger';
 import { Credentials } from '../../core/credentials';
-import { IProvider, IProviderAdapter, IProviderIssuePayload, IProviderIssueResult, IProviderApiService, IProviderResourceHandler } from '../interface';
+import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
 import { TITLE_CLI, VERSION_CLI } from '../../core/const';
 
 class Mutex {

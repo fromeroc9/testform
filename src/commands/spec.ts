@@ -1,15 +1,15 @@
 import { resolve, join, basename, dirname } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
-import { bold, green, yellow, red, cyan, gray, magenta } from 'chalk';
+import { bold, green, yellow, red, cyan, gray } from 'chalk';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { Parser } from '../core/parser';
 import { IScope } from '../core/types';
 import { Diag } from '../core/diagnostics';
-import { TITLE_CLI, SCOPE_CONFIG, TESTCASE_STATUSES } from '../core/const';
+import { TITLE_CLI, SCOPE_CONFIG } from '../core/const';
 import { findNextIdentity, GherkinEditor } from '../core/editor';
 import { VariableParser } from '../core/variables';
-import { matchesScope, matchesFeatureFile, promptTargetSuite } from '../core/selector';
+import { matchesScope, promptTargetSuite } from '../core/selector';
 import { HELP_SPEC, HELP_SPEC_TESTCASE, HELP_SPEC_TESTRUN, HELP_SPEC_TESTPLAN, HELP_SPEC_BUG } from '../core/help';
 import { runAutocomplete, runTagsSuite, parsePatternFilter, matchesScenarioFilter } from './spec-builder';
 import { isInteractive } from '../core/prompt';
@@ -289,20 +289,23 @@ async function handleTestcase(options: SpecCmdOptions) {
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
                 const matchedTc = testcases.find((tc: any) => {
-                    const normId = (tc.identity || '').replace(/\\/g, '/');
+                    const normAddr = (tc.address || tc.identity || '').replace(/\\/g, '/');
+                    const normPath = (tc.path || '').replace(/\\/g, '/');
                     const cleanT = cleanTarget.replace(/\\/g, '/');
-                    return normId === cleanT || normId.endsWith(cleanT) || cleanT.endsWith(normId) ||
+                    return normAddr === cleanT || normAddr.endsWith(cleanT) || cleanT.endsWith(normAddr) ||
+                           normPath === cleanT || normPath.endsWith(cleanT) ||
+                           tc.tag === cleanTarget ||
                            (tc.attributes?.title && tc.attributes.title.toLowerCase() === cleanTarget.toLowerCase());
                 });
 
-                const tcDisplayName = (matchedTc && showName && matchedTc.attributes?.title) ? matchedTc.attributes.title : (matchedTc?.identity || cleanTarget);
+                const tcDisplayName = (matchedTc && showName && matchedTc.attributes?.title) ? matchedTc.attributes.title : (matchedTc?.address || matchedTc?.identity || cleanTarget);
                 const tcTitle = matchedTc?.attributes?.title || 'Unknown title';
                 const tcTags = (matchedTc?.attributes?.labels || []).join(' ') || '';
 
                 console.log(bold(`\n======================================================================`));
                 console.log(`${bold('TESTCASE:')} ${cyan(tcDisplayName)}`);
-                if (showName && matchedTc?.identity) {
-                    console.log(`${bold('Address:')}  ${gray(matchedTc.identity)}`);
+                if (showName && (matchedTc?.address || matchedTc?.identity)) {
+                    console.log(`${bold('Address:')}  ${gray(matchedTc.address || matchedTc.identity)}`);
                 }
                 console.log(`${bold('Title:')}    ${tcTitle}`);
                 if (tcTags) console.log(`${bold('Tags:')}     ${tcTags}`);
@@ -324,7 +327,7 @@ async function handleTestcase(options: SpecCmdOptions) {
                     if (matchedKey) {
                         runMatches++;
                         const verdict = tcMap[matchedKey];
-                        const runTitle = (showName && tr.attributes?.title) ? tr.attributes.title : tr.identity;
+                        const runTitle = (showName && tr.attributes?.title) ? tr.attributes.title : (tr.address || tr.identity);
                         console.log(`  ${getStatusBadge(verdict)}  ${bold(runTitle)} -> ${verdict}`);
 
                         if (showDetail) {
@@ -355,7 +358,7 @@ async function handleTestcase(options: SpecCmdOptions) {
                     if (normLinked && (normLinked === normTarget || normLinked.endsWith(normTarget) || normTarget.endsWith(normLinked))) {
                         bugMatches++;
                         const bgStatus = bg.attributes?.status || 'failed';
-                        const bgTitle = (showName && bg.attributes?.title) ? bg.attributes.title : bg.identity;
+                        const bgTitle = (showName && bg.attributes?.title) ? bg.attributes.title : (bg.address || bg.identity);
                         const sev = bg.attributes?.severity || bg.attributes?.custom_fields?.severity || 'unspecified';
                         const prio = bg.attributes?.priority || bg.attributes?.custom_fields?.priority || 'unspecified';
 
@@ -387,11 +390,11 @@ async function handleTestcase(options: SpecCmdOptions) {
                 }
 
                 for (const tc of testcases) {
-                    const tcDisplayName = (showName && tc.attributes?.title) ? tc.attributes.title : tc.identity;
+                    const tcDisplayName = (showName && tc.attributes?.title) ? tc.attributes.title : (tc.address || tc.identity);
                     let lastVerdict = 'untested';
                     for (const tr of testruns) {
                         const tcMap = tr.attributes?.testcases || tr.attributes?.testcaseStatuses || {};
-                        const kMatch = Object.keys(tcMap).find(k => k === tc.identity || tc.identity.endsWith(k));
+                        const kMatch = Object.keys(tcMap).find(k => k === tc.address || tc.address?.endsWith(k) || k === tc.tag || k === tc.identity || tc.identity?.endsWith(k));
                         if (kMatch) lastVerdict = tcMap[kMatch];
                     }
                     console.log(`  ${getStatusBadge(lastVerdict)}  ${tcDisplayName}`);
@@ -500,7 +503,7 @@ async function handleTestrun(options: SpecCmdOptions) {
                         detail: [
                             `Reads each Rule block in the target testrun feature file,`,
                             `finds the referenced .case.feature on disk, and fills its scenarios into`,
-                            `the testrun file with 'mark status = pending'.`,
+                            `the testrun file with 'set status = pending'.`,
                             ``,
                             `Options:`,
                             `  -target=<@tr-N|file>   Target testrun suite file (required)`,
@@ -560,7 +563,7 @@ async function handleTestrun(options: SpecCmdOptions) {
                 let appendContent = '';
                 for (const sc of matchingScenarios) {
                     const id = sc.custom?.identity || sc.name;
-                    appendContent += `\n  Scenario: ${id}\n    * mark status = ${effectiveStatus}\n`;
+                    appendContent += `\n  Scenario: ${id}\n    * set status = ${effectiveStatus}\n`;
                 }
                 writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + appendContent, 'utf-8');
                 console.log(green(bold(`\n✓ Linked ${matchingScenarios.length} scenario(s) matching criteria (include: ${include || 'all'}, exclude: ${exclude || 'none'}) to ${basename(filePath)}`)));
@@ -588,7 +591,7 @@ async function handleTestrun(options: SpecCmdOptions) {
                 return;
             }
 
-            const scenarioContent = `\n  Scenario: ${effectiveCase}\n    * mark status = ${effectiveStatus}\n`;
+            const scenarioContent = `\n  Scenario: ${effectiveCase}\n    * set status = ${effectiveStatus}\n`;
             writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + scenarioContent, 'utf-8');
             console.log(green(bold(`\n✓ Linked testcase ${effectiveCase} to testrun ${basename(filePath)} with status ${effectiveStatus}`)));
             break;
@@ -639,16 +642,17 @@ async function handleTestrun(options: SpecCmdOptions) {
             break;
         }
 
+        case 'set':
         case 'mark': {
             if (!effectiveTarget || !effectiveCase) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec testrun mark -target=<@tr-X|file> -case=<testcase_address> -status=<passed|failed|pending|skipped> [-trace="..."] [-evidence="..."]`,
+                    syntax: `${TITLE_CLI} spec testrun set -target=<@tr-X|file> -case=<testcase_address> -status=<passed|failed|pending|skipped> [-trace="..."] [-evidence="..."]`,
                     detail: [
                         `Record execution status, stack trace, and evidence for a testcase inside a testrun.`,
                         ``,
                         `You can also provide -case with inline status:`,
-                        `  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01=passed"`,
-                        `  ${TITLE_CLI} spec testrun mark "@tc-01=passed" -target="@tr-1"`
+                        `  ${TITLE_CLI} spec testrun set -target="@tr-1" -case="@tc-01=passed"`,
+                        `  ${TITLE_CLI} spec testrun set "@tc-01=passed" -target="@tr-1"`
                     ]
                 }).abort();
                 return;
@@ -677,18 +681,18 @@ async function handleTestrun(options: SpecCmdOptions) {
                 }
 
                 if (inTargetScenario) {
-                    if (line.trim().startsWith('Scenario:') || line.trim().startsWith('Rule:') || (line.trim().startsWith('@') && !line.includes('mark'))) {
+                    if (line.trim().startsWith('Scenario:') || line.trim().startsWith('Rule:') || (line.trim().startsWith('@') && !line.includes('set') && !line.includes('mark'))) {
                         // Exiting target scenario
                         inTargetScenario = false;
                     } else {
-                        if (line.includes('mark status =')) {
-                            newLines.push(`    * mark status = ${effectiveStatus}`);
+                        if (line.includes('set status =') || line.includes('mark status =')) {
+                            newLines.push(`    * set status = ${effectiveStatus}`);
                             statusUpdated = true;
-                            if (trace) newLines.push(`    * mark trace = ${trace.split('\n')[0]}`);
-                            if (evidence) newLines.push(`    * mark evidence = ${evidence}`);
+                            if (trace) newLines.push(`    * set trace = ${trace.split('\n')[0]}`);
+                            if (evidence) newLines.push(`    * set evidence = ${evidence}`);
                             continue;
                         }
-                        if (line.includes('mark trace =') || line.includes('mark evidence =')) {
+                        if (line.includes('set trace =') || line.includes('set evidence =') || line.includes('mark trace =') || line.includes('mark evidence =')) {
                             // Skipped; replaced above
                             continue;
                         }
@@ -701,21 +705,21 @@ async function handleTestrun(options: SpecCmdOptions) {
             if (!foundScenario) {
                 // Scenario not found, append it!
                 newLines.push(`\n  Scenario: ${effectiveCase}`);
-                newLines.push(`    * mark status = ${effectiveStatus}`);
-                if (trace) newLines.push(`    * mark trace = ${trace.split('\n')[0]}`);
-                if (evidence) newLines.push(`    * mark evidence = ${evidence}`);
+                newLines.push(`    * set status = ${effectiveStatus}`);
+                if (trace) newLines.push(`    * set trace = ${trace.split('\n')[0]}`);
+                if (evidence) newLines.push(`    * set evidence = ${evidence}`);
             } else if (!statusUpdated) {
-                // Scenario existed but had no mark step
+                // Scenario existed but had no status step
                 const scIdx = newLines.findIndex(l => matchesScenarioInText(l, effectiveCase));
                 if (scIdx !== -1) {
-                    newLines.splice(scIdx + 1, 0, `    * mark status = ${effectiveStatus}`);
-                    if (trace) newLines.splice(scIdx + 2, 0, `    * mark trace = ${trace.split('\n')[0]}`);
-                    if (evidence) newLines.splice(scIdx + 3, 0, `    * mark evidence = ${evidence}`);
+                    newLines.splice(scIdx + 1, 0, `    * set status = ${effectiveStatus}`);
+                    if (trace) newLines.splice(scIdx + 2, 0, `    * set trace = ${trace.split('\n')[0]}`);
+                    if (evidence) newLines.splice(scIdx + 3, 0, `    * set evidence = ${evidence}`);
                 }
             }
 
             writeFileSync(filePath, newLines.join('\n'), 'utf-8');
-            console.log(green(bold(`\n✓ Marked testcase ${effectiveCase} as ${effectiveStatus} in ${basename(filePath)}`)));
+            console.log(green(bold(`\n✓ Set testcase ${effectiveCase} as ${effectiveStatus} in ${basename(filePath)}`)));
             break;
         }
 
@@ -729,8 +733,11 @@ async function handleTestrun(options: SpecCmdOptions) {
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
                 const tr = testruns.find((r: any) => {
-                    const normId = (r.identity || '').replace(/\\/g, '/');
-                    return normId === cleanTarget || normId.endsWith(cleanTarget) || cleanTarget.endsWith(normId) ||
+                    const normAddr = (r.address || r.identity || '').replace(/\\/g, '/');
+                    const normPath = (r.path || '').replace(/\\/g, '/');
+                    return normAddr === cleanTarget || normAddr.endsWith(cleanTarget) || cleanTarget.endsWith(normAddr) ||
+                           normPath === cleanTarget || normPath.endsWith(cleanTarget) ||
+                           r.tag === cleanTarget ||
                            (r.attributes?.title && r.attributes.title.toLowerCase() === cleanTarget.toLowerCase());
                 });
 
@@ -756,11 +763,11 @@ async function handleTestrun(options: SpecCmdOptions) {
                     else counts.pending++;
                 });
 
-                const runDisplayName = (showName && tr.attributes?.title) ? tr.attributes.title : tr.identity;
+                const runDisplayName = (showName && tr.attributes?.title) ? tr.attributes.title : (tr.address || tr.identity);
                 console.log(bold(`\n======================================================================`));
                 console.log(`${bold('TESTRUN:')} ${cyan(runDisplayName)}`);
-                if (showName && tr.identity) {
-                    console.log(`${bold('Address:')} ${gray(tr.identity)}`);
+                if (showName && (tr.address || tr.identity)) {
+                    console.log(`${bold('Address:')} ${gray(tr.address || tr.identity)}`);
                 }
                 console.log(`${bold('Title:')}   ${tr.attributes?.title || 'Unknown title'}`);
                 console.log(`${bold('Status:')}  Total: ${counts.total} | ${green('Passed: ' + counts.passed)} | ${red('Failed: ' + counts.failed)} | ${yellow('Pending: ' + counts.pending)} | ${gray('Skipped: ' + counts.skipped)}`);
@@ -769,7 +776,7 @@ async function handleTestrun(options: SpecCmdOptions) {
 
                 for (const k of keys) {
                     const verdict = tcMap[k] || 'pending';
-                    const tcRes = testcases.find((t: any) => t.identity === k || k.endsWith(t.identity) || t.identity?.endsWith(k));
+                    const tcRes = testcases.find((t: any) => t.address === k || k.endsWith(t.address) || t.address?.endsWith(k) || t.path === k || t.tag === k || t.identity === k);
                     const displayName = (showName && tcRes?.attributes?.title) ? tcRes.attributes.title : k;
 
                     console.log(`  ${getStatusBadge(verdict)}  ${displayName}`);
@@ -906,8 +913,11 @@ async function handleTestplan(options: SpecCmdOptions) {
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
                 const plan = testplans.find((p: any) => {
-                    const normId = (p.identity || '').replace(/\\/g, '/');
-                    return normId === cleanTarget || normId.endsWith(cleanTarget) || cleanTarget.endsWith(normId) ||
+                    const normAddr = (p.address || p.identity || '').replace(/\\/g, '/');
+                    const normPath = (p.path || '').replace(/\\/g, '/');
+                    return normAddr === cleanTarget || normAddr.endsWith(cleanTarget) || cleanTarget.endsWith(normAddr) ||
+                           normPath === cleanTarget || normPath.endsWith(cleanTarget) ||
+                           p.tag === cleanTarget ||
                            (p.attributes?.title && p.attributes.title.toLowerCase() === cleanTarget.toLowerCase());
                 });
 
@@ -916,11 +926,11 @@ async function handleTestplan(options: SpecCmdOptions) {
                     return;
                 }
 
-                const planDisplayName = (showName && plan.attributes?.title) ? plan.attributes.title : plan.identity;
+                const planDisplayName = (showName && plan.attributes?.title) ? plan.attributes.title : (plan.address || plan.identity);
                 console.log(bold(`\n======================================================================`));
                 console.log(`${bold('TESTPLAN:')} ${cyan(planDisplayName)}`);
-                if (showName && plan.identity) {
-                    console.log(`${bold('Address:')}  ${gray(plan.identity)}`);
+                if (showName && (plan.address || plan.identity)) {
+                    console.log(`${bold('Address:')}  ${gray(plan.address || plan.identity)}`);
                 }
                 console.log(`${bold('Title:')}    ${plan.attributes?.title || 'Unknown title'}`);
                 console.log(`----------------------------------------------------------------------`);
@@ -933,7 +943,7 @@ async function handleTestplan(options: SpecCmdOptions) {
                 let planFailed = 0;
 
                 for (const rKey of planRuns) {
-                    const tr = testruns.find((r: any) => r.identity === rKey || r.identity.endsWith(rKey) || rKey.endsWith(r.identity));
+                    const tr = testruns.find((r: any) => r.address === rKey || r.address.endsWith(rKey) || rKey.endsWith(r.address) || r.path === rKey || r.tag === rKey || r.identity === rKey);
                     const rTitle = (showName && tr?.attributes?.title) ? tr.attributes.title : rKey;
                     const tcMap = tr?.attributes?.testcases || tr?.attributes?.testcaseStatuses || {};
                     const rTotal = Object.keys(tcMap).length;
@@ -959,7 +969,7 @@ async function handleTestplan(options: SpecCmdOptions) {
             } else {
                 console.log(bold(`\n${cyan('Testplans Overview:')}`));
                 for (const tp of testplans) {
-                    const titleStr = (showName && tp.attributes?.title) ? tp.attributes.title : tp.identity;
+                    const titleStr = (showName && tp.attributes?.title) ? tp.attributes.title : (tp.address || tp.identity);
                     console.log(`  ${cyan(titleStr)} - Linked runs: ${(tp.attributes?.testruns || []).length}`);
                 }
                 console.log('');
@@ -1043,12 +1053,12 @@ async function handleBug(options: SpecCmdOptions) {
             const bugScenarioTitle = title || (effectiveCase ? `Defect in ${effectiveCase}` : `Bug ${bgTag}`);
 
             let sc = `\n  ${bgTag}\n  Scenario: ${bugScenarioTitle}\n`;
-            if (effectiveCase) sc += `    * mark target = ${effectiveCase}\n`;
-            sc += `    * mark status = ${effectiveStatus}\n`;
-            if (severity) sc += `    * mark severity = ${severity}\n`;
-            if (priority) sc += `    * mark priority = ${priority}\n`;
-            if (trace) sc += `    * mark trace = ${trace.split('\n')[0]}\n`;
-            if (evidence) sc += `    * mark evidence = ${evidence}\n`;
+            if (effectiveCase) sc += `    * set target = ${effectiveCase}\n`;
+            sc += `    * set status = ${effectiveStatus}\n`;
+            if (severity) sc += `    * set severity = ${severity}\n`;
+            if (priority) sc += `    * set priority = ${priority}\n`;
+            if (trace) sc += `    * set trace = ${trace.split('\n')[0]}\n`;
+            if (evidence) sc += `    * set evidence = ${evidence}\n`;
 
             writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + sc, 'utf-8');
             console.log(green(bold(`\n✓ Added bug scenario ${bgTag} "${bugScenarioTitle}" to ${basename(filePath)}`)));
@@ -1127,10 +1137,11 @@ async function handleBug(options: SpecCmdOptions) {
             break;
         }
 
+        case 'set':
         case 'mark': {
             if (!effectiveTarget) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug mark -target=<@bg-X> -status=<failed|passed|pending> [-trace="..."] [-evidence="..."]`,
+                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<failed|passed|pending> [-trace="..."] [-evidence="..."]`,
                     detail: [`Update resolution status, stack trace, and evidence for a bug scenario.`]
                 }).abort();
                 return;
@@ -1157,13 +1168,13 @@ async function handleBug(options: SpecCmdOptions) {
                             if (line.trim().startsWith('@') || line.trim().startsWith('Feature:') ||
                                 (line.trim().startsWith('Scenario:') && !lines[i - 1]?.trim().startsWith('@'))) {
                                 inBug = false;
-                            } else if (line.includes('mark status =')) {
-                                newLines.push(`    * mark status = ${effectiveStatus}`);
-                                if (trace) newLines.push(`    * mark trace = ${trace.split('\n')[0]}`);
-                                if (evidence) newLines.push(`    * mark evidence = ${evidence}`);
+                            } else if (line.includes('set status =') || line.includes('mark status =')) {
+                                newLines.push(`    * set status = ${effectiveStatus}`);
+                                if (trace) newLines.push(`    * set trace = ${trace.split('\n')[0]}`);
+                                if (evidence) newLines.push(`    * set evidence = ${evidence}`);
                                 updated = true;
                                 continue;
-                            } else if (line.includes('mark trace =') || line.includes('mark evidence =')) {
+                            } else if (line.includes('set trace =') || line.includes('set evidence =') || line.includes('mark trace =') || line.includes('mark evidence =')) {
                                 continue;
                             }
                         }
@@ -1194,8 +1205,11 @@ async function handleBug(options: SpecCmdOptions) {
             if (effectiveTarget) {
                 const cleanTarget = effectiveTarget.trim();
                 const bug = bugs.find((b: any) => {
-                    const normId = (b.identity || '').replace(/\\/g, '/');
-                    return normId === cleanTarget || normId.endsWith(cleanTarget) || cleanTarget.endsWith(normId);
+                    const normAddr = (b.address || b.identity || '').replace(/\\/g, '/');
+                    const normPath = (b.path || '').replace(/\\/g, '/');
+                    return normAddr === cleanTarget || normAddr.endsWith(cleanTarget) || cleanTarget.endsWith(normAddr) ||
+                           normPath === cleanTarget || normPath.endsWith(cleanTarget) ||
+                           b.tag === cleanTarget;
                 });
 
                 if (!bug) {
@@ -1204,15 +1218,15 @@ async function handleBug(options: SpecCmdOptions) {
                 }
 
                 const bStatus = bug.attributes?.status || 'failed';
-                const bTitle = (showName && bug.attributes?.title) ? bug.attributes.title : bug.identity;
+                const bTitle = (showName && bug.attributes?.title) ? bug.attributes.title : (bug.address || bug.identity);
                 const linkedTc = bug.attributes?.testcase || bug.attributes?.custom_fields?.target || 'none';
-                const tcRes = testcases.find((t: any) => t.identity === linkedTc || linkedTc.endsWith(t.identity));
+                const tcRes = testcases.find((t: any) => t.address === linkedTc || linkedTc.endsWith(t.address) || t.path === linkedTc || t.tag === linkedTc || t.identity === linkedTc);
                 const tcDisplayName = (showName && tcRes?.attributes?.title) ? tcRes.attributes.title : linkedTc;
 
                 console.log(bold(`\n======================================================================`));
                 console.log(`${bold('BUG:')}        ${cyan(bTitle)}`);
-                if (showName && bug.identity) {
-                    console.log(`${bold('Address:')}    ${gray(bug.identity)}`);
+                if (showName && (bug.address || bug.identity)) {
+                    console.log(`${bold('Address:')}    ${gray(bug.address || bug.identity)}`);
                 }
                 console.log(`${bold('Status:')}     ${getBugBadge(bStatus)} (${bStatus})`);
                 console.log(`${bold('Testcase:')}   ${tcDisplayName}`);
@@ -1236,7 +1250,7 @@ async function handleBug(options: SpecCmdOptions) {
 
                 for (const b of bugs) {
                     const bStatus = b.attributes?.status || 'failed';
-                    const bTitle = (showName && b.attributes?.title) ? b.attributes.title : b.identity;
+                    const bTitle = (showName && b.attributes?.title) ? b.attributes.title : (b.address || b.identity);
                     const sev = b.attributes?.severity || b.attributes?.custom_fields?.severity || 'medium';
                     console.log(`  ${getBugBadge(bStatus)}  ${cyan(bTitle)} (Severity: ${sev})`);
                 }

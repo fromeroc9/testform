@@ -4,7 +4,6 @@ import { coreFormats } from './formats';
 import { resolve } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { pathToFileURL } from 'url';
-import { red, bold } from 'chalk';
 import { logger } from '../core/logger';
 import { TestformError } from '../core/errors';
 

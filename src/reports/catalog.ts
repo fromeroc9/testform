@@ -202,7 +202,7 @@ export const builtinReports: Record<string, IReport> = {
             const planItems = ctx.items.filter(i => i.canonicalScope === 'testplan');
             const targetPlanIds = new Set(planItems.map(p => p.id));
             const plans = targetPlanIds.size > 0
-                ? allPlans.filter(p => targetPlanIds.has(p.identity))
+                ? allPlans.filter(p => targetPlanIds.has(p.address || (p as any).identity))
                 : allPlans;
             const rows: (string | number)[][] = [];
 
@@ -213,8 +213,8 @@ export const builtinReports: Record<string, IReport> = {
                 const pct = planItems.length > 0 ? Math.round((pStats.passed / planItems.length) * 100) : 0;
 
                 rows.push([
-                    plan.identity,
-                    String(plan.attributes.title || plan.identity),
+                    plan.address || (plan as any).identity,
+                    String(plan.attributes.title || plan.address || (plan as any).identity),
                     linkedRuns.length,
                     planItems.length,
                     pStats.passed,
@@ -352,7 +352,6 @@ export const builtinReports: Record<string, IReport> = {
         description: 'Cross-tabulation matrix of tags against execution status distribution',
         collect(ctx: ReportContext): ReportData {
             const byTag = ctx.stateQuery.group(ctx.items, 'labels');
-            const statuses = ['passed', 'failed', 'pending', 'blocked', 'skipped', 'unexecuted'];
             const rows: (string | number)[][] = [];
 
             for (const [tag, items] of Object.entries(byTag)) {

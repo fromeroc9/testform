@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderApiService, IProviderResourceHandler } from '../interface';
+import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
 import { FILE_DATA } from '../../core/const';
 
 interface LocalComment {

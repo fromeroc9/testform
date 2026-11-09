@@ -1,8 +1,6 @@
 import { red, green } from 'chalk';
 import { State } from '../core/state';
-import { TITLE_CLI } from '../core/const';
 import { TestformError } from '../core/errors';
-import { normalizeAddress } from '../core/utils';
 import { findResourceInState } from '../core/selector';
 
 interface TaintCmdOptions {

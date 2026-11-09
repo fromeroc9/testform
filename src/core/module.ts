@@ -1,10 +1,10 @@
 import { resolve, dirname, join } from 'path';
-import { existsSync, readFileSync, statSync, readdirSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, statSync, readdirSync } from 'fs';
 import { Parser as Parse, AstBuilder, GherkinClassicTokenMatcher } from '@cucumber/gherkin';
 import { IdGenerator } from '@cucumber/messages';
 import YAML from 'yaml';
 import { ParserStep } from './types';
-import { findDomainConfigFiles, reassembleSplitTags, sanitizeTagsWithSpaces, restoreTagsWithSpaces } from './utils';
+import { findDomainConfigFiles, sanitizeTagsWithSpaces } from './utils';
 import { CONFIG_FILE_NAMES } from './const';
 
 export interface ModuleTarget {

@@ -101,6 +101,7 @@ export const formatHclValue = (value: any, indentLevel: number): string => {
  * Converts Windows backslashes to forward slashes and strips leading '@' in scenario tags.
  */
 export function normalizeAddress(str: string): string {
+    if (!str || typeof str !== 'string') return '';
     return str.replace(/\\/g, '/').replace(/\.@/, '.').replace(/^@/, '');
 }
 

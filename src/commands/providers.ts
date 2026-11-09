@@ -1,8 +1,8 @@
 import { existsSync, writeFileSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { resolve, dirname, join } from 'path';
-import { bold, green, yellow, cyan, dim } from 'chalk';
+import { bold, green, dim } from 'chalk';
 import { Config } from '../core/config';
-import { TITLE_APP, TITLE_CLI, CONFIG_FILE_NAMES, FILE_LOCK } from '../core/const';
+import { TITLE_APP, CONFIG_FILE_NAMES, FILE_LOCK } from '../core/const';
 import { HELP_PROVIDERS } from '../core/help';
 import { logger } from '../core/logger';
 import { resourceCmd } from './resource';

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import { resolve, basename, dirname } from "path";
 import YAML from "yaml";
 import { CONFIG_FILE_NAMES, FILE_CONFIG, SCOPE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
-import { IConfig, IGitHubConfig, IField, IScope, ITest, IScopeConfig, IBackendConfig } from '../core/types';
+import { IConfig, IGitHubConfig, IField, IScope, IScopeConfig, IBackendConfig } from '../core/types';
 import { logger as notify } from '../core/logger';
 import { resource } from '../core/resources';
 

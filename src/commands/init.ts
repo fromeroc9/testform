@@ -1,4 +1,4 @@
-import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, FILE_LOCK, TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG } from '../core/const';
 import YAML from 'yaml';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -676,7 +676,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         for (const [name, mod] of declaredModules.entries()) {
             if (isGitSource(mod.source)) {
                 logger.info(`- Downloading ${mod.source} for ${name}...`);
-                const parsedGit = parseGitSource(mod.source);
+                parseGitSource(mod.source);
                 const targetDir = join(dir, '.testform', 'modules', name);
                 if (!existsSync(targetDir)) {
                     mkdirSync(targetDir, { recursive: true });

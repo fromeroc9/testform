@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { resolve } from "path";
 import { existsSync, promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import { IBackend } from './backend';

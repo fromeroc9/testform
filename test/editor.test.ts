@@ -130,12 +130,12 @@ describe('GherkinEditor module', () => {
             const content = readFileSync(runFile, 'utf8');
             expect(content).toContain('Rule: auth.feature');
             expect(content).toContain('Scenario: Login success');
-            expect(content).toContain('mark status = passed');
+            expect(content).toContain('set status = passed');
 
             // Now update the status to failed
             GherkinEditor.updateScenarioStatus(runFile, 'auth.feature', 'Login success', 'failed');
             const updatedContent = readFileSync(runFile, 'utf8');
-            expect(updatedContent).toContain('mark status = failed');
+            expect(updatedContent).toContain('set status = failed');
         });
 
         it('should throw error when updating status of unexpanded scenario', () => {
@@ -158,7 +158,7 @@ describe('GherkinEditor module', () => {
             const content = readFileSync(runFile, 'utf8');
             expect(content).toContain('Scenario: Login');
             expect(content).toContain('Scenario: Logout');
-            expect(content).toContain('mark status = pending');
+            expect(content).toContain('set status = pending');
         });
     });
 });

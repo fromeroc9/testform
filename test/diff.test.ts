@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { diffCmd } from '../src/commands/diff';
 import { State } from '../src/core/state';
 import { Parser } from '../src/core/parser';
@@ -59,15 +59,21 @@ describe('Command diffCmd', () => {
 
         const mockStateResources = [
             {
-                identity: 'file1.synced_tc',
+                address: 'file1.synced_tc',
+                path: 'file1',
+                tag: 'synced_tc',
                 attributes: { localHash: hashScenario(scenarioSynced), remoteId: 'remote-1' }
             },
             {
-                identity: 'file1.modified_tc',
+                address: 'file1.modified_tc',
+                path: 'file1',
+                tag: 'modified_tc',
                 attributes: { localHash: 'old-hash', remoteId: 'remote-2' }
             },
             {
-                identity: 'file3.orphaned_tc',
+                address: 'file3.orphaned_tc',
+                path: 'file3',
+                tag: 'orphaned_tc',
                 attributes: { localHash: 'orphaned-hash', remoteId: 'remote-3' }
             }
         ];
@@ -218,7 +224,9 @@ describe('Command diffCmd', () => {
 
             const mockStateResource = {
                 type: 'github_testcase',
-                identity: `${tmpFile}.login_tc`,
+                address: `${tmpFile}.login_tc`,
+                path: tmpFile,
+                tag: 'login_tc',
                 attributes: {
                     title: 'Old Title',
                     issueNumber: 105,

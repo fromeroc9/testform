@@ -1,21 +1,21 @@
+import { XMLParser } from 'fast-xml-parser';
 import { IConfig, IScope } from '../core/types';
-import { resolve, normalize, join, basename } from 'path';
+import { resolve, normalize, join, basename, dirname, isAbsolute } from 'path';
 import { Config } from '../core/config';
 import { State } from '../core/state';
-import { GitHubProvider, GitHubAdapter } from '../providers/github';
-import { LocalProvider, LocalAdapter } from '../providers/local';
-import { IProvider, IProviderAdapter } from '../providers/interface';
+import { GitHubAdapter } from '../providers/github';
+import { LocalAdapter } from '../providers/local';
+import { IProviderAdapter } from '../providers/interface';
 import { Parser } from '../core/parser';
 import { resource } from '../core/resources';
 import { bold, green, red, yellow } from "chalk";
 import { hashScenario } from "./plan";
 import fs from "fs";
-import { Logger } from '../core/logger';
 import { Diag } from '../core/diagnostics';
 import { findNextIdentity } from '../core/editor';
 
-import { FILE_CONFIG, SCOPE_CONFIG, SCOPE_RESOURCE_MAP, TITLE_CLI } from '../core/const';
-import { matchesScope, detectScopeFromTarget, matchesTarget } from '../core/selector';
+import { SCOPE_CONFIG, SCOPE_RESOURCE_MAP, TITLE_CLI } from '../core/const';
+import { matchesScope, detectScopeFromTarget, matchesTarget, computeResourceIdentity } from '../core/selector';
 
 interface ImportCmdOptions {
     dir?: string;
@@ -23,6 +23,8 @@ interface ImportCmdOptions {
     identityArg?: string;
     issueNumber?: string;
     results?: string;
+    target?: string;
+    out?: string;
     autoCreateBugs?: boolean;
     lock?: boolean;
     lockTimeout?: string;
@@ -33,28 +35,17 @@ interface ImportCmdOptions {
 async function runImportResults(options: {
     dir: string;
     results: string;
+    target?: string;
+    out?: string;
     autoCreateBugs?: boolean;
 }) {
-    const { dir, results, autoCreateBugs } = options;
+    const { dir, results, target, out, autoCreateBugs } = options;
     const fullResultsPath = resolve(dir, results);
 
     if (!fs.existsSync(fullResultsPath)) {
         Diag.error({
             title: `Execution results file not found: ${results}`,
             detail: [`Verify the file path provided in -results="${results}".`]
-        }).abort();
-        return;
-    }
-
-    let parsedResults: any[];
-    try {
-        const raw = fs.readFileSync(fullResultsPath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        parsedResults = Array.isArray(parsed) ? parsed : [parsed];
-    } catch (e: any) {
-        Diag.error({
-            title: `Failed to parse results file: ${results}`,
-            detail: [`The file does not contain valid JSON: ${e.message}`]
         }).abort();
         return;
     }
@@ -76,76 +67,263 @@ async function runImportResults(options: {
         target: string;
         name: string;
         status: string;
+        duration?: string;
         trace?: string;
         evidence: string[];
     }
 
     const scenarioResults: ScenarioResult[] = [];
+    const raw = fs.readFileSync(fullResultsPath, 'utf-8');
+    const trimmed = raw.trim();
 
-    for (const feature of parsedResults) {
-        const featureUri = (feature.uri || feature.id || '').replace(/\\/g, '/');
-        const elements = feature.elements || [];
+    const isXml = results.toLowerCase().endsWith('.xml') || trimmed.startsWith('<');
 
-        for (const el of elements) {
-            if (el.type === 'background') continue;
+    if (isXml) {
+        // ─── 1. JUnit XML Parser ────────────────────────────────────────────
+        try {
+            const xmlParser = new XMLParser({
+                ignoreAttributes: false,
+                attributeNamePrefix: '@_',
+                textNodeName: '#text',
+                isArray: (name) => ['testsuite', 'testcase', 'failure', 'error', 'skipped'].includes(name)
+            });
+            const parsed = xmlParser.parse(trimmed);
 
-            const tags: string[] = (el.tags || []).map((t: any) => t.name || '').filter(Boolean);
-            const tcTag = configClass.findIdentityTag(tags, 'testcase');
-
-            let target = '';
-            if (featureUri && tcTag) {
-                target = `${featureUri}.${tcTag}`;
-            } else if (tcTag) {
-                target = tcTag;
-            } else if (featureUri && el.name) {
-                target = `${featureUri}.${el.name}`;
-            } else {
-                target = el.name || 'unnamed-scenario';
+            let testsuites: any[] = [];
+            if (parsed.testsuites) {
+                if (Array.isArray(parsed.testsuites.testsuite)) {
+                    testsuites = parsed.testsuites.testsuite;
+                } else if (parsed.testsuites.testsuite) {
+                    testsuites = [parsed.testsuites.testsuite];
+                }
+            } else if (parsed.testsuite) {
+                testsuites = Array.isArray(parsed.testsuite) ? parsed.testsuite : [parsed.testsuite];
             }
 
-            let status = 'passed';
-            let trace: string | undefined;
-            const evidence: string[] = [];
+            for (const suite of testsuites) {
+                const testcases = Array.isArray(suite.testcase)
+                    ? suite.testcase
+                    : (suite.testcase ? [suite.testcase] : []);
 
-            for (let stepIdx = 0; stepIdx < (el.steps || []).length; stepIdx++) {
-                const step = el.steps[stepIdx];
-                const sStatus = step.result?.status?.toLowerCase();
-                if (sStatus === 'failed') {
-                    status = 'failed';
-                    if (!trace && step.result?.error_message) {
-                        trace = step.result.error_message.trim();
+                const suiteName = (suite['@_name'] || '').replace(/\\/g, '/');
+
+                for (const tc of testcases) {
+                    const name = tc['@_name'] || 'Unnamed Test';
+                    const classname = (tc['@_classname'] || suiteName || '').replace(/\\/g, '/');
+                    const time = tc['@_time'] ? `${tc['@_time']}s` : undefined;
+
+                    // Extract identity tag from name or classname
+                    const combined = `${classname} ${name}`;
+                    const tcTagMatch = combined.match(/@tc-[a-zA-Z0-9_-]+/i);
+                    const tcTag = tcTagMatch ? tcTagMatch[0] : configClass.findIdentityTag(name.split(' '), 'testcase');
+
+                    let target = '';
+                    if (classname && tcTag) {
+                        target = `${classname}.${tcTag}`;
+                    } else if (tcTag) {
+                        target = tcTag;
+                    } else if (classname && name) {
+                        target = `${classname}.${name}`;
+                    } else {
+                        target = name;
                     }
-                } else if (sStatus === 'undefined' || sStatus === 'pending') {
-                    if (status !== 'failed') status = 'pending';
-                } else if (sStatus === 'skipped') {
-                    if (status !== 'failed' && status !== 'pending') status = 'skipped';
-                }
 
-                // Process embeddings
-                for (const emb of step.embeddings || []) {
-                    if (emb.data && emb.mime_type && emb.mime_type.startsWith('image/')) {
-                        const ext = emb.mime_type.includes('jpeg') || emb.mime_type.includes('jpg') ? 'jpg' : 'png';
-                        const rand = Math.random().toString(16).substring(2, 8);
-                        const fileName = `ev_${Date.now()}_${rand}.${ext}`;
-                        const outFilePath = join(evidenceDir, fileName);
-                        try {
-                            const buffer = Buffer.from(emb.data, 'base64');
-                            fs.writeFileSync(outFilePath, buffer);
-                            evidence.push(`evidence/${fileName}`);
-                        } catch {
-                            // ignore write error
+                    let status = 'passed';
+                    let trace: string | undefined;
+                    const evidence: string[] = [];
+
+                    if (tc.failure && tc.failure.length > 0) {
+                        status = 'failed';
+                        const f = tc.failure[0];
+                        trace = (typeof f === 'string' ? f : (f['#text'] || f['@_message'] || '')).trim();
+                    } else if (tc.error && tc.error.length > 0) {
+                        status = 'failed';
+                        const err = tc.error[0];
+                        trace = (typeof err === 'string' ? err : (err['#text'] || err['@_message'] || '')).trim();
+                    } else if (tc.skipped !== undefined) {
+                        status = 'skipped';
+                    }
+
+                    const sysOut = String(tc['system-out'] || '');
+                    const sysErr = String(tc['system-err'] || '');
+                    const combinedSys = sysOut + ' ' + sysErr;
+
+                    const attMatches = combinedSys.match(/(?:\[\[ATTACHMENT\|([^\]]+)\]\]|([\w\-\.\/]+\.(?:png|jpg|jpeg|webp)))/g);
+                    if (attMatches) {
+                        for (const m of attMatches) {
+                            const cleanPath = m.replace('[[ATTACHMENT|', '').replace(']]', '').trim();
+                            if (cleanPath && !evidence.includes(cleanPath)) {
+                                evidence.push(cleanPath);
+                            }
                         }
                     }
+
+                    scenarioResults.push({
+                        target,
+                        name,
+                        status,
+                        duration: time,
+                        trace,
+                        evidence
+                    });
                 }
             }
+        } catch (e: any) {
+            Diag.error({
+                title: `Failed to parse JUnit XML file: ${results}`,
+                detail: [`XML parsing error: ${e.message}`]
+            }).abort();
+            return;
+        }
+    } else {
+        // ─── 2. JSON Parser (Playwright JSON or Cucumber JSON) ───────────────
+        let parsed: any;
+        try {
+            parsed = JSON.parse(trimmed);
+        } catch (e: any) {
+            Diag.error({
+                title: `Failed to parse results file: ${results}`,
+                detail: [`The file does not contain valid JSON or XML: ${e.message}`]
+            }).abort();
+            return;
+        }
 
-            scenarioResults.push({
-                target,
-                name: el.name || target,
-                status,
-                trace,
-                evidence
-            });
+        if (parsed && parsed.suites && Array.isArray(parsed.suites)) {
+            // ─── Playwright JSON ────────────────────────────────────────────
+            function walkPlaywrightSuites(suiteList: any[], parentFile: string = '') {
+                for (const s of suiteList) {
+                    const suiteFile = (s.file || parentFile || '').replace(/\\/g, '/');
+                    if (s.specs && Array.isArray(s.specs)) {
+                        for (const spec of s.specs) {
+                            const specTitle = spec.title || '';
+                            const tags: string[] = Array.isArray(spec.tags) ? spec.tags : [];
+                            const titleTags = specTitle.match(/@tc-[a-zA-Z0-9_-]+/ig) || [];
+                            const allTags = [...tags, ...titleTags];
+                            const tcTag = configClass.findIdentityTag(allTags, 'testcase') || (titleTags[0] ? titleTags[0] : undefined);
+
+                            let target = '';
+                            if (suiteFile && tcTag) {
+                                target = `${suiteFile}.${tcTag}`;
+                            } else if (tcTag) {
+                                target = tcTag;
+                            } else if (suiteFile && specTitle) {
+                                target = `${suiteFile}.${specTitle}`;
+                            } else {
+                                target = specTitle || 'unnamed-scenario';
+                            }
+
+                            let status = 'passed';
+                            let trace: string | undefined;
+                            let duration: string | undefined;
+                            const evidence: string[] = [];
+
+                            for (const test of spec.tests || []) {
+                                for (const res of test.results || []) {
+                                    const rStatus = (res.status || '').toLowerCase();
+                                    if (rStatus === 'failed' || rStatus === 'timedout') {
+                                        status = 'failed';
+                                        if (!trace && res.error) {
+                                            trace = (res.error.message || res.error.value || '').trim();
+                                        }
+                                    } else if (rStatus === 'skipped') {
+                                        if (status !== 'failed') status = 'skipped';
+                                    }
+
+                                    if (res.duration) {
+                                        duration = `${(res.duration / 1000).toFixed(2)}s`;
+                                    }
+
+                                    for (const att of res.attachments || []) {
+                                        if (att.path) {
+                                            evidence.push(att.path.replace(/\\/g, '/'));
+                                        }
+                                    }
+                                }
+                            }
+
+                            scenarioResults.push({
+                                target,
+                                name: specTitle || target,
+                                status,
+                                duration,
+                                trace,
+                                evidence
+                            });
+                        }
+                    }
+                    if (s.suites && Array.isArray(s.suites)) {
+                        walkPlaywrightSuites(s.suites, suiteFile);
+                    }
+                }
+            }
+            walkPlaywrightSuites(parsed.suites);
+        } else {
+            // ─── Cucumber JSON ──────────────────────────────────────────────
+            const parsedResults = Array.isArray(parsed) ? parsed : [parsed];
+
+            for (const feature of parsedResults) {
+                const featureUri = (feature.uri || feature.id || '').replace(/\\/g, '/');
+                const elements = feature.elements || [];
+
+                for (const el of elements) {
+                    if (el.type === 'background') continue;
+
+                    const tags: string[] = (el.tags || []).map((t: any) => t.name || '').filter(Boolean);
+                    const tcTag = configClass.findIdentityTag(tags, 'testcase');
+
+                    let target = '';
+                    if (featureUri && tcTag) {
+                        target = `${featureUri}.${tcTag}`;
+                    } else if (tcTag) {
+                        target = tcTag;
+                    } else if (featureUri && el.name) {
+                        target = `${featureUri}.${el.name}`;
+                    } else {
+                        target = el.name || 'unnamed-scenario';
+                    }
+
+                    let status = 'passed';
+                    let trace: string | undefined;
+                    const evidence: string[] = [];
+
+                    for (let stepIdx = 0; stepIdx < (el.steps || []).length; stepIdx++) {
+                        const step = el.steps[stepIdx];
+                        const sStatus = step.result?.status?.toLowerCase();
+                        if (sStatus === 'failed') {
+                            status = 'failed';
+                            if (!trace && step.result?.error_message) {
+                                trace = step.result.error_message.trim();
+                            }
+                        } else if (sStatus === 'undefined' || sStatus === 'pending') {
+                            if (status !== 'failed') status = 'pending';
+                        } else if (sStatus === 'skipped') {
+                            if (status !== 'failed' && status !== 'pending') status = 'skipped';
+                        }
+
+                        for (const emb of step.embeddings || []) {
+                            if (emb.data && emb.mime_type && emb.mime_type.startsWith('image/')) {
+                                const ext = emb.mime_type.includes('jpeg') || emb.mime_type.includes('jpg') ? 'jpg' : 'png';
+                                const rand = Math.random().toString(16).substring(2, 8);
+                                const fileName = `ev_${Date.now()}_${rand}.${ext}`;
+                                const outFilePath = join(evidenceDir, fileName);
+                                try {
+                                    const buffer = Buffer.from(emb.data, 'base64');
+                                    fs.writeFileSync(outFilePath, buffer);
+                                    evidence.push(`evidence/${fileName}`);
+                                } catch {}
+                            }
+                        }
+                    }
+
+                    scenarioResults.push({
+                        target,
+                        name: el.name || target,
+                        status,
+                        trace,
+                        evidence
+                    });
+                }
+            }
         }
     }
 
@@ -154,38 +332,145 @@ async function runImportResults(options: {
         return;
     }
 
-    // Determine Run Identity and Filename
-    const now = new Date();
-    const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
-    const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
+    // Determine Run Target File
+    const dest = target || out;
+    let runFilePath: string;
+
     const trTag = findNextIdentity(dir, configClass.getIdentity('testrun')) || configClass.getFallbackIdentityTag('testrun');
-    const runExt = configClass.getScopeExtension('testrun');
-    const runFileName = `${YYYYMMDD}_${HHmmss}_imported${runExt}`;
-    const runFilePath = join(absRunsDir, runFileName);
-
     const trHeaderTag = (SCOPE_CONFIG as any)['testrun']?.tag || '@testrun';
-    let runContent = `${trHeaderTag} ${trTag}\nFeature: Results from ${basename(results)}\n\n`;
 
-    for (const sc of scenarioResults) {
-        runContent += `  Scenario: ${sc.target}\n`;
-        runContent += `    * mark status = ${sc.status}\n`;
-        if (sc.trace) {
-            const firstLine = sc.trace.split('\n')[0].replace(/\r/g, '').trim();
-            runContent += `    * mark trace = ${firstLine}\n`;
+    if (dest) {
+        runFilePath = isAbsolute(dest) ? dest : resolve(dir, dest);
+        const parentDir = dirname(runFilePath);
+        if (!fs.existsSync(parentDir)) {
+            fs.mkdirSync(parentDir, { recursive: true });
         }
-        if (sc.evidence.length > 0) {
-            if (sc.evidence.length === 1) {
-                runContent += `    * mark evidence = ${sc.evidence[0]}\n`;
-            } else {
-                runContent += `    * mark evidence = ${JSON.stringify(sc.evidence)}\n`;
-            }
-        }
-        runContent += `\n`;
+    } else {
+        const now = new Date();
+        const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
+        const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
+        const runExt = configClass.getScopeExtension('testrun');
+        const runFileName = `${YYYYMMDD}_${HHmmss}_imported${runExt}`;
+        runFilePath = join(absRunsDir, runFileName);
     }
 
-    fs.writeFileSync(runFilePath, runContent.trim() + '\n', 'utf-8');
-    console.log(green(bold(`\n✓ Successfully generated testrun suite: ${runFilePath}`)));
-    console.log(`  Imported ${scenarioResults.length} test scenario result(s).`);
+    // Write or Update Run Feature File
+    if (fs.existsSync(runFilePath)) {
+        // File already exists -> update matching scenarios or append missing ones
+        const existingContent = fs.readFileSync(runFilePath, 'utf-8');
+        const lines = existingContent.split('\n');
+        const newLines: string[] = [];
+
+        const handledTargets = new Set<string>();
+        let inTargetScenario = false;
+        let currentSc: ScenarioResult | undefined;
+        let statusUpdated = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+
+            if (trimmedLine.startsWith('Scenario:')) {
+                inTargetScenario = false;
+                currentSc = undefined;
+                statusUpdated = false;
+
+                const scTitle = trimmedLine.replace(/^Scenario:\s*/, '').trim();
+                const match = scenarioResults.find(r =>
+                    scTitle.toLowerCase() === r.target.toLowerCase() ||
+                    (r.name && scTitle.toLowerCase() === r.name.toLowerCase()) ||
+                    (r.target.includes('@tc-') && scTitle.includes(r.target.match(/@tc-[\w-]+/i)?.[0] || ''))
+                );
+
+                if (match) {
+                    inTargetScenario = true;
+                    currentSc = match;
+                    handledTargets.add(match.target);
+                }
+                newLines.push(line);
+                continue;
+            }
+
+            if (inTargetScenario && currentSc) {
+                if (trimmedLine.startsWith('Scenario:') || trimmedLine.startsWith('Rule:') || (trimmedLine.startsWith('@') && !trimmedLine.includes('set') && !trimmedLine.includes('mark'))) {
+                    inTargetScenario = false;
+                    currentSc = undefined;
+                } else {
+                    if (trimmedLine.startsWith('* set status =') || trimmedLine.startsWith('* mark status =')) {
+                        newLines.push(`    * set status = ${currentSc.status}`);
+                        statusUpdated = true;
+                        if (currentSc.duration) {
+                            newLines.push(`    * set duration = ${currentSc.duration}`);
+                        }
+                        if (currentSc.trace) {
+                            newLines.push(`    * set trace = ${currentSc.trace.split('\n')[0].trim()}`);
+                        }
+                        if (currentSc.evidence.length > 0) {
+                            const evVal = currentSc.evidence.length === 1 ? currentSc.evidence[0] : JSON.stringify(currentSc.evidence);
+                            newLines.push(`    * set evidence = ${evVal}`);
+                        }
+                        continue;
+                    }
+                    if (trimmedLine.startsWith('* set trace =') || trimmedLine.startsWith('* set evidence =') || trimmedLine.startsWith('* set duration =') ||
+                        trimmedLine.startsWith('* mark trace =') || trimmedLine.startsWith('* mark evidence =')) {
+                        continue;
+                    }
+                }
+            }
+
+            newLines.push(line);
+        }
+
+        // Append any unhandled scenarios
+        const remaining = scenarioResults.filter(r => !handledTargets.has(r.target));
+        if (remaining.length > 0) {
+            newLines.push('');
+            for (const sc of remaining) {
+                newLines.push(`  Scenario: ${sc.target}`);
+                newLines.push(`    * set status = ${sc.status}`);
+                if (sc.duration) {
+                    newLines.push(`    * set duration = ${sc.duration}`);
+                }
+                if (sc.trace) {
+                    newLines.push(`    * set trace = ${sc.trace.split('\n')[0].trim()}`);
+                }
+                if (sc.evidence.length > 0) {
+                    const evVal = sc.evidence.length === 1 ? sc.evidence[0] : JSON.stringify(sc.evidence);
+                    newLines.push(`    * set evidence = ${evVal}`);
+                }
+                newLines.push('');
+            }
+        }
+
+        fs.writeFileSync(runFilePath, newLines.join('\n').trim() + '\n', 'utf-8');
+        console.log(green(bold(`\n✓ Successfully updated testrun suite: ${runFilePath}`)));
+        console.log(`  Updated/appended ${scenarioResults.length} test scenario result(s).`);
+    } else {
+        // Create new run file
+        let runContent = `${trHeaderTag} ${trTag}\nFeature: Results from ${basename(results)}\n\n`;
+        for (const sc of scenarioResults) {
+            runContent += `  Scenario: ${sc.target}\n`;
+            runContent += `    * set status = ${sc.status}\n`;
+            if (sc.duration) {
+                runContent += `    * set duration = ${sc.duration}\n`;
+            }
+            if (sc.trace) {
+                const firstLine = sc.trace.split('\n')[0].replace(/\r/g, '').trim();
+                runContent += `    * set trace = ${firstLine}\n`;
+            }
+            if (sc.evidence.length > 0) {
+                if (sc.evidence.length === 1) {
+                    runContent += `    * set evidence = ${sc.evidence[0]}\n`;
+                } else {
+                    runContent += `    * set evidence = ${JSON.stringify(sc.evidence)}\n`;
+                }
+            }
+            runContent += `\n`;
+        }
+        fs.writeFileSync(runFilePath, runContent.trim() + '\n', 'utf-8');
+        console.log(green(bold(`\n✓ Successfully generated testrun suite: ${runFilePath}`)));
+        console.log(`  Imported ${scenarioResults.length} test scenario result(s).`);
+    }
 
     // Handle auto-create-bugs
     if (autoCreateBugs) {
@@ -198,6 +483,9 @@ async function runImportResults(options: {
                 fs.mkdirSync(absBugsDir, { recursive: true });
             }
 
+            const now = new Date();
+            const YYYYMMDD = now.toISOString().split('T')[0].replace(/-/g, '');
+            const HHmmss = now.toTimeString().split(' ')[0].replace(/:/g, '');
             const bugExt = configClass.getScopeExtension('bug');
             const bugFileName = `${YYYYMMDD}_${HHmmss}_bugs${bugExt}`;
             const bugFilePath = join(absBugsDir, bugFileName);
@@ -209,18 +497,18 @@ async function runImportResults(options: {
                 const nextBgTag = findNextIdentity(dir, configClass.getIdentity('bug')) || configClass.getFallbackIdentityTag('bug');
                 bugContent += `  ${nextBgTag}\n`;
                 bugContent += `  Scenario: Bug in ${fail.name}\n`;
-                bugContent += `    * mark target = ${fail.target}\n`;
-                bugContent += `    * mark status = failed\n`;
-                bugContent += `    * mark severity = high\n`;
+                bugContent += `    * set target = ${fail.target}\n`;
+                bugContent += `    * set status = failed\n`;
+                bugContent += `    * set severity = high\n`;
                 if (fail.trace) {
                     const firstLine = fail.trace.split('\n')[0].replace(/\r/g, '').trim();
-                    bugContent += `    * mark trace = ${firstLine}\n`;
+                    bugContent += `    * set trace = ${firstLine}\n`;
                 }
                 if (fail.evidence.length > 0) {
                     if (fail.evidence.length === 1) {
-                        bugContent += `    * mark evidence = ${fail.evidence[0]}\n`;
+                        bugContent += `    * set evidence = ${fail.evidence[0]}\n`;
                     } else {
-                        bugContent += `    * mark evidence = ${JSON.stringify(fail.evidence)}\n`;
+                        bugContent += `    * set evidence = ${JSON.stringify(fail.evidence)}\n`;
                     }
                 }
                 bugContent += `\n`;
@@ -234,7 +522,6 @@ async function runImportResults(options: {
         }
     }
 }
-
 export const importCmd = async (options: ImportCmdOptions) => {
     const {
         dir = '.',
@@ -250,7 +537,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
     } = options;
 
     if (results) {
-        await runImportResults({ dir, results, autoCreateBugs });
+        await runImportResults({ dir, results, target: options.target || options.out, autoCreateBugs });
         return;
     }
 
@@ -269,7 +556,6 @@ export const importCmd = async (options: ImportCmdOptions) => {
     }
 
     const scope: IScope = rawScope || detectScopeFromTarget(identityArg) || 'testcase';
-    const logger = new Logger();
     console.log(bold(`Importing ${scope} ${identityArg} from issue #${issueNumber}...`));
 
     const stateObj = new State(dir, statePath, backupPath);
@@ -467,13 +753,37 @@ export const importCmd = async (options: ImportCmdOptions) => {
             localHash = hashScenario(matchedScenario);
         }
 
-        const payload = matchedScenario ? resource.evaluate(resourceType, matchedScenario, { state: stateObj }) : null;
-        const p = payload as any;
+        
+        const scaffoldDir = conf.getConvention(scope)?.directory;
+        let address = identity;
+        let relPath = '';
+        let tag = '';
+        let namespace: string | undefined;
+        let physicalAddress = '';
+
+        if (matchedScenario) {
+            const idInfo = computeResourceIdentity(matchedScenario, scope, scaffoldDir);
+            if (idInfo) {
+                address = idInfo.address;
+                relPath = idInfo.path;
+                tag = idInfo.tag || '';
+                namespace = idInfo.namespace;
+                physicalAddress = idInfo.physicalAddress;
+            }
+        } else {
+            tag = identity.includes('@') ? identity.slice(identity.lastIndexOf('@')) : '';
+            relPath = identity.includes('@') ? identity.slice(0, identity.lastIndexOf('@')).replace(/\.$/, '') : identity;
+            physicalAddress = tag ? `${relPath}.${tag}` : relPath;
+        }
 
         // Save to state
         state.upsertResource({
             type: resourceType,
-            identity,
+            address,
+            path: relPath,
+            tag,
+            physicalAddress,
+            ...(namespace ? { namespace } : {}),
             attributes: {
                 title: issue.title,
                 body: issue.body || '',
@@ -490,7 +800,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
         state.save();
 
         console.log(green(`\nImport successful!`));
-        console.log(`State updated for ${bold(`${resourceType}.${identity}`)} -> Issue #${issueNum}`);
+        console.log(`State updated for ${bold(`${resourceType}.${address}`)} -> Issue #${issueNum}`);
         console.log(`Run 'plan' to see if any local changes need to be applied.`);
     } finally {
         await stateObj.save();

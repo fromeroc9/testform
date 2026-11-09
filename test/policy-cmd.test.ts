@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { policyCmd } from '../src/commands/policy';
 import { policy, registerPolicy } from '../src/core/policy';
-import { getCommandHelp, HELP_POLICY } from '../src/core/help';
-import { Config } from '../src/core/config';
+import { getCommandHelp } from '../src/core/help';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';

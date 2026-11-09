@@ -45,8 +45,8 @@ describe('Command stateCmd', () => {
     });
 
     const mockResources = [
-        { type: 'testcase', identity: 'tc1', attributes: { title: 'Test 1' }, tainted: false },
-        { type: 'testrun', identity: 'tr1', attributes: { title: 'Run 1' }, tainted: true }
+        { type: 'testcase', address: 'tc1', path: 'tc1.case.feature', tag: '@tc-1', attributes: { title: 'Test 1' }, tainted: false },
+        { type: 'testrun', address: 'tr1', path: 'tr1.run.feature', tag: '@tr-1', attributes: { title: 'Run 1' }, tainted: true }
     ];
 
     it('should pull state', async () => {

@@ -140,11 +140,15 @@ ${bold(`Plan Customization Options:`)}
                       module of the configuration. Use this option more than
                       once to set more than one variable.
 
-  -var-file=filename  Load variable values from the given file (.json or key=value format).
-                      Use this option more than once to include more than one
-                      variables file.
+  -var-file=filename  Load variable values from the given file (.vars.yml,
+                      .vars.yaml, or key=value format). Use this option more than
+                      once to include more than one variables file.
 
 ${bold(`Other Options:`)}
+
+  -watch, --watch     Run plan in continuous watch mode, monitoring .feature
+                      files and recomputing diffs in milliseconds using the
+                      incremental AST cache.
 
   -gherkin            Display plan and resources in Gherkin feature/scenario format.
 
@@ -330,17 +334,17 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] destroy [options]
 export const HELP_IMPORT = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] import [options] ADDR ISSUE_NUMBER
 
-  Import an existing GitHub Issue into your ${TITLE_APP} state.
+  Import an existing remote issue into your ${TITLE_APP} state.
 
-  This command connects to GitHub, fetches the specified ISSUE_NUMBER, and
-  imports it into your local ${TITLE_APP} state under the given ADDR (Identity).
-  This allows existing GitHub Issues to come under ${TITLE_APP} management
+  This command connects to the active provider, fetches the specified ISSUE_NUMBER, and
+  imports it into your local ${TITLE_APP} state under the given ADDR (Address).
+  This allows existing issues to come under ${TITLE_APP} management
   without having to be initially created via a 'testform apply'.
 
-  ADDR: The identity of the scenario (e.g., 'test1').
-  ISSUE_NUMBER: The numeric ID of the GitHub Issue to import (e.g., '123').
+  ADDR: The address of the resource (e.g., 'login.case.feature.@tc-1' or 'auth.login.case.feature.@tc-1').
+  ISSUE_NUMBER: The numeric ID or key of the remote Issue to import (e.g., '123').
 
-  This command will make network requests to GitHub but will not modify
+  This command will make network requests to the provider but will not modify
   the remote issue.
 
 ${bold(`Options:`)}
@@ -592,12 +596,11 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] state identities [options] -json
   The address argument can be used to filter the instances by resource or module. If
   no pattern is given, identities for all resource instances are listed.
 
-  The addresses must either be module addresses or absolute resource
+  The addresses must either be logical addresses or physical
   addresses, such as:
-      testcase.example
-      module.example
-      module.example.module.child
-      module.example.testcase.example
+      login.case.feature.@tc-1
+      auth.login.case.feature.@tc-1
+      tests/features/cart.case.feature.@tc-2
 
   An error will be returned if any of the resources or modules given as
   filter addresses do not exist in the state.
@@ -623,12 +626,11 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] state list [options] [address...
   argument can be used to filter the instances by resource or module. If
   no pattern is given, all resource instances are listed.
 
-  The addresses must either be module addresses or absolute resource
+  The addresses must either be logical addresses or physical
   addresses, such as:
-      testcase.example
-      module.example
-      module.example.module.child
-      module.example.testcase.example
+      login.case.feature.@tc-1
+      auth.login.case.feature.@tc-1
+      tests/features/cart.case.feature.@tc-2
 
   An error will be returned if any of the resources or modules given as
   filter addresses do not exist in the state.
@@ -1256,7 +1258,7 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] test autocomplete -target=<resou
 
   [testrun only] Reads each Rule block in the target testrun feature file,
   finds the referenced .case.feature on disk, and expands its scenarios into
-  the testrun file with 'mark status = pending'.
+  the testrun file with 'set status = pending'.
 
   Files are matched by @testrun tag OR the .run.feature extension.
 
@@ -1366,7 +1368,7 @@ ${bold(`Actions:`)}
   add         Append a scenario or linkage to an existing specification
   fill        Autocomplete empty Rule blocks with testcases (testrun)
   delete      Remove a specification file or scenario
-  mark        Record execution status, traces, and evidence (testrun, bug)
+  set         Record execution status, traces, and evidence (testrun, bug)
   status      Display terminal status, dashboards, or reverse lookup (all)
 
 ${bold(`Options:`)}
@@ -1395,7 +1397,7 @@ ${bold(`Examples by Resource:`)}
   ${TITLE_CLI} spec testrun add -target="@tr-1" -case="cart.case.feature"
   ${TITLE_CLI} spec testrun add -target="@tr-1" -case="@tc-01" -status=passed
   ${TITLE_CLI} spec testrun fill -target="@tr-1"
-  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01" -status=passed -trace="OK"
+  ${TITLE_CLI} spec testrun set -target="@tr-1" -case="@tc-01" -status=passed -trace="OK"
   ${TITLE_CLI} spec testrun status -target="@tr-1" -show-name -show-detail
 
   # 3. Test Plans:
@@ -1406,7 +1408,7 @@ ${bold(`Examples by Resource:`)}
   # 4. Bugs / Defects:
   ${TITLE_CLI} spec bug new -title="Defects Sprint 42"
   ${TITLE_CLI} spec bug add -target="bugs.bug.feature" -case="@tc-01" -severity=critical -title="500 Internal Error"
-  ${TITLE_CLI} spec bug mark -target="@bg-1" -status=passed
+  ${TITLE_CLI} spec bug set -target="@bg-1" -status=passed
   ${TITLE_CLI} spec bug status -show-detail
 `.trim();
 
@@ -1444,7 +1446,7 @@ ${bold(`Actions:`)}
   new       Create a new testrun specification file
   add       Link a testcase or Rule (file) into the testrun
   fill      Autocomplete empty Rule blocks with their underlying testcases
-  mark      Record execution status, error traces, and evidence for a testcase
+  set      Record execution status, error traces, and evidence for a testcase
   delete    Remove a linked testcase or entire testrun file
   status    Display testrun execution dashboard with counts, progress, and traces
 
@@ -1472,7 +1474,7 @@ ${bold(`Examples:`)}
   ${TITLE_CLI} spec testrun -fill -target="@tr-4" -include=smoke -exclude=wip
   ${TITLE_CLI} spec testrun add -target="@tr-1" -case="cart.case.feature"
   ${TITLE_CLI} spec testrun add -target="@tr-1" -case="@tc-01=passed"
-  ${TITLE_CLI} spec testrun mark -target="@tr-1" -case="@tc-01" -status=failed -trace="500 Internal Error" -evidence="fail.png"
+  ${TITLE_CLI} spec testrun set -target="@tr-1" -case="@tc-01" -status=failed -trace="500 Internal Error" -evidence="fail.png"
   ${TITLE_CLI} spec testrun status -target="@tr-1" -show-detail
 `.trim();
 
@@ -1509,7 +1511,7 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] spec bug <action> [options]
 ${bold(`Actions:`)}
   new       Create a new bug specification container file
   add       Record a new defect linked to a testcase
-  mark      Update defect resolution status (passed/resolved, failed/active)
+  set      Update defect resolution status (passed/resolved, failed/active)
   delete    Remove a bug scenario or container file
   status    Display defect summary, severity/priority, and linked testcases
 
@@ -1527,7 +1529,7 @@ ${bold(`Options:`)}
 ${bold(`Examples:`)}
   ${TITLE_CLI} spec bug new -title="Sprint 42 Defects"
   ${TITLE_CLI} spec bug add -target="defects.bug.feature" -case="@tc-01" -title="Crash on checkout" -severity=critical
-  ${TITLE_CLI} spec bug mark -target="@bg-1" -status=passed
+  ${TITLE_CLI} spec bug set -target="@bg-1" -status=passed
   ${TITLE_CLI} spec bug status -show-detail
 `.trim();
 

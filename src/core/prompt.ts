@@ -164,7 +164,7 @@ export async function askSelect(
  *
  * @returns The selected status string.
  */
-export async function askStatus(defaultStatus: string = 'passed'): Promise<string> {
+export async function askStatus(_defaultStatus: string = 'passed'): Promise<string> {
     return askSelect('Select the status:', [
         { label: 'passed - Prueba ejecutada con éxito', value: 'passed' },
         { label: 'failed - Prueba fallida', value: 'failed' },

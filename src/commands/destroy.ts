@@ -8,14 +8,11 @@
 
 import { bold, green, red } from 'chalk';
 import { resource } from '../core/resources';
-import { State } from '../core/state';
-import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { TITLE_APP, SCOPE_RESOURCE_MAP } from '../core/const';
 import { createCommandContext } from '../core/context';
 import { askDestroyApproval } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
-import { IScope } from '../core/types';
 import { matchesTarget } from '../core/selector';
 import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
@@ -56,7 +53,6 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
         statePath,
         backupPath
     } = options;
-    const logger = new Logger(verbose);
 
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
         const effectiveTarget = target || (options as any).scope;
@@ -67,7 +63,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             const resType = (SCOPE_RESOURCE_MAP as any)[s];
             if (!resType) return [];
             const list = stateObj.getResources(resType);
-            return target ? list.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s))) : list;
+            return target ? list.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s))) : list;
         });
         if (allResources.length === 0) {
             console.log('No resources to destroy. State is empty.');
@@ -78,13 +74,13 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
         const lifecycleResolver = new LifecycleResolver(dir);
         const protectedResources = allResources.filter(res => {
-            const lc = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
+            const lc = lifecycleResolver.getLifecycle(res.address, res.attributes.labels || []);
             return lc.prevent_destroy;
         });
 
         if (protectedResources.length > 0) {
             const details = protectedResources.map(r => 
-                `Resource ${formatResourceAddress(r.type, r.identity)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
+                `Resource ${formatResourceAddress(r.type, r.address)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
             );
             notify.push({
                 type: 'error',
@@ -92,7 +88,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
                 detail: details,
                 close: true
             });
-            throw new Error(`Instance cannot be destroyed: ${protectedResources.map(r => r.identity).join(', ')} has lifecycle.prevent_destroy set.`);
+            throw new Error(`Instance cannot be destroyed: ${protectedResources.map(r => r.address).join(', ')} has lifecycle.prevent_destroy set.`);
         }
 
         let destroyed = 0;
@@ -104,7 +100,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
             let resources = stateObj.getResources(SCOPE_RESOURCE_MAP[s]);
             if (target) {
-                resources = resources.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
+                resources = resources.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
             }
 
             if (resources.length === 0) {
@@ -115,7 +111,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log(bold(`\n${TITLE_APP} will destroy the following resources in scope '${s}':\n`));
             for (const res of resources) {
                 const remoteId = res.attributes.remoteId ?? '';
-                console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.identity)} [id=${remoteId}]`);
+                console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.address)} [id=${remoteId}]`);
             }
             console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
 
@@ -138,7 +134,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             const github = (ctx.adapter || (ctx as any).github);
             
             for (const res of resources) {
-                const address = formatResourceAddress(res.type, res.identity);
+                const address = formatResourceAddress(res.type, res.address);
                 const remoteId = res.attributes.remoteId ?? '';
                 console.log(`${address}: Destroying... [id=${remoteId}]`);
 
@@ -172,7 +168,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
                         });
                     }
 
-                    stateObj.removeResource(res.identity);
+                    stateObj.removeResource(res.address);
                     const elapsed = elapsedSeconds(startTime);
                     console.log(green(`${address}: Destruction complete after ${elapsed}s [id=${remoteId}]`));
                     destroyed++;

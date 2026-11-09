@@ -6,7 +6,7 @@ import { logger as notify } from '../core/logger';
 import { bold, green, red, yellow, dim } from 'chalk';
 import {
     ParserScenario, PlanAction, PlanChange,
-    ResourceField, ResourceTemplate, ResourceFormat
+    ResourceField, ResourceTemplate
 } from '../core/types';
 import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
 import { arraysEqual } from '../core/sync';
@@ -465,7 +465,7 @@ class Resource {
     }
 
     private format(change: PlanChange, context?: any) {
-        const { action, scenario, resourceType, identity, oldAttributes } = change;
+        const { action, scenario, resourceType, address, oldAttributes } = change;
 
 
         const lines: string[] = [];
@@ -473,7 +473,7 @@ class Resource {
         const sym = this.getSymbol(action);
         const pad = (name: string) => name.padEnd(16);
 
-        lines.push(`  ${sym} resource "${resourceType}" "${formatIdentityDisplay(identity)}" {`);
+        lines.push(`  ${sym} resource "${resourceType}" "${formatIdentityDisplay(address)}" {`);
         for (const field of template.fields || []) {
             const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
             const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
@@ -592,7 +592,7 @@ class Resource {
     }
 
     formatFeature(change: PlanChange, context?: any): string {
-        const { action, scenario, resourceType, identity, oldAttributes } = change;
+        const { action, scenario, resourceType, address, tag, oldAttributes } = change;
         const sym = this.getSymbol(action);
         const symPrefix = action === 'replace' ? `  ${sym} ` : `  ${sym}   `;
         const stepPrefix = action === 'replace' ? `  ${sym}   ` : `  ${sym}     `;
@@ -615,7 +615,7 @@ class Resource {
                         const indent = ruleName ? `  ` : ``;
                         lines.push(`${stepPrefix}${indent}Scenario: ${gs.name}`);
                         const status = gs.custom?.fields?.status || 'pending';
-                        lines.push(`${stepPrefix}${indent}  * mark status = ${status}`);
+                        lines.push(`${stepPrefix}${indent}  * set status = ${status}`);
                     }
                 }
             }
@@ -645,10 +645,10 @@ class Resource {
         }
 
         // Ensure the identity tag (e.g. @tc-02) is present in tags
-        let idTag = scenario?.custom?.identity;
-        if (!idTag && identity) {
-            const lastPart = identity.split('.').pop();
-            if (lastPart && (lastPart.startsWith('@') || lastPart.startsWith('tc-'))) {
+        let idTag = scenario?.custom?.identity || tag;
+        if (!idTag && address) {
+            const lastPart = address.split('.').pop();
+            if (lastPart && (lastPart.startsWith('@') || lastPart.startsWith('tc-') || lastPart.startsWith('tr-') || lastPart.startsWith('tp-') || lastPart.startsWith('bg-'))) {
                 idTag = lastPart.startsWith('@') ? lastPart : `@${lastPart}`;
             }
         }
@@ -756,7 +756,7 @@ class Resource {
         output.push('');
 
         for (const change of changes) {
-            const address = formatResourceAddress(change.resourceType, change.identity);
+            const address = formatResourceAddress(change.resourceType, change.address);
             const actionText =
                 change.action === 'add'
                     ? bold(green(`# ${address} will be created`))

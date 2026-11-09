@@ -16,7 +16,7 @@ describe('Resource -feature view', () => {
     it('formats a testcase in Gherkin scenario format when action is add (+)', () => {
         const change: PlanChange = {
             action: 'add',
-            identity: 'transactions.case.feature.@tc-02',
+            address: 'transactions.case.feature.@tc-02', path: 'transactions.case.feature', tag: '@tc-02', identity: 'transactions.case.feature.@tc-02',
             resourceType: 'github_testcase',
             localHash: 'hash-123',
             scenario: {
@@ -76,7 +76,7 @@ describe('Resource -feature view', () => {
     it('formats a testcase in Gherkin scenario format when action is change (~)', () => {
         const change: PlanChange = {
             action: 'change',
-            identity: 'transactions.case.feature.@tc-02',
+            address: 'transactions.case.feature.@tc-02', path: 'transactions.case.feature', tag: '@tc-02', identity: 'transactions.case.feature.@tc-02',
             resourceType: 'github_testcase',
             localHash: 'hash-456',
             oldAttributes: {
@@ -128,6 +128,9 @@ describe('Resource -feature view', () => {
     it('formats a destroyed testcase reconstructing from state attributes (-)', () => {
         const change: PlanChange = {
             action: 'destroy',
+            address: 'transactions.case.feature.@tc-99',
+            path: 'transactions.case.feature',
+            tag: '@tc-99',
             identity: 'transactions.case.feature.@tc-99',
             resourceType: 'github_testcase',
             localHash: 'hash-999',
@@ -166,6 +169,9 @@ describe('Resource -feature view', () => {
     it('resource.summary uses formatFeature when context.feature is true', () => {
         const change: PlanChange = {
             action: 'add',
+            address: 'auth.case.feature.@tc-01',
+            path: 'auth.case.feature',
+            tag: '@tc-01',
             identity: 'auth.case.feature.@tc-01',
             resourceType: 'github_testcase',
             localHash: 'hash-001',

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { workspaceCmd } from '../src/commands/workspace';
 import { State } from '../src/core/state';
 import { WorkspaceManager } from '../src/core/workspace';

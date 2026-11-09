@@ -149,9 +149,9 @@ const TESTCASE_STATUS_EMOJI: Record<TestcaseStatus, string> = {
 
 // ─── Error Messages ───────────────────────────────────────────────────────────
 
-/** Error shown when testform.json has no "github" section. */
+/** Error shown when configuration has no GitHub provider section. */
 export const ERR_GITHUB_CONFIG_NOT_FOUND =
-    `GitHub configuration not found. Add a "github" section to your ${FILE_CONFIG} with owner, repository, and tokenEnv.`;
+    `GitHub provider configuration not found. Add a 'provider: github' or 'github:' block to your ${FILE_CONFIG} with owner, repository, and tokenEnv.`;
 
 /** Error shown when a command requires input but input is disabled. */
 export const ERR_NO_INPUT_ALLOWED =

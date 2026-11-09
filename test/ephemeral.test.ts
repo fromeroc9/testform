@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
-import { ephemeralCmd, getEphemeralBaseDir, getEphemeralSandboxDir, isValidSandboxId } from '../src/commands/ephemeral';
+import { ephemeralCmd, getEphemeralSandboxDir, isValidSandboxId } from '../src/commands/ephemeral';
 import { applyCmd } from '../src/commands/apply';
 import { destroyCmd } from '../src/commands/destroy';
 import { join } from 'path';

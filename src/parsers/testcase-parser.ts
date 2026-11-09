@@ -41,7 +41,7 @@ export class TestcaseParser extends BaseParser {
             }
 
             if (s.description) {
-                const descMatch = s.description.match(/^\s*\*\s*mark\s+status\s*=\s*(.*)$/im);
+                const descMatch = s.description.match(/^\s*\*\s*set\s+status\s*=\s*(.*)$/im);
                 if (descMatch) {
                     customFields['status'] = descMatch[1]?.trim();
                 }
@@ -49,22 +49,22 @@ export class TestcaseParser extends BaseParser {
 
             if (s.background) {
                 s.background.steps = s.background.steps.filter((step: any) => {
-                    const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+([a-zA-Z0-9_-]+)\s*=\s*(.*)$/i);
-                    if (markMatch) {
-                        const markKey = markMatch[1].trim().toLowerCase();
-                        const markVal = markMatch[2]?.trim();
-                        if (markKey === 'evidence') {
+                    const setMatch = step.text.match(/^\s*(?:\*\s*)?set\s+([a-zA-Z0-9_-]+)\s*=\s*(.*)$/i);
+                    if (setMatch) {
+                        const setKey = setMatch[1].trim().toLowerCase();
+                        const setVal = setMatch[2]?.trim();
+                        if (setKey === 'evidence') {
                             try {
-                                if (markVal.startsWith('[') && markVal.endsWith(']')) {
-                                    customFields['evidence'] = JSON.parse(markVal);
+                                if (setVal.startsWith('[') && setVal.endsWith(']')) {
+                                    customFields['evidence'] = JSON.parse(setVal);
                                 } else {
-                                    customFields['evidence'] = markVal;
+                                    customFields['evidence'] = setVal;
                                 }
                             } catch {
-                                customFields['evidence'] = markVal;
+                                customFields['evidence'] = setVal;
                             }
                         } else {
-                            customFields[markKey] = markVal;
+                            customFields[setKey] = setVal;
                         }
                         return false;
                     }
@@ -92,22 +92,22 @@ export class TestcaseParser extends BaseParser {
             }
 
             s.steps = s.steps.filter((step: any) => {
-                const markMatch = step.text.match(/^\s*(?:\*\s*)?mark\s+([a-zA-Z0-9_-]+)\s*=\s*(.*)$/i);
-                if (markMatch) {
-                    const markKey = markMatch[1].trim().toLowerCase();
-                    const markVal = markMatch[2]?.trim();
-                    if (markKey === 'evidence') {
+                const setMatch = step.text.match(/^\s*(?:\*\s*)?set\s+([a-zA-Z0-9_-]+)\s*=\s*(.*)$/i);
+                if (setMatch) {
+                    const setKey = setMatch[1].trim().toLowerCase();
+                    const setVal = setMatch[2]?.trim();
+                    if (setKey === 'evidence') {
                         try {
-                            if (markVal.startsWith('[') && markVal.endsWith(']')) {
-                                customFields['evidence'] = JSON.parse(markVal);
+                            if (setVal.startsWith('[') && setVal.endsWith(']')) {
+                                customFields['evidence'] = JSON.parse(setVal);
                             } else {
-                                customFields['evidence'] = markVal;
+                                customFields['evidence'] = setVal;
                             }
                         } catch {
-                            customFields['evidence'] = markVal;
+                            customFields['evidence'] = setVal;
                         }
                     } else {
-                        customFields[markKey] = markVal;
+                        customFields[setKey] = setVal;
                     }
                     return false;
                 }

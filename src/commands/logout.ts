@@ -1,4 +1,4 @@
-import { bold, green, yellow } from 'chalk';
+import { green, yellow } from 'chalk';
 import { Credentials } from '../core/credentials';
 
 interface LogoutCmdOptions {

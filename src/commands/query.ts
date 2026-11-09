@@ -31,7 +31,6 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
         target,
         json = false,
         count = false,
-        verbose = false,
         statePath,
         backupPath,
         generateConfigOut

@@ -47,7 +47,7 @@ describe('Command planCmd', () => {
     });
 
     const mockStateResources = [
-        { identity: 'file1.tc1', attributes: { localHash: 'hash1', remoteId: 'remote-1' } }
+        { address: 'file1.tc1', path: 'file1', tag: 'tc1', attributes: { localHash: 'hash1', remoteId: 'remote-1' } }
     ];
 
     it('should generate a plan successfully', async () => {
@@ -200,7 +200,7 @@ describe('Command planCmd', () => {
 
         expect(result).toBeDefined();
         expect(result!.changes).toHaveLength(1);
-        const replaceChange = result!.changes.find(c => c.action === 'replace');
+        const replaceChange = result!.changes.find((c: any) => c.action === 'replace');
         expect(replaceChange).toBeDefined();
     });
 

@@ -377,7 +377,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                         id: "bug-target-missing",
                         type: 'warning',
                         title: `Bug scenario "${scenario.name || 'Unnamed'}" lacks target traceability`,
-                        detail: `Add a step '* mark target = <testcase.identity>' or link it with a '@tc-*' tag for full defect-to-case traceability.`,
+                        detail: `Add a step '* set target = <testcase.identity>' or link it with a '@tc-*' tag for full defect-to-case traceability.`,
                         uri: scenario.uri,
                         scenario: scenario.name,
                         line: scenario.location

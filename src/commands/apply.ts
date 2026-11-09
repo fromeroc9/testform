@@ -1,4 +1,4 @@
-import { MSG_ACQUIRING_LOCK, ERR_NO_INPUT_ALLOWED } from '../core/const';
+import { MSG_ACQUIRING_LOCK } from '../core/const';
 import { existsSync, readFileSync } from 'fs';
 import { bold, green } from 'chalk';
 import { resource } from '../core/resources';
@@ -6,7 +6,6 @@ import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
 import { calculatePlan } from './plan';
-import { IScope } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { OutputResolver } from '../core/outputs';
 import { refreshState } from './refresh';
@@ -172,11 +171,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             if (change.resourceType.endsWith('testplan') && change.scenario.custom?.testruns) {
                 for (const tr of change.scenario.custom.testruns) {
                     const runResources = stateObj.getResources('testrun').filter(r =>
-                        r.identity.endsWith(tr) || r.identity.includes(tr)
+                        r.address.endsWith(tr) || r.address.includes(tr) || (r.path && (r.path.endsWith(tr) || r.path.includes(tr))) || r.tag === tr
                     );
 
                     if (runResources.length > 1) {
-                        const uris = Array.from(new Set(runResources.map(r => r.identity)));
+                        const uris = Array.from(new Set(runResources.map(r => r.address)));
                         logger.warn(`Rule '${tr}' in Testplan matches multiple Testruns. Linking all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
                     }
 
@@ -190,10 +189,10 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                     : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(runResource.attributes.issueNumber as number) : null);
                                 if (issueDetails && issueDetails.id) {
                                     if ((github as any).addSubIssue) await (github as any).addSubIssue(parentIssueNumber, issueDetails.id);
-                                    console.log(`  -> Linked testrun ${runResource.identity} as sub-issue to testplan`);
+                                    console.log(`  -> Linked testrun ${runResource.address} as sub-issue to testplan`);
                                 }
                             } catch (e: any) {
-                                console.log(`  -> Failed to link testrun ${runResource.identity} as sub-issue: ${e.message}`);
+                                console.log(`  -> Failed to link testrun ${runResource.address} as sub-issue: ${e.message}`);
                             }
                         }
                     }
@@ -209,7 +208,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         try {
             orderedChanges = depResolver.sortTopologically(
                 plan.changes,
-                (c) => c.identity,
+                (c) => c.address,
                 (c) => c.scenario?.tags ? c.scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : []
             );
         } catch (err: any) {
@@ -349,7 +348,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         await executeInBatches(orderedChanges, parallelismNum, async (change) => {
             try {
                     if (change.action === 'add') {
-                        const address = formatResourceAddress(change.resourceType, change.identity);
+                        const address = formatResourceAddress(change.resourceType, change.address);
                         console.log(`${address}: Creating...`);
                         const startTime = Date.now();
 
@@ -366,7 +365,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         // Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
-                            identity: change.identity,
+                            address: change.address,
+                            path: change.path,
+                            tag: change.tag,
+                            physicalAddress: change.physicalAddress,
+                            ...(change.namespace ? { namespace: change.namespace } : {}),
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId,
@@ -387,7 +390,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         added++;
 
                     } else if (change.action === 'replace') {
-                        const address = formatResourceAddress(change.resourceType, change.identity);
+                        const address = formatResourceAddress(change.resourceType, change.address);
                         const remoteId = change.remoteId ?? '';
                         console.log(`${address}: Replacing... [id=${remoteId}]`);
                         const startTime = Date.now();
@@ -438,7 +441,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         // 3. Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
-                            identity: change.identity,
+                            address: change.address,
+                            path: change.path,
+                            tag: change.tag,
+                            physicalAddress: change.physicalAddress,
+                            ...(change.namespace ? { namespace: change.namespace } : {}),
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId: newRemoteId,
@@ -460,7 +467,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         added++;
 
                     } else if (change.action === 'change') {
-                        const address = formatResourceAddress(change.resourceType, change.identity);
+                        const address = formatResourceAddress(change.resourceType, change.address);
                         const remoteId = change.remoteId ?? '';
                         console.log(`${address}: Modifying... [id=${remoteId}]`);
                         const startTime = Date.now();
@@ -477,7 +484,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         // Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
-                            identity: change.identity,
+                            address: change.address,
+                            path: change.path,
+                            tag: change.tag,
+                            physicalAddress: change.physicalAddress,
+                            ...(change.namespace ? { namespace: change.namespace } : {}),
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId,
@@ -498,7 +509,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         changed++;
 
                     } else if (change.action === 'destroy') {
-                        const address = formatResourceAddress(change.resourceType, change.identity);
+                        const address = formatResourceAddress(change.resourceType, change.address);
                         const remoteId = change.remoteId ?? '';
                         console.log(`${address}: Destroying... [id=${remoteId}]`);
                         const startTime = Date.now();
@@ -539,7 +550,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(green(`${address}: Destruction complete after ${elapsed}s [id=${remoteId}]`));
 
                         // Remove from state
-                        stateObj.removeResource(change.identity);
+                        stateObj.removeResource(change.address);
 
                         destroyed++;
                     }
@@ -548,7 +559,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         type: 'error',
                         title: `${error.message}`,
                         detail: [
-                            `  with ${change.resourceType}.${change.identity}`,
+                            `  with ${change.resourceType}.${change.address}`,
                         ],
                     });
                 }

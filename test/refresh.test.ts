@@ -58,7 +58,7 @@ describe('Command refreshCmd', () => {
 
         const mockResource = {
             type: 'github_testcase',
-            identity: 'tc1',
+            address: 'tc1',
             attributes: {
                 title: 'Old Title',
                 issueNumber: 123
@@ -105,7 +105,7 @@ describe('Command refreshCmd', () => {
 
         const mockResource = {
             type: 'github_testcase',
-            identity: 'tc2',
+            address: 'tc2',
             attributes: {
                 title: 'Some Title',
                 issueNumber: 124
@@ -150,7 +150,7 @@ describe('Command refreshCmd', () => {
 
         const mockResource = {
             type: 'github_testcase',
-            identity: 'tc3',
+            address: 'tc3',
             attributes: {
                 title: 'Unsynced Title'
             }

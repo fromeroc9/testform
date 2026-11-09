@@ -1,5 +1,5 @@
 import { cyan, green, yellow, red, gray, bold, dim } from 'chalk';
-import { LogLevel, LogOptions, INotify } from './types';
+import { LogOptions, INotify } from './types';
 import { TestformError } from './errors';
 
 function cleanText(text: string): string {

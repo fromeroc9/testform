@@ -98,7 +98,9 @@ resource:
 
         state.upsertResource({
             type: 'github_testcase',
-            identity: 'auth/login.case.feature.@tc-1',
+            address: 'login.case.feature.@tc-1',
+            path: 'auth/login.case.feature',
+            tag: '@tc-1',
             attributes: {
                 localHash: 'hash1',
                 issueNumber: 1,
@@ -121,7 +123,9 @@ resource:
         // Verify resource was NOT deleted from state
         const remaining = state.getResources();
         expect(remaining.length).toBe(1);
-        expect(remaining[0].identity).toBe('auth/login.case.feature.@tc-1');
+        expect(remaining[0].address).toBe('login.case.feature.@tc-1');
+        expect(remaining[0].path).toBe('auth/login.case.feature');
+        expect(remaining[0].tag).toBe('@tc-1');
     });
 
     it('should ignore changes in detectAttributeDrift when ignore_changes is specified', () => {
@@ -207,7 +211,9 @@ resource:
         await state.init();
         state.upsertResource({
             type: 'github_testcase',
-            identity: 'auth/login.case.feature.@tc-1',
+            address: 'login.case.feature.@tc-1',
+            path: 'auth/login.case.feature',
+            tag: '@tc-1',
             attributes: {
                 localHash: calculatedHash,
                 issueNumber: 10,

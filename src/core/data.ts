@@ -4,7 +4,6 @@ import YAML from 'yaml';
 import { State } from './state';
 import { normalizeAddress, addressesMatch } from './utils';
 import { CONFIG_FILE_NAMES } from './const';
-import { resource } from './resources';
 
 export interface DataSourceDeclaration {
     address?: string;
@@ -355,10 +354,13 @@ export class DataResolver {
         if (state) {
             const resources = state.getResources();
             const matched = resources.filter(r => {
-                // Exact match on identity or type.identity
-                if (addressesMatch(r.identity, address) ||
-                    addressesMatch(`${r.type}.${r.identity}`, address) ||
-                    addressesMatch(r.identity, address.replace(/^(github_|local_)?(testcase|testrun|testplan)\./, ''))) {
+                const rAddr = r.address || (r as any).identity || '';
+                const rPath = r.path || '';
+                // Exact match on address or type.address
+                if (addressesMatch(rAddr, address) ||
+                    addressesMatch(`${r.type}.${rAddr}`, address) ||
+                    addressesMatch(rAddr, address.replace(/^(github_|local_)?(testcase|testrun|testplan|bug)\./, '')) ||
+                    (rPath && addressesMatch(rPath, address))) {
                     return true;
                 }
 
@@ -366,9 +368,9 @@ export class DataResolver {
                 if (cleanTag) {
                     const rLabels = (r.attributes && r.attributes.labels) || [];
                     const hasLabel = rLabels.includes(cleanTag) || rLabels.includes(`@${cleanTag}`);
-                    const hasTagInIdentity = r.identity.endsWith(`.@${cleanTag}`) || r.identity.includes(`.@${cleanTag}.`) || r.identity.includes(`@${cleanTag}`);
-                    if (hasLabel || hasTagInIdentity) {
-                        if (uri && uri !== norm && !r.identity.includes(uri)) {
+                    const hasTag = r.tag === `@${cleanTag}` || r.tag === cleanTag || rAddr.includes(`@${cleanTag}`);
+                    if (hasLabel || hasTag) {
+                        if (uri && uri !== norm && !rPath.includes(uri) && !rAddr.includes(uri)) {
                             return false;
                         }
                         return true;
@@ -376,7 +378,7 @@ export class DataResolver {
                 }
 
                 // URI match without tag
-                if (!cleanTag && uri && r.identity.includes(uri)) {
+                if (!cleanTag && uri && (rPath.includes(uri) || rAddr.includes(uri))) {
                     return true;
                 }
 
@@ -495,20 +497,9 @@ export class DataResolver {
 
     private formatResourceAttrs(r: any): any {
         const attrs = r.attributes || ({} as any);
-        const featureIdx = r.identity.indexOf('.feature');
-        let tag = '';
-        let uri = r.identity;
-
-        if (featureIdx !== -1) {
-            uri = r.identity.substring(0, featureIdx + 8);
-            const remaining = r.identity.substring(featureIdx + 8);
-            const tagMatch = remaining.match(/@([a-zA-Z0-9_-]+)/);
-            tag = tagMatch ? `@${tagMatch[1]}` : (remaining ? `@${remaining.replace(/^\./, '')}` : '');
-        } else {
-            const tagMatch = r.identity.match(/@([a-zA-Z0-9_-]+)$/);
-            tag = tagMatch ? `@${tagMatch[1]}` : '';
-            uri = r.identity.replace(/\.@[a-zA-Z0-9_-]+$/, '');
-        }
+        const address = r.address || r.identity || '';
+        const path = r.path || (address.includes('@') ? address.slice(0, address.lastIndexOf('@')).replace(/\.$/, '') : address);
+        const tag = r.tag || (address.includes('@') ? address.slice(address.lastIndexOf('@')) : '');
 
         return {
             ...attrs,
@@ -516,10 +507,11 @@ export class DataResolver {
             remoteId: attrs.remoteId || attrs.id || '',
             issueNumber: attrs.issueNumber !== undefined ? attrs.issueNumber : 0,
             number: attrs.issueNumber !== undefined ? attrs.issueNumber : 0,
-            identity: r.identity,
-            address: r.identity,
+            address,
+            identity: address,
+            path,
             tag,
-            uri,
+            uri: path || address,
             title: attrs.title || '',
             labels: attrs.labels || [],
             status: attrs.status || '',

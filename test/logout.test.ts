@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { logoutCmd } from '../src/commands/logout';
 import { Credentials } from '../src/core/credentials';
 

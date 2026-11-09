@@ -3,7 +3,7 @@ import { reportCmd } from '../src/commands/report';
 import { State } from '../src/core/state';
 import { resolveReport, resolveFormat } from '../src/reports/loader';
 import { builtinReports } from '../src/reports/catalog';
-import { coreFormats, DocxFormat, XlsxFormat } from '../src/reports/formats';
+import { coreFormats } from '../src/reports/formats';
 import { logger } from '../src/core/logger';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';

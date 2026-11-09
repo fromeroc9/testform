@@ -70,8 +70,9 @@ export class StateQuery {
             ];
             const seen = new Set<string>();
             this.allResources = list.filter(r => {
-                if (!r || !r.identity || seen.has(r.identity)) return false;
-                seen.add(r.identity);
+                const addr = r?.address || (r as any)?.identity;
+                if (!r || !addr || seen.has(addr)) return false;
+                seen.add(addr);
                 return true;
             });
         }
@@ -105,7 +106,7 @@ export class StateQuery {
                 if (!executedTcMap.has(tcId)) {
                     executedTcMap.set(tcId, []);
                 }
-                executedTcMap.get(tcId)!.push({ status: st, testRunId: tr.identity });
+                executedTcMap.get(tcId)!.push({ status: st, testRunId: tr.address || (tr as any).identity });
             }
         }
 
@@ -116,7 +117,7 @@ export class StateQuery {
 
         for (const [tcIdentity, executions] of executedTcMap.entries()) {
             const normTcId = normalizeAddress(tcIdentity);
-            const tc = testcases.find(t => t.identity === tcIdentity || normalizeAddress(t.identity) === normTcId);
+            const tc = testcases.find(t => t.address === tcIdentity || normalizeAddress(t.address) === normTcId || (t as any).identity === tcIdentity);
             if (!tc) continue;
             processedTcIdentities.add(tcIdentity);
 
@@ -127,7 +128,7 @@ export class StateQuery {
 
         // Testcases not executed in any run
         for (const tc of testcases) {
-            if (!processedTcIdentities.has(tc.identity)) {
+            if (!processedTcIdentities.has(tc.address || (tc as any).identity)) {
                 items.push(this.toQueryItem(tc, String(tc.attributes.status || 'unexecuted'), ''));
             }
         }
@@ -136,7 +137,7 @@ export class StateQuery {
         for (const res of [...testruns, ...testplans]) {
             const cScope = this.getCanonicalScope(res.type);
             const status = res.attributes.status ? String(res.attributes.status) : (res.attributes.issueNumber ? 'active' : 'unexecuted');
-            items.push(this.toQueryItem(res, status, cScope === 'testrun' ? res.identity : ''));
+            items.push(this.toQueryItem(res, status, cScope === 'testrun' ? (res.address || (res as any).identity) : ''));
         }
 
         this.normalizedItems = items;
@@ -156,31 +157,31 @@ export class StateQuery {
 
         for (const t of targetList) {
             // Find resources matching this target in the state
-            const matchedResources = this.allResources.filter(r => matchesTarget(r.identity, t));
+            const matchedResources = this.allResources.filter(r => matchesTarget(r.address || (r as any).identity, t));
 
             for (const res of matchedResources) {
                 const cScope = this.getCanonicalScope(res.type);
 
                 if (cScope === 'testplan') {
                     // Testplan: extract all linked testruns and their identities
-                    matchingItemIds.add(res.identity);
+                    matchingItemIds.add(res.address || (res as any).identity);
                     const linkedRuns = (res.attributes.testruns as string[]) || [];
                     for (const lr of linkedRuns) {
                         const runs = this.allResources.filter(r =>
                             this.getCanonicalScope(r.type) === 'testrun' &&
-                            (matchesTarget(r.identity, lr) || r.identity.endsWith(lr))
+                            (matchesTarget(r.address || (r as any).identity, lr) || (r.address || (r as any).identity).endsWith(lr))
                         );
                         for (const r of runs) {
-                            matchingRunIds.add(r.identity);
-                            matchingItemIds.add(r.identity);
+                            matchingRunIds.add(r.address || (r as any).identity);
+                            matchingItemIds.add(r.address || (r as any).identity);
                         }
                         matchingRunIds.add(lr);
                     }
                 } else if (cScope === 'testrun') {
-                    matchingRunIds.add(res.identity);
-                    matchingItemIds.add(res.identity);
+                    matchingRunIds.add(res.address || (res as any).identity);
+                    matchingItemIds.add(res.address || (res as any).identity);
                 } else {
-                    matchingItemIds.add(res.identity);
+                    matchingItemIds.add(res.address || (res as any).identity);
                 }
             }
 
@@ -231,7 +232,7 @@ export class StateQuery {
             : (res.attributes.assignees ? String(res.attributes.assignees).split(',') : []);
 
         return {
-            id: res.identity,
+            id: res.address || (res as any).identity,
             type: res.type,
             canonicalScope: cScope,
             title: String(res.attributes.title || ''),
@@ -390,10 +391,10 @@ export class StateQuery {
         const allPlans = this.allResources.filter(r => this.getCanonicalScope(r.type) === 'testplan');
 
         const testruns = filteredRunIds.size > 0 
-            ? allRuns.filter(r => filteredRunIds.has(r.identity) || Array.from(filteredRunIds).some(id => r.identity.endsWith(id) || id.endsWith(r.identity)))
+            ? allRuns.filter(r => filteredRunIds.has(r.address || (r as any).identity) || Array.from(filteredRunIds).some(id => (r.address || (r as any).identity).endsWith(id) || id.endsWith(r.address || (r as any).identity)))
             : allRuns;
         const testplans = filteredPlanIds.size > 0
-            ? allPlans.filter(p => filteredPlanIds.has(p.identity))
+            ? allPlans.filter(p => filteredPlanIds.has(p.address || (p as any).identity))
             : allPlans;
 
         stats.total = testcases.length;

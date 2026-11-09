@@ -2,7 +2,6 @@ import { resolve, dirname } from 'path';
 import { pathToFileURL } from 'url';
 import { existsSync, readFileSync } from 'fs';
 import { IProvider } from './interface';
-import { logger } from '../core/logger';
 
 export interface ICustomProviderConfig {
     source: string;

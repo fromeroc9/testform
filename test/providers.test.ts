@@ -4,7 +4,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { providersCmd } from '../src/commands/providers';
 import { getCommandHelp, HELP_PROVIDERS, HELP_PROVIDERS_LOCK, HELP_PROVIDERS_MIRROR, HELP_PROVIDERS_SCHEMA } from '../src/core/help';
-import { TestformError } from '../src/core/errors';
 
 describe('providers command', () => {
     let tempDir: string;

@@ -2,10 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { parseModuleTargets, parseGitSource, isGitSource, ModuleRegistry, loadModuleSteps } from '../src/core/module';
+import { parseModuleTargets, parseGitSource, isGitSource } from '../src/core/module';
 import { Parser } from '../src/core/parser';
 import { OutputResolver } from '../src/core/outputs';
-import { VariableParser } from '../src/core/variables';
 import { State } from '../src/core/state';
 import { reassembleSplitTags } from '../src/core/utils';
 

@@ -7,9 +7,9 @@
  */
 
 import { bold, green, yellow, red, dim } from 'chalk';
-import { GitHubProvider, GitHubAdapter } from '../providers/github';
-import { LocalProvider, LocalAdapter } from '../providers/local';
-import { IProvider, IProviderAdapter } from '../providers/interface';
+import { GitHubAdapter } from '../providers/github';
+import { LocalAdapter } from '../providers/local';
+import { IProviderAdapter } from '../providers/interface';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
@@ -63,7 +63,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let resources = state.getResources(resourceType);
 
     if (target) {
-        resources = resources.filter(r => matchesTarget(r.identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
+        resources = resources.filter(r => matchesTarget(r.address, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
     }
 
     if (resources.length === 0) {
@@ -104,13 +104,13 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     await executeInBatches(resources, parallelism, async (res) => {
         const remoteId = res.attributes.remoteId ?? '';
-        if (!silent) console.log(`${formatResourceAddress(res.type, res.identity)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
+        if (!silent) console.log(`${formatResourceAddress(res.type, res.address)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
 
         try {
             const targetId = res.attributes.issueNumber || res.attributes.remoteId;
             if (!targetId) {
-                if (!silent) console.log(yellow(`  ${res.identity}: No issue number — removing from state`));
-                state.removeResource(res.identity);
+                if (!silent) console.log(yellow(`  ${res.address || (res as any).identity}: No issue number — removing from state`));
+                state.removeResource(res.address || (res as any).identity);
                 removed++;
                 return;
             }
@@ -130,19 +130,19 @@ export const refreshState = async (options: RefreshStateOptions) => {
             }
 
             if (!issue) {
-                if (!silent) console.log(red(`  ${res.identity}: Issue #${targetId} not found — removing from state`));
-                state.removeResource(res.identity);
+                if (!silent) console.log(red(`  ${res.address || (res as any).identity}: Issue #${targetId} not found — removing from state`));
+                state.removeResource(res.address || (res as any).identity);
                 removed++;
             } else if (issue.state === 'closed' || issue.status === 'deleted') {
-                if (!silent) console.log(yellow(`  ${res.identity}: Issue #${targetId} is closed — removing from state`));
-                state.removeResource(res.identity);
+                if (!silent) console.log(yellow(`  ${res.address || (res as any).identity}: Issue #${targetId} is closed — removing from state`));
+                state.removeResource(res.address || (res as any).identity);
                 removed++;
             } else {
                 const remoteCustomFields = (issue.node_id && (github as any).getProjectItemFields)
                     ? await (github as any).getProjectItemFields(issue.node_id)
                     : undefined;
 
-                const lifecycle = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
+                const lifecycle = lifecycleResolver.getLifecycle(res.address, res.attributes.labels || []);
                 const { hasDrift, newAttributes } = detectAttributeDrift(
                     res.attributes,
                     issue,
@@ -153,7 +153,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 if (hasDrift) {
                     res.attributes = { ...res.attributes, ...newAttributes };
                     if (!silent) {
-                        console.log(yellow(`  ! Drift detected on remote for ${formatIdentityDisplay(res.identity)} (Issue #${targetId})`));
+                        console.log(yellow(`  ! Drift detected on remote for ${formatIdentityDisplay(res.address)} (Issue #${targetId})`));
                         console.log(dim(`    Run 'testform diff --remote' to inspect differences or interactively pull changes.`));
                     }
                     // Invalidate localHash to force a plan diff
@@ -167,7 +167,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
             if (!silent) {
                 notify.push({
                     type: 'warning',
-                    title: `Failed to refresh ${res.identity}: ${error.message}`,
+                    title: `Failed to refresh ${res.address}: ${error.message}`,
                     detail: [],
                 });
             }
@@ -219,7 +219,6 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
         compactWarnings,
         target
     } = options;
-    const logger = new Logger(verbose);
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
         const effectiveTarget = target || (options as any).scope;
         const realTarget = effectiveTarget || (options as any).scope;
@@ -231,7 +230,7 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
             if (resType) {
                 let resList = stateObj.getResources(resType);
                 if (target) {
-                    resList = resList.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
+                    resList = resList.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
                 }
                 totalResources += resList.length;
             }
@@ -245,6 +244,7 @@ export const refreshCmd = async (options: RefreshCmdOptions) => {
             return;
         }
 
+        const logger = new Logger(verbose);
         for (const s of scopesToRun) {
             await refreshState({ dir, scope: s, state: stateObj, logger, silent: false, isImplicit: false, parallelismRaw, target });
         }

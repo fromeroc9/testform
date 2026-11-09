@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { parseModuleTag, resolveModulePath, loadModuleSteps } from '../src/core/module';
+import { parseModuleTag, loadModuleSteps } from '../src/core/module';
 import { Parser } from '../src/core/parser';
 
 describe('Feature and Scenario Modules (@module)', () => {

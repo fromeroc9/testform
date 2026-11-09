@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import YAML from 'yaml';
 import { State } from './state';
@@ -242,12 +242,18 @@ export class OutputResolver {
 
             // Match resourceRef against state resources
             const res = resources.find(r => {
-                if (addressesMatch(r.identity, resourceRef)) return true;
-                if (addressesMatch(`${r.type}.${r.identity}`, resourceRef)) return true;
+                const rAddr = r.address || (r as any).identity || '';
+                const rPath = r.path || '';
+                const fullPathTag = (rPath && r.tag) ? `${rPath}.${r.tag}` : rPath;
+
+                if (addressesMatch(rAddr, resourceRef)) return true;
+                if (addressesMatch(`${r.type}.${rAddr}`, resourceRef)) return true;
+                if (rPath && addressesMatch(rPath, resourceRef)) return true;
+                if (fullPathTag && addressesMatch(fullPathTag, resourceRef)) return true;
 
                 // Strip leading scope prefix (e.g. testcase., testrun., testplan.)
-                const stripped = resourceRef.replace(/^(github_|local_)?(testcase|testrun|testplan)\./, '');
-                if (addressesMatch(r.identity, stripped)) return true;
+                const stripped = resourceRef.replace(/^(github_|local_)?(testcase|testrun|testplan|bug)\./, '');
+                if (addressesMatch(rAddr, stripped) || (rPath && addressesMatch(rPath, stripped)) || (fullPathTag && addressesMatch(fullPathTag, stripped))) return true;
 
                 return false;
             });

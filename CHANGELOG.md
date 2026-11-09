@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.5] - 2026-11-09
+
+### Added
+
+#### 🧭 Dual Address Architecture & 3-Tier Scope Priority
+- **3-Tier Scope Resolution:**
+  - Standardized unambiguous scope evaluation priority:
+    1. **Special root tag:** Highest precedence (`@testcase`, `@testrun`, `@testplan`, `@bug`).
+    2. **Filename extension convention:** Second priority (`.case.feature`, `.run.feature`, `.plan.feature`, `.bug.feature`).
+    3. **Directory & `main.yml` identity:** Baseline convention fallback.
+- **Dual Address Selector Engine (`src/core/selector.ts`):**
+  - Unified selector parser accepting both **logical addresses** (`[namespace.]<basename>.[@tag]`) and **physical paths** (`<relative_path> + [@tag]`).
+  - Supports all 4 resource scopes (`testcase`, `testrun`, `testplan`, `bug`) seamlessly across CLI commands (`plan`, `apply`, `run`, `validate`).
+- **Homonym Collision Auto-Fallback:**
+  - Automatic detection of identically named feature files across different directory subtrees.
+  - Automatically falls back to physical path disambiguation (`tests/billing/checkout.case.feature` vs `tests/shipping/checkout.case.feature`) if no explicit `@ns` namespace is provided, avoiding execution ambiguity.
+- **Optional Tag Selectors in TestRun & TestPlan:**
+  - `testform run` and `testform plan` accept optional `@tag` specifiers in scenario targets for granular execution.
+
+#### ⚡ Incremental AST Cache (`AstCache`)
+- **Microsecond Invalidation Cache (`src/core/cache.ts`):**
+  - High-performance caching engine serializing parsed Gherkin AST structures to `.testform/cache/parser-ast.json`.
+  - Validates file timestamp (`mtimeMs`) and byte size before invoking the Gherkin parser, drastically reducing re-scan latency in large repositories.
+
+#### 🔄 Smart Rename & Move Heuristic Detection
+- **Identity Preservation across Moves/Renames (`src/commands/plan.ts`):**
+  - Heuristic detection comparing scenario hashes and titles when feature files are moved or renamed.
+  - Preserves remote provider issue identifiers and state bindings, preventing accidental state recreation or drift.
+
+#### ⏱️ Reactive Watch Mode (`--watch`)
+- **Live Re-planning (`testform plan --watch`):**
+  - File watcher integrating 300ms debounce to continuously evaluate spec edits against current state.
+  - Immediate terminal feedback on plan alterations as files are saved or modified.
+
+#### 🌉 Runner Bridge & Test Result Ingestion (`testform import -results=...`)
+- **Native Test Runner Interoperability (`src/commands/import.ts`, `src/index.ts`):**
+  - Enhanced `testform import` with the Runner Bridge capability, enabling direct ingestion of test reports from popular CI test runners into the Testform state machine.
+  - Multi-format auto-detection engine:
+    - **JUnit XML (`fast-xml-parser`):** Parses `<testsuites>` and `<testsuite>` from PyTest, JUnit 4/5, Jest XML, Cypress, Mocha, etc.
+    - **Playwright JSON:** Recursively traverses `suites -> specs -> tests -> results` extracting durations, status, errors, and attachment artifacts.
+    - **Cucumber / Behave JSON:** Ingests standard BDD JSON outputs.
+- **Granular Target Redirection (`-target` / `-out`):**
+  - Direct execution results into a specific target `.run.feature` file (`testform import -results=results.xml -target=sprint.run.feature`).
+  - In-place scenario status updating: matches scenarios by `@tc-*` target tag, updating `* set status`, `* set duration`, `* set trace`, and `* set evidence` without altering other feature structure.
+  - Appends missing scenarios dynamically if they do not yet exist in the target run file.
+- **Automated Bug Filing (`--auto-create-bugs`):**
+  - Flags test failures and automatically provisions corresponding `@bg-*` scenarios in `.bug.feature` specs.
+
+#### 🔄 DSL Keyword Modernization: `* set` (Replaced `* mark`)
+- **Direct Semantic Assignment (`* set <property> = <value>`):**
+  - Deprecated and replaced the legacy `* mark` keyword in favor of `* set` across the execution engine and parsers.
+  - Aligns execution results (`* set status = passed`, `* set target = ...`, `* set trace = ...`, `* set evidence = ...`) with natural BDD imperative verbs.
+  - Fully decoupled from custom metadata fields (`* field <name> = <value>`), which remain completely untouched.
+- **CLI Subcommand Harmonization:**
+  - Updated specification commands: `testform spec testrun set` and `testform spec bug set` (formerly `mark`).
+  - Generators (`testform import -results=...`, `testform spec-builder`) now emit `* set` syntax by default.
+
+#### 🧹 Legacy Message Modernization & Code Cleanup
+- **CLI Message Modernization (`src/core/const.ts`, `src/core/help.ts`):**
+  - Deprecated and removed lingering references to legacy `testform.json`. All error diagnostics, initialization instructions, and onboarding hints now uniformly point to `main.yml`.
+- **Dead Code Elimination:**
+  - Removed unused helper routines, obsolete state migration shims, redundant types, and unreferenced imports across core modules (`src/core/`, `src/commands/`, `src/parsers/`) and the Vitest test suite (`test/`).
+
+---
+
 ## [1.1.0-beta.4] - 2026-11-05
 
 ### Added

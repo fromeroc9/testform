@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { showCmd } from '../src/commands/show';
 import { State } from '../src/core/state';
 
@@ -29,7 +29,9 @@ describe('Command showCmd', () => {
             resources: [
                 {
                     type: 'testcase',
-                    identity: 'tc1',
+                    address: 'tc1',
+                    path: 'tc1.case.feature',
+                    tag: '@tc-1',
                     attributes: {
                         title: 'Test Case 1',
                         issueNumber: 123,

@@ -2,10 +2,10 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 import YAML from 'yaml';
 import chalk from 'chalk';
-import { policy, PolicyInfo } from '../core/policy';
+import { policy } from '../core/policy';
 import { Config } from '../core/config';
 import { IScope } from '../core/types';
-import { CONFIG_FILE_NAMES, TITLE_CLI } from '../core/const';
+import { CONFIG_FILE_NAMES } from '../core/const';
 import { Logger } from '../core/logger';
 
 const { bold, green, red, yellow, cyan, gray } = chalk;

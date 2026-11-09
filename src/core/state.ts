@@ -16,7 +16,7 @@ import { CustomBackend, CustomBackendConfig } from '../backends/custom';
 import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
-import { detectScopeFromTarget } from '../core/selector';
+import { detectScopeFromTarget, findResourceInState } from '../core/selector';
 import { normalizeAddress } from '../core/utils';
 
 export function parseBackendOverrides(raw: string | string[], baseDir: string = '.'): Record<string, string> {
@@ -161,13 +161,22 @@ export class State {
             lastSync: parsed.lastSync ?? '',
             provider: parsed.provider ?? config.getAdapterType(),
             resources: (parsed.resources ?? []).map((r: any) => {
-                const rawType = r.type || (r.identity ? detectScopeFromTarget(r.identity, config) : undefined) || 'testcase';
+                const addressStr = (r.address || r.identity || '').replace(/\\/g, '/');
+                const rawType = r.type || (addressStr ? detectScopeFromTarget(addressStr, config) : undefined) || 'testcase';
                 const normType = rawType.includes('_') ? rawType.split('_').slice(1).join('_') : rawType;
+                const pathStr = (r.path || '').replace(/\\/g, '/');
+                const tagStr = r.tag || (addressStr.includes('@') ? addressStr.slice(addressStr.lastIndexOf('@')) : '');
                 return {
-                    ...r,
-                    identity: r.identity ? r.identity.replace(/\\/g, '/') : r.identity,
                     type: normType,
-                    attributes: r.attributes ?? { ...r }
+                    address: addressStr,
+                    path: pathStr,
+                    tag: tagStr,
+                    ...(r.namespace ? { namespace: r.namespace } : {}),
+                    attributes: r.attributes ?? { ...r },
+                    lastApplied: r.lastApplied || new Date().toISOString(),
+                    tainted: r.tainted,
+                    createdAt: r.createdAt,
+                    updatedAt: r.updatedAt
                 };
             }),
             outputs: parsed.outputs ?? {},
@@ -266,7 +275,7 @@ export class State {
         if (!this.state || !this.state.resources) return [];
         if (!type) return this.state.resources;
         return this.state.resources.filter(r => {
-            const rType = r.type || (r.identity ? detectScopeFromTarget(r.identity) : undefined) || 'testcase';
+            const rType = r.type || (r.address ? detectScopeFromTarget(r.address) : (r.identity ? detectScopeFromTarget(r.identity) : undefined)) || 'testcase';
             if (rType === type) return true;
             const canonicalR = rType.includes('_') ? rType.split('_').slice(1).join('_') : rType;
             const canonicalT = type.includes('_') ? type.split('_').slice(1).join('_') : type;
@@ -302,26 +311,32 @@ export class State {
     /**
      * Find a resource by identity.
      */
-    findResource(identity: string): StateResource | undefined {
-        const norm = normalizeAddress(identity);
-        return this.state.resources.find(r => r.identity === identity || normalizeAddress(r.identity) === norm);
+    findResource(target: string): StateResource | undefined {
+        return findResourceInState(this.state.resources, target);
     }
 
     /**
      * Add or update a resource after a successful apply operation.
      */
-    upsertResource(resource: StateResource): void {
-        const normIdentity = resource.identity ? resource.identity.replace(/\\/g, '/') : resource.identity;
-        const rawType = resource.type || (resource.identity ? detectScopeFromTarget(resource.identity) : undefined) || 'testcase';
+    upsertResource(resource: Partial<StateResource> & { type?: string; attributes?: any; lastApplied?: string }): void {
+        const addressStr = (resource.address || (resource as any).identity || '').replace(/\\/g, '/');
+        const rawType = resource.type || (addressStr ? detectScopeFromTarget(addressStr) : undefined) || 'testcase';
         const normType = rawType.includes('_') ? rawType.split('_').slice(1).join('_') : rawType;
+        const pathStr = (resource.path || '').replace(/\\/g, '/');
+        const tagStr = resource.tag || (addressStr.includes('@') ? addressStr.slice(addressStr.lastIndexOf('@')) : '');
+        const physAddr = resource.physicalAddress || (tagStr ? `${pathStr}.${tagStr}` : pathStr);
         const cleanedResource: StateResource = {
             ...resource,
-            identity: normIdentity,
             type: normType,
-            attributes: cleanAttributes(resource.attributes) as any
+            address: addressStr,
+            path: pathStr,
+            tag: tagStr,
+            physicalAddress: physAddr,
+            ...(resource.namespace ? { namespace: resource.namespace } : {}),
+            attributes: cleanAttributes(resource.attributes) as any,
+            lastApplied: resource.lastApplied || new Date().toISOString()
         };
-        const targetNorm = normalizeAddress(cleanedResource.identity);
-        const idx = this.state.resources.findIndex(r => r.identity === cleanedResource.identity || normalizeAddress(r.identity) === targetNorm);
+        const idx = this.state.resources.findIndex(r => r.address === cleanedResource.address);
         if (idx >= 0) {
             this.state.resources[idx] = cleanedResource;
         } else {
@@ -332,9 +347,16 @@ export class State {
     /**
      * Remove a resource after a successful destroy operation.
      */
-    removeResource(identity: string): void {
-        const targetNorm = normalizeAddress(identity);
-        this.state.resources = this.state.resources.filter(r => r.identity !== identity && normalizeAddress(r.identity) !== targetNorm);
+    removeResource(target: string): void {
+        const norm = target.trim();
+        this.state.resources = this.state.resources.filter(r => 
+            r.address !== norm && 
+            r.tag !== norm && 
+            r.physicalAddress !== norm &&
+            (r.path && r.tag && `${r.path}.${r.tag}` !== norm) &&
+            r.path !== norm &&
+            (r as any).identity !== norm
+        );
     }
 
     /**

@@ -159,7 +159,12 @@ export interface IState {
 
 export interface StateResource {
     type: string;
-    identity: string;
+    address: string;
+    path: string;
+    tag?: string;
+    namespace?: string;
+    physicalAddress?: string;
+    identity?: string;
     attributes: StateAttributes;
     lastApplied: string;
     tainted?: boolean;
@@ -193,7 +198,12 @@ export type PlanAction = 'add' | 'change' | 'destroy' | 'replace';
 
 export interface PlanChange {
     action: PlanAction;
-    identity: string;
+    address: string;
+    path: string;
+    tag?: string;
+    namespace?: string;
+    physicalAddress?: string;
+    identity?: string;
     resourceType: string;
     scenario: ParserScenario;
     remoteId?: string;
@@ -342,7 +352,8 @@ export interface GitHubIssueResult {
 export type DiffStatus = 'synced' | 'modified_locally' | 'orphaned_remote' | 'new_local';
 
 export interface DiffEntry {
-    identity: string;
+    address: string;
+    identity?: string;
     status: DiffStatus;
     localHash?: string;
     stateHash?: string;

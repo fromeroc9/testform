@@ -1,5 +1,4 @@
-import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderApiService, IProviderResourceHandler } from '../interface';
-import { logger } from '../../core/logger';
+import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
 
 export interface IGitLabConfig {
     host?: string;
@@ -20,7 +19,6 @@ export class GitLabProvider implements IProvider {
     private host: string;
     private projectId: string | number;
     private token: string;
-    private boardId?: number;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Agnostic Multi-Resource Bus (Mode 2)
@@ -50,12 +48,11 @@ export class GitLabProvider implements IProvider {
     // Constructor
     // ──────────────────────────────────────────────────────────────────────────
 
-    constructor(private config: IGitLabConfig) {
+    constructor(config: IGitLabConfig) {
         this.host = (config.host || 'https://gitlab.com').replace(/\/+$/, '');
         this.projectId = config.projectId;
         const envVar = config.tokenEnv || 'GITLAB_TOKEN';
         this.token = config.token || process.env[envVar] || '';
-        this.boardId = config.boardId;
     }
 
     // ──────────────────────────────────────────────────────────────────────────

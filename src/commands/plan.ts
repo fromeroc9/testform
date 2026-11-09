@@ -1,6 +1,5 @@
 import { createHash } from 'crypto';
 import { MSG_ACQUIRING_LOCK } from '../core/const';
-import { bold } from 'chalk';
 import { resource } from '../core/resources';
 import { Config } from '../core/config';
 import { Parser } from '../core/parser';
@@ -12,9 +11,9 @@ import { IScope, PlanChange, PlanResult, ParserScenario } from '../core/types';
 import { VariableParser } from '../core/variables';
 import { refreshState } from './refresh';
 import { SCOPE_CONFIG, VERSION_CLI } from '../core/const';
-import { formatResourceAddress, normalizeAddress } from '../core/utils';
+import { formatResourceAddress } from '../core/utils';
 import { join } from 'path';
-import { matchesScope, matchesTarget } from '../core/selector';
+import { matchesScope, matchesTarget, computeResourceIdentity, detectCollidingBasenames } from '../core/selector';
 import { resolveScopes } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
 
@@ -170,8 +169,10 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     }
     let resources = state.getResources(RESOURCE_TYPE);
 
+    const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(scope)?.directory : undefined;
+
     if (target) {
-        resources = resources.filter(r => matchesTarget(r.identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
+        resources = resources.filter(r => matchesTarget(r.address || (r as any).identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
     }
 
     if (refreshOnly) {
@@ -182,42 +183,41 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         };
     }
 
-    // Build a lookup map for O(1) access by normalized identity
-    const stateMap = new Map(resources.map(r => [normalizeAddress(r.identity), r]));
+    // Build a lookup map for O(1) access by address
+    const stateMap = new Map(resources.map(r => [r.address || (r as any).identity, r]));
 
-    // Track which identities exist locally
-    const localIds = new Set<string>();
+    // Detect files with identical basename in different directories to prevent collisions
+    const collidingBasenames = detectCollidingBasenames(filtered, scaffoldDir);
+
+    // Track which addresses exist locally
+    const localAddresses = new Set<string>();
 
     const changes: PlanChange[] = [];
     const lifecycleResolver = new LifecycleResolver(dir);
 
     // Check for creates and updates
     for (const scenario of filtered) {
-        let identity: string;
+        const idInfo = computeResourceIdentity(scenario, scope, scaffoldDir, collidingBasenames);
+        if (!idInfo) continue;
+        const { address, path: relPath, tag, namespace, physicalAddress } = idInfo;
 
-        const rawIdentity = scenario.custom?.identity;
-        if (!rawIdentity) continue;
-        
-        if (rawIdentity.startsWith(scenario.uri) || rawIdentity === scenario.uri) {
-            identity = rawIdentity.replace(/\\/g, '/');
-        } else {
-            identity = `${scenario.uri}.${rawIdentity}`.replace(/\\/g, '/');
-        }
-
-        const normId = normalizeAddress(identity);
-        localIds.add(normId);
+        localAddresses.add(address);
         const scenarioTags = scenario.tags ? scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
-        const lc = lifecycleResolver.getLifecycle(identity, scenarioTags);
+        const lc = lifecycleResolver.getLifecycle(address, scenarioTags);
         const localHash = hashScenario(scenario, scope, lc.ignore_changes);
-        const existing = stateMap.get(normId);
+        const existing = stateMap.get(address) || (typeof state?.findResource === 'function' ? state.findResource(address) : undefined);
 
-        const shouldForceReplace = replaceTargets ? matchesTarget(identity, replaceTargets) : false;
+        const shouldForceReplace = replaceTargets ? matchesTarget(address, replaceTargets) : false;
 
         if (!existing) {
             // New resource — needs to be created
             changes.push({
                 action: 'add',
-                identity,
+                address,
+                path: relPath,
+                tag,
+                namespace,
+                physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 scenario,
                 localHash,
@@ -226,7 +226,11 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
             // Tainted or forced replace resource — needs to be replaced
             changes.push({
                 action: 'replace',
-                identity,
+                address,
+                path: relPath,
+                tag,
+                namespace,
+                physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 scenario,
                 remoteId: existing.attributes.remoteId,
@@ -246,7 +250,11 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
             // Changed resource — needs to be updated
             changes.push({
                 action: 'change',
-                identity,
+                address,
+                path: relPath,
+                tag,
+                namespace,
+                physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 scenario,
                 remoteId: existing.attributes.remoteId,
@@ -260,27 +268,51 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 
     // Check for destroys (in state but not in local files)
     for (const res of resources) {
-        if (!localIds.has(normalizeAddress(res.identity))) {
-            const lc = lifecycleResolver.getLifecycle(res.identity, res.attributes.labels || []);
+        const resAddr = res.address || (res as any).identity || '';
+        if (!localAddresses.has(resAddr)) {
+            // Smart Rename / Move Detection:
+            // If a newly added local resource has matching hash or matching tag+title,
+            // migrate it in-place instead of destroying and recreating the remote issue.
+            const moveCandidate = changes.find(c => 
+                c.action === 'add' && 
+                (
+                    (c.localHash && c.localHash === res.attributes?.localHash) ||
+                    (c.tag && res.tag && c.tag.toLowerCase() === res.tag.toLowerCase() && c.scenario.name === res.attributes?.title)
+                )
+            );
+
+            if (moveCandidate) {
+                moveCandidate.action = 'change';
+                moveCandidate.remoteId = res.attributes.remoteId;
+                moveCandidate.issueNumber = res.attributes.issueNumber;
+                moveCandidate.oldAttributes = { ...res.attributes, movedFrom: resAddr };
+                continue;
+            }
+
+            const lc = lifecycleResolver.getLifecycle(resAddr, res.attributes?.labels || []);
             if (lc.prevent_destroy) {
                 notify.push({
                     type: 'error',
                     title: 'Instance cannot be destroyed',
                     detail: [
-                        `Resource ${formatResourceAddress(res.type, res.identity)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
+                        `Resource ${formatResourceAddress(res.type, resAddr)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
                     ],
                     close: true
                 });
-                throw new Error(`Instance cannot be destroyed: ${res.identity} has lifecycle.prevent_destroy set.`);
+                throw new Error(`Instance cannot be destroyed: ${resAddr} has lifecycle.prevent_destroy set.`);
             }
 
             // Create a minimal scenario from state for display
             changes.push({
                 action: 'destroy',
-                identity: res.identity,
+                address: res.address || resAddr,
+                path: res.path || '',
+                tag: res.tag || '',
+                namespace: res.namespace,
+                physicalAddress: res.physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 scenario: (scope === 'testrun' || scope === 'testplan') ? {
-                    uri: '(state)',
+                    uri: res.path || '(state)',
                     feature: { tags: [], keyword: '', name: res.attributes.title, description: '', location: 0 },
                     location: 0,
                     keyword: '',
@@ -288,9 +320,9 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                     description: '',
                     steps: [],
                     tags: Array.isArray(res.attributes.labels) ? res.attributes.labels : (res.attributes.labels ? String(res.attributes.labels).split(',') : []),
-                    custom: { identity: res.identity },
+                    custom: { identity: res.tag },
                 } : {
-                    uri: '(state)',
+                    uri: res.path || '(state)',
                     feature: { tags: [], keyword: '', name: '', description: '', location: 0 },
                     location: 0,
                     keyword: '',
@@ -298,11 +330,12 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                     description: '',
                     steps: [],
                     tags: Array.isArray(res.attributes.labels) ? res.attributes.labels : (res.attributes.labels ? String(res.attributes.labels).split(',') : []),
-                    custom: { identity: res.identity },
+                    custom: { identity: res.tag },
                 },
                 remoteId: res.attributes.remoteId,
                 issueNumber: res.attributes.issueNumber,
                 localHash: res.attributes.localHash,
+                oldAttributes: res.attributes,
             });
         }
     }
@@ -335,9 +368,10 @@ interface PlanCmdOptions {
     compactWarnings?: boolean;
     testDirectory?: string;
     gherkin?: boolean;
+    watch?: boolean;
 }
 
-export const planCmd = async (options: PlanCmdOptions) => {
+export const planCmd = async (options: PlanCmdOptions): Promise<PlanResult> => {
     const {
         dir = '.',
         verbose = false,
@@ -358,7 +392,8 @@ export const planCmd = async (options: PlanCmdOptions) => {
         parallelism,
         compactWarnings = false,
         testDirectory,
-        gherkin = false
+        gherkin = false,
+        watch = false
     } = options;
     const logger = new Logger(verbose);
 
@@ -373,7 +408,7 @@ export const planCmd = async (options: PlanCmdOptions) => {
                     detail: missingVars.map(v => `The root module input variable "${v.name}" is not set, and has no default value. Use -var or -var-file to supply a value.`),
                     close: true
                 });
-                return;
+                return { changes: [], hasChanges: false };
             }
 
             const readline = require('readline');
@@ -464,6 +499,40 @@ export const planCmd = async (options: PlanCmdOptions) => {
 
     if (detailedExitCode) {
         process.exitCode = plan.hasChanges ? 2 : 0;
+    }
+
+    if (watch) {
+        const path = require('path');
+        const fs = require('fs');
+        console.log('\n👀 Watching for changes in feature files and configuration... (Press Ctrl+C to exit)\n');
+        let debounceTimer: NodeJS.Timeout | null = null;
+        let running = false;
+        const watchDir = testDirectory ? path.resolve(dir, testDirectory) : path.resolve(dir);
+        try {
+            fs.watch(watchDir, { recursive: true }, async (_eventType: string, filename: string) => {
+                if (!filename || (!filename.endsWith('.feature') && !filename.endsWith('.yml') && !filename.endsWith('.yaml'))) return;
+                if (filename.includes('.testform') || filename.includes('node_modules') || filename.includes('.git')) return;
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(async () => {
+                    if (running) return;
+                    running = true;
+                    console.clear();
+                    console.log(`\n🔄 [${new Date().toLocaleTimeString()}] Change detected in ${filename}. Re-evaluating plan...\n`);
+                    try {
+                        await planCmd({ ...options, watch: false });
+                    } catch (e: any) {
+                        console.error(e.message);
+                    } finally {
+                        running = false;
+                        console.log('\n👀 Watching for changes... (Press Ctrl+C to exit)\n');
+                    }
+                }, 300);
+            });
+            // Keep process open in watch mode
+            await new Promise(() => {});
+        } catch {
+            // fs.watch recursive might not be supported on all environments, fallback gracefully
+        }
     }
 
     return plan;

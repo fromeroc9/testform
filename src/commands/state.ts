@@ -1,5 +1,5 @@
 import { bold, red, green } from 'chalk';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { State, cleanAttributes } from '../core/state';
 import { TITLE_CLI } from '../core/const';
@@ -118,12 +118,12 @@ export const stateCmd = async (options: StateCmdOptions) => {
             } else {
                 for (const res of resources) {
                     const prefix = res.tainted ? '[tainted] ' : '';
-                    console.log(`${prefix}${res.type}.${res.identity}`);
+                    console.log(`${prefix}${res.type}.${res.address}`);
                 }
             }
         } else if (action === 'identities') {
             const resources = filterResources(rawResources);
-            const identities = resources.map(r => r.identity);
+            const identities = resources.map(r => r.address);
             if (isJson) {
                 console.log(JSON.stringify(identities, null, 2));
             } else {
@@ -145,8 +145,8 @@ export const stateCmd = async (options: StateCmdOptions) => {
                 process.exit(1);
             }
 
-            console.log(bold(`# ${res.type}.${res.identity}:`));
-            console.log(`resource "${res.type}" "${res.identity}" {`);
+            console.log(bold(`# ${res.type}.${res.address}:`));
+            console.log(`resource "${res.type}" "${res.address}" {`);
             
             const keys = Object.keys(res.attributes);
             let maxKeyLen = 0;
@@ -174,10 +174,10 @@ export const stateCmd = async (options: StateCmdOptions) => {
                 const matched = findResourceInState(rawResources, arg);
                 if (matched) {
                     if (dryRun) {
-                        console.log(`Would remove ${matched.type}.${matched.identity}`);
+                        console.log(`Would remove ${matched.type}.${matched.address}`);
                     } else {
-                        state.removeResource(matched.identity);
-                        console.log(`Removed ${matched.type}.${matched.identity}`);
+                        state.removeResource(matched.address);
+                        console.log(`Removed ${matched.type}.${matched.address}`);
                     }
                     removedCount++;
                 } else {
@@ -197,7 +197,7 @@ export const stateCmd = async (options: StateCmdOptions) => {
             const source = args[0];
             const dest = args[1];
             
-            const destIdentity = dest.includes('.') ? dest.split('.').slice(1).join('.') : dest;
+            const destAddress = dest.includes('.') ? dest.split('.').slice(1).join('.') : dest;
             const res = findResourceInState(rawResources, source);
             if (!res) {
                 console.error(red(`Error: Source resource ${source} not found in state.`));
@@ -207,8 +207,11 @@ export const stateCmd = async (options: StateCmdOptions) => {
             if (dryRun) {
                 console.log(`Would move ${source} to ${dest}`);
             } else {
-                state.removeResource(res.identity);
-                res.identity = destIdentity;
+                state.removeResource(res.address);
+                res.address = destAddress;
+                if (destAddress.includes('@')) {
+                    res.tag = destAddress.slice(destAddress.lastIndexOf('@'));
+                }
                 if (dest.includes('.')) {
                     res.type = dest.split('.')[0];
                 }

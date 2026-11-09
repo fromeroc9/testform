@@ -251,7 +251,7 @@ describe('Policy bug-target-integrity', () => {
             name: 'Crash on submit',
             description: '',
             steps: [
-                { keyword: '*', text: 'mark target = auth.case.feature.@tc-1' }
+                { keyword: '*', text: 'set target = auth.case.feature.@tc-1' }
             ],
             tags: [],
             custom: { identity: '@bg-1' }

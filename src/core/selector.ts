@@ -67,55 +67,173 @@ import { normalizeAddress } from './utils';
 
 // ─── Scope Utilities ──────────────────────────────────────────────────────────
 
+export interface ResourceIdentityComponents {
+    address: string;
+    path: string;
+    tag?: string;
+    namespace?: string;
+    physicalAddress: string;
+}
+
 /**
- * Checks whether a given scenario document belongs to a specific scope,
- * based on feature tags or filename conventions.
+ * Detects files with identical basename in different directories across scenarios.
  */
-export function matchesScope(s: any, scopeName: IScope, filePattern?: string): boolean {
-    if (!s) return false;
-    if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scopeName)) return false;
-    const cfg = SCOPE_CONFIG[scopeName as keyof typeof SCOPE_CONFIG];
-    const tags = s.feature?.tags || [];
-    const uri = typeof s.uri === 'string' ? s.uri : '';
-    if (tags.includes(cfg.tag) || uri.endsWith(cfg.ext)) {
-        return true;
+export function detectCollidingBasenames(scenarios: any[], scaffoldDir?: string): Set<string> {
+    const fileByBasename = new Map<string, string>();
+    const colliding = new Set<string>();
+    if (!Array.isArray(scenarios)) return colliding;
+
+    for (const s of scenarios) {
+        let relUri = (s.uri || '').replace(/\\/g, '/');
+        if (scaffoldDir) {
+            const normScaffold = scaffoldDir.replace(/^[/\\]+|[/\\]+$/g, '').toLowerCase() + '/';
+            if (relUri.toLowerCase().startsWith(normScaffold)) {
+                relUri = relUri.substring(normScaffold.length);
+            }
+        }
+        const bName = basename(relUri);
+        if (fileByBasename.has(bName) && fileByBasename.get(bName) !== relUri) {
+            colliding.add(bName);
+        } else {
+            fileByBasename.set(bName, relUri);
+        }
+    }
+    return colliding;
+}
+
+/**
+ * Computes logical address, physical address, relative scaffold path, tag and namespace for any scope.
+ * Logical address format: [namespace.]basename.[@tag]
+ * Physical address format: path + tag for tc/bug, path (+ tag optional) for run/plan.
+ * In case of identical basename across different folders without @ns, adopts physical address to eliminate conflict.
+ */
+export function computeResourceIdentity(
+    scenario: any,
+    _scope?: IScope,
+    scaffoldDir?: string,
+    collidingBasenames?: Set<string>
+): ResourceIdentityComponents {
+    const rawTag = (scenario.custom?.identity || scenario.identity || '').trim();
+    let tag = '';
+    if (rawTag && rawTag !== scenario.uri && !rawTag.includes('/') && !rawTag.includes('\\') && !rawTag.endsWith('.feature')) {
+        if (/^@?(?:tc|tr|tp|bg)-\d+$/i.test(rawTag)) {
+            tag = rawTag.startsWith('@') ? rawTag.toLowerCase() : `@${rawTag.toLowerCase()}`;
+        } else {
+            tag = rawTag;
+        }
     }
 
-    const allTags = [
-        ...(s.feature?.tags || []),
-        ...(s.tags || []),
+    // Extract namespace from feature tags (@ns(name), @namespace(name), @ns:name)
+    let namespace: string | undefined;
+    const allTags: string[] = [
+        ...(scenario.feature?.tags || []),
+        ...(scenario.tags || []),
     ].map((t: any) => typeof t === 'string' ? t : t?.name || '');
 
-    if (allTags.includes(cfg.tag)) {
-        return true;
+    for (const t of allTags) {
+        const m = t.match(/^@(?:ns|namespace)(?:\(['"]?([^'"()]+)['"]?\)|:([a-zA-Z0-9_-]+))$/i);
+        if (m) {
+            namespace = (m[1] || m[2]).trim().toLowerCase();
+            break;
+        }
     }
 
-    const prefix = scopeName === 'testcase' ? '@tc-'
-        : scopeName === 'testrun' ? '@tr-'
-        : scopeName === 'testplan' ? '@tp-'
-        : scopeName === 'bug' ? '@bg-'
-        : undefined;
-
-    if (prefix && allTags.some(t => t.toLowerCase().startsWith(prefix))) {
-        return true;
+    // Relative path to scaffold
+    let relUri = (scenario.uri || '').replace(/\\/g, '/');
+    if (scaffoldDir) {
+        const normScaffold = scaffoldDir.replace(/^[/\\]+|[/\\]+$/g, '').toLowerCase() + '/';
+        if (relUri.toLowerCase().startsWith(normScaffold)) {
+            relUri = relUri.substring(normScaffold.length);
+        }
     }
 
+    const fileName = basename(relUri);
+
+    // Physical address: path + tag for tc/bug, path (+ optional tag) for run/plan
+    const physicalAddress = tag ? `${relUri}.${tag}` : relUri;
+
+    // Logical address: [namespace.]basename.[@tag]
+    // If colliding basename in different folders without @ns, use physical address to eliminate conflict
+    const isColliding = collidingBasenames ? collidingBasenames.has(fileName) : false;
+    let address: string;
+    if (namespace) {
+        address = tag ? `${namespace}.${fileName}.${tag}` : `${namespace}.${fileName}`;
+    } else if (isColliding && relUri !== fileName) {
+        address = physicalAddress;
+    } else {
+        address = tag ? `${fileName}.${tag}` : fileName;
+    }
+
+    return {
+        address,
+        path: relUri,
+        tag,
+        namespace,
+        physicalAddress,
+    };
+}
+
+/**
+ * Resolves the authoritative scope of a scenario following strict priority:
+ * 1. Special tag: @testcase, @testplan, @testrun, @bug (MANDATORY & HIGHEST PRIORITY)
+ * 2. File name extension: .run.feature, .plan.feature, .bug.feature, .case.feature (or tag prefix @tc-, @tr-, etc.)
+ * 3. Configuration conventions from main.yml
+ */
+export function resolveScenarioScope(s: any, filePattern?: string): IScope | undefined {
+    if (!s) return undefined;
+    const allTags: string[] = [
+        ...(s.feature?.tags || []),
+        ...(s.tags || []),
+    ].map((t: any) => typeof t === 'string' ? t.toLowerCase().trim() : (t?.name || '').toLowerCase().trim());
+
+    // 1. Highest priority: Special tag (@testcase, @testrun, @testplan, @bug)
+    if (allTags.includes('@testrun')) return 'testrun';
+    if (allTags.includes('@testplan')) return 'testplan';
+    if (allTags.includes('@bug')) return 'bug';
+    if (allTags.includes('@testcase')) return 'testcase';
+
+    // Tag prefix heuristic (@tc-*, @tr-*, @tp-*, @bg-*)
+    if (allTags.some(t => t.startsWith('@tr-') || t.startsWith('tr-'))) return 'testrun';
+    if (allTags.some(t => t.startsWith('@tp-') || t.startsWith('tp-'))) return 'testplan';
+    if (allTags.some(t => t.startsWith('@bg-') || t.startsWith('bg-'))) return 'bug';
+    if (allTags.some(t => t.startsWith('@tc-') || t.startsWith('tc-'))) return 'testcase';
+
+    // 2. Second priority: File name extension (.run.feature, .plan.feature, .bug.feature, .case.feature)
+    const uri = typeof s.uri === 'string' ? s.uri.toLowerCase().replace(/\\/g, '/') : '';
+    if (uri.endsWith('.run.feature')) return 'testrun';
+    if (uri.endsWith('.plan.feature')) return 'testplan';
+    if (uri.endsWith('.bug.feature')) return 'bug';
+    if (uri.endsWith('.case.feature')) return 'testcase';
+
+    // 3. Third priority: File pattern / main.yml convention
     if (filePattern) {
-        const fp = filePattern.trim();
-        if (fp.startsWith('*') && uri.endsWith(fp.slice(1))) {
-            return true;
-        }
-        if (uri === fp || uri.endsWith(`/${fp}`)) {
-            return true;
-        }
-        const clean = filePattern.split('.')[0].trim();
-        if (clean && clean !== '*') {
-            if (clean.startsWith('*') && uri.endsWith(clean.slice(1))) {
-                return true;
+        const fp = filePattern.trim().toLowerCase();
+        if ((fp.startsWith('*') && uri.endsWith(fp.slice(1))) || uri === fp || uri.endsWith(`/${fp}`)) {
+            for (const [scope, cfg] of Object.entries(SCOPE_CONFIG)) {
+                if (cfg.ext && fp.includes(cfg.ext.toLowerCase())) return scope as IScope;
             }
-            if (uri === clean || uri.endsWith(`/${clean}`)) {
-                return true;
-            }
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Checks whether a given scenario document belongs to a specific scope,
+ * adhering to the strict priority: special tag -> filename -> main.yml convention.
+ */
+export function matchesScope(s: any, scopeName: IScope, filePattern?: string): boolean {
+    if (!s || !scopeName) return false;
+    const resolved = resolveScenarioScope(s, filePattern);
+    if (resolved) {
+        return resolved === scopeName;
+    }
+    // Fallback if filePattern is provided specifically for this scope
+    if (filePattern && typeof s.uri === 'string') {
+        const uri = s.uri.toLowerCase().replace(/\\/g, '/');
+        const fp = filePattern.trim().toLowerCase();
+        if ((fp.startsWith('*') && uri.endsWith(fp.slice(1))) || uri === fp || uri.endsWith(`/${fp}`)) {
+            return true;
         }
     }
     return false;
@@ -272,9 +390,18 @@ export function findResourceInState(resources: any[], target: string): any | und
     const cleanTarget = target.trim();
     if (!cleanTarget) return undefined;
 
-    // 1. Direct exact match (identity or type.identity)
+    // 1. Direct exact match on address, physicalAddress, path.tag, path, or tag
     const exact = resources.find(r => 
         r && (
+            (r.address && r.address === cleanTarget) || 
+            (r.address && `${r.type}.${r.address}` === cleanTarget) ||
+            (r.physicalAddress && r.physicalAddress === cleanTarget) ||
+            (r.physicalAddress && `${r.type}.${r.physicalAddress}` === cleanTarget) ||
+            (r.path && r.tag && `${r.path}.${r.tag}` === cleanTarget) ||
+            (r.path && r.tag && `${r.type}.${r.path}.${r.tag}` === cleanTarget) ||
+            (r.path && r.path === cleanTarget) ||
+            (r.path && `${r.type}.${r.path}` === cleanTarget) ||
+            (r.tag && r.tag === cleanTarget) ||
             r.identity === cleanTarget || 
             `${r.type}.${r.identity}` === cleanTarget
         )
@@ -285,37 +412,74 @@ export function findResourceInState(resources: any[], target: string): any | und
     const normClean = normalizeAddress(cleanTarget);
     const normMatched = resources.find(r => 
         r && (
-            normalizeAddress(r.identity) === normClean ||
-            normalizeAddress(`${r.type}.${r.identity}`) === normClean
+            (r.address && normalizeAddress(r.address) === normClean) ||
+            (r.address && normalizeAddress(`${r.type}.${r.address}`) === normClean) ||
+            (r.physicalAddress && normalizeAddress(r.physicalAddress) === normClean) ||
+            (r.physicalAddress && normalizeAddress(`${r.type}.${r.physicalAddress}`) === normClean) ||
+            (r.path && r.tag && normalizeAddress(`${r.path}.${r.tag}`) === normClean) ||
+            (r.path && normalizeAddress(r.path) === normClean) ||
+            (r.tag && normalizeAddress(r.tag) === normClean) ||
+            (r.identity && normalizeAddress(r.identity) === normClean) ||
+            (r.identity && normalizeAddress(`${r.type}.${r.identity}`) === normClean)
         )
     );
     if (normMatched) return normMatched;
 
-    // 3. Robust selector matching via matchesTarget
+    // 3. Tag match (e.g. target is "@tc-01" or "tc-01" or "@tr-1")
+    const cleanTag = cleanTarget.replace(/^@/, '').toLowerCase();
+    const tagMatched = resources.find(r => 
+        r && r.tag && r.tag.replace(/^@/, '').toLowerCase() === cleanTag
+    );
+    if (tagMatched) return tagMatched;
+
+    // 4. Robust selector matching via matchesTarget
     const selectorMatched = resources.find(r => 
         r && (
-            matchesTarget(r.identity, cleanTarget, r.type) ||
-            matchesTarget(`${r.type}.${r.identity}`, cleanTarget, r.type)
+            (r.address && matchesTarget(r.address, cleanTarget, r.type)) ||
+            (r.address && matchesTarget(`${r.type}.${r.address}`, cleanTarget, r.type)) ||
+            (r.physicalAddress && matchesTarget(r.physicalAddress, cleanTarget, r.type)) ||
+            (r.path && r.tag && matchesTarget(`${r.path}.${r.tag}`, cleanTarget, r.type)) ||
+            (r.path && matchesTarget(r.path, cleanTarget, r.type)) ||
+            (r.tag && matchesTarget(r.tag, cleanTarget, r.type)) ||
+            (r.identity && matchesTarget(r.identity, cleanTarget, r.type)) ||
+            (r.identity && matchesTarget(`${r.type}.${r.identity}`, cleanTarget, r.type))
         )
     );
     if (selectorMatched) return selectorMatched;
 
-    // 4. Flexible suffix matching ignoring differences in root path (e.g. tests/features/)
-    // or leading zero differences in @tc-01 vs @tc-1
+    // 5. Match run / plan without optional tag (e.g. target="checkout.run.feature" matching "checkout.run.feature.@tr-1")
+    const withoutTagMatched = resources.find(r => {
+        if (!r) return false;
+        const normAddrNoTag = (r.address || '').replace(/\.@t[r|p]-\d+$/i, '');
+        const normPhysNoTag = (r.physicalAddress || r.path || '').replace(/\.@t[r|p]-\d+$/i, '');
+        return (
+            normAddrNoTag === cleanTarget ||
+            normPhysNoTag === cleanTarget ||
+            (r.path && r.path === cleanTarget)
+        );
+    });
+    if (withoutTagMatched) return withoutTagMatched;
+
+    // 6. Flexible suffix matching on path, address, or identity
     const normT = cleanTarget.replace(/\\/g, '/').replace(/^(?:[a-zA-Z0-9_-]+_)?(?:testcase|testrun|testplan|bug)\./i, '');
     const normTNormalizedTag = normT.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2').toLowerCase();
 
     const suffixMatched = resources.find(r => {
-        if (!r || !r.identity) return false;
-        const normId = r.identity.replace(/\\/g, '/').replace(/^(?:[a-zA-Z0-9_-]+_)?(?:testcase|testrun|testplan|bug)\./i, '');
-        const normIdLower = normId.toLowerCase();
+        if (!r) return false;
+        const resAddr = (r.address || r.identity || '').replace(/\\/g, '/').replace(/^(?:[a-zA-Z0-9_-]+_)?(?:testcase|testrun|testplan|bug)\./i, '');
+        const resPath = (r.path || '').replace(/\\/g, '/');
+        const normIdLower = resAddr.toLowerCase();
         const normTLower = normT.toLowerCase();
 
         if (normIdLower === normTLower || normIdLower.endsWith(`/${normTLower}`) || normTLower.endsWith(`/${normIdLower}`)) {
             return true;
         }
 
-        const normIdNormalizedTag = normId.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2').toLowerCase();
+        if (resPath && (resPath.toLowerCase().endsWith(`/${normTLower}`) || resPath.toLowerCase() === normTLower || matchesFeatureFile(resPath, cleanTarget))) {
+            return true;
+        }
+
+        const normIdNormalizedTag = resAddr.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2').toLowerCase();
         if (normIdNormalizedTag === normTNormalizedTag || normIdNormalizedTag.endsWith(`/${normTNormalizedTag}`) || normTNormalizedTag.endsWith(`/${normIdNormalizedTag}`)) {
             return true;
         }
@@ -361,19 +525,28 @@ export function filterResourcesInState(resources: any[], selectors: string[]): a
     if (!selectors || selectors.length === 0) return resources;
     return resources.filter(r => {
         if (!r) return false;
-        const fullAddress = `${r.type}.${r.identity}`;
+        const addr = r.address || r.identity || '';
+        const fullAddress = `${r.type}.${addr}`;
         return selectors.some(sel => {
             const cleanSel = sel.trim();
             if (!cleanSel) return false;
             return (
-                r.identity === cleanSel ||
+                addr === cleanSel ||
                 fullAddress === cleanSel ||
+                (r.physicalAddress && r.physicalAddress === cleanSel) ||
+                (r.path && r.tag && `${r.path}.${r.tag}` === cleanSel) ||
+                (r.tag && r.tag === cleanSel) ||
+                (r.path && r.path === cleanSel) ||
                 fullAddress.startsWith(cleanSel) ||
-                r.identity.startsWith(cleanSel) ||
-                normalizeAddress(r.identity) === normalizeAddress(cleanSel) ||
+                addr.startsWith(cleanSel) ||
+                normalizeAddress(addr) === normalizeAddress(cleanSel) ||
                 normalizeAddress(fullAddress) === normalizeAddress(cleanSel) ||
-                matchesTarget(r.identity, cleanSel, r.type) ||
-                matchesTarget(fullAddress, cleanSel, r.type)
+                (r.physicalAddress && normalizeAddress(r.physicalAddress) === normalizeAddress(cleanSel)) ||
+                (r.path && normalizeAddress(r.path) === normalizeAddress(cleanSel)) ||
+                matchesTarget(addr, cleanSel, r.type) ||
+                matchesTarget(fullAddress, cleanSel, r.type) ||
+                (r.physicalAddress && matchesTarget(r.physicalAddress, cleanSel, r.type)) ||
+                (r.path && matchesTarget(r.path, cleanSel, r.type))
             );
         });
     });
@@ -427,8 +600,8 @@ export function parseSpec(specArg: string, options: ParseSpecOptions = {}): Pars
             detail: [
                 `Expected format: '<identifier>=<status>'`,
                 `Examples:`,
-                `  ${TITLE_CLI} suite mark "@tc-1=passed" -target="@tr-2"`,
-                `  ${TITLE_CLI} suite mark "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
+                `  ${TITLE_CLI} suite set "@tc-1=passed" -target="@tr-2"`,
+                `  ${TITLE_CLI} suite set "cuenta/inicio-sesion.feature@tc-1=passed" -target="@tr-2"`,
                 ``,
                 `Available statuses: ${TESTCASE_STATUSES.join(', ')}`,
             ],
@@ -833,18 +1006,25 @@ export function matchesTestrunSelector(resource: any, selector: string): boolean
     if (!resource || !selector) return false;
     const normSel = selector.trim().replace(/\\/g, '/');
     const lowerSel = normSel.toLowerCase();
-    const normId = (resource.identity || '').replace(/\\/g, '/');
+    const addr = (resource.address || resource.identity || '').replace(/\\/g, '/');
+    const relPath = (resource.path || '').replace(/\\/g, '/');
+    const normId = addr || relPath;
     const lowerId = normId.toLowerCase();
 
-    // 1. Exact match on full identity
-    if (lowerId === lowerSel) return true;
+    // 1. Exact match on full address, physicalAddress, or path
+    if (
+        lowerId === lowerSel || 
+        (relPath && relPath.toLowerCase() === lowerSel) ||
+        (resource.physicalAddress && resource.physicalAddress.toLowerCase() === lowerSel) ||
+        (relPath && resource.tag && `${relPath}.${resource.tag}`.toLowerCase() === lowerSel)
+    ) return true;
 
-    // Extract parts from resource identity
+    // Extract parts from resource identity / address / path
     const lastDot = normId.lastIndexOf('.');
     const idPath = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-    const idTag = lastDot !== -1 ? normId.slice(lastDot + 1).toLowerCase() : '';
+    const idTag = (resource.tag || (lastDot !== -1 ? normId.slice(lastDot + 1) : '')).toLowerCase();
     const cleanIdTag = idTag.replace(/^@/, '');
-    const idBaseName = basename(idPath).toLowerCase();
+    const idBaseName = basename(relPath || idPath).toLowerCase();
     const idSlug = idBaseName.replace(/(\.(run|case|plan|bug))?\.feature$/i, '');
 
     // 2. Tag with @ or bare tag (e.g. "@tr-1" or "tr-1")

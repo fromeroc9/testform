@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { forceUnlockCmd } from '../src/commands/force-unlock';
 import { State } from '../src/core/state';
 

@@ -363,18 +363,18 @@ export class GherkinEditor {
         }
 
         if (!targetScenario) {
-            throw new Error(`Scenario '${scenarioName}' is not expanded in Rule '${baseRule}'. Run 'testform suite fill' first to expand the rule's scenarios before marking status.`);
+            throw new Error(`Scenario '${scenarioName}' is not expanded in Rule '${baseRule}'. Run 'testform suite fill' first to expand the rule's scenarios before setting status.`);
         }
 
         // Update existing status step
         let statusStep = targetScenario.steps.find(step =>
-            step.keyword.trim() === '*' && step.text.startsWith('mark status =')
+            step.keyword.trim() === '*' && step.text.startsWith('set status =')
         );
 
         if (statusStep) {
-            statusStep.text = `mark status = ${newStatus}`;
+            statusStep.text = `set status = ${newStatus}`;
         } else {
-            const newStep = new Step('*', `mark status = ${newStatus}`);
+            const newStep = new Step('*', `set status = ${newStatus}`);
             targetScenario.steps.unshift(newStep);
         }
 
@@ -422,17 +422,17 @@ export class GherkinEditor {
 
             if (targetScenario) {
                 let statusStep = targetScenario.steps.find(step =>
-                    step.keyword.trim() === '*' && step.text.startsWith('mark status =')
+                    step.keyword.trim() === '*' && step.text.startsWith('set status =')
                 );
                 if (statusStep) {
-                    statusStep.text = `mark status = ${status}`;
+                    statusStep.text = `set status = ${status}`;
                 } else {
-                    targetScenario.steps.unshift(new Step('*', `mark status = ${status}`));
+                    targetScenario.steps.unshift(new Step('*', `set status = ${status}`));
                 }
                 updatedScenario = true;
             } else {
                 const newScenario = new Scenario('Scenario', scenarioName, '');
-                newScenario.steps.push(new Step('*', `mark status = ${status}`));
+                newScenario.steps.push(new Step('*', `set status = ${status}`));
                 rule.elements.push(newScenario);
                 addedScenario = true;
             }
@@ -479,7 +479,7 @@ export class GherkinEditor {
 
                 if (!scenarioExists) {
                     const newScenario = new Scenario('Scenario', scenarioName, '');
-                    newScenario.steps.push(new Step('*', `mark status = ${defaultStatus}`));
+                    newScenario.steps.push(new Step('*', `set status = ${defaultStatus}`));
                     rule.elements.push(newScenario);
                 }
             }

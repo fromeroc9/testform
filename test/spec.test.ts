@@ -199,13 +199,13 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
 
             const updatedContent = readFileSync(filePath, 'utf-8');
             expect(updatedContent).toContain('Scenario: Magento/cart.case.feature.@tc-01');
-            expect(updatedContent).toContain('* mark status = pending');
+            expect(updatedContent).toContain('* set status = pending');
 
             // Mark case execution
             await specCmd({
                 dir: tmpDir,
                 resource: 'testrun',
-                action: 'mark',
+                action: 'set',
                 target: 'nightly.run.feature',
                 case: 'Magento/cart.case.feature.@tc-01',
                 status: 'passed',
@@ -214,8 +214,8 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             });
 
             const markedContent = readFileSync(filePath, 'utf-8');
-            expect(markedContent).toContain('* mark status = passed');
-            expect(markedContent).toContain('* mark evidence = evidence/step_ok.png');
+            expect(markedContent).toContain('* set status = passed');
+            expect(markedContent).toContain('* set evidence = evidence/step_ok.png');
         });
 
         it('should display testrun dashboard with -show-name and -show-detail', async () => {
@@ -326,24 +326,24 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             let content = readFileSync(filePath, 'utf-8');
             expect(content).toContain('@bg-1');
             expect(content).toContain('Scenario: Payment gateway timeout');
-            expect(content).toContain('* mark target = Magento/checkout.case.feature.@tc-05');
-            expect(content).toContain('* mark status = failed');
-            expect(content).toContain('* mark severity = critical');
-            expect(content).toContain('* mark priority = high');
-            expect(content).toContain('* mark trace = TimeoutError: Gateway did not respond in 30s');
-            expect(content).toContain('* mark evidence = evidence/gateway_timeout.png');
+            expect(content).toContain('* set target = Magento/checkout.case.feature.@tc-05');
+            expect(content).toContain('* set status = failed');
+            expect(content).toContain('* set severity = critical');
+            expect(content).toContain('* set priority = high');
+            expect(content).toContain('* set trace = TimeoutError: Gateway did not respond in 30s');
+            expect(content).toContain('* set evidence = evidence/gateway_timeout.png');
 
             // Mark bug resolved
             await specCmd({
                 dir: tmpDir,
                 resource: 'bug',
-                action: 'mark',
+                action: 'set',
                 target: '@bg-1',
                 status: 'passed'
             });
 
             content = readFileSync(filePath, 'utf-8');
-            expect(content).toContain('* mark status = passed');
+            expect(content).toContain('* set status = passed');
         });
     });
 
@@ -413,11 +413,11 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
 
             const runContent = readFileSync(join(runsDir, runFiles[0]), 'utf-8');
             expect(runContent).toContain('Scenario: Magento/cart.case.feature.@tc-01');
-            expect(runContent).toContain('* mark status = passed');
+            expect(runContent).toContain('* set status = passed');
             expect(runContent).toContain('Scenario: Magento/cart.case.feature.@tc-02');
-            expect(runContent).toContain('* mark status = failed');
-            expect(runContent).toContain('* mark trace = AssertionError: Expected cart error banner not shown');
-            expect(runContent).toContain('* mark evidence = evidence/ev_');
+            expect(runContent).toContain('* set status = failed');
+            expect(runContent).toContain('* set trace = AssertionError: Expected cart error banner not shown');
+            expect(runContent).toContain('* set evidence = evidence/ev_');
 
             // Verify bug feature created
             const bugsDir = join(tmpDir, 'tests/bugs');
@@ -429,11 +429,11 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             expect(bugContent).toContain('@bug');
             expect(bugContent).toContain('@bg-1');
             expect(bugContent).toContain('Scenario: Bug in Checkout empty cart');
-            expect(bugContent).toContain('* mark target = Magento/cart.case.feature.@tc-02');
-            expect(bugContent).toContain('* mark status = failed');
-            expect(bugContent).toContain('* mark severity = high');
-            expect(bugContent).toContain('* mark trace = AssertionError: Expected cart error banner not shown');
-            expect(bugContent).toContain('* mark evidence = evidence/ev_');
+            expect(bugContent).toContain('* set target = Magento/cart.case.feature.@tc-02');
+            expect(bugContent).toContain('* set status = failed');
+            expect(bugContent).toContain('* set severity = high');
+            expect(bugContent).toContain('* set trace = AssertionError: Expected cart error banner not shown');
+            expect(bugContent).toContain('* set evidence = evidence/ev_');
         });
     });
 
@@ -457,41 +457,41 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             const content = readFileSync(runFile, 'utf-8');
             expect(content).toContain('Scenario: @tc-1');
             expect(content).toContain('Scenario: @tc-2');
-            expect(content).toContain('* mark status = pending');
+            expect(content).toContain('* set status = pending');
         });
 
         it('should support inline status in -case (e.g. -case="@tc-1=passed")', async () => {
             const runFile = join(tmpDir, 'tests/runs/inline.run.feature');
             require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
-            writeFileSync(runFile, `@testrun @tr-2\nFeature: Inline Status Run\n\n  Scenario: @tc-1\n    * mark status = pending\n`, 'utf-8');
+            writeFileSync(runFile, `@testrun @tr-2\nFeature: Inline Status Run\n\n  Scenario: @tc-1\n    * set status = pending\n`, 'utf-8');
 
             await specCmd({
                 dir: tmpDir,
                 resource: 'testrun',
-                action: 'mark',
+                action: 'set',
                 target: '@tr-2',
                 case: '@tc-1=passed'
             });
 
             const content = readFileSync(runFile, 'utf-8');
-            expect(content).toContain('* mark status = passed');
+            expect(content).toContain('* set status = passed');
         });
 
-        it('should support positional args for testcase in spec testrun mark', async () => {
+        it('should support positional args for testcase in spec testrun set', async () => {
             const runFile = join(tmpDir, 'tests/runs/pos.run.feature');
             require('fs').mkdirSync(join(tmpDir, 'tests/runs'), { recursive: true });
-            writeFileSync(runFile, `@testrun @tr-3\nFeature: Positional Run\n\n  Scenario: @tc-5\n    * mark status = pending\n`, 'utf-8');
+            writeFileSync(runFile, `@testrun @tr-3\nFeature: Positional Run\n\n  Scenario: @tc-5\n    * set status = pending\n`, 'utf-8');
 
             await specCmd({
                 dir: tmpDir,
                 resource: 'testrun',
-                action: 'mark',
+                action: 'set',
                 target: '@tr-3',
                 args: ['@tc-5=skipped']
             });
 
             const content = readFileSync(runFile, 'utf-8');
-            expect(content).toContain('* mark status = skipped');
+            expect(content).toContain('* set status = skipped');
         });
 
         it('should resolve sub-command help in getCommandHelp', () => {
@@ -519,7 +519,7 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
 
             const content = readFileSync(runFile, 'utf-8');
             expect(content).toContain('Scenario: @tc-10');
-            expect(content).toContain('* mark status = pending');
+            expect(content).toContain('* set status = pending');
         });
 
         it('should generate testrun matching tag coincidence using -include=smoke without brackets', async () => {

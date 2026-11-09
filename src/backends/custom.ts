@@ -1,5 +1,4 @@
 import { resolve } from 'path';
-import { pathToFileURL } from 'url';
 import { existsSync } from 'fs';
 import { IBackend } from './backend';
 import { IState } from '../core/types';

@@ -1,10 +1,10 @@
 import { resolve, join } from 'path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
 import { bold, green, yellow, red, cyan, dim, gray } from 'chalk';
 import { IScope } from '../core/types';
 import { applyCmd } from './apply';
 import { destroyCmd } from './destroy';
-import { TITLE_APP, TITLE_CLI } from '../core/const';
+import { TITLE_CLI } from '../core/const';
 import { HELP_EPHEMERAL } from '../core/help';
 
 export interface EphemeralCmdOptions {
@@ -272,7 +272,7 @@ export const ephemeralCmd = async (options: EphemeralCmdOptions) => {
                 console.log(bold(`\nResources:`));
                 for (const r of resources) {
                     const num = r.attributes?.issueNumber ? `#${r.attributes.issueNumber}` : '(unassigned)';
-                    console.log(`  - ${cyan(r.type)}: ${r.identity} ${dim(num)}`);
+                    console.log(`  - ${cyan(r.type)}: ${r.address || r.identity} ${dim(num)}`);
                 }
             }
             console.log('');

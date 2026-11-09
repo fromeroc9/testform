@@ -33,8 +33,6 @@ import { ephemeralCmd } from './commands/ephemeral';
 import { providersCmd } from './commands/providers';
 import { functionsCmd } from './commands/functions';
 import { policyCmd } from './commands/policy';
-import { IScope } from './core/types';
-import { VariableParser } from './core/variables';
 import chalk from 'chalk';
 import { logger } from './core/logger';
 import { TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE, VERSION_CLI, FILE_CONFIG, FILE_STATE } from './core/const';
@@ -215,6 +213,7 @@ export function createCli() {
         .option('--gherkin', 'Display plan and resources in Gherkin feature/scenario format')
         .option('--gherkins', 'Alias for --gherkin')
         .option('--feature', 'Alias for --gherkin')
+        .option('--watch', 'Watch for file changes and re-run plan interactively')
         .action(async (options) => {
             const workDir = getWorkDir(options);
             const variableParser = getVariableParser(options, workDir);
@@ -239,7 +238,8 @@ export function createCli() {
                 parallelism: options.parallelism,
                 compactWarnings: options.compactWarnings ?? false,
                 testDirectory: options.testDirectory,
-                gherkin: Boolean(options.gherkin || options.feature || options.gherkins)
+                gherkin: Boolean(options.gherkin || options.feature || options.gherkins),
+                watch: Boolean(options.watch)
             });
         });
 
@@ -407,7 +407,9 @@ export function createCli() {
 
     // ─── import ───────────────────────────────────────────────────────────
     cli.command('import [address] [issueNumber]', 'Associate an existing remote Issue with a local scenario or import test execution results')
-        .option('--results <path>', 'Path to cucumber.json test execution results')
+        .option('--results <path>', 'Path to test execution results file (JUnit XML, Cucumber JSON, Playwright JSON)')
+        .option('--target <path>', 'Target .run.feature file to write/update results into')
+        .option('--out <path>', 'Alias for --target')
         .option('--auto-create-bugs', 'Automatically generate bug specifications for failed testcases')
         .option('--lock', 'Lock state during operation', { default: true })
         .option('--lock-timeout <timeout>', 'Timeout for state lock', { default: '0s' })
@@ -416,11 +418,17 @@ export function createCli() {
         .action(async (address, issueNumber, options) => {
             const workDir = getWorkDir(options);
 
+            const isResults = address && (address.endsWith('.xml') || address.endsWith('.json') || existsSync(address));
+            const resultsFile = options.results || (isResults ? address : undefined);
+            const targetIdentity = isResults ? undefined : address;
+
             await importCmd({
                 dir: workDir,
-                identityArg: address,
+                identityArg: targetIdentity,
                 issueNumber,
-                results: options.results,
+                results: resultsFile,
+                target: options.target || options.out,
+                out: options.out,
                 autoCreateBugs: Boolean(options.autoCreateBugs || options['auto-create-bugs']),
                 lock: options.lock ?? true,
                 lockTimeout: options.lockTimeout ?? '0s',

@@ -25,8 +25,8 @@ export class HTTPBackend implements IBackend {
     private currentLockId?: string;
 
     constructor(
-        private config: HTTPBackendConfig,
-        private workspace: string = 'default'
+        config: HTTPBackendConfig,
+        workspace: string = 'default'
     ) {
         if (!config.address) {
             throw new Error('HTTP backend configuration must specify an "address" URL.');
@@ -134,7 +134,7 @@ export class HTTPBackend implements IBackend {
         }
     }
 
-    async lock(timeout: string): Promise<boolean> {
+    async lock(_timeout: string): Promise<boolean> {
         if (!this.lockAddress) {
             return true;
         }

@@ -1,20 +1,17 @@
-import { createHash } from 'crypto';
-import { bold, green, yellow, red, cyan, dim, gray } from 'chalk';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { resolve, join } from 'path';
+import { bold, green, yellow, red, cyan, dim } from 'chalk';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import * as readline from 'readline';
 import { Config } from '../core/config';
 import { Parser } from '../core/parser';
 import { VariableParser } from '../core/variables';
 import { State } from '../core/state';
-import { Logger } from '../core/logger';
-import { IScope, DiffEntry, DiffStatus, ParserScenario, StateResource } from '../core/types';
+import { DiffEntry, DiffStatus, ParserScenario } from '../core/types';
 import { SCOPE_RESOURCE_MAP, TITLE_APP } from '../core/const';
 import { createCommandContext } from '../core/context';
 import { resolveScopes } from '../core/cli';
 import { updateFeatureScenario } from '../core/editor';
-import { matchesScope, matchesTarget } from '../core/selector';
-import { normalizeAddress } from '../core/utils';
+import { matchesScope, matchesTarget, computeResourceIdentity, detectCollidingBasenames } from '../core/selector';
 
 import { LifecycleResolver } from '../core/lifecycle';
 import { arraysEqual } from '../core/sync';
@@ -58,7 +55,8 @@ export interface RemoteDriftDifference {
 }
 
 export interface RemoteDriftItem {
-    identity: string;
+    address: string;
+    identity?: string;
     resourceType: string;
     issueNumber: number;
     filePath?: string;
@@ -86,7 +84,6 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         target
     } = options;
 
-    const logger = new Logger(verbose);
     const isRemote = Boolean(remote);
     const effectiveTarget = target || (options as any).scope;
 
@@ -126,39 +123,34 @@ export const diffCmd = async (options: DiffCmdOptions) => {
             });
         }
 
+        const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(s)?.directory : undefined;
         const resourceType = SCOPE_RESOURCE_MAP[s];
         let resources = state.getResources(resourceType);
         if (target) {
-            resources = resources.filter(r => matchesTarget(r.identity, target, s) || (r.type && matchesTarget(r.type, target, s)));
+            resources = resources.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
         }
-        const stateMap = new Map(resources.map(r => [normalizeAddress(r.identity), r]));
+        const stateMap = new Map(resources.map(r => [r.address, r]));
 
-        const localIds = new Set<string>();
+        const collidingBasenames = detectCollidingBasenames(filtered, scaffoldDir);
+        const localAddresses = new Set<string>();
         const lifecycleResolver = new LifecycleResolver(dir);
 
         for (const scenario of filtered) {
-            const rawIdentity = scenario.custom?.identity;
-            if (!rawIdentity) continue;
+            const idInfo = computeResourceIdentity(scenario, s, scaffoldDir, collidingBasenames);
+            if (!idInfo) continue;
+            const { address } = idInfo;
 
-            let identity: string;
-            if (rawIdentity.startsWith(scenario.uri) || rawIdentity === scenario.uri) {
-                identity = rawIdentity;
-            } else {
-                identity = `${scenario.uri}.${rawIdentity}`;
-            }
-
-            const normId = normalizeAddress(identity);
-            localIds.add(normId);
+            localAddresses.add(address);
             const scenarioTags = scenario.tags ? scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
-            const lc = lifecycleResolver.getLifecycle(identity, scenarioTags);
+            const lc = lifecycleResolver.getLifecycle(address, scenarioTags);
             const localHash = hashScenario(scenario, s, lc.ignore_changes);
-            const stateRes = stateMap.get(normId);
+            const stateRes = stateMap.get(address) || (typeof state.findResource === 'function' ? state.findResource(address) : undefined);
 
             if (!stateRes) {
-                entries.push({ identity, status: 'new_local', localHash });
+                entries.push({ address, status: 'new_local', localHash });
             } else if (stateRes.attributes.localHash !== localHash) {
                 entries.push({
-                    identity,
+                    address,
                     status: 'modified_locally',
                     localHash,
                     stateHash: stateRes.attributes.localHash,
@@ -166,7 +158,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
                 });
             } else {
                 entries.push({
-                    identity,
+                    address,
                     status: 'synced',
                     localHash,
                     stateHash: stateRes.attributes.localHash,
@@ -176,9 +168,9 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         }
 
         for (const res of resources) {
-            if (!localIds.has(normalizeAddress(res.identity))) {
+            if (!localAddresses.has(res.address)) {
                 entries.push({
-                    identity: res.identity,
+                    address: res.address,
                     status: 'orphaned_remote',
                     stateHash: res.attributes.localHash,
                     remoteId: res.attributes.remoteId,
@@ -202,7 +194,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         const icon = getStatusIcon(entry.status);
         const label = getStatusLabel(entry.status);
         const remoteInfo = entry.remoteId ? dim(` [id=${entry.remoteId}]`) : '';
-        console.log(`  ${icon} ${bold(entry.identity)}: ${label}${remoteInfo}`);
+        console.log(`  ${icon} ${bold(entry.address)}: ${label}${remoteInfo}`);
 
         if (verbose && entry.status === 'modified_locally' && entry.localHash && entry.stateHash) {
             console.log(`     Local:  ${dim(entry.localHash.substring(0, 12))}...`);
@@ -221,7 +213,7 @@ export const diffCmd = async (options: DiffCmdOptions) => {
 
 async function executeRemoteDrift(
     dir: string,
-    parseDir: string,
+    _parseDir: string,
     target: string | string[] | undefined,
     state: State,
     config: Config,
@@ -253,17 +245,18 @@ async function executeRemoteDrift(
         const rawScenarios = documents.filter(d => matchesScope(d, s, matchPattern));
         const filterData = { identity: config.getIdentity(s), fields: config.getFields(s) };
         const localScenarios = parser.filter(rawScenarios, filterData, s) || [];
+        const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(s)?.directory : undefined;
+        const collidingBasenames = detectCollidingBasenames(localScenarios, scaffoldDir);
 
         for (const res of resources) {
             const issueNum = res.attributes.issueNumber;
             if (!issueNum) continue;
 
-            const normResId = normalizeAddress(res.identity);
+            const normResAddr = res.address || (res as any).identity || '';
             const matchedScenario = localScenarios.find(ls => {
-                const raw = ls.custom?.identity;
-                if (!raw) return false;
-                const fullId = raw.startsWith(ls.uri) || raw === ls.uri ? raw : `${ls.uri}.${raw}`;
-                return normalizeAddress(fullId) === normResId || normalizeAddress(raw) === normResId;
+                const idInfo = computeResourceIdentity(ls, s, scaffoldDir, collidingBasenames);
+                if (!idInfo) return false;
+                return idInfo.address === normResAddr || idInfo.tag === res.tag || normResAddr.endsWith(idInfo.address);
             });
 
             try {
@@ -277,7 +270,7 @@ async function executeRemoteDrift(
 
                 if (!issue) {
                     driftedItems.push({
-                        identity: res.identity,
+                        address: res.address,
                         resourceType,
                         issueNumber: issueNum,
                         differences: [{ field: 'status', local: 'exists in state', remote: 'not found on remote' }],
@@ -316,7 +309,7 @@ async function executeRemoteDrift(
 
                 if (differences.length > 0) {
                     driftedItems.push({
-                        identity: res.identity,
+                        address: res.address,
                         resourceType,
                         issueNumber: issueNum,
                         filePath: matchedScenario?.uri,
@@ -341,7 +334,7 @@ async function executeRemoteDrift(
     console.log(yellow(`Found ${driftedItems.length} resource(s) with remote drift:\n`));
 
     for (const item of driftedItems) {
-        console.log(`  ${yellow('~')} ${cyan(item.resourceType)}.${bold(item.identity)} (Issue #${item.issueNumber})`);
+        console.log(`  ${yellow('~')} ${cyan(item.resourceType)}.${bold(item.address)} (Issue #${item.issueNumber})`);
         for (const diff of item.differences) {
             console.log(`     Field ${bold(diff.field)}:`);
             console.log(`       - Local:  ${red(diff.local)}`);
@@ -359,7 +352,7 @@ async function executeRemoteDrift(
 
         try {
             for (const item of driftedItems) {
-                console.log(`Action for resource ${bold(item.identity)}:`);
+                console.log(`Action for resource ${bold(item.address)}:`);
                 console.log(`  Enter 'pull' to update local file, 'overwrite' to keep local, or 'skip' to ignore.\n`);
 
                 const rawAns = await promptUser(rl, '  Enter a value: ');
@@ -378,7 +371,7 @@ async function executeRemoteDrift(
                         );
                         if (updated) {
                             // Update state attributes
-                            const res = state.getResources(item.resourceType).find(r => r.identity === item.identity);
+                            const res = state.getResources(item.resourceType).find(r => r.address === item.address);
                             if (res) {
                                 res.attributes.title = item.remoteIssue.title;
                                 res.attributes.labels = rawLabels;
@@ -389,7 +382,7 @@ async function executeRemoteDrift(
                             console.log(yellow(`  Could not write changes to ${item.filePath}\n`));
                         }
                     } else {
-                        console.log(yellow(`  No local file mapped for ${item.identity}. Cannot pull automatically.\n`));
+                        console.log(yellow(`  No local file mapped for ${item.address}. Cannot pull automatically.\n`));
                     }
                 } else if (answer === 'overwrite' || answer === '2') {
                     console.log(cyan(`  → Kept local version. Will overwrite remote on next apply.\n`));

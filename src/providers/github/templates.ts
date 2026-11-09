@@ -72,11 +72,12 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
         const ruleBaseName = basename(baseRule);
 
         const tcResources = state.getResources('testcase').filter((r: any) => {
-            const normId = (r.identity || '').replace(/\\/g, '/');
-            const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
+            const normAddr = (r.address || r.identity || '').replace(/\\/g, '/');
+            const relPath = (r.path || '').replace(/\\/g, '/');
+            const idLastPart = (r.tag || normAddr.split('.').pop() || '').replace(/^@/, '').toLowerCase();
 
             // Must match rule / file path (or scope directory)
-            const matchesRule = !baseRule || normId.includes(baseRule) || normId.includes(ruleBaseName);
+            const matchesRule = !baseRule || relPath.includes(baseRule) || normAddr.includes(baseRule) || relPath.includes(ruleBaseName) || normAddr.includes(ruleBaseName);
             if (!matchesRule) return false;
 
             // Match by scenario name, tag or wildcard
@@ -94,29 +95,27 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
         });
 
         const distinctFiles = new Set(tcResources.map((r: any) => {
-            const normId = (r.identity || '').replace(/\\/g, '/');
-            const lastDot = normId.lastIndexOf('.');
-            return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+            return r.path || (r.address || r.identity || '').replace(/\\/g, '/');
         }));
         let validResources = tcResources;
 
         if (distinctFiles.size > 1) {
             if (context?.testDirectory) {
                 const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
-                validResources = tcResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
+                validResources = tcResources.filter((r: any) => (r.path || r.address || r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
             } else {
                 continue;
             }
         }
 
         validResources.sort((a: any, b: any) => {
-            const aName = a.identity.split('.').pop()?.replace('@', '') || '';
-            const bName = b.identity.split('.').pop()?.replace('@', '') || '';
+            const aName = (a.tag || a.address || a.identity).split('.').pop()?.replace('@', '') || '';
+            const bName = (b.tag || b.address || b.identity).split('.').pop()?.replace('@', '') || '';
             return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
         });
 
         for (const tcResource of validResources) {
-            const tcIdentity = tcResource.identity;
+            const tcIdentity = tcResource.address || tcResource.identity;
             const normTc = tcIdentity.replace(/\\/g, '/');
             const lastTc = normTc.split('.').pop()?.replace(/^@/, '').toLowerCase() || '';
 
@@ -182,28 +181,22 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
         for (const tr of testruns) {
             const normTr = tr.replace(/\\/g, '/');
             const trExt = context?.config?.getScopeExtension?.('testrun') || '.run.feature';
-            const trBase = normTr.endsWith('.feature') ? normTr : (normTr.endsWith(trExt) ? normTr : normTr + trExt);
-            const trFileName = basename(trBase);
 
             const runResources = state.getResources('testrun').filter((r: any) => {
                 return matchesTestrunSelector(r, normTr);
             });
 
             const distinctFiles = new Set(runResources.map((r: any) => {
-                const normId = (r.identity || '').replace(/\\/g, '/');
-                const lastDot = normId.lastIndexOf('.');
-                return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                return r.path || (r.address || r.identity || '').replace(/\\/g, '/');
             }));
             let validResources = runResources;
 
             if (distinctFiles.size > 1) {
                 if (context?.testDirectory) {
                     const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
-                    validResources = runResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
+                    validResources = runResources.filter((r: any) => (r.path || r.address || r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
                     const distinctValid = new Set(validResources.map((r: any) => {
-                        const normId = (r.identity || '').replace(/\\/g, '/');
-                        const lastDot = normId.lastIndexOf('.');
-                        return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                        return r.path || (r.address || r.identity || '').replace(/\\/g, '/');
                     }));
                     if (distinctValid.size > 1) {
                         throw new Error(`Multiple testruns found for rule "${tr}". Please specify a more exact path or use -test-directory to limit the scope.`);
@@ -218,7 +211,7 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
                     if (runResource?.attributes?.issueNumber) {
                         body += `- [ ] #${runResource.attributes.issueNumber}\n`;
                     } else {
-                        body += `- [ ] (known after apply) - ${runResource.identity}\n`;
+                        body += `- [ ] (known after apply) - ${runResource.address || runResource.identity}\n`;
                     }
                 }
             } else {
@@ -239,8 +232,10 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
     if (testcases.length > 0 && context?.state) {
         const state = context.state;
 
-        const runIdentity = s.custom?.identity && s.custom.identity !== s.uri ? `${s.uri}.${s.custom.identity}` : s.uri;
-        const existingRun = state.getResources('testrun').find((r: any) => r.identity === runIdentity);
+        const existingRun = state.getResources('testrun').find((r: any) =>
+            r.address === s.uri || (r.path && r.path === s.uri) ||
+            r.address?.includes(s.uri) || (r.identity && r.identity === s.uri)
+        );
         const existingStatuses = existingRun?.attributes?.testcases || existingRun?.attributes?.testcaseStatuses || {};
 
         const sortedTestcases = [...testcases].sort((a: string, b: string) => {
@@ -261,11 +256,12 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
             const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
 
             const tcResources = state.getResources('testcase').filter((r: any) => {
-                const normId = (r.identity || '').replace(/\\/g, '/');
-                const idLastPart = normId.split('.').pop()?.replace(/^@/, '').toLowerCase();
+                const normAddr = (r.address || r.identity || '').replace(/\\/g, '/');
+                const relPath = (r.path || '').replace(/\\/g, '/');
+                const idLastPart = (r.tag || normAddr.split('.').pop() || '').replace(/^@/, '').toLowerCase();
 
                 // Rule path matching: either relative path matches or basename matches
-                const matchesRule = normId.includes(baseRule) || normId.includes(ruleBaseName);
+                const matchesRule = relPath.includes(baseRule) || normAddr.includes(baseRule) || relPath.includes(ruleBaseName) || normAddr.includes(ruleBaseName);
                 if (!matchesRule) return false;
 
                 // Scenario matching: wildcard, exact tag, or matching title
@@ -278,20 +274,16 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
             });
 
             const distinctFiles = new Set(tcResources.map((r: any) => {
-                const normId = (r.identity || '').replace(/\\/g, '/');
-                const lastDot = normId.lastIndexOf('.');
-                return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                return r.path || (r.address || r.identity || '').replace(/\\/g, '/');
             }));
             let validResources = tcResources;
 
             if (distinctFiles.size > 1) {
                 if (context?.testDirectory) {
                     const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
-                    validResources = tcResources.filter((r: any) => (r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
+                    validResources = tcResources.filter((r: any) => (r.path || r.address || r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
                     const distinctValid = new Set(validResources.map((r: any) => {
-                        const normId = (r.identity || '').replace(/\\/g, '/');
-                        const lastDot = normId.lastIndexOf('.');
-                        return lastDot !== -1 ? normId.slice(0, lastDot) : normId;
+                        return r.path || (r.address || r.identity || '').replace(/\\/g, '/');
                     }));
                     if (distinctValid.size > 1) {
                         throw new Error(`Multiple testcases found for rule "${ruleName}". Please specify a more exact path or use -test-directory to limit the scope.`);
@@ -310,24 +302,22 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
 
         const uniqueResourcesMap = new Map();
         for (const r of allValidResources) {
-            if (!uniqueResourcesMap.has(r.identity)) {
-                uniqueResourcesMap.set(r.identity, r);
+            const key = r.address || r.identity;
+            if (!uniqueResourcesMap.has(key)) {
+                uniqueResourcesMap.set(key, r);
             }
         }
         const uniqueResources = Array.from(uniqueResourcesMap.values());
 
         uniqueResources.sort((a: any, b: any) => {
-            const aName = a.identity.split('.').pop()?.replace('@', '') || '';
-            const bName = b.identity.split('.').pop()?.replace('@', '') || '';
+            const aName = (a.tag || a.address || a.identity).split('.').pop()?.replace('@', '') || '';
+            const bName = (b.tag || b.address || b.identity).split('.').pop()?.replace('@', '') || '';
             return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
         });
 
         const groupedByOrigin = new Map<string, any[]>();
         for (const tcResource of uniqueResources) {
-            const normId = (tcResource.identity || '').replace(/\\/g, '/');
-            const lastDot = normId.lastIndexOf('.');
-            const baseRule = lastDot !== -1 ? normId.slice(0, lastDot) : normId;
-            const originFile = basename(baseRule || '');
+            const originFile = tcResource.path ? basename(tcResource.path) : (tcResource.address ? basename(tcResource.address.slice(0, tcResource.address.lastIndexOf('.'))) : 'unknown');
             if (!groupedByOrigin.has(originFile)) {
                 groupedByOrigin.set(originFile, []);
             }
@@ -337,7 +327,7 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
         for (const [origin, resources] of groupedByOrigin.entries()) {
             body += `\n\n**Origin:** ${origin}\n`;
             for (const tcResource of resources) {
-                const tcIdentity = tcResource.identity;
+                const tcIdentity = tcResource.address || tcResource.identity;
                 const normTcId = (tcIdentity || '').replace(/\\/g, '/');
                 const tcLastPart = normTcId.split('.').pop() || '';
                 const cleanIdTag = tcLastPart.replace(/^@/, '').toLowerCase();
