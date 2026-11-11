@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.6] - 2026-11-11
+
+### Changed
+
+- **Unified Namespace Directive Parsing (`src/core/selector.ts`, `src/policies/catalog.ts`, `src/core/resources.ts`):**
+  - Added `extractNamespaceFromTag()` to uniformly parse unquoted (`@ns(name)`), single/double-quoted (`@ns('name')`, `@ns("name")`), `@namespace(...)`, and `@ns:name` directives across selector resolution, policy checks, and label extraction.
+  - Exempted valid `@ns(...)`, `@namespace(...)`, and `@ns:name` directives from the `no-feature-tags` policy so `Feature:`-level namespace declarations are permitted while empty `@ns()` and non-namespace feature tags remain rejected.
+  - Filtered namespace directive tags out of `extractLabels()` so `@ns(...)` tags are never exported as resource labels.
+
+### Fixed
+
+- **Homonym Collision Physical-Address Fallback (`src/core/selector.ts`, `src/commands/plan.ts`, `src/commands/diff.ts`, `src/core/utils.ts`):**
+  - Hardened `findResourceInState()` dot-notation namespace matching against paths containing `/` and bare `.feature` extension tails, preventing colliding physical addresses without `@ns` (e.g., `OpenCart/cart.case.feature.@tc-01`) from cross-matching unrelated resources in `testform.state`.
+  - Moved `detectCollidingBasenames()` ahead of `-target` filtering in `calculatePlan()` and `diffCmd()` so single-file `-target` runs still detect shared basenames across the full scope and resolve to physical paths cleanly.
+  - Updated `formatIdentityDisplay()` to strip only legacy root container prefixes (`tests/`, `testcase/`, `testrun/`, `testplan/`, `bug/`, etc.), preserving scaffold-relative subfolder paths in CLI plan and diff output.
+- **Test Coverage (`test/policy.test.ts`, `test/selector.test.ts`, `test/plan.test.ts`):**
+  - Added unit tests for `no-feature-tags` namespace allowances, `extractNamespaceFromTag()`, `extractLabels()` filtering, `findResourceInState()` collision isolation without `@ns`, and `-target` scope-wide collision detection.
+
+---
+
 ## [1.1.0-beta.5] - 2026-11-09
 
 ### Added

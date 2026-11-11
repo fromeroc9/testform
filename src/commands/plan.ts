@@ -130,7 +130,8 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         fields: config.getFields(scope),
     };
 
-    let filtered = parser.filter(rawScenarios, data, scope) || [];
+    const allScopeScenarios = parser.filter(rawScenarios, data, scope) || [];
+    let filtered = allScopeScenarios;
 
     if (target) {
         filtered = filtered.filter(s => {
@@ -186,8 +187,8 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     // Build a lookup map for O(1) access by address
     const stateMap = new Map(resources.map(r => [r.address || (r as any).identity, r]));
 
-    // Detect files with identical basename in different directories to prevent collisions
-    const collidingBasenames = detectCollidingBasenames(filtered, scaffoldDir);
+    // Detect files with identical basename in different directories across the whole scope (before -target filtering)
+    const collidingBasenames = detectCollidingBasenames(allScopeScenarios, scaffoldDir);
 
     // Track which addresses exist locally
     const localAddresses = new Set<string>();

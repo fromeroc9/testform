@@ -115,7 +115,11 @@ export const diffCmd = async (options: DiffCmdOptions) => {
             fields: config.getFields(s),
         };
 
-        let filtered = parser.filter(rawScenarios, data, s) || [];
+        const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(s)?.directory : undefined;
+        const allScopeScenarios = parser.filter(rawScenarios, data, s) || [];
+        const collidingBasenames = detectCollidingBasenames(allScopeScenarios, scaffoldDir);
+
+        let filtered = allScopeScenarios;
         if (target) {
             filtered = filtered.filter(sc => {
                 const id = sc.custom?.identity ? `${sc.uri}.${sc.custom.identity}` : sc.uri;
@@ -123,15 +127,12 @@ export const diffCmd = async (options: DiffCmdOptions) => {
             });
         }
 
-        const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(s)?.directory : undefined;
         const resourceType = SCOPE_RESOURCE_MAP[s];
         let resources = state.getResources(resourceType);
         if (target) {
             resources = resources.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
         }
         const stateMap = new Map(resources.map(r => [r.address, r]));
-
-        const collidingBasenames = detectCollidingBasenames(filtered, scaffoldDir);
         const localAddresses = new Set<string>();
         const lifecycleResolver = new LifecycleResolver(dir);
 

@@ -8,7 +8,10 @@ import {
     parseSpec,
     matchesScenarioSpec,
     matchesStateKey,
+    extractNamespaceFromTag,
+    computeResourceIdentity,
 } from '../src/core/selector';
+import { resource } from '../src/core/resources';
 import { logger } from '../src/core/logger';
 
 describe('Target and Spec Selector (src/core/selector)', () => {
@@ -212,6 +215,68 @@ describe('Target and Spec Selector (src/core/selector)', () => {
             const found = findResourceInState(resources, 'pix.boleto.case.feature.@tc-01');
             expect(found).toBeDefined();
             expect(found?.identity).toBe('testcase/payments/pix/boleto.case.feature.@tc-01');
+        });
+
+        it('should parse unquoted, quoted, and colon namespace tags and compute namespaced logical addresses', () => {
+            expect(extractNamespaceFromTag('@ns(cart_magento)')).toBe('cart_magento');
+            expect(extractNamespaceFromTag('@ns("cart_magento")')).toBe('cart_magento');
+            expect(extractNamespaceFromTag("@namespace('OpenCart')")).toBe('opencart');
+            expect(extractNamespaceFromTag('@ns:saucedemo')).toBe('saucedemo');
+            expect(extractNamespaceFromTag('@ns()')).toBeUndefined();
+            expect(extractNamespaceFromTag('@smoke')).toBeUndefined();
+
+            const idInfo = computeResourceIdentity(
+                {
+                    uri: 'testcase/Magento/cart.case.feature',
+                    feature: { tags: ['@testcase', '@ns(cart_magento)'] },
+                    custom: { identity: '@tc-01' }
+                },
+                'testcase',
+                'testcase',
+                new Set(['cart.case.feature'])
+            );
+
+            expect(idInfo.namespace).toBe('cart_magento');
+            expect(idInfo.address).toBe('cart_magento.cart.case.feature.@tc-01');
+            expect(idInfo.physicalAddress).toBe('Magento/cart.case.feature.@tc-01');
+        });
+
+        it('should exclude @ns directive tags from extracted resource labels', () => {
+            const attrs = resource.evaluate('testcase', {
+                uri: 'testcase/Magento/cart.case.feature',
+                name: 'Cart',
+                tags: ['@testcase', '@ns(cart_magento)', '@smoke'],
+                feature: { tags: ['@testcase', '@ns(cart_magento)'], name: 'Cart' },
+                steps: [],
+                custom: { identity: '@tc-01', fields: {} }
+            } as any);
+
+            expect(attrs.labels).toContain('testcase');
+            expect(attrs.labels).toContain('smoke');
+            expect(attrs.labels).not.toContain('ns(cart_magento)');
+        });
+
+        it('should use physicalAddress on basename collision without @ns and not cross-match unrelated state entries by extension suffix', () => {
+            const idInfo = computeResourceIdentity(
+                {
+                    uri: 'testcase/OpenCart/cart.case.feature',
+                    feature: { tags: ['@testcase'] },
+                    custom: { identity: '@tc-01' }
+                },
+                'testcase',
+                'testcase',
+                new Set(['cart.case.feature'])
+            );
+
+            expect(idInfo.namespace).toBeUndefined();
+            expect(idInfo.address).toBe('OpenCart/cart.case.feature.@tc-01');
+            expect(idInfo.physicalAddress).toBe('OpenCart/cart.case.feature.@tc-01');
+
+            const resources = [
+                { type: 'testcase', address: 'testcase/ParaBank/account_services.case.feature.@tc-01', identity: 'testcase/ParaBank/account_services.case.feature.@tc-01', tag: '@tc-01' },
+            ];
+            expect(findResourceInState(resources, 'OpenCart/cart.case.feature.@tc-01')).toBeUndefined();
+            expect(findResourceInState(resources, 'cart.case.feature.@tc-01')).toBeUndefined();
         });
     });
 });

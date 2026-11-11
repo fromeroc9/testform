@@ -102,6 +102,16 @@ export function detectCollidingBasenames(scenarios: any[], scaffoldDir?: string)
 }
 
 /**
+ * Extracts normalized namespace name from `@ns(...)`, `@namespace(...)`, `@ns:name`, or `@namespace:name` tags.
+ */
+export function extractNamespaceFromTag(tag: string): string | undefined {
+    const clean = (tag || '').trim();
+    const m = clean.match(/^@(?:ns|namespace)(?:\(\s*['"]?([^'"()\s]+)['"]?\s*\)|:([a-zA-Z0-9_-]+))$/i);
+    if (!m) return undefined;
+    return (m[1] || m[2]).trim().toLowerCase() || undefined;
+}
+
+/**
  * Computes logical address, physical address, relative scaffold path, tag and namespace for any scope.
  * Logical address format: [namespace.]basename.[@tag]
  * Physical address format: path + tag for tc/bug, path (+ tag optional) for run/plan.
@@ -131,9 +141,9 @@ export function computeResourceIdentity(
     ].map((t: any) => typeof t === 'string' ? t : t?.name || '');
 
     for (const t of allTags) {
-        const m = t.match(/^@(?:ns|namespace)(?:\(['"]?([^'"()]+)['"]?\)|:([a-zA-Z0-9_-]+))$/i);
-        if (m) {
-            namespace = (m[1] || m[2]).trim().toLowerCase();
+        const extracted = extractNamespaceFromTag(t);
+        if (extracted) {
+            namespace = extracted;
             break;
         }
     }
@@ -484,18 +494,22 @@ export function findResourceInState(resources: any[], target: string): any | und
             return true;
         }
 
-        // Dot-notation namespace match: e.g. "pix.boleto.case.feature.@tc-01" -> matches "boleto.case.feature.@tc-01"
+        // Dot-notation namespace match: e.g. "pix.boleto.case.feature.@tc-01" -> matches ".../boleto.case.feature.@tc-01"
         if (normT.includes('.')) {
             const firstDot = normT.indexOf('.');
+            const nsPrefix = normT.substring(0, firstDot).toLowerCase();
             const withoutNamespace = normT.substring(firstDot + 1).toLowerCase();
-            const withoutNamespaceTag = withoutNamespace.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
-            if (
-                normIdLower.endsWith(`/${withoutNamespace}`) ||
-                normIdLower.endsWith(withoutNamespace) ||
-                normIdNormalizedTag.endsWith(`/${withoutNamespaceTag}`) ||
-                normIdNormalizedTag.endsWith(withoutNamespaceTag)
-            ) {
-                return true;
+            const isBareExtensionTail = /^(?:(?:case|run|plan|bug)\.)?feature(?:\.|$)/i.test(withoutNamespace);
+            if (nsPrefix && !nsPrefix.includes('/') && !isBareExtensionTail && withoutNamespace.includes('.feature')) {
+                const withoutNamespaceTag = withoutNamespace.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
+                if (
+                    normIdLower === withoutNamespace ||
+                    normIdLower.endsWith(`/${withoutNamespace}`) ||
+                    normIdNormalizedTag === withoutNamespaceTag ||
+                    normIdNormalizedTag.endsWith(`/${withoutNamespaceTag}`)
+                ) {
+                    return true;
+                }
             }
         }
 

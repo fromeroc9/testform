@@ -36,11 +36,16 @@ export function resolvePath(obj: any, path: string): any {
 
 export function formatIdentityDisplay(identity?: string): string {
     if (!identity) return '';
-    const lastSlash = Math.max(identity.lastIndexOf('/'), identity.lastIndexOf('\\'));
-    if (lastSlash !== -1) {
-        return identity.substring(lastSlash + 1);
+    const normalized = identity.replace(/\\/g, '/');
+    // Strip legacy root container paths (e.g. testcase/ParaBank/foo.case.feature -> foo.case.feature),
+    // but preserve scaffold-relative subfolder paths produced by collision physical-address fallback (e.g. OpenCart/cart.case.feature.@tc-01).
+    if (/^(?:tests|features|testcase|testcases|testrun|testruns|testcycle|testplan|testplans|bug|bugs)\//i.test(normalized)) {
+        const lastSlash = normalized.lastIndexOf('/');
+        if (lastSlash !== -1) {
+            return normalized.substring(lastSlash + 1);
+        }
     }
-    return identity;
+    return normalized;
 }
 
 /**

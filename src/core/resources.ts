@@ -10,7 +10,7 @@ import {
 } from '../core/types';
 import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
 import { arraysEqual } from '../core/sync';
-import { normalizeScenarioAddress, matchesTestrunSelector } from '../core/selector';
+import { normalizeScenarioAddress, matchesTestrunSelector, extractNamespaceFromTag } from '../core/selector';
 import { buildGitHubTestplanBody, buildGitHubTestrunBody, buildGitHubBugBody } from '../providers/github/templates';
 
 function deriveFieldsFromTemplate(template: ResourceTemplate): ResourceField[] {
@@ -811,7 +811,10 @@ class Resource {
 function extractLabels(s: any, extraTag?: string): string[] {
     const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
     const base: string[] = extraTag ? [...(s.tags || []), extraTag].map(String) : (s.tags || []).map(String);
-    const cleaned = base.map((t: string) => t.startsWith('@') ? t.substring(1) : t).filter((t: string) => t !== idTag);
+    const cleaned = base
+        .filter((t: string) => !extractNamespaceFromTag(t.startsWith('@') ? t : `@${t}`))
+        .map((t: string) => t.startsWith('@') ? t.substring(1) : t)
+        .filter((t: string) => t !== idTag);
     return Array.from(new Set(cleaned));
 }
 

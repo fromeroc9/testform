@@ -1,4 +1,5 @@
 import { IScope, ParserScenario } from '../core/types';
+import { extractNamespaceFromTag } from '../core/selector';
 import { PolicyDefinition, PolicyRule } from './types';
 
 export const BUILTIN_POLICIES: PolicyDefinition[] = [
@@ -127,14 +128,16 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 }
 
                 const featureTags = scenario.feature?.tags ?? [];
-                const invalidTags = featureTags.filter(tag => !allowedFeatureTags.includes(tag.toLowerCase()));
+                const invalidTags = featureTags.filter(tag =>
+                    !allowedFeatureTags.includes(tag.toLowerCase()) && !extractNamespaceFromTag(tag)
+                );
 
                 if (invalidTags.length > 0) {
                     rules.push({
                         id: "no-feature-tags",
                         type: 'error',
                         title: `Feature-level tags are not allowed in ${uri} scope (found: ${invalidTags.join(", ")}).`,
-                        detail: "Move any tags from Feature: to the individual Scenario level, except for scope tags and identity tags.",
+                        detail: "Move any tags from Feature: to the individual Scenario level, except for scope tags, identity tags, and @ns(...) namespace tags.",
                         uri,
                     });
                 }

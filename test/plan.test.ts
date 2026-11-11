@@ -237,4 +237,40 @@ describe('Command planCmd', () => {
         }
         expect(maxConsecutiveEmpty).toBeLessThanOrEqual(1);
     });
+
+    it('should detect colliding basenames across the whole scope even when filtering by -target', async () => {
+        (Config as any).mockImplementation(function() {
+            return {
+                getIdentity: vi.fn().mockReturnValue('testcase.*'),
+                getFields: vi.fn().mockReturnValue([]),
+                getConvention: vi.fn().mockReturnValue({ directory: 'testcase' })
+            };
+        });
+
+        const sOpenCart = { uri: 'testcase/OpenCart/cart.case.feature', feature: { tags: ['@testcase'] }, custom: { identity: '@tc-01' }, steps: [], name: 'Add to cart' };
+        const sSauceDemo = { uri: 'testcase/SauceDemo/cart.case.feature', feature: { tags: ['@testcase'] }, custom: { identity: '@tc-01' }, steps: [], name: 'View cart' };
+
+        (Parser as any).mockImplementation(function() {
+            return {
+                content: vi.fn().mockReturnValue([sOpenCart, sSauceDemo]),
+                filter: vi.fn().mockReturnValue([sOpenCart, sSauceDemo])
+            };
+        });
+
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([]),
+                findResource: vi.fn().mockReturnValue(undefined)
+            };
+        });
+
+        const result = await planCmd({ dir: tmpDir, target: 'testcase/OpenCart/cart.case.feature' });
+
+        expect(result).toBeDefined();
+        expect(result!.changes).toHaveLength(1);
+        expect(result!.changes[0].address).toBe('OpenCart/cart.case.feature.@tc-01');
+    });
 });

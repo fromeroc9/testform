@@ -372,3 +372,61 @@ describe('PolicyEngine - CLI filtering by severity, include, and exclude', () =>
     });
 });
 
+describe('Policy no-feature-tags with @ns namespace tags', () => {
+    const policyDef = (policy as any).builtinPolicies['no-feature-tags'];
+
+    it('should allow @ns(...), @namespace(...), and @ns:name tags at Feature level across scopes', () => {
+        const scenarios: ParserScenario[] = [
+            {
+                uri: 'testcase/Magento/cart.case.feature',
+                feature: { tags: ['@testcase', '@ns(cart_magento)'], keyword: 'Feature', name: 'Magento Cart', description: '', location: 2 },
+                location: 13,
+                keyword: 'Scenario',
+                name: 'Empty attributes',
+                description: '',
+                steps: [],
+                tags: ['@tc-01'],
+                custom: { identity: '@tc-01' }
+            },
+            {
+                uri: 'testcase/OpenCart/cart.case.feature',
+                feature: { tags: ['@testcase', '@ns("opencart")', '@namespace(oc_extra)', '@ns:oc-alt'], keyword: 'Feature', name: 'OpenCart Cart', description: '', location: 2 },
+                location: 12,
+                keyword: 'Scenario',
+                name: 'Add item',
+                description: '',
+                steps: [],
+                tags: ['@tc-01'],
+                custom: { identity: '@tc-01' }
+            }
+        ];
+
+        const rules: PolicyRule[] = [];
+        policyDef.action(scenarios, rules, 'testcase');
+        expect(rules).toEqual([]);
+    });
+
+    it('should still reject non-namespace custom tags or empty @ns() at Feature level', () => {
+        const scenarios: ParserScenario[] = [
+            {
+                uri: 'testcase/Magento/cart.case.feature',
+                feature: { tags: ['@testcase', '@smoke', '@ns()'], keyword: 'Feature', name: 'Magento Cart', description: '', location: 2 },
+                location: 13,
+                keyword: 'Scenario',
+                name: 'Empty attributes',
+                description: '',
+                steps: [],
+                tags: ['@tc-01'],
+                custom: { identity: '@tc-01' }
+            }
+        ];
+
+        const rules: PolicyRule[] = [];
+        policyDef.action(scenarios, rules, 'testcase');
+        expect(rules.length).toBe(1);
+        expect(rules[0].id).toBe('no-feature-tags');
+        expect(rules[0].title).toContain('@smoke');
+        expect(rules[0].title).toContain('@ns()');
+    });
+});
+
