@@ -272,4 +272,69 @@ Feature: Sprint Run
         expect(updatedRun).toContain('* set status = passed');
         expect(updatedRun).toContain('* set duration = 0.95s');
     });
+
+    it('should parse Cucumber JSON preserving all Gherkin statuses and step durations', async () => {
+        writeFileSync(join(tmpDir, 'main.yml'), 'testform:\n  backend: "local"\n');
+
+        const cucumberJson = [
+            {
+                uri: 'tests/cart/checkout.case.feature',
+                elements: [
+                    {
+                        type: 'scenario',
+                        name: 'Passed scenario',
+                        tags: [{ name: '@tc-01' }],
+                        before: [{ result: { status: 'passed', duration: 250000000 } }],
+                        steps: [
+                            { result: { status: 'passed', duration: 1000000000 } }
+                        ]
+                    },
+                    {
+                        type: 'scenario',
+                        name: 'Undefined step scenario',
+                        tags: [{ name: '@tc-02' }],
+                        steps: [
+                            { result: { status: 'passed', duration: 100000000 } },
+                            { result: { status: 'undefined', duration: 0 } },
+                            { result: { status: 'skipped', duration: 0 } }
+                        ]
+                    },
+                    {
+                        type: 'scenario',
+                        name: 'Ambiguous step scenario',
+                        tags: [{ name: '@tc-03' }],
+                        steps: [
+                            { result: { status: 'ambiguous', error_message: 'Multiple step definitions match' } }
+                        ]
+                    },
+                    {
+                        type: 'scenario',
+                        name: 'Failed beats ambiguous and skipped',
+                        tags: [{ name: '@tc-04' }],
+                        steps: [
+                            { result: { status: 'ambiguous', duration: 5000000 } },
+                            { result: { status: 'failed', duration: 20000000, error_message: 'AssertionError: mismatch' } },
+                            { result: { status: 'skipped' } }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        writeFileSync(join(tmpDir, 'cucumber.json'), JSON.stringify(cucumberJson), 'utf8');
+
+        await importCmd({
+            dir: tmpDir,
+            results: 'cucumber.json'
+        });
+
+        const runsDir = join(tmpDir, 'tests/runs');
+        const files = readdirSync(runsDir);
+        const runContent = readFileSync(join(runsDir, files[0]), 'utf8');
+
+        expect(runContent).toContain('Scenario: tests/cart/checkout.case.feature.@tc-01\n    * set status = passed\n    * set duration = 1.25s');
+        expect(runContent).toContain('Scenario: tests/cart/checkout.case.feature.@tc-02\n    * set status = undefined\n    * set duration = 0.10s');
+        expect(runContent).toContain('Scenario: tests/cart/checkout.case.feature.@tc-03\n    * set status = ambiguous\n    * set trace = Multiple step definitions match');
+        expect(runContent).toContain('Scenario: tests/cart/checkout.case.feature.@tc-04\n    * set status = failed\n    * set duration = 0.03s\n    * set trace = AssertionError: mismatch');
+    });
 });

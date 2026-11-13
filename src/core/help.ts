@@ -1287,7 +1287,7 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] test state "featureFile@tc-N=sta
   The testcase argument must include the source feature file to avoid
   ambiguity when multiple Rules share the same @tc-N numbering.
 
-${bold(`Available statuses:`)} passed, failed, pending, skipped, blocked, wip
+${bold(`Available statuses:`)} passed, failed, pending, skipped, undefined, ambiguous, blocked
 
 ${bold(`Options:`)}
 
@@ -1376,11 +1376,9 @@ ${bold(`Options:`)}
   -case         Target testcase address, tag, or file
   -run          Target testrun address, tag, or file
   -title        Title for the specification or scenario
-  -status       Execution or defect verdict (passed, failed, pending, skipped)
+  -status       Execution or defect verdict (passed, failed, pending, skipped, undefined, ambiguous, blocked, open, in_progress, resolved, reopened, discarded, duplicate)
   -trace        Error stack trace or log message
   -evidence     Path to evidence screenshot or file
-  -severity     Bug severity (critical, high, medium, low)
-  -priority     Bug priority (high, medium, low)
   -show-name    Display scenario titles in place of canonical addresses
   -show-detail  Display full stack traces, evidence files, and metadata
   -test-directory Limit search scope to specific directory
@@ -1456,7 +1454,7 @@ ${bold(`Options:`)}
   -fill             Autocomplete empty Rule blocks with testcases (flag alias)
   -include          Include testcases matching tag or feature file (e.g. -include=smoke or -include="checkout.case.feature")
   -exclude          Exclude testcases matching tag or feature file (e.g. -exclude=wip or -exclude=manual)
-  -status           Verdict (passed, failed, pending, skipped)
+  -status           Verdict (passed, failed, pending, skipped, undefined, ambiguous, blocked)
   -trace            Error stack trace or failure log
   -evidence         Path to screenshot or attachment
   -title            Title for the testrun
@@ -1518,9 +1516,7 @@ ${bold(`Actions:`)}
 ${bold(`Options:`)}
   -target           Target bug identifier (@bg-N) or file
   -case             Associated testcase address or tag (@tc-N)
-  -status           Defect status (failed=active, passed=resolved, pending=in review)
-  -severity         Severity level (critical, high, medium, low)
-  -priority         Priority level (high, medium, low)
+  -status           Defect status (open, in_progress, resolved, reopened, discarded, duplicate)
   -trace            Stack trace or defect description
   -evidence         Path to evidence screenshot or file
   -title            Bug title
@@ -1528,8 +1524,8 @@ ${bold(`Options:`)}
 
 ${bold(`Examples:`)}
   ${TITLE_CLI} spec bug new -title="Sprint 42 Defects"
-  ${TITLE_CLI} spec bug add -target="defects.bug.feature" -case="@tc-01" -title="Crash on checkout" -severity=critical
-  ${TITLE_CLI} spec bug set -target="@bg-1" -status=passed
+  ${TITLE_CLI} spec bug add -target="defects.bug.feature" -case="@tc-01" -title="Crash on checkout"
+  ${TITLE_CLI} spec bug set -target="@bg-1" -status=resolved
   ${TITLE_CLI} spec bug status -show-detail
 `.trim();
 

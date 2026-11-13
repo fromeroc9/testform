@@ -166,9 +166,12 @@ export async function askSelect(
  */
 export async function askStatus(_defaultStatus: string = 'passed'): Promise<string> {
     return askSelect('Select the status:', [
-        { label: 'passed - Prueba ejecutada con éxito', value: 'passed' },
-        { label: 'failed - Prueba fallida', value: 'failed' },
-        { label: 'pending - Pendiente de ejecución', value: 'pending' },
-        { label: 'skipped - Prueba omitida', value: 'skipped' },
+        { label: 'passed - Ejecución exitosa', value: 'passed' },
+        { label: 'failed - Ejecución fallida', value: 'failed' },
+        { label: 'pending - Paso o caso pendiente de implementar', value: 'pending' },
+        { label: 'skipped - Ejecución omitida', value: 'skipped' },
+        { label: 'undefined - Paso sin step definition en Cucumber', value: 'undefined' },
+        { label: 'ambiguous - Múltiples step definitions coinciden en Cucumber', value: 'ambiguous' },
+        { label: 'blocked - Bloqueado por dependencia o entorno', value: 'blocked' },
     ]);
 }

@@ -31,6 +31,8 @@ export interface ReportStats {
     pending: number;
     blocked: number;
     skipped: number;
+    undefined: number;
+    ambiguous: number;
     unexecuted: number;
     totalRuns: number;
     activeRuns: number;
@@ -370,6 +372,8 @@ export class StateQuery {
             pending: 0,
             blocked: 0,
             skipped: 0,
+            undefined: 0,
+            ambiguous: 0,
             unexecuted: 0,
             totalRuns: 0,
             activeRuns: 0,
@@ -405,6 +409,8 @@ export class StateQuery {
             else if (s === 'pending') stats.pending++;
             else if (s === 'blocked') stats.blocked++;
             else if (s === 'skipped') stats.skipped++;
+            else if (s === 'undefined') stats.undefined++;
+            else if (s === 'ambiguous') stats.ambiguous++;
             else stats.unexecuted++;
         }
 

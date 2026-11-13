@@ -6,6 +6,7 @@
  */
 import { existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
+import type { TestcaseStatus } from './const';
 
 /**
  * Calculates seconds elapsed since a given timestamp and returns a
@@ -267,14 +268,21 @@ export function suggestCommand(input: string, candidates: string[]): string | un
  * Calculates a consolidated verdict/status from a list of child statuses.
  * Precedence:
  *   1. 'failed' (if at least one child is failed)
- *   2. 'pending' (if at least one child is pending, blocked, skipped, or if list is empty)
- *   3. 'passed' (if all children are passed)
+/**
+ * Computes an aggregate execution verdict across child scenarios/runs using
+ * Cucumber's Gherkin severity order (`failed` > `ambiguous` > `undefined` >
+ * `blocked` > `pending` > `skipped` > `passed`).
+ * Empty collections default to `'pending'`.
  */
-export function calculateRollupVerdict(statuses: string[]): 'passed' | 'failed' | 'pending' {
+export function calculateRollupVerdict(statuses: string[]): TestcaseStatus {
     if (!statuses || statuses.length === 0) return 'pending';
     const cleanStatuses = statuses.map(s => String(s || '').trim().toLowerCase());
     if (cleanStatuses.some(s => s === 'failed')) return 'failed';
-    if (cleanStatuses.some(s => s === 'pending' || s === 'blocked' || s === 'skipped' || s === 'in_progress' || !s)) return 'pending';
+    if (cleanStatuses.some(s => s === 'ambiguous')) return 'ambiguous';
+    if (cleanStatuses.some(s => s === 'undefined')) return 'undefined';
+    if (cleanStatuses.some(s => s === 'blocked')) return 'blocked';
+    if (cleanStatuses.some(s => s === 'pending' || s === 'in_progress' || !s)) return 'pending';
+    if (cleanStatuses.some(s => s === 'skipped')) return 'skipped';
     if (cleanStatuses.every(s => s === 'passed')) return 'passed';
     return 'pending';
 }

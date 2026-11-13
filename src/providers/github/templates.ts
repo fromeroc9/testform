@@ -393,10 +393,10 @@ export function buildGitHubBugBody(s: any): string {
     if (trace) {
         body += '### 🚨 Trace\n```text\n' + trace + '\n```\n\n';
     }
-    const rawEvidence = s.custom?.fields?.evidence;
+    const rawEvidence = s.custom?.fields?.evidence ?? s.custom?.fields?.attach;
     const evidenceList = Array.isArray(rawEvidence) ? rawEvidence : (rawEvidence ? [rawEvidence] : []);
     if (evidenceList.length > 0) {
-        body += '### 📸 Evidence\n';
+        body += '### 📸 Evidence / Attachments\n';
         for (const ev of evidenceList) {
             body += `- ![Evidence](${ev})\n`;
         }

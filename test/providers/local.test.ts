@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { LocalProvider } from '../../src/providers/local';
@@ -121,6 +121,57 @@ describe('LocalProvider', () => {
         await provider.apis.issue.delete!(res.number);
         const closed = await provider.getIssue(res.number);
         expect(closed?.state).toBe('closed');
+    });
+
+    it('persists data to .testform/data.json directly', async () => {
+        await provider.createIssue({
+            title: 'Issue in new path',
+            body: 'Verify it writes to .testform/data.json',
+            labels: ['testcase']
+        });
+
+        const newPath = join(tmpDir, '.testform', 'data.json');
+        expect(existsSync(newPath)).toBe(true);
+        const data = JSON.parse(readFileSync(newPath, 'utf8'));
+        expect(data.issues).toHaveLength(1);
+        expect(data.issues[0].title).toBe('Issue in new path');
+    });
+
+    it('automatically migrates data from legacy .testform/cache/data.json', async () => {
+        const legacyDir = join(tmpDir, '.testform', 'cache');
+        mkdirSync(legacyDir, { recursive: true });
+        const legacyFile = join(legacyDir, 'data.json');
+        const legacyData = {
+            issues: [
+                {
+                    id: 99,
+                    number: 99,
+                    title: 'Legacy issue from cache',
+                    body: 'Migrated content',
+                    state: 'open',
+                    node_id: 'local_node_99',
+                    labels: ['testcase'],
+                    comments: [],
+                    custom_fields: {}
+                }
+            ],
+            next_issue_number: 100,
+            next_comment_id: 1
+        };
+        writeFileSync(legacyFile, JSON.stringify(legacyData, null, 2), 'utf8');
+
+        // Create a new provider instance pointing to tmpDir where .testform/data.json does not exist yet
+        const freshProvider = new LocalProvider(tmpDir);
+        const issue = await freshProvider.getIssue(99);
+        expect(issue).not.toBeNull();
+        expect(issue?.title).toBe('Legacy issue from cache');
+
+        // Check that .testform/data.json was created via automatic migration
+        const newPath = join(tmpDir, '.testform', 'data.json');
+        expect(existsSync(newPath)).toBe(true);
+        const migratedContent = JSON.parse(readFileSync(newPath, 'utf8'));
+        expect(migratedContent.next_issue_number).toBe(100);
+        expect(migratedContent.issues[0].title).toBe('Legacy issue from cache');
     });
 });
 

@@ -355,6 +355,14 @@ export class Config {
         return merged;
     }
 
+    getAttachmentDirectory(scope?: IScope): string {
+        const convention = scope ? this.getConvention(scope) : undefined;
+        if (convention?.attach) return convention.attach;
+        const globalScaffold = this.getScopeConf('global')?.scaffold;
+        if (globalScaffold?.attach) return globalScaffold.attach;
+        return 'evidence';
+    }
+
     getReportMapping(key: string): string | undefined {
         return this.config.report_mapping ? this.config.report_mapping[key] : undefined;
     }

@@ -107,6 +107,8 @@ export const queryCmd = async (options: QueryCmdOptions = {}) => {
             case 'pending': return yellow('⏳ pending');
             case 'blocked': return magenta('⛔ blocked');
             case 'skipped': return gray('⏭ skipped');
+            case 'undefined': return cyan('❓ undefined');
+            case 'ambiguous': return magenta('🔀 ambiguous');
             case 'unexecuted': return dim('❔ unexecuted');
             default: return cyan(st);
         }

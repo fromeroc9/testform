@@ -388,5 +388,26 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 }
             }
         }
+    },
+    {
+        id: "attach-governance",
+        description: "Enforces attachment and evidence placement rules per resource scope",
+        scope: ["testcase", "testrun", "testplan", "bug"],
+        severity: "error",
+        action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
+            for (const scenario of scenarios) {
+                for (const v of (scenario.custom?.policy?.filter((p: any) => p.type === 'attach-governance') ?? [])) {
+                    rules.push({
+                        id: "attach-governance",
+                        type: scope === 'bug' ? 'error' : 'warning',
+                        title: `Attachment governance violation in ${scope}`,
+                        detail: (v as any).message || `Invalid placement of attachment in ${scope}`,
+                        uri: scenario.uri,
+                        scenario: scenario.name,
+                        line: scenario.location,
+                    });
+                }
+            }
+        }
     }
 ];

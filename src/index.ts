@@ -592,9 +592,10 @@ export function createCli() {
         .option('--case <case>', 'Target testcase canonical address or tag')
         .option('--run <run>', 'Target testrun canonical address or tag')
         .option('--title <title>', 'Specification or scenario title')
-        .option('--status <status>', 'Execution or defect status (passed, failed, pending, skipped)')
+        .option('--status <status>', 'Execution or defect status (passed, failed, pending, skipped, undefined, ambiguous, blocked)')
         .option('--trace <trace>', 'Failure stack trace or error log')
         .option('--evidence <evidence>', 'Path or list of paths to evidence files')
+        .option('--attach <attach>', 'Path or list of paths to attachment files')
         .option('--severity <severity>', 'Bug severity (critical, high, medium, low)')
         .option('--priority <priority>', 'Bug priority (high, medium, low)')
         .option('--fill', 'Autocomplete empty testrun rules with their testcases')
@@ -621,6 +622,7 @@ export function createCli() {
                 status: options.status,
                 trace: options.trace,
                 evidence: options.evidence,
+                attach: options.attach,
                 fill: Boolean(options.fill),
                 include: options.include,
                 exclude: options.exclude,

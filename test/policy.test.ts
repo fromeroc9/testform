@@ -428,5 +428,64 @@ describe('Policy no-feature-tags with @ns namespace tags', () => {
         expect(rules[0].title).toContain('@smoke');
         expect(rules[0].title).toContain('@ns()');
     });
+
+    it('should enforce attachment governance: error in bug background, warning in testplan scenario', () => {
+        const attachPolicy = (policy as any).builtinPolicies['attach-governance'];
+        expect(attachPolicy).toBeDefined();
+
+        // 1. Bug background attachment error
+        const bugScenarios: ParserScenario[] = [
+            {
+                uri: 'bugs/issue.bug.feature',
+                feature: { tags: ['@bug'], keyword: 'Feature', name: 'Bug Feature', description: '', location: 1 },
+                location: 5,
+                keyword: 'Scenario',
+                name: 'Defect 1',
+                description: '',
+                steps: [],
+                tags: ['@bg-01'],
+                custom: {
+                    identity: '@bg-01',
+                    policy: [{
+                        type: 'attach-governance' as any,
+                        field: 'attach',
+                        message: 'Attachments/evidence in bug specifications are prohibited in Background. Attachments must be specified at the Scenario level.'
+                    }]
+                }
+            }
+        ];
+        const bugRules: PolicyRule[] = [];
+        attachPolicy.action(bugScenarios, bugRules, 'bug');
+        expect(bugRules.length).toBe(1);
+        expect(bugRules[0].id).toBe('attach-governance');
+        expect(bugRules[0].type).toBe('error');
+
+        // 2. Testplan scenario attachment warning
+        const planScenarios: ParserScenario[] = [
+            {
+                uri: 'testplans/q1.plan.feature',
+                feature: { tags: ['@testplan'], keyword: 'Feature', name: 'Q1 Plan', description: '', location: 1 },
+                location: 5,
+                keyword: 'Scenario',
+                name: 'Plan 1',
+                description: '',
+                steps: [],
+                tags: ['@tp-01'],
+                custom: {
+                    identity: '@tp-01',
+                    policy: [{
+                        type: 'attach-governance' as any,
+                        field: 'attach',
+                        message: 'Attachments in testplan specifications are only applicable in Background.'
+                    }]
+                }
+            }
+        ];
+        const planRules: PolicyRule[] = [];
+        attachPolicy.action(planScenarios, planRules, 'testplan');
+        expect(planRules.length).toBe(1);
+        expect(planRules[0].id).toBe('attach-governance');
+        expect(planRules[0].type).toBe('warning');
+    });
 });
 

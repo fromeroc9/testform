@@ -358,7 +358,7 @@ class Resource {
         if (template.fields) {
             const stateFields: Record<string, any> = {};
             for (const field of template.fields) {
-                if (['status', 'testcases', 'testcaseTraces', 'testcaseEvidence', 'metadata', 'severity', 'priority', 'testruns', 'trace', 'evidence'].includes(field.name)) {
+                if (['status', 'testcases', 'testcaseTraces', 'testcaseEvidence', 'metadata', 'severity', 'priority', 'testruns', 'trace', 'evidence', 'attach'].includes(field.name)) {
                     stateFields[field.name] = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
                 }
             }
@@ -859,7 +859,7 @@ function extractTestcaseEvidenceMap(s: any): Record<string, any> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, any> = {};
     for (const gs of groupScenarios) {
-        const ev = gs.custom?.fields?.evidence;
+        const ev = gs.custom?.fields?.evidence ?? gs.custom?.fields?.attach;
         if (ev && gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             if (key) map[key] = Array.isArray(ev) ? ev : [ev];
@@ -919,7 +919,7 @@ const testcaseTemplate: ResourceTemplate = {
         labels: extractLabels(s),
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
-        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
     }),
     state: {
         status: (s: any) => s.custom?.fields?.status || 'pending',
@@ -935,7 +935,7 @@ const testrunTemplate: ResourceTemplate = {
         labels: extractLabels(s),
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
-        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
     }),
     state: {
         status: (s: any) => {
@@ -958,7 +958,7 @@ const testplanTemplate: ResourceTemplate = {
         labels: extractLabels(s),
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
-        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status'])
+        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
     }),
     state: {
         status: (s: any, context?: any) => calculatePlanRollup(s, context),
@@ -977,7 +977,7 @@ const bugTemplate: ResourceTemplate = {
         milestone: s.custom?.fields?.milestone || undefined,
         custom_fields: extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'status', 'severity', 'priority',
-            'trace', 'error', 'evidence', 'target', 'testcase', 'testrun'
+            'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun'
         ])
     }),
     state: {
@@ -986,7 +986,7 @@ const bugTemplate: ResourceTemplate = {
         priority: (s: any) => s.custom?.fields?.priority || undefined,
         trace: (s: any) => s.custom?.fields?.trace || s.custom?.fields?.error || undefined,
         evidence: (s: any) => {
-            const ev = s.custom?.fields?.evidence;
+            const ev = s.custom?.fields?.evidence ?? s.custom?.fields?.attach;
             return Array.isArray(ev) ? ev : (ev ? [ev] : []);
         },
         testcase: (s: any) => s.custom?.fields?.target || s.custom?.fields?.testcase || undefined,

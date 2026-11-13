@@ -44,8 +44,11 @@ export const DIR_CACHE = ".testform/cache";
 /** Default state file name. */
 export const FILE_STATE = "testform.state";
 
-// Default data file name (stored in dedicated cache folder).
-export const FILE_DATA = ".testform/cache/data.json";
+/** Default local provider database file name. */
+export const FILE_DATA = ".testform/data.json";
+
+/** Legacy local provider database file name (for backward compatibility migration). */
+export const FILE_DATA_LEGACY = ".testform/cache/data.json";
 
 /** Default dependency lock file name (stored in dedicated cache folder). */
 export const FILE_LOCK = ".testform/cache/lock.json";
@@ -127,25 +130,52 @@ export const SCOPE_CONFIG = {
 
 /**
  * All valid execution statuses for a test case result comment.
- * Aligned with Cucumber's built-in statuses plus common QA states.
+ * Aligned with Cucumber's 6 Gherkin execution statuses (passed, failed,
+ * pending, skipped, undefined, ambiguous) plus legacy blocked.
  */
-export const TESTCASE_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped', 'undefined'] as const;
+export const TESTCASE_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped', 'undefined', 'ambiguous'] as const;
 
 /** Union type of all valid testcase statuses. */
-type TestcaseStatus = typeof TESTCASE_STATUSES[number];
+export type TestcaseStatus = typeof TESTCASE_STATUSES[number];
 
 /**
  * Emoji representation for each testcase execution status.
- * Used when rendering the status table inside testrun issue comments.
+ * Used when rendering status summaries inside testrun issue comments and reports.
  */
-const TESTCASE_STATUS_EMOJI: Record<TestcaseStatus, string> = {
+export const TESTCASE_STATUS_EMOJI: Record<TestcaseStatus, string> = {
     pending: '⏳',
     passed: '✅',
     failed: '❌',
     blocked: '⚠️',
     skipped: '⏭️',
     undefined: '❓',
+    ambiguous: '🔀',
 };
+
+// ─── Bug Defect Statuses ──────────────────────────────────────────────────────
+
+/**
+ * Valid resolution statuses for a bug defect resource.
+ * - open: Defect is actively reported and unassigned/unresolved.
+ * - in_progress: Resolution or retest is actively underway.
+ * - resolved: Defect has been verified and resolved.
+ * - reopened: Previously resolved defect reproduced or failed retest.
+ * - discarded: Defect was rejected, won't fix, or not reproducible.
+ * - duplicate: Defect tracks an identical root cause already reported.
+ */
+export const BUG_STATUSES = [
+    'open',
+    'in_progress',
+    'resolved',
+    'reopened',
+    'discarded',
+    'duplicate',
+    'failed',
+    'pending',
+    'passed',
+] as const;
+
+export type BugStatus = typeof BUG_STATUSES[number];
 
 // ─── Error Messages ───────────────────────────────────────────────────────────
 

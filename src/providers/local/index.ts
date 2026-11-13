@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
-import { FILE_DATA } from '../../core/const';
+import { FILE_DATA, FILE_DATA_LEGACY } from '../../core/const';
 
 interface LocalComment {
     id: number;
@@ -28,6 +28,7 @@ export class LocalProvider implements IProvider {
     // ──────────────────────────────────────────────────────────────────────────
 
     private dbPath: string;
+    private legacyDbPath: string;
     private db: LocalDB;
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ export class LocalProvider implements IProvider {
 
     constructor(dir: string = '.') {
         this.dbPath = path.resolve(dir, FILE_DATA);
+        this.legacyDbPath = path.resolve(dir, FILE_DATA_LEGACY);
         this.db = this.loadDB();
     }
 
@@ -252,6 +254,23 @@ export class LocalProvider implements IProvider {
                 console.error(`Error reading ${this.dbPath}`, error);
             }
         }
+
+        // Backward compatibility: automatically migrate from legacy path (.testform/cache/data.json)
+        if (fs.existsSync(this.legacyDbPath)) {
+            try {
+                const content = fs.readFileSync(this.legacyDbPath, 'utf8');
+                const parsed = JSON.parse(content);
+                const dir = path.dirname(this.dbPath);
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+                fs.writeFileSync(this.dbPath, JSON.stringify(parsed, null, 2), 'utf8');
+                return parsed;
+            } catch (error) {
+                console.error(`Error migrating from ${this.legacyDbPath}`, error);
+            }
+        }
+
         return {
             issues: [],
             next_issue_number: 1,

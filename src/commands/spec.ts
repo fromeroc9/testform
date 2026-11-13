@@ -1,12 +1,12 @@
 import { resolve, join, basename, dirname } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
-import { bold, green, yellow, red, cyan, gray } from 'chalk';
+import { bold, green, yellow, red, cyan, gray, magenta } from 'chalk';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { Parser } from '../core/parser';
 import { IScope } from '../core/types';
 import { Diag } from '../core/diagnostics';
-import { TITLE_CLI, SCOPE_CONFIG } from '../core/const';
+import { TITLE_CLI, SCOPE_CONFIG, TESTCASE_STATUSES } from '../core/const';
 import { findNextIdentity, GherkinEditor } from '../core/editor';
 import { VariableParser } from '../core/variables';
 import { matchesScope, promptTargetSuite } from '../core/selector';
@@ -26,6 +26,7 @@ export interface SpecCmdOptions {
     status?: string;
     trace?: string;
     evidence?: string;
+    attach?: string;
     fill?: boolean;
     include?: string | string[];
     exclude?: string | string[];
@@ -48,14 +49,20 @@ function getStatusBadge(status: string = 'pending'): string {
     if (s === 'failed') return red('✗ failed');
     if (s === 'pending') return yellow('⧖ pending');
     if (s === 'skipped') return gray('- skipped');
+    if (s === 'undefined') return cyan('? undefined');
+    if (s === 'ambiguous') return magenta('🔀 ambiguous');
+    if (s === 'blocked') return yellow('! blocked');
     return gray(`? ${status}`);
 }
 
-function getBugBadge(status: string = 'failed'): string {
+function getBugBadge(status: string = 'open'): string {
     const s = status.toLowerCase();
-    if (s === 'passed') return green('✔ resolved');
-    if (s === 'failed') return red('● active');
-    if (s === 'pending') return yellow('⧖ in review');
+    if (s === 'passed' || s === 'resolved' || s === 'closed') return green('✔ resolved');
+    if (s === 'failed' || s === 'open' || s === 'new' || s === 'active') return red('● open');
+    if (s === 'pending' || s === 'in_progress' || s === 'in_review' || s === 'inprogress') return yellow('⧖ in progress');
+    if (s === 'reopened') return yellow('↻ reopened');
+    if (s === 'discarded' || s === 'wont_fix' || s === 'wontfix') return gray('⊘ discarded');
+    if (s === 'duplicate') return magenta('⧉ duplicate');
     return gray(`? ${status}`);
 }
 
@@ -368,9 +375,9 @@ async function handleTestcase(options: SpecCmdOptions) {
                             if (bg.attributes?.trace) {
                                 console.log(`      ${red('Trace:')} ${bg.attributes.trace}`);
                             }
-                            const bgEv = (bg.attributes as any)?.evidence;
+                            const bgEv = (bg.attributes as any)?.evidence || (bg.attributes as any)?.attach;
                             if (Array.isArray(bgEv) && bgEv.length > 0) {
-                                console.log(`      ${cyan('Evidence:')} ${bgEv.join(', ')}`);
+                                console.log(`      ${cyan('Evidence / Attachments:')} ${bgEv.join(', ')}`);
                             }
                         }
                     }
@@ -413,6 +420,8 @@ async function handleTestcase(options: SpecCmdOptions) {
 
 async function handleTestrun(options: SpecCmdOptions) {
     const { dir, action, target, case: tcArg, title, status = 'pending', trace, evidence, showName, showDetail, statePath, backupPath, testDirectory, variables, include, exclude } = options;
+    const effectiveEvidence = options.attach || evidence;
+    const attachKeyword = options.attach ? 'attach' : 'evidence';
     const config = new Config(dir, false);
 
     let effectiveTarget = target;
@@ -646,7 +655,7 @@ async function handleTestrun(options: SpecCmdOptions) {
         case 'mark': {
             if (!effectiveTarget || !effectiveCase) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec testrun set -target=<@tr-X|file> -case=<testcase_address> -status=<passed|failed|pending|skipped> [-trace="..."] [-evidence="..."]`,
+                    syntax: `${TITLE_CLI} spec testrun set -target=<@tr-X|file> -case=<testcase_address> -status=<${TESTCASE_STATUSES.join('|')}> [-trace="..."] [-evidence="..."]`,
                     detail: [
                         `Record execution status, stack trace, and evidence for a testcase inside a testrun.`,
                         ``,
@@ -689,10 +698,10 @@ async function handleTestrun(options: SpecCmdOptions) {
                             newLines.push(`    * set status = ${effectiveStatus}`);
                             statusUpdated = true;
                             if (trace) newLines.push(`    * set trace = ${trace.split('\n')[0]}`);
-                            if (evidence) newLines.push(`    * set evidence = ${evidence}`);
+                            if (effectiveEvidence) newLines.push(`    * set ${attachKeyword} = ${effectiveEvidence}`);
                             continue;
                         }
-                        if (line.includes('set trace =') || line.includes('set evidence =') || line.includes('mark trace =') || line.includes('mark evidence =')) {
+                        if (line.includes('set trace =') || line.includes('set evidence =') || line.includes('set attach =') || line.includes('mark trace =') || line.includes('mark evidence =') || line.includes('mark attach =')) {
                             // Skipped; replaced above
                             continue;
                         }
@@ -707,14 +716,14 @@ async function handleTestrun(options: SpecCmdOptions) {
                 newLines.push(`\n  Scenario: ${effectiveCase}`);
                 newLines.push(`    * set status = ${effectiveStatus}`);
                 if (trace) newLines.push(`    * set trace = ${trace.split('\n')[0]}`);
-                if (evidence) newLines.push(`    * set evidence = ${evidence}`);
+                if (effectiveEvidence) newLines.push(`    * set ${attachKeyword} = ${effectiveEvidence}`);
             } else if (!statusUpdated) {
                 // Scenario existed but had no status step
                 const scIdx = newLines.findIndex(l => matchesScenarioInText(l, effectiveCase));
                 if (scIdx !== -1) {
                     newLines.splice(scIdx + 1, 0, `    * set status = ${effectiveStatus}`);
                     if (trace) newLines.splice(scIdx + 2, 0, `    * set trace = ${trace.split('\n')[0]}`);
-                    if (evidence) newLines.splice(scIdx + 3, 0, `    * set evidence = ${evidence}`);
+                    if (effectiveEvidence) newLines.splice(scIdx + 3, 0, `    * set ${attachKeyword} = ${effectiveEvidence}`);
                 }
             }
 
@@ -754,12 +763,15 @@ async function handleTestrun(options: SpecCmdOptions) {
                 const evidences = ((tr.attributes as any)?.testcaseEvidence || {}) as Record<string, any>;
                 const keys = Object.keys(tcMap);
 
-                const counts = { total: keys.length, passed: 0, failed: 0, pending: 0, skipped: 0 };
+                const counts = { total: keys.length, passed: 0, failed: 0, pending: 0, skipped: 0, undefined: 0, ambiguous: 0, blocked: 0 };
                 keys.forEach(k => {
                     const st = (tcMap[k] || 'pending').toLowerCase();
                     if (st === 'passed') counts.passed++;
                     else if (st === 'failed') counts.failed++;
                     else if (st === 'skipped') counts.skipped++;
+                    else if (st === 'undefined') counts.undefined++;
+                    else if (st === 'ambiguous') counts.ambiguous++;
+                    else if (st === 'blocked') counts.blocked++;
                     else counts.pending++;
                 });
 
@@ -770,7 +782,12 @@ async function handleTestrun(options: SpecCmdOptions) {
                     console.log(`${bold('Address:')} ${gray(tr.address || tr.identity)}`);
                 }
                 console.log(`${bold('Title:')}   ${tr.attributes?.title || 'Unknown title'}`);
-                console.log(`${bold('Status:')}  Total: ${counts.total} | ${green('Passed: ' + counts.passed)} | ${red('Failed: ' + counts.failed)} | ${yellow('Pending: ' + counts.pending)} | ${gray('Skipped: ' + counts.skipped)}`);
+                const extraParts = [
+                    counts.undefined > 0 ? cyan(`Undefined: ${counts.undefined}`) : '',
+                    counts.ambiguous > 0 ? magenta(`Ambiguous: ${counts.ambiguous}`) : '',
+                    counts.blocked > 0 ? yellow(`Blocked: ${counts.blocked}`) : '',
+                ].filter(Boolean).join(' | ');
+                console.log(`${bold('Status:')}  Total: ${counts.total} | ${green('Passed: ' + counts.passed)} | ${red('Failed: ' + counts.failed)} | ${yellow('Pending: ' + counts.pending)} | ${gray('Skipped: ' + counts.skipped)}${extraParts ? ` | ${extraParts}` : ''}`);
                 console.log(`----------------------------------------------------------------------`);
                 console.log(bold(`SCENARIO BREAKDOWN:`));
 
@@ -985,7 +1002,9 @@ async function handleTestplan(options: SpecCmdOptions) {
 // ─── BUG HANDLERS ────────────────────────────────────────────────────────────
 
 async function handleBug(options: SpecCmdOptions) {
-    const { dir, action, target, case: tcArg, run: runArg, title, status = 'failed', severity, priority, trace, evidence, showName, showDetail, statePath, backupPath, testDirectory } = options;
+    const { dir, action, target, case: tcArg, run: runArg, title, status = 'open', severity, priority, trace, evidence, showName, showDetail, statePath, backupPath, testDirectory } = options;
+    const effectiveEvidence = options.attach || evidence;
+    const attachKeyword = options.attach ? 'attach' : 'evidence';
     const config = new Config(dir, false);
 
     let effectiveTarget = target;
@@ -1036,7 +1055,7 @@ async function handleBug(options: SpecCmdOptions) {
             const targetFile = effectiveTarget || runArg;
             if (!targetFile) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug add -target=<file> [-case=<testcase_address>] [-title="Bug title"] [-status=failed] [-severity=critical|high|medium|low] [-priority=high|medium|low]`,
+                    syntax: `${TITLE_CLI} spec bug add -target=<file> [-case=<testcase_address>] [-title="Bug title"] [-status=open|in_progress|resolved|reopened|discarded|duplicate] [-trace="..."] [-evidence="..."]`,
                     detail: [`Add a new bug scenario to a bug specification file.`]
                 }).abort();
                 return;
@@ -1058,7 +1077,7 @@ async function handleBug(options: SpecCmdOptions) {
             if (severity) sc += `    * set severity = ${severity}\n`;
             if (priority) sc += `    * set priority = ${priority}\n`;
             if (trace) sc += `    * set trace = ${trace.split('\n')[0]}\n`;
-            if (evidence) sc += `    * set evidence = ${evidence}\n`;
+            if (effectiveEvidence) sc += `    * set ${attachKeyword} = ${effectiveEvidence}\n`;
 
             writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + sc, 'utf-8');
             console.log(green(bold(`\n✓ Added bug scenario ${bgTag} "${bugScenarioTitle}" to ${basename(filePath)}`)));
@@ -1141,7 +1160,7 @@ async function handleBug(options: SpecCmdOptions) {
         case 'mark': {
             if (!effectiveTarget) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<failed|passed|pending> [-trace="..."] [-evidence="..."]`,
+                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<open|in_progress|resolved|reopened|discarded|duplicate> [-trace="..."] [-evidence="..."]`,
                     detail: [`Update resolution status, stack trace, and evidence for a bug scenario.`]
                 }).abort();
                 return;
@@ -1171,10 +1190,10 @@ async function handleBug(options: SpecCmdOptions) {
                             } else if (line.includes('set status =') || line.includes('mark status =')) {
                                 newLines.push(`    * set status = ${effectiveStatus}`);
                                 if (trace) newLines.push(`    * set trace = ${trace.split('\n')[0]}`);
-                                if (evidence) newLines.push(`    * set evidence = ${evidence}`);
+                                if (effectiveEvidence) newLines.push(`    * set ${attachKeyword} = ${effectiveEvidence}`);
                                 updated = true;
                                 continue;
-                            } else if (line.includes('set trace =') || line.includes('set evidence =') || line.includes('mark trace =') || line.includes('mark evidence =')) {
+                            } else if (line.includes('set trace =') || line.includes('set evidence =') || line.includes('set attach =') || line.includes('mark trace =') || line.includes('mark evidence =') || line.includes('mark attach =')) {
                                 continue;
                             }
                         }
@@ -1235,9 +1254,9 @@ async function handleBug(options: SpecCmdOptions) {
 
                 if (showDetail) {
                     if (bug.attributes?.trace) console.log(`${bold('Trace:')}      ${red(bug.attributes.trace)}`);
-                    const bEv = (bug.attributes as any)?.evidence;
+                    const bEv = (bug.attributes as any)?.evidence || (bug.attributes as any)?.attach;
                     if (Array.isArray(bEv) && bEv.length > 0) {
-                        console.log(`${bold('Evidence:')}   ${cyan(bEv.join(', '))}`);
+                        console.log(`${bold('Evidence / Attachments:')}   ${cyan(bEv.join(', '))}`);
                     }
                 }
                 console.log(`======================================================================\n`);

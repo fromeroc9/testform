@@ -53,15 +53,25 @@ export class TestcaseParser extends BaseParser {
                     if (setMatch) {
                         const setKey = setMatch[1].trim().toLowerCase();
                         const setVal = setMatch[2]?.trim();
-                        if (setKey === 'evidence') {
-                            try {
-                                if (setVal.startsWith('[') && setVal.endsWith(']')) {
-                                    customFields['evidence'] = JSON.parse(setVal);
-                                } else {
-                                    customFields['evidence'] = setVal;
+                        if (setKey === 'evidence' || setKey === 'attach') {
+                            if (scope === 'bug') {
+                                (s.custom ??= {}).policy ??= [];
+                                s.custom.policy!.push({
+                                    type: 'attach-governance' as any,
+                                    field: setKey,
+                                    message: 'Attachments/evidence in bug specifications are prohibited in Background. Attachments must be specified at the Scenario level.'
+                                } as any);
+                            } else {
+                                let parsedVal: any = setVal;
+                                try {
+                                    if (setVal.startsWith('[') && setVal.endsWith(']')) {
+                                        parsedVal = JSON.parse(setVal);
+                                    }
+                                } catch {
+                                    parsedVal = setVal;
                                 }
-                            } catch {
-                                customFields['evidence'] = setVal;
+                                customFields['evidence'] = parsedVal;
+                                customFields['attach'] = parsedVal;
                             }
                         } else {
                             customFields[setKey] = setVal;
@@ -96,16 +106,27 @@ export class TestcaseParser extends BaseParser {
                 if (setMatch) {
                     const setKey = setMatch[1].trim().toLowerCase();
                     const setVal = setMatch[2]?.trim();
-                    if (setKey === 'evidence') {
+                    if (setKey === 'evidence' || setKey === 'attach') {
+                        if (scope === 'testplan') {
+                            (s.custom ??= {}).policy ??= [];
+                            s.custom.policy!.push({
+                                type: 'attach-governance' as any,
+                                field: setKey,
+                                message: 'Attachments in testplan specifications are only applicable in Background.'
+                            } as any);
+                        }
+                        let parsedVal: any = setVal;
                         try {
                             if (setVal.startsWith('[') && setVal.endsWith(']')) {
-                                customFields['evidence'] = JSON.parse(setVal);
+                                parsedVal = JSON.parse(setVal);
                             } else {
-                                customFields['evidence'] = setVal;
+                                parsedVal = setVal;
                             }
                         } catch {
-                            customFields['evidence'] = setVal;
+                            parsedVal = setVal;
                         }
+                        customFields['evidence'] = parsedVal;
+                        customFields['attach'] = parsedVal;
                     } else {
                         customFields[setKey] = setVal;
                     }

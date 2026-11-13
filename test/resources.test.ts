@@ -73,7 +73,12 @@ describe('Resource Registry and User Overrides', () => {
     it('should compute rollup verdict and testcases map for testrun', () => {
         expect(calculateRollupVerdict(['passed', 'passed'])).toBe('passed');
         expect(calculateRollupVerdict(['passed', 'failed'])).toBe('failed');
+        expect(calculateRollupVerdict(['passed', 'ambiguous'])).toBe('ambiguous');
+        expect(calculateRollupVerdict(['ambiguous', 'failed'])).toBe('failed');
+        expect(calculateRollupVerdict(['passed', 'undefined'])).toBe('undefined');
         expect(calculateRollupVerdict(['passed', 'pending'])).toBe('pending');
+        expect(calculateRollupVerdict(['passed', 'skipped'])).toBe('skipped');
+        expect(calculateRollupVerdict(['skipped', 'skipped'])).toBe('skipped');
         expect(calculateRollupVerdict([])).toBe('pending');
 
         const mockRunScenario: any = {

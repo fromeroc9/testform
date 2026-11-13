@@ -5,23 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.7] - 2026-11-13
+
+### Added
+
+- **First-Class Attachment System & Governance (`src/core/types.ts`, `src/core/config.ts`, `src/parsers/testcase-parser.ts`, `src/policies/catalog.ts`, `src/core/resources.ts`, `src/commands/spec.ts`, `src/index.ts`):**
+  - Added support for `scaffold.attach` configuration in `main.yml` across `global`, `testcase`, `testrun`, `testplan`, and `bug` scopes (e.g. `attach: "attachments"` or `attach: "attachments/bugs"`).
+  - Introduced `* set attach = ...` as a first-class DSL directive alongside `* set evidence = ...` with complete backward compatibility.
+  - Implemented the `attach-governance` policy enforcing placement rules per resource scope:
+    - `testcase`: `set attach` permitted in `Background` (story-level attachments) and `Scenario` (case-specific attachments).
+    - `testrun`: `set attach` permitted in `Background` and `Scenario` / `Rule` execution blocks.
+    - `testplan`: `set attach` permitted in `Background` only (warning diagnostic emitted if placed in a scenario).
+    - `bug`: `set attach` permitted exclusively in `Scenario` blocks (strictly prohibited in `Background` with error diagnostic).
+  - Added `--attach` CLI option to `testform spec testrun set`, `testform spec bug add`, and `testform spec bug set`.
+  - Added `getAttachmentDirectory()` in `Config` resolving configured attachment folders for automated runner bridge results.
+
 ## [1.1.0-beta.6] - 2026-11-11
 
 ### Changed
 
+- **Local Provider Persistence Architecture (`src/core/const.ts`, `src/providers/local/index.ts`):**
+  - Relocated canonical local provider simulated database storage from `.testform/cache/data.json` to `.testform/data.json`.
+  - Established `.testform/cache/` as strictly 100% disposable temporary cache (`backend.json`, `lock.json`, `parser-ast.json`), enabling clean blanket `.gitignore` rules without negative pattern exceptions.
+  - Added seamless automatic migration in `LocalProvider.loadDB()`: when `.testform/data.json` does not exist but legacy `.testform/cache/data.json` is present, data is automatically loaded and persisted to the new `.testform/data.json` path.
 - **Unified Namespace Directive Parsing (`src/core/selector.ts`, `src/policies/catalog.ts`, `src/core/resources.ts`):**
   - Added `extractNamespaceFromTag()` to uniformly parse unquoted (`@ns(name)`), single/double-quoted (`@ns('name')`, `@ns("name")`), `@namespace(...)`, and `@ns:name` directives across selector resolution, policy checks, and label extraction.
   - Exempted valid `@ns(...)`, `@namespace(...)`, and `@ns:name` directives from the `no-feature-tags` policy so `Feature:`-level namespace declarations are permitted while empty `@ns()` and non-namespace feature tags remain rejected.
   - Filtered namespace directive tags out of `extractLabels()` so `@ns(...)` tags are never exported as resource labels.
+- **Bug Defect Status Lifecycle & Schema Purity (`src/core/const.ts`, `src/commands/spec.ts`, `src/core/help.ts`):**
+  - Expanded bug resolution status support to include standard defect lifecycle statuses: `open` (alias `failed`, `new`), `in_progress` (alias `pending`, `in_review`), `resolved` (alias `passed`, `closed`), `reopened`, `discarded` (`wont_fix`), and `duplicate`.
+  - Updated `getBugBadge()` with dedicated badges for `open` (`● open`), `in_progress` (`⧖ in progress`), `resolved` (`✔ resolved`), `reopened` (`↻ reopened`), `discarded` (`⊘ discarded`), and `duplicate` (`⧉ duplicate`).
+  - Removed deprecated hardcoded `-severity` and `-priority` flags from `spec bug add` and `spec bug set` CLI helpers and syntax messages, enforcing custom-field schema definition via `main.yml`.
+- **Cucumber Gherkin Status Alignment (`src/core/const.ts`, `src/core/utils.ts`, `src/commands/spec.ts`, `src/commands/query.ts`, `src/core/query.ts`, `src/core/prompt.ts`, `src/index.ts`, `src/core/help.ts`, `src/reports/catalog.ts`):**
+  - Expanded `TESTCASE_STATUSES` and `TESTCASE_STATUS_EMOJI` to natively support all Cucumber Gherkin statuses (`passed`, `failed`, `pending`, `skipped`, `undefined`, `ambiguous`, adding `ambiguous: '🔀'`) alongside legacy `blocked`.
+  - Updated `calculateRollupVerdict()` precedence to evaluate `failed`, `ambiguous`, `undefined`, `blocked`, `pending`, `skipped`, and `passed`.
+  - Synchronized `testform spec testrun set`, query filters/counters, interactive prompts, CLI help output, and HTML report status counters/breakdowns (`passed`, `failed`, `pending`, `skipped`, `undefined`, `ambiguous`, `blocked`).
 
 ### Fixed
 
+- **Cucumber JSON Status & Duration Import (`src/commands/import.ts`):**
+  - Updated Cucumber JSON parsing to preserve `undefined` and `ambiguous` scenario statuses verbatim instead of collapsing them into `pending` or `failed`.
+  - Aggregated step, `before`, and `after` hook `result.duration` nanoseconds into `* set duration = ...` steps when importing Cucumber JSON reports into `.run.feature` files.
 - **Homonym Collision Physical-Address Fallback (`src/core/selector.ts`, `src/commands/plan.ts`, `src/commands/diff.ts`, `src/core/utils.ts`):**
   - Hardened `findResourceInState()` dot-notation namespace matching against paths containing `/` and bare `.feature` extension tails, preventing colliding physical addresses without `@ns` (e.g., `OpenCart/cart.case.feature.@tc-01`) from cross-matching unrelated resources in `testform.state`.
   - Moved `detectCollidingBasenames()` ahead of `-target` filtering in `calculatePlan()` and `diffCmd()` so single-file `-target` runs still detect shared basenames across the full scope and resolve to physical paths cleanly.
   - Updated `formatIdentityDisplay()` to strip only legacy root container prefixes (`tests/`, `testcase/`, `testrun/`, `testplan/`, `bug/`, etc.), preserving scaffold-relative subfolder paths in CLI plan and diff output.
-- **Test Coverage (`test/policy.test.ts`, `test/selector.test.ts`, `test/plan.test.ts`):**
-  - Added unit tests for `no-feature-tags` namespace allowances, `extractNamespaceFromTag()`, `extractLabels()` filtering, `findResourceInState()` collision isolation without `@ns`, and `-target` scope-wide collision detection.
+- **Test Coverage (`test/policy.test.ts`, `test/selector.test.ts`, `test/plan.test.ts`, `test/import.test.ts`, `test/resources.test.ts`):**
+  - Added unit tests for `no-feature-tags` namespace allowances, `extractNamespaceFromTag()`, `extractLabels()` filtering, `findResourceInState()` collision isolation without `@ns`, `-target` scope-wide collision detection, Cucumber JSON `undefined`/`ambiguous` status preservation, nanosecond duration import, and rollup verdicts.
 
 ---
 

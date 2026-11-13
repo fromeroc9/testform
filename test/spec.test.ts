@@ -339,11 +339,24 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
                 resource: 'bug',
                 action: 'set',
                 target: '@bg-1',
-                status: 'passed'
+                status: 'resolved'
             });
 
             content = readFileSync(filePath, 'utf-8');
-            expect(content).toContain('* set status = passed');
+            expect(content).toContain('* set status = resolved');
+
+            // Update bug through lifecycle statuses
+            for (const nextStatus of ['in_progress', 'reopened', 'discarded', 'duplicate']) {
+                await specCmd({
+                    dir: tmpDir,
+                    resource: 'bug',
+                    action: 'set',
+                    target: '@bg-1',
+                    status: nextStatus
+                });
+                content = readFileSync(filePath, 'utf-8');
+                expect(content).toContain(`* set status = ${nextStatus}`);
+            }
         });
     });
 

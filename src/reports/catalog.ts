@@ -1,6 +1,6 @@
 import { IReport, ReportContext, ReportData } from './types';
 import { QueryResultItem } from '../core/query';
-import { resolvePath } from '../core/utils';
+import { resolvePath, calculateRollupVerdict } from '../core/utils';
 
 function resolveItemUrl(d: QueryResultItem): string | undefined {
     const attrs = (d.originalResource?.attributes || {}) as Record<string, any>;
@@ -105,6 +105,8 @@ export const builtinReports: Record<string, IReport> = {
                     pending: ctx.stats.pending,
                     blocked: ctx.stats.blocked,
                     skipped: ctx.stats.skipped,
+                    undefined: ctx.stats.undefined,
+                    ambiguous: ctx.stats.ambiguous,
                     unexecuted: ctx.stats.unexecuted,
                     tasa_exito: ctx.stats.total > 0 ? `${Math.round((ctx.stats.passed / ctx.stats.total) * 100)}%` : '0%'
                 },
@@ -133,13 +135,15 @@ export const builtinReports: Record<string, IReport> = {
             for (const [runId, runItems] of Object.entries(runGroups)) {
                 if (runId === 'none') continue;
                 const rStats = ctx.stateQuery.getStats(runItems);
+                const rollup = calculateRollupVerdict(runItems.map(i => i.status));
+                const verdictLabel = rollup.charAt(0).toUpperCase() + rollup.slice(1);
                 rows.push([
                     runId,
                     runItems.length,
                     rStats.passed,
                     rStats.failed,
                     rStats.blocked,
-                    rStats.passed === runItems.length && runItems.length > 0 ? 'Passed' : (rStats.failed > 0 ? 'Failed' : 'In Progress')
+                    verdictLabel
                 ]);
             }
 
@@ -368,6 +372,8 @@ export const builtinReports: Record<string, IReport> = {
                     tagStats['pending'] || 0,
                     tagStats['blocked'] || 0,
                     tagStats['skipped'] || 0,
+                    tagStats['undefined'] || 0,
+                    tagStats['ambiguous'] || 0,
                     tagStats['unexecuted'] || 0,
                     items.length
                 ]);
@@ -379,8 +385,8 @@ export const builtinReports: Record<string, IReport> = {
                     total_etiquetas: Object.keys(byTag).length,
                     total_casos: ctx.items.length
                 },
-                headers: ['Etiqueta', 'Passed', 'Failed', 'Pending', 'Blocked', 'Skipped', 'Unexecuted', 'Total'],
-                rows: rows.length > 0 ? rows : [['@untagged', 0, 0, 0, 0, 0, 0, 0]]
+                headers: ['Etiqueta', 'Passed', 'Failed', 'Pending', 'Blocked', 'Skipped', 'Undefined', 'Ambiguous', 'Unexecuted', 'Total'],
+                rows: rows.length > 0 ? rows : [['@untagged', 0, 0, 0, 0, 0, 0, 0, 0, 0]]
             };
         }
     },

@@ -58,7 +58,8 @@ async function runImportResults(options: {
         fs.mkdirSync(absRunsDir, { recursive: true });
     }
 
-    const evidenceDir = join(dir, 'evidence');
+    const attachDirRel = configClass.getAttachmentDirectory('testrun');
+    const evidenceDir = join(dir, attachDirRel);
     if (!fs.existsSync(evidenceDir)) {
         fs.mkdirSync(evidenceDir, { recursive: true });
     }
@@ -282,23 +283,43 @@ async function runImportResults(options: {
                         target = el.name || 'unnamed-scenario';
                     }
 
+                    const CUCUMBER_STATUS_RANK: Record<string, number> = {
+                        passed: 0,
+                        skipped: 1,
+                        pending: 2,
+                        undefined: 3,
+                        ambiguous: 4,
+                        failed: 5,
+                    };
+
                     let status = 'passed';
                     let trace: string | undefined;
+                    let totalDurationNs = 0;
                     const evidence: string[] = [];
+
+                    const applyStepOutcome = (result?: any) => {
+                        if (!result) return;
+                        const sStatus = String(result.status || '').trim().toLowerCase();
+                        if (sStatus in CUCUMBER_STATUS_RANK) {
+                            if (CUCUMBER_STATUS_RANK[sStatus] > CUCUMBER_STATUS_RANK[status]) {
+                                status = sStatus;
+                            }
+                        }
+                        if (result.error_message && (sStatus === 'failed' || sStatus === 'ambiguous' || !trace)) {
+                            trace = String(result.error_message).trim();
+                        }
+                        if (typeof result.duration === 'number' && result.duration > 0) {
+                            totalDurationNs += result.duration;
+                        }
+                    };
+
+                    for (const hook of el.before || []) {
+                        applyStepOutcome(hook.result);
+                    }
 
                     for (let stepIdx = 0; stepIdx < (el.steps || []).length; stepIdx++) {
                         const step = el.steps[stepIdx];
-                        const sStatus = step.result?.status?.toLowerCase();
-                        if (sStatus === 'failed') {
-                            status = 'failed';
-                            if (!trace && step.result?.error_message) {
-                                trace = step.result.error_message.trim();
-                            }
-                        } else if (sStatus === 'undefined' || sStatus === 'pending') {
-                            if (status !== 'failed') status = 'pending';
-                        } else if (sStatus === 'skipped') {
-                            if (status !== 'failed' && status !== 'pending') status = 'skipped';
-                        }
+                        applyStepOutcome(step.result);
 
                         for (const emb of step.embeddings || []) {
                             if (emb.data && emb.mime_type && emb.mime_type.startsWith('image/')) {
@@ -315,10 +336,21 @@ async function runImportResults(options: {
                         }
                     }
 
+                    for (const hook of el.after || []) {
+                        applyStepOutcome(hook.result);
+                    }
+
+                    const duration = totalDurationNs > 0
+                        ? (totalDurationNs >= 10_000_000
+                            ? `${(totalDurationNs / 1e9).toFixed(2)}s`
+                            : `${Math.max(1, Math.round(totalDurationNs / 1e6))}ms`)
+                        : undefined;
+
                     scenarioResults.push({
                         target,
                         name: el.name || target,
                         status,
+                        duration,
                         trace,
                         evidence
                     });
@@ -411,8 +443,8 @@ async function runImportResults(options: {
                         }
                         continue;
                     }
-                    if (trimmedLine.startsWith('* set trace =') || trimmedLine.startsWith('* set evidence =') || trimmedLine.startsWith('* set duration =') ||
-                        trimmedLine.startsWith('* mark trace =') || trimmedLine.startsWith('* mark evidence =')) {
+                    if (trimmedLine.startsWith('* set trace =') || trimmedLine.startsWith('* set evidence =') || trimmedLine.startsWith('* set attach =') || trimmedLine.startsWith('* set duration =') ||
+                        trimmedLine.startsWith('* mark trace =') || trimmedLine.startsWith('* mark evidence =') || trimmedLine.startsWith('* mark attach =') || trimmedLine.startsWith('* mark duration =')) {
                         continue;
                     }
                 }

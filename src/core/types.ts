@@ -22,6 +22,7 @@ export interface IGitHubConfig {
 export interface IScaffold {
     directory?: string;
     filename?: string;
+    attach?: string;
 }
 
 export type IConvention = IScaffold;
@@ -92,8 +93,9 @@ export interface ParserFeature {
 }
 
 interface ParserPolicy {
-    type: 'undeclared-field' | 'required-field';
-    field: string;
+    type: 'undeclared-field' | 'required-field' | 'attach-governance';
+    field?: string;
+    message?: string;
 }
 
 export interface ParserScenario {
