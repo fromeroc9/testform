@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.8] - 2026-11-13
+
+### Added
+
+- **First-Class Path & Reference Integrity Policies (`src/policies/path-integrity.ts`, `src/policies/catalog.ts`):**
+  - Eliminated "blind" CLI editing by introducing automated reference verification across `testplan`, `testrun`, and `bug` specifications.
+  - **`testplan-path-integrity` (`scope: ["testplan"]`, severity: `error`):**
+    - Verifies that every testrun feature referenced in testplan `Rule:` blocks exists on disk within the workspace or standard directories (`testruns/`, `testcycle/`).
+    - Emits blocking diagnostic error with exact file path and line number if the referenced testrun cannot be found.
+  - **`testrun-path-integrity` (`scope: ["testrun"]`, severity: `error`):**
+    - Verifies that every testcase feature file declared in `Rule:` blocks exists in the workspace (resolving relative paths, `testcase/` subdirectories, and basenames).
+    - Verifies that referenced scenarios (by identity tag `@tc-*` or scenario title) exist inside that testcase feature file, preventing typos in scenario names and tags.
+  - **`bug-path-integrity` (`scope: ["bug"]`, severity: `error`):**
+    - Verifies that target testcases (`* set target = ...` or `@tc-*`) point to valid existing feature files and scenario tags.
+    - Verifies that linked testruns (`* set run = ...` or feature title) exist in the project.
+    - Verifies that attachments (`* set attach = ...` or `* set evidence = ...`) exist on disk (severity: `warning`).
+  - Automatically integrated into `testform validate`, `testform plan`, and `testform apply`, with full support for CLI diagnostic boxes, `--json` mode, and `testform policy list`.
+
 ## [1.1.0-beta.7] - 2026-11-13
 
 ### Added

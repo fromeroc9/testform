@@ -1,6 +1,11 @@
 import { IScope, ParserScenario } from '../core/types';
 import { extractNamespaceFromTag } from '../core/selector';
 import { PolicyDefinition, PolicyRule } from './types';
+import {
+    testplanPathIntegrityAction,
+    testrunPathIntegrityAction,
+    bugPathIntegrityAction
+} from './path-integrity';
 
 export const BUILTIN_POLICIES: PolicyDefinition[] = [
     {
@@ -409,5 +414,26 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 }
             }
         }
+    },
+    {
+        id: "testplan-path-integrity",
+        description: "Validates that testrun files referenced in testplan Rules exist in the project",
+        scope: ["testplan"],
+        severity: "error",
+        action: testplanPathIntegrityAction
+    },
+    {
+        id: "testrun-path-integrity",
+        description: "Validates that testcase files and scenarios referenced in testrun Rules exist in the project",
+        scope: ["testrun"],
+        severity: "error",
+        action: testrunPathIntegrityAction
+    },
+    {
+        id: "bug-path-integrity",
+        description: "Validates that target testcases, linked testruns, and attachments in bug specifications exist",
+        scope: ["bug"],
+        severity: "error",
+        action: bugPathIntegrityAction
     }
 ];
