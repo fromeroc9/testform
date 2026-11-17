@@ -18,11 +18,15 @@ export interface ReportCmdOptions {
     target?: string | string[];
     out?: string;
     groupBy?: string;
+    secondaryGroupBy?: string;
     fields?: string | string[];
     statePath?: string;
     template?: string;
     apply?: boolean;
     variables?: VariableParser;
+    source?: 'state' | 'files' | 'simulation';
+    fromFiles?: boolean;
+    simulation?: boolean;
 }
 
 export const reportCmd = async (options: ReportCmdOptions): Promise<void> => {
@@ -34,10 +38,14 @@ export const reportCmd = async (options: ReportCmdOptions): Promise<void> => {
         target,
         out,
         groupBy,
+        secondaryGroupBy,
         fields: rawFields,
         statePath,
         template: cliTemplate,
-        variables
+        variables,
+        source,
+        fromFiles,
+        simulation
     } = options;
 
     if (!type || type.trim() === '') {
@@ -45,9 +53,20 @@ export const reportCmd = async (options: ReportCmdOptions): Promise<void> => {
         return;
     }
 
+    const isFromFiles = Boolean(
+        fromFiles ||
+        simulation ||
+        source === 'files' ||
+        source === 'simulation'
+    );
+
     try {
-        // 1. Inicializar motor de StateQuery y filtrar items por target y filter
-        const stateQuery = new StateQuery(dir, statePath);
+        // 1. Inicializar motor de StateQuery (soporta State oficial y Simulación Filesystem)
+        const stateQuery = new StateQuery(dir, statePath, undefined, {
+            source: isFromFiles ? 'files' : 'state',
+            fromFiles: isFromFiles,
+            variables
+        });
         await stateQuery.init();
 
         const targetedItems = stateQuery.filterByTarget(target);
@@ -76,12 +95,38 @@ export const reportCmd = async (options: ReportCmdOptions): Promise<void> => {
             stats,
             variables: varsRecord,
             groupBy,
+            secondaryGroupBy,
             fields,
             options,
-            stateQuery
+            stateQuery,
+            isStateVerified: stateQuery.isStateVerified,
+            source: stateQuery.dataSource,
+            signature: stateQuery.signature
         };
 
         let reportData = await report.collect(context);
+
+        // Stamp simulation metadata and governance signature
+        if (!stateQuery.isStateVerified) {
+            reportData.isStateVerified = false;
+            reportData.source = 'files';
+            reportData.signature = stateQuery.signature;
+            reportData.metadata = {
+                ...(reportData.metadata || {}),
+                is_state_verified: false,
+                source: 'filesystem_simulation',
+                signature: stateQuery.signature,
+                disclaimer: 'Report generated directly from filesystem files. Data not consolidated in testform.state.'
+            };
+        } else {
+            reportData.isStateVerified = true;
+            reportData.source = 'state';
+            reportData.metadata = {
+                ...(reportData.metadata || {}),
+                is_state_verified: true,
+                source: 'state'
+            };
+        }
 
         // Fallback: si el reporte no incluyó los campos adicionales y los rows coinciden con los items
         if (reportData.rows.length === filteredItems.length && (!context.fields || !context.fields.some(f => f.toLowerCase() === 'none'))) {
@@ -95,27 +140,42 @@ export const reportCmd = async (options: ReportCmdOptions): Promise<void> => {
             }
         }
 
-        // 5. Resolver formato
+        // 6. Resolver formato
         const format = await resolveFormat(report, requestedFormat, dir);
 
-        // 6. Resolver plantilla
+        // 7. Resolver plantilla
         const templateContent = resolveTemplate(report, format.name, cliTemplate, context, dir);
 
-        // 7. Renderizar resultado
+        // 8. Renderizar resultado
         const result = await format.render(reportData, context, templateContent);
 
-        // 8. Salida
+        // 9. Salida
         if (out) {
             const outPath = resolve(dir, out);
             writeFileSync(outPath, result);
             console.log(green(`Report saved to ${out}`));
+            if (!stateQuery.isStateVerified) {
+                console.log(yellow(`⚠️  ADVERTENCIA: Reporte generado en modo SIMULACIÓN (data no consolidada en testform.state).`));
+            }
         } else {
             if (format.isBinary) {
                 const defaultOut = `report${format.extension}`;
                 const outPath = resolve(dir, defaultOut);
                 writeFileSync(outPath, result);
                 console.log(yellow(`Binary format "${format.name}" saved to default output: ${defaultOut}`));
+                if (!stateQuery.isStateVerified) {
+                    console.log(yellow(`⚠️  ADVERTENCIA: Reporte generado en modo SIMULACIÓN (data no consolidada en testform.state).`));
+                }
             } else {
+                if (!stateQuery.isStateVerified && (requestedFormat === 'md' || requestedFormat === 'markdown' || requestedFormat === 'console')) {
+                    console.log(yellow(`
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ⚠️  MODO SIMULACIÓN / DRY-RUN (DATA NO CONSOLIDADA EN STATE)                │
+│ Este reporte fue leído directamente de archivos locales (.feature).         │
+│ No representa el estado oficial consolidado en testform.state.              │
+│ Regla del proyecto: Los resultados oficiales deben estar en el state.       │
+└─────────────────────────────────────────────────────────────────────────────┘`));
+                }
                 console.log(typeof result === 'string' ? result : result.toString('utf-8'));
             }
         }

@@ -1151,7 +1151,8 @@ ${bold(`Other Options:`)}
 export const HELP_REPORT = `
 ${bold(`Usage:`)} ${TITLE_CLI} [global options] report <type> [options]
 
-  Generate multi-dimensional test execution reports from local or remote state.
+  Generate multi-dimensional test execution reports from local or remote state,
+  or simulate execution reports directly from repository feature files.
   Specifying the report <type> is required.
 
 ${bold(`Available Report Types:`)}
@@ -1160,49 +1161,57 @@ ${bold(`Available Report Types:`)}
   testrun      summary          Test runs and their pass/fail metrics
   testrun      detailed         In-depth view of testcases and priorities per testrun
   testplan     summary          Overall Test Plan progress and linked test runs
-  cross        defects          List of failed/blocked tests with issue tracking links
-  cross        traceability     Mapping between requirements/tags and test runs
+  bidimensional                 2D cross-tabulation pivot matrix (e.g. Squad vs Status, Module vs Priority)
+  manual-vs-automated           Comparative breakdown of manual vs automated tests and pass rates
+  planned-vs-unplanned          Planned testcases in runs/plans vs unplanned backlog
+  traceability                  End-to-End Requirement Traceability Matrix (Feature -> TC -> Run -> Defects)
+  cross        defects          List of failed/blocked tests and defects with issue tracking links
   cross        coverage         Percentage of passed tests grouped by tags
+  cross        activity         Testcase automation status and recent modifications
 
 ${bold(`Options:`)}
 
-  -format=format      Output format.
-                      Default is "md" (Markdown).
-                      Available formats: md, json, csv, xlsx, docx.
-                      Custom formats can be auto-loaded from .testform/reports/.
+  -format=format              Output format.
+                              Default is "md" (Markdown).
+                              Available formats: md, json, csv, xlsx, docx.
+                              Custom formats can be auto-loaded from .testform/reports/.
 
-  -out=path           Path to save the generated report.
-                      Default is stdout.
+  -source=<state|files>       Data source for reports: "state" (official consolidated source, default)
+                              or "files" (simulation mode reading directly from repository files).
 
-  -filter=query       Filter data by attribute/field (key=val) or inferred
-                      free-text search (text). Can be specified multiple times.
+  -from-files                 Shortcut for -source=files. Generates report in simulation mode with
+                              a mandatory verification signature and disclaimer watermark.
 
-  -target=resource    Target a specific resource, testrun (@tr-N), or
-                      testplan (@tp-N). When targeting a testplan, reports
-                      automatically include all linked testruns and executions.
+  -out=path                   Path to save the generated report. Default is stdout.
 
-  -group-by=field     Group results dynamically by a specific field
-                      (e.g. status, label, assignee, feature, priority).
+  -filter=query               Filter data by attribute/field (key=val) or inferred free-text search.
+                              Supports multi-value matching (e.g. -filter="status=passed,failed").
 
-  -fields=fields      Include custom fields as additional columns in reports
-                      (comma-separated list e.g. -fields=severity,priority,
-                      or -fields=all to include all custom fields).
+  -target=resource            Target a specific resource, testrun (@tr-N), or testplan (@tp-N).
 
-  -template=path      Path to a custom template file (.xlsx, .docx, etc.).
+  -group-by=field             Primary grouping dimension (e.g. module, squad, priority, assignee).
 
-  -var=key=val        Set a variable value to interpolate in report templates.
-                      Use this option more than once to set more than one variable.
+  -secondary-group-by=field   Secondary grouping dimension for 2D pivot matrix (default: status).
 
-  -var-file=filename  Load variable values from the given YAML/JSON file.
+  -fields=fields              Include custom fields as additional columns in reports
+                              (comma-separated list e.g. -fields=severity,priority,
+                              or -fields=all to include all custom fields).
+
+  -template=path              Path to a custom template file (.xlsx, .docx, etc.).
+
+  -var=key=val                Set a variable value to interpolate in report templates.
+
+  -var-file=filename          Load variable values from the given YAML/JSON file.
 
 ${bold(`Examples:`)}
   ${TITLE_CLI} report testcase summary
-  ${TITLE_CLI} report testcase summary -fields=severity,priority
-  ${TITLE_CLI} report testrun summary -target="@tr-1"
+  ${TITLE_CLI} report bidimensional -group-by=module -secondary-group-by=status
+  ${TITLE_CLI} report bidimensional -group-by=squad -secondary-group-by=status -from-files
+  ${TITLE_CLI} report manual-vs-automated -group-by=module
+  ${TITLE_CLI} report planned-vs-unplanned -group-by=module
+  ${TITLE_CLI} report traceability -format=md
   ${TITLE_CLI} report cross defects -fields=all -format=xlsx -out=defects.xlsx
-  ${TITLE_CLI} report cross defects -format=csv -out=defects.csv
-  ${TITLE_CLI} report cross traceability -group-by=feature -format=md
-  ${TITLE_CLI} report testplan summary -target="@tp-1" -format=xlsx -out=sprint_report.xlsx
+  ${TITLE_CLI} report testcase summary -from-files
 `.trim();
 
 export const HELP_TEST = `

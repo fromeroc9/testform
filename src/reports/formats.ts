@@ -48,6 +48,18 @@ export const MarkdownFormat: IReportFormat = {
         lines.push(`# ${data.title}`);
         lines.push('');
 
+        // Simulation banner if not verified
+        const isSim = data.isStateVerified === false || context.isStateVerified === false || data.metadata?.is_state_verified === false;
+        if (isSim) {
+            const sig = data.signature || context.signature || 'SIMULACIÓN_UNVERIFIED_DATA_NOT_IN_STATE';
+            lines.push('> [!WARNING]');
+            lines.push('> ### ⚠️ AVISO DE SIMULACIÓN / DRY-RUN (DATA NO CONSOLIDADA EN STATE)');
+            lines.push('> **Este informe fue generado leyendo directamente los archivos locales en disco (`.feature`).**');
+            lines.push(`> **Firma de Verificación:** \`${sig}\``);
+            lines.push('> **Regla de Gobernanza:** Los resultados oficiales de calidad deben estar consolidados en `testform.state` mediante `testform apply`.');
+            lines.push('');
+        }
+
         // KPIs / Métricas
         if (data.metrics && Object.keys(data.metrics).length > 0) {
             const metricBadges = Object.entries(data.metrics)
@@ -87,15 +99,25 @@ export const JsonFormat: IReportFormat = {
             const raw = typeof template === 'string' ? template : template.toString('utf-8');
             return interpolateExpressions(raw, { vars: { ...context.variables, ...data.metrics } });
         }
+        const isSim = data.isStateVerified === false || context.isStateVerified === false || data.metadata?.is_state_verified === false;
+        const meta = {
+            ...(data.metadata || {}),
+            is_state_verified: !isSim,
+            source: isSim ? (data.source || context.source || 'filesystem_simulation') : 'state',
+            ...(isSim ? {
+                signature: data.signature || context.signature || '⚠️ SIMULACIÓN / DRY-RUN (DATA NO CONSOLIDADA EN STATE - REGLA: DEBE ESTAR EN STATE)',
+                disclaimer: 'Report generated directly from filesystem. Data not consolidated in testform.state.'
+            } : {})
+        };
         if (data.metadata?.rawItems) {
             return JSON.stringify(data.metadata.rawItems, null, 2);
         }
         return JSON.stringify({
             title: data.title,
+            metadata: meta,
             metrics: data.metrics || {},
             headers: data.headers,
-            rows: data.rows,
-            metadata: data.metadata || {}
+            rows: data.rows
         }, null, 2);
     }
 };
@@ -105,8 +127,13 @@ export const CsvFormat: IReportFormat = {
     name: 'csv',
     extension: '.csv',
     isBinary: false,
-    render(data: ReportData): string {
+    render(data: ReportData, context?: ReportContext): string {
         const lines: string[] = [];
+        const isSim = data.isStateVerified === false || context?.isStateVerified === false || data.metadata?.is_state_verified === false;
+        if (isSim) {
+            lines.push('# ⚠️ AVISO: MODO SIMULACION / DRY-RUN (DATA NO CONSOLIDADA EN TESTFORM.STATE)');
+            lines.push('# Firma: SIMULACION_UNVERIFIED_DATA_NOT_IN_STATE - Regla: Debe consolidarse en testform.state');
+        }
         lines.push(data.headers.join(','));
 
         if (data.metadata?.rawItems) {
@@ -208,6 +235,8 @@ export const DocxFormat: IReportFormat = {
             }
         }
 
+        const isSim = data.isStateVerified === false || context.isStateVerified === false || data.metadata?.is_state_verified === false;
+
         if (templateBuffer) {
             try {
                 const patches: Record<string, any> = {};
@@ -278,7 +307,7 @@ export const DocxFormat: IReportFormat = {
                 patches['table'] = tablePatch;
                 patches['report.table'] = tablePatch;
 
-                // 1. Intentar parcheo con marcadores ${...} (Estándar de Testform estilo Terraform: ${var.nombre})
+                // 1. Intentar parcheo con marcadores ${...}
                 try {
                     const patched = await patchDocument({
                         outputType: "nodebuffer",
@@ -291,8 +320,15 @@ export const DocxFormat: IReportFormat = {
                     });
                     return Buffer.from(patched);
                 } catch {
-                    try { const patched = await patchDocument({ outputType: "nodebuffer", data: templateBuffer, patches, placeholderDelimiters: { start: "{", end: "}" } }); return Buffer.from(patched); } catch {}
-                    // 3. Fallback a marcadores {{...}}
+                    try {
+                        const patched = await patchDocument({
+                            outputType: "nodebuffer",
+                            data: templateBuffer,
+                            patches,
+                            placeholderDelimiters: { start: "{", end: "}" }
+                        });
+                        return Buffer.from(patched);
+                    } catch {}
                     const patched = await patchDocument({
                         outputType: "nodebuffer",
                         data: templateBuffer,
@@ -306,19 +342,37 @@ export const DocxFormat: IReportFormat = {
         }
 
         // Generación directa de Word si no hay plantilla o falló el parche
+        const paragraphs: any[] = [
+            new Paragraph({
+                text: data.title,
+                heading: HeadingLevel.HEADING_1,
+                alignment: AlignmentType.CENTER
+            })
+        ];
+
+        if (isSim) {
+            paragraphs.push(new Paragraph({
+                children: [
+                    new TextRun({
+                        text: '⚠️ AVISO DE SIMULACIÓN / DRY-RUN (DATA NO CONSOLIDADA EN STATE - REGLA: DEBE ESTAR EN STATE)',
+                        bold: true,
+                        color: 'B45309'
+                    })
+                ],
+                alignment: AlignmentType.CENTER
+            }));
+        }
+
+        paragraphs.push(new Paragraph({
+            text: `Fecha: ${new Date().toLocaleDateString()}`,
+            alignment: AlignmentType.CENTER
+        }));
+        paragraphs.push(new Paragraph({ text: '' }));
+
         const doc = new Document({
             sections: [{
                 children: [
-                    new Paragraph({
-                        text: data.title,
-                        heading: HeadingLevel.HEADING_1,
-                        alignment: AlignmentType.CENTER
-                    }),
-                    new Paragraph({
-                        text: `Fecha: ${new Date().toLocaleDateString()}`,
-                        alignment: AlignmentType.CENTER
-                    }),
-                    new Paragraph({ text: '' }),
+                    ...paragraphs,
                     new Table({
                         width: { size: 100, type: WidthType.PERCENTAGE },
                         rows: [
@@ -373,6 +427,7 @@ export const XlsxFormat: IReportFormat = {
         const now = new Date();
         const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
         const vars = context.variables || {};
+        const isSim = data.isStateVerified === false || context.isStateVerified === false || data.metadata?.is_state_verified === false;
 
         if (template) {
             let buffer: Buffer;
@@ -409,8 +464,8 @@ export const XlsxFormat: IReportFormat = {
                     res = res.replace(new RegExp(`\\$\\{report\\.metrics\\.${k}\\}`, 'g'), String(v));
                     res = res.replace(new RegExp(`\\$\\{report\\.${k}\\}`, 'g'), String(v));
                     res = res.replace(new RegExp(`\\$\\{${k}\\}`, 'g'), String(v));
-                res = res.replace(new RegExp(`\\{var\\.${k}\\}`, 'g'), String(v));
-                res = res.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+                    res = res.replace(new RegExp(`\\{var\\.${k}\\}`, 'g'), String(v));
+                    res = res.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
                 }
             }
             for (const [k, v] of Object.entries(vars)) {
@@ -440,8 +495,16 @@ export const XlsxFormat: IReportFormat = {
 
         // Ubicación de inserción de la tabla de datos
         const anchor = tableAnchor as { row: number; col: number } | null;
-        const startRow = anchor ? anchor.row : (worksheet.lastRow ? worksheet.lastRow.number + 2 : 1);
+        let startRow = anchor ? anchor.row : (worksheet.lastRow ? worksheet.lastRow.number + 2 : 1);
         const startCol = anchor ? anchor.col : 1;
+
+        if (isSim && !template) {
+            const warnRow = worksheet.getRow(startRow);
+            warnRow.getCell(startCol).value = '⚠️ AVISO DE SIMULACIÓN / DRY-RUN (DATA NO CONSOLIDADA EN TESTFORM.STATE)';
+            warnRow.getCell(startCol).font = { bold: true, color: { argb: 'FF856404' } };
+            warnRow.getCell(startCol).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+            startRow += 2;
+        }
 
         // Fila de encabezado
         const headerRow = worksheet.getRow(startRow);

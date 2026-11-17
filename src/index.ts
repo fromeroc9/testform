@@ -549,15 +549,19 @@ export function createCli() {
         });
 
     // ─── report ───────────────────────────────────────────────────────────
-    cli.command('report [type] [subType]', 'Generate test metrics and matrices (summary, traceability, coverage, etc.)')
+    cli.command('report [type] [subType]', 'Generate test metrics and matrices (summary, bidimensional, traceability, etc.)')
         .option('--format <format>', 'Report output format (md, json, csv, xlsx, docx)', { default: 'md' })
         .option('--filter <filter>', 'Filter report items (key=value or inferred text search)')
         .option('--target <target>', 'Target a specific resource, testrun (@tr-N), or testplan (@tp-N)')
-        .option('--group-by <field>', 'Group report items dynamically by field')
+        .option('--group-by <field>', 'Group report items dynamically by field (primary dimension)')
+        .option('--secondary-group-by <field>', 'Secondary grouping field for 2D pivot matrix')
         .option('--fields <fields>', 'Include custom fields as additional columns in reports (comma-separated or "all")')
         .option('--template <path>', 'Path to custom template file')
         .option('-o, --out <path>', 'Write report to destination file')
         .option('--state <path>', 'Path to state file')
+        .option('--source <source>', 'Report data source: state (default) or files (simulation mode)', { default: 'state' })
+        .option('--from-files', 'Generate report directly from local feature files (simulation mode with watermark)')
+        .option('--simulation', 'Alias for --from-files')
         .action(async (type, subType, rawOptions) => {
             let actualType = type;
             let options = rawOptions;
@@ -570,6 +574,13 @@ export function createCli() {
             const workDir = getWorkDir(options || {});
             const variableParser = getVariableParser(options || {}, workDir);
             const filterArr = options?.filter ? (Array.isArray(options.filter) ? options.filter : [options.filter]) : [];
+            const isFromFiles = Boolean(
+                options?.fromFiles ||
+                options?.simulation ||
+                options?.['from-files'] ||
+                options?.source === 'files' ||
+                options?.source === 'simulation'
+            );
 
             await reportCmd({
                 dir: workDir,
@@ -578,11 +589,14 @@ export function createCli() {
                 filter: filterArr,
                 target: options?.target,
                 groupBy: options?.groupBy || options?.['group-by'],
+                secondaryGroupBy: options?.secondaryGroupBy || options?.['secondary-group-by'],
                 fields: options?.fields,
                 template: options?.template,
                 variables: variableParser,
                 out: options?.out,
-                statePath: options?.state
+                statePath: options?.state,
+                source: isFromFiles ? 'files' : (options?.source || 'state'),
+                fromFiles: isFromFiles
             });
         });
 

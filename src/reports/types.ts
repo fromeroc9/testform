@@ -6,6 +6,9 @@ export interface ReportData {
     headers: string[];
     rows: (string | number)[][];
     metadata?: Record<string, any>;
+    isStateVerified?: boolean;
+    source?: 'state' | 'files' | 'simulation';
+    signature?: string;
 }
 
 export interface ReportContext {
@@ -13,10 +16,14 @@ export interface ReportContext {
     stats: ReportStats;
     variables: Record<string, string>;
     groupBy?: string;
+    secondaryGroupBy?: string;
     target?: string | string[];
     fields?: string[];
     options: Record<string, any>;
     stateQuery: StateQuery;
+    isStateVerified?: boolean;
+    source?: 'state' | 'files' | 'simulation';
+    signature?: string;
 }
 
 export interface IReportFormat {
