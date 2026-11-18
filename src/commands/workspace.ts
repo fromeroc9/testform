@@ -4,7 +4,7 @@ import { bold, green, yellow, red, cyan, dim, gray } from 'chalk';
 import { Logger } from '../core/logger';
 import { State } from '../core/state';
 import { TITLE_CLI, FILE_STATE } from '../core/const';
-import { HELP_WORKSPACE } from '../core/help';
+import { HELP_WORKSPACE, HELP_WORKSPACE_NEW, HELP_WORKSPACE_DELETE, getCommandHelp } from '../core/help';
 import { destroyCmd } from './destroy';
 
 export interface WorkspaceCmdOptions {
@@ -126,6 +126,18 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
     const currentWorkspace = stateObj.getCurrentWorkspace();
 
     switch (subcommand) {
+        case 'help': {
+            if (name) {
+                const subHelp = getCommandHelp(`workspace ${name}`);
+                if (subHelp) {
+                    console.log(subHelp);
+                    process.exit(0);
+                }
+            }
+            console.log(HELP_WORKSPACE);
+            process.exit(0);
+        }
+
         case 'show': {
             if (!name) {
                 console.log(currentWorkspace);
@@ -258,8 +270,12 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
         }
 
         case 'new': {
-            if (!name) {
-                logger.error('Expected a workspace name');
+            if (!name || name === '-h' || name === '-help' || name === '--help') {
+                if (name === '-h' || name === '-help' || name === '--help') {
+                    console.log(HELP_WORKSPACE_NEW);
+                    process.exit(0);
+                }
+                logger.error(`Expected a workspace name.\n\n${HELP_WORKSPACE_NEW}`);
                 process.exit(1);
             }
             if (!/^[a-zA-Z0-9_\-\.]+$/.test(name)) {
@@ -314,7 +330,7 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
                 console.log(green(bold(`✔ Ephemeral workspace "${name}" successfully created and activated!`)));
                 console.log(gray(`  All testform commands will now safely execute in this sandbox.`));
                 console.log(cyan(`  To teardown and close all remote issues when done:`));
-                console.log(bold(`    $ ${TITLE_CLI} workspace delete ${name} --auto-approve\n`));
+                console.log(bold(`    $ ${TITLE_CLI} workspace delete ${name} -auto-approve\n`));
             } else {
                 console.log(green(`Created and switched to workspace "${name}"!`));
                 console.log('');
@@ -348,8 +364,12 @@ export const workspaceCmd = async (options: WorkspaceCmdOptions) => {
         }
 
         case 'delete': {
-            if (!name) {
-                logger.error('Expected a workspace name');
+            if (!name || name === '-h' || name === '-help' || name === '--help') {
+                if (name === '-h' || name === '-help' || name === '--help') {
+                    console.log(HELP_WORKSPACE_DELETE);
+                    process.exit(0);
+                }
+                logger.error(`Expected a workspace name.\n\n${HELP_WORKSPACE_DELETE}`);
                 process.exit(1);
             }
             if (name === 'default') {

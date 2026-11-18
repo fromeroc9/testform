@@ -82,7 +82,7 @@ export function resolveVariableParser(
  * to standard double-dash flags (--chdir=foo, --auto-approve) for CLI parser compatibility.
  */
 export function normalizeCliArgs(argv: string[]): string[] {
-    const shortFlags = new Set(['C', 's', 'h', 'v', 'a', 'o']);
+    const shortFlags = new Set(['C', 's', 'h', 'v', 'a', 'o', 'e', 'i']);
 
     return argv.map((arg) => {
         const match = arg.match(/^-([a-zA-Z][a-zA-Z0-9-]*)(=(.*))?$/);

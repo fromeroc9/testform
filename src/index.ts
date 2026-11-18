@@ -905,9 +905,9 @@ export const main = async () => {
         process.exit(0);
     }
 
-    // Help flag check with specific command
-    if (rawArgs.includes('--help') || rawArgs.includes('-help') || rawArgs.includes('-h')) {
-        const nonFlagArgs = rawArgs.filter(a => !a.startsWith('-'));
+    // Help flag or help command check with specific command
+    if (rawArgs.includes('--help') || rawArgs.includes('-help') || rawArgs.includes('-h') || rawArgs[0] === 'help') {
+        const nonFlagArgs = rawArgs[0] === 'help' ? rawArgs.slice(1).filter(a => !a.startsWith('-')) : rawArgs.filter(a => !a.startsWith('-'));
         if (nonFlagArgs.length === 0) {
             console.log(HELP_GLOBAL);
             process.exit(0);

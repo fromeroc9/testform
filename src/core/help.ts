@@ -883,21 +883,81 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace <subcommand> [options]
   Manage isolated parallel environments and ephemeral sandboxes.
 
 ${bold(`Subcommands:`)}
-    delete    Delete a workspace (runs clean teardown for ephemeral sandboxes)
-    list      List all workspaces (shows type, resources and remaining TTL)
-    new       Create a new workspace (use --ephemeral for disposable sandboxes)
+    delete    Delete a workspace
+    list      List all workspaces
+    new       Create a new workspace
     promote   Reconcile and promote an ephemeral workspace into default
     select    Select active workspace context
     show      Show name or detailed metadata of a workspace
     cleanup   Clean up all expired ephemeral sandboxes
+`.trim();
 
-${bold(`Options (for 'new'):`)}
-    -e, --ephemeral      Mark workspace as disposable ephemeral QA sandbox
-    --ttl=<duration>     Lifespan duration for ephemeral sandbox (e.g. 30m, 2h, 1d)
+export const HELP_WORKSPACE_NEW = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace new [options] <NAME>
 
-${bold(`Options (for 'delete'):`)}
-    -a, --auto-approve   Skip interactive confirmation during remote teardown
-    --force              Force deletion even if local state is corrupt
+  Create a new workspace with the given name.
+
+${bold(`Options:`)}
+
+  -e, -ephemeral       Mark workspace as disposable ephemeral QA sandbox.
+  -ttl=<duration>      Lifespan duration for ephemeral sandbox (e.g. 30m, 2h, 1d).
+`.trim();
+
+export const HELP_WORKSPACE_DELETE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace delete [options] <NAME>
+
+  Delete a workspace with the given name.
+
+${bold(`Options:`)}
+
+  -a, -auto-approve    Skip interactive confirmation during remote teardown.
+  -force               Force deletion even if local state is corrupt.
+`.trim();
+
+export const HELP_WORKSPACE_LIST = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace list [options]
+
+  List all workspaces, including resource counts and remaining TTL.
+
+${bold(`Options:`)}
+
+  -json                Produce output in a machine-readable JSON format.
+`.trim();
+
+export const HELP_WORKSPACE_SELECT = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace select <NAME>
+
+  Select a different workspace.
+`.trim();
+
+export const HELP_WORKSPACE_SHOW = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace show [options] [NAME]
+
+  Show the name of the current workspace or inspect details of a workspace.
+
+${bold(`Options:`)}
+
+  -json                Produce output in a machine-readable JSON format.
+`.trim();
+
+export const HELP_WORKSPACE_PROMOTE = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace promote [options] <NAME>
+
+  Reconcile and promote an ephemeral workspace into default.
+
+${bold(`Options:`)}
+
+  -a, -auto-approve    Skip interactive approval.
+`.trim();
+
+export const HELP_WORKSPACE_CLEANUP = `
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace cleanup [options]
+
+  Clean up all expired ephemeral sandboxes.
+
+${bold(`Options:`)}
+
+  -a, -auto-approve    Skip interactive approval.
 `.trim();
 
 export const HELP_DIFF = `
@@ -1609,6 +1669,13 @@ export function getCommandHelp(command: string): string | null {
     case 'force-unlock': return HELP_FORCE_UNLOCK;
     case 'login': return HELP_LOGIN;
     case 'workspace': return HELP_WORKSPACE;
+    case 'workspace new': return HELP_WORKSPACE_NEW;
+    case 'workspace delete': return HELP_WORKSPACE_DELETE;
+    case 'workspace list': return HELP_WORKSPACE_LIST;
+    case 'workspace select': return HELP_WORKSPACE_SELECT;
+    case 'workspace show': return HELP_WORKSPACE_SHOW;
+    case 'workspace promote': return HELP_WORKSPACE_PROMOTE;
+    case 'workspace cleanup': return HELP_WORKSPACE_CLEANUP;
     case 'ephemeral': return HELP_EPHEMERAL;
     case 'report': return HELP_REPORT;
     case 'print': return HELP_PRINT;
