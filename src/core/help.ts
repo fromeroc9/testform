@@ -17,7 +17,6 @@ ${bold(`Main commands:`)}
 
 ${bold(`All other commands:`)}
   diff          Show drift between local configuration and state
-  ephemeral     Manage temporary CI/CD QA sandboxes (up, down, list, show)
   fmt           Reformat your configuration in the standard style
   force-unlock  Release a stuck lock on the current workspace
   functions     Inspect and evaluate built-in expression functions
@@ -879,16 +878,26 @@ ${bold(`Options:`)}
 `.trim();
 
 export const HELP_WORKSPACE = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace
+${bold(`Usage:`)} ${TITLE_CLI} [global options] workspace <subcommand> [options] [args]
 
-  new, list, show, select and delete ${TITLE_APP} workspaces.
+  Manage isolated parallel environments and ephemeral sandboxes.
 
 ${bold(`Subcommands:`)}
-    delete    Delete a workspace
-    list      List Workspaces
-    new       Create a new workspace
-    select    Select a workspace
-    show      Show the name of the current workspace
+    delete    Delete a workspace (runs clean teardown for ephemeral sandboxes)
+    list      List all workspaces (shows type, resources and remaining TTL)
+    new       Create a new workspace (use --ephemeral for disposable sandboxes)
+    promote   Reconcile and promote an ephemeral workspace into default
+    select    Select active workspace context
+    show      Show name or detailed metadata of a workspace
+    cleanup   Clean up all expired ephemeral sandboxes
+
+${bold(`Options (for 'new'):`)}
+    -e, --ephemeral      Mark workspace as disposable ephemeral QA sandbox
+    --ttl=<duration>     Lifespan duration for ephemeral sandbox (e.g. 30m, 2h, 1d)
+
+${bold(`Options (for 'delete'):`)}
+    -a, --auto-approve   Skip interactive confirmation during remote teardown
+    --force              Force deletion even if local state is corrupt
 `.trim();
 
 export const HELP_DIFF = `

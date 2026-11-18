@@ -506,11 +506,25 @@ export function createCli() {
         });
 
     // ─── workspace ────────────────────────────────────────────────────────
-    cli.command('workspace [subcommand] [name]', 'Workspace management (list, select, new, delete, show)')
+    cli.command('workspace [subcommand] [name]', 'Workspace management (list, select, new, delete, show, promote, cleanup)')
+        .option('-e, --ephemeral', 'Mark workspace as temporary ephemeral QA sandbox')
+        .option('--ttl <duration>', 'Time-To-Live duration for ephemeral sandbox (e.g. 30m, 2h, 1d)')
+        .option('-a, --auto-approve', 'Skip interactive approval when deleting or promoting')
+        .option('--force', 'Force deletion or operation')
+        .option('--json', 'Output results formatted as JSON')
         .action(async (subcommand, name, options) => {
             const workDir = getWorkDir(options);
             const args = [subcommand, name].filter(Boolean);
-            await workspaceCmd({ dir: workDir, verbose: Boolean(options.verbose), args });
+            await workspaceCmd({
+                dir: workDir,
+                verbose: Boolean(options.verbose),
+                args,
+                ephemeral: Boolean(options.ephemeral),
+                ttl: options.ttl,
+                autoApprove: Boolean(options.autoApprove),
+                force: Boolean(options.force),
+                json: Boolean(options.json),
+            });
         });
 
     // ─── ephemeral ────────────────────────────────────────────────────────
