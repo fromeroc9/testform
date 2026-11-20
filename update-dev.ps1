@@ -1,1 +1,2 @@
+npm run build
 Copy-Item "C:\Users\flavi\Desktop\repositorio\testform\dist\index.js" "C:\Users\flavi\AppData\Roaming\npm\node_modules\@fromeroc9\testform\dist\index.js" -Force
