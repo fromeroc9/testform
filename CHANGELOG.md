@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.8] - 2026-11-20
+
+### Added
+
+- **Unified Ephemeral Workspaces & Sandboxes (`src/commands/workspace.ts`, `src/core/help.ts`, `src/core/cli.ts`, `src/index.ts`):**
+  - Fully integrated ephemeral QA testing capabilities into `testform workspace`, eliminating the need for a separate standalone `testform ephemeral` engine while preserving transparent backwards compatibility.
+  - Added `-ephemeral` (alias `-e`) flag to `testform workspace new <name>` to instantiate disposable sandboxes with isolated state and separate remote issue tracking.
+  - Added `-ttl=<duration>` flag (e.g. `30m`, `2h`, `1d`) with automated duration parsing and expiration calculation (`expiresAt`) stored in workspace metadata.
+  - Added `testform workspace promote <name>` to safely reconcile, merge, and consolidate tested changes from an ephemeral sandbox into the official `default` workspace state.
+  - Added `testform workspace cleanup` to automatically scan and tear down all expired ephemeral workspaces.
+  - Added automated clean teardown during `testform workspace delete <name>`: for ephemeral workspaces, automatically invokes remote issue teardown (`destroy`) before deleting local state, with `-auto-approve` (alias `-a`) and `-force` flags to prevent orphaned remote tickets in Jira and GitHub.
+  - Provided transparent backwards-compatibility aliases so legacy `testform ephemeral up`, `list`, `show`, and `down` commands continue to work seamlessly.
+- **Modular Subcommand Help Architecture & Single-Dash CLI Flag Normalization (`src/core/help.ts`, `src/commands/workspace.ts`, `src/core/cli.ts`, `src/index.ts`):**
+  - Streamlined general `testform workspace -h` to present clean subcommand listings without leaking subcommand-specific options into the top-level help text.
+  - Implemented dedicated contextual help screens for all workspace subcommands: `testform workspace new -h`, `testform workspace delete -h`, `testform workspace list -h`, `testform workspace select -h`, `testform workspace show -h`, `testform workspace promote -h`, and `testform workspace cleanup -h` (also accessible via `testform workspace help <subcommand>`).
+  - Standardized all flags across CLI help, interactive suggestions, and runtime outputs to use Terraform-style single-dash syntax (`-ephemeral`, `-ttl`, `-auto-approve`, `-force`, `-json`), adding `-e` and `-i` to short-flag normalization tables.
+- **Dual State & Local Files Reporting Engine (`src/commands/report.ts`, `src/reports/engine.ts`, `src/reports/catalog.ts`):**
+  - Added `-source=files` and `-from-files` flag to `testform report`, enabling instant simulation/dry-run reporting generated directly from repository feature files without requiring `testform.state`.
+  - Added cryptographic simulation signature watermarks (`SIG-SIMULATION-DATA-NO-STATE-VERIFIED`) and legal non-repudiation disclaimers for unapplied local file reports.
+  - Added QMetry-inspired bidimensional cross-tabulation pivot matrix reports (`testform report bidimensional -group-by=<dim> -secondary-group-by=<dim>`).
+
 ## [1.1.0-beta.7] - 2026-11-16
 
 ### Added
