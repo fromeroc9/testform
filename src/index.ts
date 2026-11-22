@@ -35,7 +35,7 @@ import { functionsCmd } from './commands/functions';
 import { policyCmd } from './commands/policy';
 import chalk from 'chalk';
 import { logger } from './core/logger';
-import { TITLE_APP, TITLE_CLI, VERSION_CONFIG, VERSION_STATE, VERSION_CLI, FILE_CONFIG, FILE_STATE } from './core/const';
+import { TITLE_APP, TITLE_CLI, VERSION_STATE, VERSION_CLI, FILE_CONFIG, FILE_STATE } from './core/const';
 import { getCommandHelp, HELP_GLOBAL } from './core/help';
 import { TestformError } from './core/errors';
 import { suggestCommand } from './core/utils';
@@ -98,7 +98,6 @@ async function printVersion(isJson: boolean = false, detailed: boolean = false):
     console.log(`on ${platformArch}`);
 
     if (detailed) {
-        console.log(`+ Config Version: ${VERSION_CONFIG} (${FILE_CONFIG})`);
         console.log(`+ State Version: ${VERSION_STATE} (${FILE_STATE})`);
     }
 

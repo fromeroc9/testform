@@ -17,9 +17,6 @@ export const TITLE_CLI = "testform";
 /** Current CLI semver version. Keep in sync with package.json. */
 export const VERSION_CLI = version;
 
-/** Version token written into testform.yml config files. */
-export const VERSION_CONFIG = "1.0";
-
 /** Version token written into testform.state files. */
 export const VERSION_STATE = "1.0";
 

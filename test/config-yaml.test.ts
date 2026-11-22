@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { Config } from '../src/core/config';
+import { Config, isVersionCompatible } from '../src/core/config';
 import { initCmd } from '../src/commands/init';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
@@ -347,6 +347,33 @@ resource:
         expect(tcFields.some(f => f.name === 'project')).toBe(true);
         expect(tcFields.some(f => f.name === 'priority')).toBe(true);
         expect(tcFields.some(f => f.name === 'module')).toBe(true);
+    });
+
+    it('should validate required_version against CLI version semver without VERSION_CONFIG', () => {
+        expect(isVersionCompatible('1.1.0-beta.8', '>= 1.0.0')).toBe(true);
+        expect(isVersionCompatible('1.1.0-beta.8', '>= 1.1.0')).toBe(true);
+        expect(isVersionCompatible('1.1.0-beta.8', '~> 1.0')).toBe(true);
+        expect(isVersionCompatible('1.1.0-beta.8', '< 2.0.0')).toBe(true);
+        expect(isVersionCompatible('1.1.0-beta.8', '1.0')).toBe(true);
+        expect(isVersionCompatible('1.1.0-beta.8', '1.0.0')).toBe(true);
+        expect(isVersionCompatible('1.1.0-beta.8', '>= 2.0.0')).toBe(false);
+        expect(isVersionCompatible('1.1.0-beta.8', '< 1.0.0')).toBe(false);
+
+        // Validating via Config instantiation
+        writeFileSync(join(tmpDir, 'main.yml'), `
+testform:
+  required_version: ">= 1.1.0"
+  backend: local
+`, 'utf8');
+        expect(() => new Config(tmpDir)).not.toThrow();
+
+        // Incompatible version constraint should throw
+        writeFileSync(join(tmpDir, 'main.yml'), `
+testform:
+  required_version: ">= 99.0.0"
+  backend: local
+`, 'utf8');
+        expect(() => new Config(tmpDir)).toThrow(/Unsupported Testform Core version/);
     });
 });
 

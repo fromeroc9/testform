@@ -28,12 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Core Semantic Version Validation (`src/core/config.ts`, `src/commands/init.ts`, `test/config-yaml.test.ts`):**
+  - Updated `testform.required_version` constraint evaluation to validate directly against Testform CLI core semver (`VERSION_CLI`) rather than a static configuration string.
+  - Added support for standard semver operators (`>=`, `>`, `<=`, `<`, `=`, `~>`), enabling developers to set project constraints (e.g., `required_version: ">= 1.1.0"`) that match actual CLI releases.
+  - Built-in providers (`local`, `github`, `gitlab`) declared in `required_providers` are now detected automatically and locked into `.testform.lock` without triggering unnecessary npm registry lookups.
 - **Standardized Dependency Lockfile Extension (`src/core/const.ts`, `src/core/provider-installer.ts`, `src/commands/init.ts`, `test/provider-installer.test.ts`):**
   - Renamed default dependency lockfile from `.testform.lock.hcl` to `.testform.lock`, establishing a clean native extension format while maintaining full HCL dependency lock structure and backward compatibility.
   - Updated `FILE_LOCK` constant, provider installer lock persistence, `init` command lockfile management, and test suite validations.
 
 ### Removed
 
+- **Legacy `VERSION_CONFIG` Constant Removal (`src/core/const.ts`, `src/core/config.ts`, `src/commands/init.ts`, `src/index.ts`):**
+  - Completely eliminated the legacy `VERSION_CONFIG = "1.0"` constant ahead of 1.1.0 stable release, removing versioning ambiguity between configuration schema, state format, and CLI runtime versions.
 - **Legacy Command Stubs Deprecation (`src/commands/generate.ts`, `src/commands/suite.ts`, `src/commands/tool.ts`):**
   - Cleaned up obsolete legacy files and unreferenced stub commands (`generate`, `suite`, `tool`) in favor of modern modular subcommands (`testform plan`, `testform apply`, `testform workspace`, `testform report`).
 

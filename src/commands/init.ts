@@ -1,4 +1,4 @@
-import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CONFIG } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI } from '../core/const';
 import YAML from 'yaml';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -150,7 +150,7 @@ const createConfigIfNotExists = (
 
     const initialConfig = {
         testform: {
-            required_version: `>= ${VERSION_CONFIG}`,
+            required_version: ">= 1.0.0",
             backend: backendBlock
         },
         provider: providerBlock,
@@ -348,7 +348,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     if (isPlaceholder) {
         const resolvedConfigName = config.getResolvedPath() ? basename(config.getResolvedPath()!) : FILE_CONFIG;
         const ver = config.getRequiredVersion ? config.getRequiredVersion() : config.getConfig().version;
-        logger.info(`- Configuration: ${resolvedConfigName} (${ver ? 'v' + ver : 'v' + VERSION_CONFIG})`);
+        logger.info(`- Configuration: ${resolvedConfigName} (${ver ? (ver.startsWith('v') ? ver : 'v' + ver) : 'v1.0.0'})`);
         logger.info(`- State backend: scaffolded (${backendConfig?.type || 'local'})`);
         logger.blank();
         logger.info(`Notice: Backend configuration template created with placeholder '<required>' values.`);

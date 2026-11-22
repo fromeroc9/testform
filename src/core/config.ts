@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { resolve, basename, dirname } from "path";
 import YAML from "yaml";
-import { CONFIG_FILE_NAMES, FILE_CONFIG, SCOPE_CONFIG, TITLE_APP, VERSION_CONFIG } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, SCOPE_CONFIG, TITLE_APP, VERSION_CLI } from '../core/const';
 import { IConfig, IGitHubConfig, IField, IScope, IScopeConfig, IBackendConfig } from '../core/types';
 import { logger as notify } from '../core/logger';
 import { resource } from '../core/resources';
@@ -456,24 +456,80 @@ export class Config {
         }
 
         const versionStr = String(version);
-        const isCompatible = versionStr === VERSION_CONFIG || 
-            versionStr === '1.0.0' ||
-            versionStr.startsWith(`${VERSION_CONFIG}`) || 
-            versionStr.includes(`>= ${VERSION_CONFIG}`) ||
-            versionStr.includes(`>=${VERSION_CONFIG}`) ||
-            versionStr.startsWith('v1.0') ||
-            versionStr.startsWith('1.');
+        const isCompatible = isVersionCompatible(VERSION_CLI, versionStr);
 
         if (!isCompatible) {
             notify.push({
                 type: 'error',
-                title: `configuration version mismatch`,
+                title: `Unsupported Testform Core version`,
                 detail: [
-                    `Found version "${version}", but expected "${VERSION_CONFIG}".`,
-                    `Update ${basename(resolve!)} to version ${VERSION_CONFIG} and rerun init.`,
+                    `This configuration requires Testform "${version}", but current Testform CLI version is "${VERSION_CLI}".`,
+                    `Please update Testform CLI or adjust the required_version constraint in ${basename(resolve!)}.`,
                 ],
                 close: true
             });
         }
     }
+}
+
+function parseVersionNumbers(v: string): number[] {
+    return v
+        .replace(/^[^\d]+/, '')
+        .split('-')[0]
+        .split('.')
+        .map(n => parseInt(n, 10) || 0);
+}
+
+function compareSemver(v1: number[], v2: number[]): number {
+    const len = Math.max(v1.length, v2.length);
+    for (let i = 0; i < len; i++) {
+        const a = v1[i] ?? 0;
+        const b = v2[i] ?? 0;
+        if (a > b) return 1;
+        if (a < b) return -1;
+    }
+    return 0;
+}
+
+export function isVersionCompatible(cliVer: string, constraint: string): boolean {
+    const trimmed = constraint.trim();
+    if (!trimmed) return true;
+
+    // Legacy simple equality (e.g. "1.0", "1.0.0", "v1.0")
+    if (trimmed === '1.0' || trimmed === '1.0.0' || trimmed === 'v1.0' || trimmed === '1.*') {
+        return true;
+    }
+
+    const cliNums = parseVersionNumbers(cliVer);
+
+    // Support comma-separated constraints (e.g. ">= 1.0.0, < 2.0.0")
+    const parts = trimmed.split(/,\s*/);
+    for (const part of parts) {
+        const match = part.match(/^([><~=^]=?|~>)?\s*(v?\d[\d\w.-]*)$/);
+        if (!match) {
+            if (part.startsWith('1.')) return true;
+            continue;
+        }
+
+        const op = match[1] || '=';
+        const reqNums = parseVersionNumbers(match[2]);
+        const cmp = compareSemver(cliNums, reqNums);
+
+        if (op === '>=' && cmp < 0) return false;
+        if (op === '>' && cmp <= 0) return false;
+        if (op === '<=' && cmp > 0) return false;
+        if (op === '<' && cmp >= 0) return false;
+        if (op === '=' && cmp !== 0) return false;
+        if (op === '~>') {
+            if (cmp < 0) return false;
+            const upper = [...reqNums];
+            if (upper.length >= 2) {
+                upper[upper.length - 2] += 1;
+                upper[upper.length - 1] = 0;
+                if (compareSemver(cliNums, upper) >= 0) return false;
+            }
+        }
+    }
+
+    return true;
 }
