@@ -8,6 +8,8 @@
 import { BaseParser, FIELD_PATTERN } from './base-parser';
 import { ITest, IScope, ParserScenario } from '../core/types';
 
+const VALID_SET_MARKS = new Set(['target', 'status', 'trace', 'attach', 'evidence', 'duration']);
+
 export class TestcaseParser extends BaseParser {
     public filter(scenarios: ParserScenario[], test: ITest, scope?: IScope): ParserScenario[] {
         const identityPattern = test.identity;
@@ -53,6 +55,15 @@ export class TestcaseParser extends BaseParser {
                     if (setMatch) {
                         const setKey = setMatch[1].trim().toLowerCase();
                         const setVal = setMatch[2]?.trim();
+                        if (!VALID_SET_MARKS.has(setKey)) {
+                            (s.custom ??= {}).policy ??= [];
+                            s.custom.policy!.push({
+                                type: 'invalid-set-mark',
+                                field: setKey,
+                                message: `Mark "${setKey}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, evidence, duration). If "${setKey}" is a contract field, use "* field ${setKey} = <value>".`
+                            });
+                            return true;
+                        }
                         if (setKey === 'evidence' || setKey === 'attach') {
                             if (scope === 'bug') {
                                 (s.custom ??= {}).policy ??= [];
@@ -89,7 +100,15 @@ export class TestcaseParser extends BaseParser {
                     const fieldDef = keywordFields.get(rawName);
                     if (!fieldDef) {
                         (s.custom ??= {}).policy ??= [];
-                        s.custom.policy!.push({ type: 'undeclared-field', field: rawName });
+                        if (tagFields.has(rawName)) {
+                            s.custom.policy!.push({
+                                type: 'tag-field-as-step',
+                                field: rawName,
+                                message: `Field "${rawName}" is configured with source: "tag" in main.yml. It cannot be defined as a step ("* field ${rawName}"). Use a tag (e.g. "@${rawName}") instead.`
+                            });
+                        } else {
+                            s.custom.policy!.push({ type: 'undeclared-field', field: rawName });
+                        }
                         return true;
                     }
 
@@ -106,6 +125,15 @@ export class TestcaseParser extends BaseParser {
                 if (setMatch) {
                     const setKey = setMatch[1].trim().toLowerCase();
                     const setVal = setMatch[2]?.trim();
+                    if (!VALID_SET_MARKS.has(setKey)) {
+                        (s.custom ??= {}).policy ??= [];
+                        s.custom.policy!.push({
+                            type: 'invalid-set-mark',
+                            field: setKey,
+                            message: `Mark "${setKey}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, evidence, duration). If "${setKey}" is a contract field, use "* field ${setKey} = <value>".`
+                        });
+                        return true;
+                    }
                     if (setKey === 'evidence' || setKey === 'attach') {
                         if (scope === 'testplan') {
                             (s.custom ??= {}).policy ??= [];
@@ -143,7 +171,15 @@ export class TestcaseParser extends BaseParser {
                 const fieldDef = keywordFields.get(rawName);
                 if (!fieldDef) {
                     (s.custom ??= {}).policy ??= [];
-                    s.custom.policy!.push({ type: 'undeclared-field', field: rawName });
+                    if (tagFields.has(rawName)) {
+                        s.custom.policy!.push({
+                            type: 'tag-field-as-step',
+                            field: rawName,
+                            message: `Field "${rawName}" is configured with source: "tag" in main.yml. It cannot be defined as a step ("* field ${rawName}"). Use a tag (e.g. "@${rawName}") instead.`
+                        });
+                    } else {
+                        s.custom.policy!.push({ type: 'undeclared-field', field: rawName });
+                    }
                     return true;
                 }
 

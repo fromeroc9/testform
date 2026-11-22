@@ -1,4 +1,4 @@
-﻿$destModule = "C:\Users\flavi\AppData\Roaming\npm\node_modules\@fromeroc9\testform"
+$destModule = "C:\Users\flavi\AppData\Roaming\npm\node_modules\@fromeroc9\testform"
 $item = Get-Item $destModule -ErrorAction SilentlyContinue
 
 if ($item -and ($item.LinkType -eq "Junction" -or $item.LinkType -eq "SymbolicLink")) {

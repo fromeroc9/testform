@@ -93,7 +93,7 @@ export interface ParserFeature {
 }
 
 interface ParserPolicy {
-    type: 'undeclared-field' | 'required-field' | 'attach-governance';
+    type: 'undeclared-field' | 'required-field' | 'attach-governance' | 'invalid-set-mark' | 'tag-field-as-step';
     field?: string;
     message?: string;
 }

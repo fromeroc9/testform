@@ -30,6 +30,48 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
         }
     },
     {
+        id: "tag-field-as-step",
+        description: "Enforces that tag-configured fields are declared as tags rather than step keywords",
+        scope: ["testcase", "testrun", "testplan", "bug"],
+        severity: "error",
+        action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
+            for (const scenario of scenarios) {
+                for (const v of scenario.custom?.policy?.filter(v => v.type === 'tag-field-as-step') ?? []) {
+                    rules.push({
+                        id: "tag-field-as-step",
+                        type: 'error',
+                        title: `Field "${v.field}" cannot be defined as a step`,
+                        detail: v.message || `Field "${v.field}" is configured with source: "tag" in main.yml. Use tags (e.g. "@${v.field}") instead of "* field ${v.field}".`,
+                        uri: scenario.uri,
+                        scenario: scenario.name,
+                        line: scenario.location,
+                    });
+                }
+            }
+        }
+    },
+    {
+        id: "invalid-set-marks",
+        description: "Enforces that '* set' is strictly reserved for runtime execution marks",
+        scope: ["testcase", "testrun", "testplan", "bug"],
+        severity: "error",
+        action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
+            for (const scenario of scenarios) {
+                for (const v of scenario.custom?.policy?.filter(v => v.type === 'invalid-set-mark') ?? []) {
+                    rules.push({
+                        id: "invalid-set-mark",
+                        type: 'error',
+                        title: `Invalid DSL mark "* set ${v.field}"`,
+                        detail: v.message || `Mark "${v.field}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, evidence, duration). If "${v.field}" is a contract field, use "* field ${v.field} = <value>".`,
+                        uri: scenario.uri,
+                        scenario: scenario.name,
+                        line: scenario.location,
+                    });
+                }
+            }
+        }
+    },
+    {
         id: "required-fields",
         description: "Ensures required fields defined in configuration are present",
         scope: ["testcase", "testrun", "testplan", "bug"],
