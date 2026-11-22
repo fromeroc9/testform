@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Config, isVersionCompatible } from '../src/core/config';
+import { VERSION_CLI } from '../src/core/const';
 import { initCmd } from '../src/commands/init';
 import { join } from 'path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
@@ -350,14 +351,14 @@ resource:
     });
 
     it('should validate required_version against CLI version semver without VERSION_CONFIG', () => {
-        expect(isVersionCompatible('1.1.0-beta.8', '>= 1.0.0')).toBe(true);
-        expect(isVersionCompatible('1.1.0-beta.8', '>= 1.1.0')).toBe(true);
-        expect(isVersionCompatible('1.1.0-beta.8', '~> 1.0')).toBe(true);
-        expect(isVersionCompatible('1.1.0-beta.8', '< 2.0.0')).toBe(true);
-        expect(isVersionCompatible('1.1.0-beta.8', '1.0')).toBe(true);
-        expect(isVersionCompatible('1.1.0-beta.8', '1.0.0')).toBe(true);
-        expect(isVersionCompatible('1.1.0-beta.8', '>= 2.0.0')).toBe(false);
-        expect(isVersionCompatible('1.1.0-beta.8', '< 1.0.0')).toBe(false);
+        expect(isVersionCompatible(VERSION_CLI, '>= 1.0.0')).toBe(true);
+        expect(isVersionCompatible(VERSION_CLI, '>= 1.1.0')).toBe(true);
+        expect(isVersionCompatible(VERSION_CLI, '~> 1.0')).toBe(true);
+        expect(isVersionCompatible(VERSION_CLI, '< 2.0.0')).toBe(true);
+        expect(isVersionCompatible(VERSION_CLI, '1.0')).toBe(true);
+        expect(isVersionCompatible(VERSION_CLI, '1.0.0')).toBe(true);
+        expect(isVersionCompatible(VERSION_CLI, '>= 2.0.0')).toBe(false);
+        expect(isVersionCompatible(VERSION_CLI, '< 1.0.0')).toBe(false);
 
         // Validating via Config instantiation
         writeFileSync(join(tmpDir, 'main.yml'), `
