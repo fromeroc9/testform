@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added cryptographic simulation signature watermarks (`SIG-SIMULATION-DATA-NO-STATE-VERIFIED`) and legal non-repudiation disclaimers for unapplied local file reports.
   - Added QMetry-inspired bidimensional cross-tabulation pivot matrix reports (`testform report bidimensional -group-by=<dim> -secondary-group-by=<dim>`).
 
+### Changed
+
+- **Standardized Dependency Lockfile Extension (`src/core/const.ts`, `src/core/provider-installer.ts`, `src/commands/init.ts`, `test/provider-installer.test.ts`):**
+  - Renamed default dependency lockfile from `.testform.lock.hcl` to `.testform.lock`, establishing a clean native extension format while maintaining full HCL dependency lock structure and backward compatibility.
+  - Updated `FILE_LOCK` constant, provider installer lock persistence, `init` command lockfile management, and test suite validations.
+
+### Removed
+
+- **Legacy Command Stubs Deprecation (`src/commands/generate.ts`, `src/commands/suite.ts`, `src/commands/tool.ts`):**
+  - Cleaned up obsolete legacy files and unreferenced stub commands (`generate`, `suite`, `tool`) in favor of modern modular subcommands (`testform plan`, `testform apply`, `testform workspace`, `testform report`).
+
 ## [1.1.0-beta.7] - 2026-11-16
 
 ### Added
