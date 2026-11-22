@@ -145,7 +145,7 @@ ${bold(`Plan Customization Options:`)}
 
 ${bold(`Other Options:`)}
 
-  -watch, --watch     Run plan in continuous watch mode, monitoring .feature
+  -watch              Run plan in continuous watch mode, monitoring .feature
                       files and recomputing diffs in milliseconds using the
                       incremental AST cache.
 
