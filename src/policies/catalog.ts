@@ -126,7 +126,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 if (seen.has(uri)) continue;
                 seen.add(uri);
 
-                const allowedScopeTags = ["@testcase", "@testrun", "@testplan", "@bug"];
+                const allowedScopeTags = ["@testcase", "@testrun", "@testcycle", "@testplan", "@bug"];
                 const allowedFeatureTags = [...allowedScopeTags];
                 if (scenario.custom?.identity) {
                     allowedFeatureTags.push(scenario.custom.identity.toLowerCase());

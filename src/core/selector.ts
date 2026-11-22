@@ -196,8 +196,8 @@ export function resolveScenarioScope(s: any, filePattern?: string): IScope | und
         ...(s.tags || []),
     ].map((t: any) => typeof t === 'string' ? t.toLowerCase().trim() : (t?.name || '').toLowerCase().trim());
 
-    // 1. Highest priority: Special tag (@testcase, @testrun, @testplan, @bug)
-    if (allTags.includes('@testrun')) return 'testrun';
+    // 1. Highest priority: Special tag (@testcase, @testrun, @testcycle, @testplan, @bug)
+    if (allTags.includes('@testrun') || allTags.includes('@testcycle')) return 'testrun';
     if (allTags.includes('@testplan')) return 'testplan';
     if (allTags.includes('@bug')) return 'bug';
     if (allTags.includes('@testcase')) return 'testcase';
@@ -210,7 +210,7 @@ export function resolveScenarioScope(s: any, filePattern?: string): IScope | und
 
     // 2. Second priority: File name extension (.run.feature, .plan.feature, .bug.feature, .case.feature)
     const uri = typeof s.uri === 'string' ? s.uri.toLowerCase().replace(/\\/g, '/') : '';
-    if (uri.endsWith('.run.feature')) return 'testrun';
+    if (uri.endsWith('.run.feature') || uri.endsWith('.cycle.feature') || uri.includes('/testcycle/')) return 'testrun';
     if (uri.endsWith('.plan.feature')) return 'testplan';
     if (uri.endsWith('.bug.feature')) return 'bug';
     if (uri.endsWith('.case.feature')) return 'testcase';
