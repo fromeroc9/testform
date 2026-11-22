@@ -376,9 +376,15 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
         action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
             for (const scenario of scenarios) {
                 const steps = scenario.steps || [];
-                const hasTarget = steps.some(s => s.text && (s.text.includes('target =') || s.text.includes('target=')));
-                const hasTrace = steps.some(s => s.text && (s.text.includes('trace =') || s.text.includes('trace=')));
-                const hasTargetTag = (scenario.tags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-'));
+                const rawSteps = scenario.custom?.rawSteps || [];
+                const hasTarget = steps.some(s => s.text && (s.text.includes('target =') || s.text.includes('target='))) ||
+                    rawSteps.some(s => s.text && (s.text.includes('target =') || s.text.includes('target='))) ||
+                    Boolean(scenario.custom?.fields?.target);
+                const hasTrace = steps.some(s => s.text && (s.text.includes('trace =') || s.text.includes('trace='))) ||
+                    rawSteps.some(s => s.text && (s.text.includes('trace =') || s.text.includes('trace='))) ||
+                    Boolean(scenario.custom?.fields?.trace);
+                const hasTargetTag = (scenario.tags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-')) ||
+                    (scenario.custom?.rawTags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-'));
 
                 if (!hasTarget && !hasTrace && !hasTargetTag) {
                     rules.push({

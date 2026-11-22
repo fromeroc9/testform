@@ -150,6 +150,14 @@ export function resolveFeatureFile(
     const byBase = allFeatures.find(f => f.fileName.toLowerCase() === baseRef);
     if (byBase) return byBase;
 
+    // Match by slug/prefix before generated random hash suffix (e.g. "SauceDemo-20260612_120002" matching "SauceDemo-20260612_120002_gp1yim.run.feature")
+    const cleanPrefix = baseRef.replace(/(\.(case|run|plan|bug))?\.feature$/i, '');
+    const byPrefix = allFeatures.find(f => {
+        const fClean = f.fileName.toLowerCase().replace(/(\.(case|run|plan|bug))?\.feature$/i, '');
+        return fClean === cleanPrefix || fClean.startsWith(`${cleanPrefix}_`) || cleanPrefix.startsWith(`${fClean}_`);
+    });
+    if (byPrefix) return byPrefix;
+
     // Match by base name without .feature extension if extension was omitted
     if (!baseRef.endsWith('.feature')) {
         const byBaseWithoutExt = allFeatures.find(f =>

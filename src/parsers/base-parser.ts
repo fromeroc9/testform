@@ -319,6 +319,9 @@ export abstract class BaseParser {
             if (field.source === "tag" || (field as any).type === "tags") {
                 tagFields.set(field.name.toLowerCase(), field);
             }
+            if (!keywordFields.has(field.name.toLowerCase())) {
+                keywordFields.set(field.name.toLowerCase(), field);
+            }
         }
         return { keywordFields, tagFields }
     }
