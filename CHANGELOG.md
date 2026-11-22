@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added cryptographic simulation signature watermarks (`SIG-SIMULATION-DATA-NO-STATE-VERIFIED`) and legal non-repudiation disclaimers for unapplied local file reports.
   - Added QMetry-inspired bidimensional cross-tabulation pivot matrix reports (`testform report bidimensional -group-by=<dim> -secondary-group-by=<dim>`).
 
+### Fixed
+
+- **Bug Target Traceability Policy Integrity (`src/policies/catalog.ts`):**
+  - Resolved false positive "lacks target traceability" warnings when bug scenarios set targets using `* set target = <testcase>` or `* set trace = <string>`, properly checking parsed custom fields and raw steps even after step normalization.
+  - Allowed multiple `@bug` scenarios to target the same testcase without false policy violations or identity collisions.
+- **Unified Keyword and Tag Field Resolution (`src/parsers/base-parser.ts`):**
+  - Ensured all user-declared fields in `main.yml` are available in `keywordFields`, eliminating false "undeclared field" warnings when fields configured with `source: "tag"` are assigned via background step syntax (`* field priority = ...`).
+- **Flexible Testrun Reference Matching (`src/policies/path-integrity.ts`):**
+  - Enabled slug and prefix matching for referenced testrun paths in bug features, resolving references cleanly against generated scaffold hashes (e.g. matching `SauceDemo-20260612_120002` to `SauceDemo-20260612_120002_gp1yim.run.feature`).
+- **Cycle Directive Support (`src/core/selector.ts`, `src/policies/catalog.ts`):**
+  - Officially supported `@testcycle` as a first-class directive alongside `@testrun` for cycle executions, selector scoping, and catalog validation.
+
 ### Changed
 
 - **Core Semantic Version Validation (`src/core/config.ts`, `src/commands/init.ts`, `test/config-yaml.test.ts`):**
