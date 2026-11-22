@@ -91,6 +91,24 @@ module.exports = CustomGitLab;
         expect(content).toContain(result.hash);
     });
 
+    it('handles built-in providers declared in required_providers (github, gitlab, local)', async () => {
+        const installer = new ProviderInstaller(tempDir);
+        const ghResult = await installer.install('github', {
+            source: 'github',
+            version: '>= 1.0.0'
+        });
+        expect(ghResult.name).toBe('github');
+        expect(ghResult.source).toBe('builtin/github');
+        expect(ghResult.version).toBe('>= 1.0.0');
+
+        installer.recordLockfile([ghResult]);
+        const lockFile = join(tempDir, '.testform.lock');
+        expect(existsSync(lockFile)).toBe(true);
+        const content = readFileSync(lockFile, 'utf-8');
+        expect(content).toContain('provider "github"');
+        expect(content).toContain(ghResult.hash);
+    });
+
     it('dynamically loads the installed provider through createProvider', async () => {
         // 1. Prepare workspace with installed provider in .testform/providers/myprovider
         const installedDir = join(tempDir, '.testform', 'providers', 'myprovider');

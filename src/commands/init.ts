@@ -697,10 +697,18 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     if (Object.keys(requiredProviders).length > 0) {
         for (const [name, spec] of Object.entries(requiredProviders)) {
             try {
-                logger.info(`- Installing ${name} from ${spec.source}...`);
+                const isBuiltinName = ['github', 'gitlab', 'local'].includes(name.toLowerCase());
+                const isBuiltinSource = !spec.source || ['github', 'gitlab', 'local', 'builtin'].includes(spec.source.toLowerCase()) || spec.source.startsWith('builtin/');
+                if (!isBuiltinName || !isBuiltinSource) {
+                    logger.info(`- Installing ${name} from ${spec.source}...`);
+                }
                 const result = await installer.install(name, spec, logger);
                 installedList.push(result);
-                logger.success(`- Installed ${name} ${result.version !== 'local' ? `v${result.version}` : ''} (entrypoint: ${basename(result.entrypoint)})`);
+                if (result.source.startsWith('builtin/')) {
+                    logger.success(`- Selected built-in ${name} provider`);
+                } else {
+                    logger.success(`- Installed ${name} ${result.version !== 'local' ? `v${result.version}` : ''} (entrypoint: ${basename(result.entrypoint)})`);
+                }
             } catch (err: any) {
                 logger.warn(`Could not install provider "${name}": ${err.message}`);
             }

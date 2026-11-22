@@ -123,10 +123,26 @@ export class ProviderInstaller {
             mkdirSync(this.providersDir, { recursive: true });
         }
 
-        const source = spec.source.trim();
+        const source = (spec.source || '').trim();
         let installedVersion = spec.version || '1.0.0';
         let calculatedHash = '';
         let entrypoint = '';
+
+        // ── Case 0: Built-in provider (e.g. "github", "gitlab", "local", or "builtin/...") ──
+        const BUILTIN_PROVIDERS = ['local', 'github', 'gitlab'];
+        const isBuiltin = BUILTIN_PROVIDERS.includes(providerName) &&
+            (!source || source === providerName || source === 'builtin' || source.startsWith('builtin/'));
+
+        if (isBuiltin) {
+            logger?.info(`- Selecting built-in ${providerName} provider${spec.version ? ` (${spec.version})` : ''}`);
+            return {
+                name: providerName,
+                source: `builtin/${providerName}`,
+                version: spec.version || '1.0.0',
+                entrypoint: `builtin/${providerName}`,
+                hash: 'h1:builtin-provider-verified'
+            };
+        }
 
         // ── Case 1: Local path (e.g. "./custom-providers/local.ts" or "../shared/gitlab.js") ──
         if (source.startsWith('.') || source.startsWith('/') || source.includes(':\\')) {
