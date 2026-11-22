@@ -201,7 +201,7 @@ export function reassembleSplitTags(tags: string[], prefix: string): string[] {
             while (i + 1 < tags.length) {
                 i++;
                 const nextTag = tags[i];
-                if (nextTag.startsWith('@') && !combined.endsWith(',') && !combined.endsWith('(') && !combined.endsWith(':') && !combined.endsWith('=')) {
+                if (nextTag.startsWith('@') && !combined.endsWith(',') && !combined.endsWith(':') && !combined.endsWith('=')) {
                     combined += nextTag;
                 } else {
                     combined += ' ' + nextTag;

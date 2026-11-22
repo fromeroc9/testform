@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { IConfig, IScope } from '../core/types';
-import { resolve, normalize, join, basename, dirname, isAbsolute } from 'path';
+import { resolve, normalize, join, basename, dirname, isAbsolute, relative } from 'path';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { GitHubAdapter } from '../providers/github';
@@ -439,12 +439,12 @@ async function runImportResults(options: {
                         }
                         if (currentSc.evidence.length > 0) {
                             const evVal = currentSc.evidence.length === 1 ? currentSc.evidence[0] : JSON.stringify(currentSc.evidence);
-                            newLines.push(`    * set evidence = ${evVal}`);
+                            newLines.push(`    * set attach = ${evVal}`);
                         }
                         continue;
                     }
-                    if (trimmedLine.startsWith('* set trace =') || trimmedLine.startsWith('* set evidence =') || trimmedLine.startsWith('* set attach =') || trimmedLine.startsWith('* set duration =') ||
-                        trimmedLine.startsWith('* mark trace =') || trimmedLine.startsWith('* mark evidence =') || trimmedLine.startsWith('* mark attach =') || trimmedLine.startsWith('* mark duration =')) {
+                    if (trimmedLine.startsWith('* set trace =') || trimmedLine.startsWith('* set attach =') || trimmedLine.startsWith('* set duration =') ||
+                        trimmedLine.startsWith('* mark trace =') || trimmedLine.startsWith('* mark attach =') || trimmedLine.startsWith('* mark duration =')) {
                         continue;
                     }
                 }
@@ -468,7 +468,7 @@ async function runImportResults(options: {
                 }
                 if (sc.evidence.length > 0) {
                     const evVal = sc.evidence.length === 1 ? sc.evidence[0] : JSON.stringify(sc.evidence);
-                    newLines.push(`    * set evidence = ${evVal}`);
+                    newLines.push(`    * set attach = ${evVal}`);
                 }
                 newLines.push('');
             }
@@ -492,9 +492,9 @@ async function runImportResults(options: {
             }
             if (sc.evidence.length > 0) {
                 if (sc.evidence.length === 1) {
-                    runContent += `    * set evidence = ${sc.evidence[0]}\n`;
+                    runContent += `    * set attach = ${sc.evidence[0]}\n`;
                 } else {
-                    runContent += `    * set evidence = ${JSON.stringify(sc.evidence)}\n`;
+                    runContent += `    * set attach = ${JSON.stringify(sc.evidence)}\n`;
                 }
             }
             runContent += `\n`;
@@ -523,24 +523,68 @@ async function runImportResults(options: {
             const bugFilePath = join(absBugsDir, bugFileName);
 
             const bgHeaderTag = (SCOPE_CONFIG as any)['bug']?.tag || '@bug';
+            const relRun = relative(dir, runFilePath).replace(/\\/g, '/');
             let bugContent = `${bgHeaderTag}\nFeature: Bugs from ${basename(runFilePath)}\n\n`;
+            bugContent += `  Background:\n    * set run = ${relRun}\n\n`;
+
+            // Group failures by Rule file if possible
+            const ruleGroups = new Map<string, typeof failedScenarios>();
+            const standaloneFails: typeof failedScenarios = [];
 
             for (const fail of failedScenarios) {
+                if (fail.target && fail.target.includes('.@')) {
+                    const dotAt = fail.target.lastIndexOf('.@');
+                    const filePart = fail.target.substring(0, dotAt).trim();
+                    if (!ruleGroups.has(filePart)) ruleGroups.set(filePart, []);
+                    ruleGroups.get(filePart)!.push(fail);
+                } else {
+                    standaloneFails.push(fail);
+                }
+            }
+
+            for (const [ruleFile, fails] of ruleGroups.entries()) {
+                bugContent += `  Rule: ${ruleFile}\n\n`;
+                for (const fail of fails) {
+                    const nextBgTag = findNextIdentity(dir, configClass.getIdentity('bug')) || configClass.getFallbackIdentityTag('bug');
+                    const dotAt = fail.target.lastIndexOf('.@');
+                    const tcTag = '@' + fail.target.substring(dotAt + 2).trim();
+                    bugContent += `    ${nextBgTag} @depends_on(${tcTag})\n`;
+                    bugContent += `    Scenario: Bug in ${fail.name}\n`;
+                    bugContent += `      * set status = open\n`;
+                    bugContent += `      * field severity = high\n`;
+                    if (fail.trace) {
+                        const firstLine = fail.trace.split('\n')[0].replace(/\r/g, '').trim();
+                        bugContent += `      * set trace = ${firstLine}\n`;
+                    }
+                    if (fail.evidence.length > 0) {
+                        if (fail.evidence.length === 1) {
+                            bugContent += `      * set attach = ${fail.evidence[0]}\n`;
+                        } else {
+                            bugContent += `      * set attach = ${JSON.stringify(fail.evidence)}\n`;
+                        }
+                    }
+                    bugContent += `\n`;
+                }
+            }
+
+            for (const fail of standaloneFails) {
                 const nextBgTag = findNextIdentity(dir, configClass.getIdentity('bug')) || configClass.getFallbackIdentityTag('bug');
                 bugContent += `  ${nextBgTag}\n`;
                 bugContent += `  Scenario: Bug in ${fail.name}\n`;
-                bugContent += `    * set target = ${fail.target}\n`;
-                bugContent += `    * set status = failed\n`;
-                bugContent += `    * set severity = high\n`;
+                if (fail.target) {
+                    bugContent += `    * set target = ${fail.target}\n`;
+                }
+                bugContent += `    * set status = open\n`;
+                bugContent += `    * field severity = high\n`;
                 if (fail.trace) {
                     const firstLine = fail.trace.split('\n')[0].replace(/\r/g, '').trim();
                     bugContent += `    * set trace = ${firstLine}\n`;
                 }
                 if (fail.evidence.length > 0) {
                     if (fail.evidence.length === 1) {
-                        bugContent += `    * set evidence = ${fail.evidence[0]}\n`;
+                        bugContent += `    * set attach = ${fail.evidence[0]}\n`;
                     } else {
-                        bugContent += `    * set evidence = ${JSON.stringify(fail.evidence)}\n`;
+                        bugContent += `    * set attach = ${JSON.stringify(fail.evidence)}\n`;
                     }
                 }
                 bugContent += `\n`;

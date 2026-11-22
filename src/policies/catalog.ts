@@ -62,7 +62,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                         id: "invalid-set-mark",
                         type: 'error',
                         title: `Invalid DSL mark "* set ${v.field}"`,
-                        detail: v.message || `Mark "${v.field}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, evidence, duration). If "${v.field}" is a contract field, use "* field ${v.field} = <value>".`,
+                        detail: v.message || `Mark "${v.field}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, duration). If "${v.field}" is a contract field, use "* field ${v.field} = <value>".`,
                         uri: scenario.uri,
                         scenario: scenario.name,
                         line: scenario.location,
@@ -425,15 +425,17 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 const hasTrace = steps.some(s => s.text && (s.text.includes('trace =') || s.text.includes('trace='))) ||
                     rawSteps.some(s => s.text && (s.text.includes('trace =') || s.text.includes('trace='))) ||
                     Boolean(scenario.custom?.fields?.trace);
-                const hasTargetTag = (scenario.tags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-')) ||
-                    (scenario.custom?.rawTags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-'));
+                const hasTargetTag = (scenario.tags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-') || t.includes('depends_on')) ||
+                    (scenario.custom?.rawTags || []).some(t => t.startsWith('@tc-') || t.startsWith('@tr-') || t.includes('depends_on'));
+                const isIndependent = (scenario.tags || []).some(t => ['@independent', '@adhoc', '@exploratory'].includes(t.toLowerCase())) ||
+                    (scenario.feature?.tags || []).some(t => ['@independent', '@adhoc', '@exploratory'].includes(t.toLowerCase()));
 
-                if (!hasTarget && !hasTrace && !hasTargetTag) {
+                if (!hasTarget && !hasTrace && !hasTargetTag && !isIndependent) {
                     rules.push({
                         id: "bug-target-missing",
                         type: 'warning',
                         title: `Bug scenario "${scenario.name || 'Unnamed'}" lacks target traceability`,
-                        detail: `Add a step '* set target = <testcase.identity>' or link it with a '@tc-*' tag for full defect-to-case traceability.`,
+                        detail: `Link the defect under a 'Rule: <case.feature>' with '@depends_on(@tc-*)' or '@tc-*' tag for full defect-to-case traceability, or tag with '@adhoc' if it is an exploratory bug.`,
                         uri: scenario.uri,
                         scenario: scenario.name,
                         line: scenario.location
@@ -444,7 +446,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
     },
     {
         id: "attach-governance",
-        description: "Enforces attachment and evidence placement rules per resource scope",
+        description: "Enforces attachment placement rules per resource scope",
         scope: ["testcase", "testrun", "testplan", "bug"],
         severity: "error",
         action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {

@@ -77,7 +77,9 @@ export abstract class BaseParser {
                 if (child.scenario) {
                     const s = child.scenario;
                     const featureTags = (feature?.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name));
-                    const tags: string[] = [...featureTags, ...(s.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name))];
+                    let tags: string[] = [...featureTags, ...(s.tags ?? []).map((t: any) => restoreTagsWithSpaces(t.name))];
+                    tags = reassembleSplitTags(tags, '@module(');
+                    tags = reassembleSplitTags(tags, '@depends_on(');
                     const isUnique = tags.includes("@unique");
                     const hasTemplate = (s.name).includes("<") || (s.steps ?? []).some((st: Step) => (st.text).includes("<")) || tags.some((t) => t.includes("<"));
 
@@ -91,8 +93,7 @@ export abstract class BaseParser {
 
                     // Handle Scenario-level @module composition (inheriting steps)
                     const moduleSteps: ParserStep[] = [];
-                    const reassembledModuleTags = reassembleSplitTags(tags, '@module(');
-                    for (const t of reassembledModuleTags) {
+                    for (const t of tags) {
                         const moduleTargets = parseModuleTargets(t, this.getModuleRegistry());
                         if (moduleTargets) {
                             for (const target of moduleTargets) {

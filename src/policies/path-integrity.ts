@@ -227,7 +227,7 @@ export function scenarioExistsInFeature(feature: FeatureFileInfo, scenarioRef: s
 }
 
 /**
- * Checks if an attachment or evidence file exists on disk.
+ * Checks if an attachment file exists on disk.
  */
 export function resolveAttachment(attachPath: string, rootDir: string, fromUri?: string): boolean {
     if (!attachPath || typeof attachPath !== 'string') return false;
@@ -503,7 +503,7 @@ export function bugPathIntegrityAction(
         }
 
         // 3. Attachment validation
-        const attachRaw = scenario.custom?.fields?.attach || scenario.custom?.fields?.evidence;
+        const attachRaw = scenario.custom?.fields?.attach;
         if (attachRaw) {
             const attachList = Array.isArray(attachRaw) ? attachRaw : [attachRaw];
             for (const att of attachList) {

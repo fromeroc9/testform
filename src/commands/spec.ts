@@ -421,7 +421,7 @@ async function handleTestcase(options: SpecCmdOptions) {
 async function handleTestrun(options: SpecCmdOptions) {
     const { dir, action, target, case: tcArg, title, status = 'pending', trace, evidence, showName, showDetail, statePath, backupPath, testDirectory, variables, include, exclude } = options;
     const effectiveEvidence = options.attach || evidence;
-    const attachKeyword = options.attach ? 'attach' : 'evidence';
+    const attachKeyword = 'attach';
     const config = new Config(dir, false);
 
     let effectiveTarget = target;
@@ -655,9 +655,9 @@ async function handleTestrun(options: SpecCmdOptions) {
         case 'mark': {
             if (!effectiveTarget || !effectiveCase) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec testrun set -target=<@tr-X|file> -case=<testcase_address> -status=<${TESTCASE_STATUSES.join('|')}> [-trace="..."] [-evidence="..."]`,
+                    syntax: `${TITLE_CLI} spec testrun set -target=<@tr-X|file> -case=<testcase_address> -status=<${TESTCASE_STATUSES.join('|')}> [-trace="..."] [-attach="..."]`,
                     detail: [
-                        `Record execution status, stack trace, and evidence for a testcase inside a testrun.`,
+                        `Record execution status, stack trace, and attachment for a testcase inside a testrun.`,
                         ``,
                         `You can also provide -case with inline status:`,
                         `  ${TITLE_CLI} spec testrun set -target="@tr-1" -case="@tc-01=passed"`,
@@ -1004,7 +1004,7 @@ async function handleTestplan(options: SpecCmdOptions) {
 async function handleBug(options: SpecCmdOptions) {
     const { dir, action, target, case: tcArg, run: runArg, title, status = 'open', severity, priority, trace, evidence, showName, showDetail, statePath, backupPath, testDirectory } = options;
     const effectiveEvidence = options.attach || evidence;
-    const attachKeyword = options.attach ? 'attach' : 'evidence';
+    const attachKeyword = 'attach';
     const config = new Config(dir, false);
 
     let effectiveTarget = target;
@@ -1071,13 +1071,44 @@ async function handleBug(options: SpecCmdOptions) {
             const bgTag = findNextIdentity(dir, idPattern) || getFallbackIdentityTag(config, 'bug');
             const bugScenarioTitle = title || (effectiveCase ? `Defect in ${effectiveCase}` : `Bug ${bgTag}`);
 
-            let sc = `\n  ${bgTag}\n  Scenario: ${bugScenarioTitle}\n`;
-            if (effectiveCase) sc += `    * set target = ${effectiveCase}\n`;
-            sc += `    * set status = ${effectiveStatus}\n`;
-            if (severity) sc += `    * set severity = ${severity}\n`;
-            if (priority) sc += `    * set priority = ${priority}\n`;
-            if (trace) sc += `    * set trace = ${trace.split('\n')[0]}\n`;
-            if (effectiveEvidence) sc += `    * set ${attachKeyword} = ${effectiveEvidence}\n`;
+            const allBugFields = config.getFields('bug') || [];
+            const priorityDef = allBugFields.find(f => f.name.toLowerCase() === 'priority');
+            let bugTagPrefix = `\n  ${bgTag}`;
+            if (priority && priorityDef?.source === 'tag') {
+                const cleanP = priority.startsWith('@') ? priority : `@${priority}`;
+                bugTagPrefix += ` ${cleanP}`;
+            }
+
+            let sc = '';
+            const dotAt = effectiveCase ? effectiveCase.lastIndexOf('.@') : -1;
+            const currentContent = readFileSync(filePath, 'utf-8');
+
+            if (dotAt !== -1 && effectiveCase) {
+                const ruleFile = effectiveCase.substring(0, dotAt).trim();
+                const tcTag = '@' + effectiveCase.substring(dotAt + 2).trim();
+                const ruleHeader = `Rule: ${ruleFile}`;
+                const extraTags = bugTagPrefix.replace(`\n  ${bgTag}`, '').trim();
+                const tagsLine = extraTags ? `${bgTag} @depends_on(${tcTag}) ${extraTags}` : `${bgTag} @depends_on(${tcTag})`;
+
+                if (!currentContent.includes(ruleHeader)) {
+                    sc = `\n\n  ${ruleHeader}\n\n    ${tagsLine}\n    Scenario: ${bugScenarioTitle}\n`;
+                } else {
+                    sc = `\n\n    ${tagsLine}\n    Scenario: ${bugScenarioTitle}\n`;
+                }
+                sc += `      * set status = ${effectiveStatus}\n`;
+                if (severity) sc += `      * field severity = ${severity}\n`;
+                if (priority && priorityDef?.source !== 'tag') sc += `      * field priority = ${priority}\n`;
+                if (trace) sc += `      * set trace = ${trace.split('\n')[0]}\n`;
+                if (effectiveEvidence) sc += `      * set ${attachKeyword} = ${effectiveEvidence}\n`;
+            } else {
+                sc = `${bugTagPrefix}\n  Scenario: ${bugScenarioTitle}\n`;
+                if (effectiveCase) sc += `    * set target = ${effectiveCase}\n`;
+                sc += `    * set status = ${effectiveStatus}\n`;
+                if (severity) sc += `    * field severity = ${severity}\n`;
+                if (priority && priorityDef?.source !== 'tag') sc += `    * field priority = ${priority}\n`;
+                if (trace) sc += `    * set trace = ${trace.split('\n')[0]}\n`;
+                if (effectiveEvidence) sc += `    * set ${attachKeyword} = ${effectiveEvidence}\n`;
+            }
 
             writeFileSync(filePath, readFileSync(filePath, 'utf-8').trimEnd() + sc, 'utf-8');
             console.log(green(bold(`\n✓ Added bug scenario ${bgTag} "${bugScenarioTitle}" to ${basename(filePath)}`)));
@@ -1160,8 +1191,8 @@ async function handleBug(options: SpecCmdOptions) {
         case 'mark': {
             if (!effectiveTarget) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<open|in_progress|resolved|reopened|discarded|duplicate> [-trace="..."] [-evidence="..."]`,
-                    detail: [`Update resolution status, stack trace, and evidence for a bug scenario.`]
+                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<open|in_progress|resolved|reopened|discarded|duplicate> [-trace="..."] [-attach="..."]`,
+                    detail: [`Update resolution status, stack trace, and attachment for a bug scenario.`]
                 }).abort();
                 return;
             }

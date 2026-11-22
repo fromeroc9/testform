@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.9] - 2026-11-22
+
+### Added
+
+- **Strict Separation of `* set` vs `* field` vs `@tag` (`src/parsers/testcase-parser.ts`, `src/parsers/base-parser.ts`, `src/policies/catalog.ts`):**
+  - **`testcase` (`*.case.feature`):** Prohibited all `* set` marks (including `attach`). Only standard Gherkin steps (`Given`, `When`, `Then`) and contract metadata fields (`* field <name> = <value>`) are permitted.
+  - **`testrun` (`*.run.feature`):**
+    - `Background:` allows suite execution marks `* set duration = ...`, `* set attach = ...`, and `* set trace = ...`. Manual `* set status` in Background is strictly prohibited (suite status is autocalculated from scenarios).
+    - `Scenario:` strictly declares execution verdict `* set status = passed | failed | skipped | blocked | pending`.
+    - Full dual-syntax support: with `Rule: <path.case.feature>` (`Scenario: @tc-01`) or without `Rule:` using direct canonical/logical addresses (`Scenario: testcase/path.case.feature.@tc-01`).
+  - **`bug` (`*.bug.feature`):**
+    - `Background:` allows optional execution link `* set run = testruns/...run.feature` (optional for exploratory or ad-hoc bugs).
+    - `Scenario:` declares lifecycle status `* set status = open | in_progress | resolved | reopened | discarded | duplicate`, failure evidence `* set attach = ...`, and error detail `* set trace = ...`.
+    - Contract governance fields (e.g. `severity`, `bug_type`) are declared via `* field <name> = <val>`.
+  - **`testplan` (`*.plan.feature`):** `Background:` allows `* set attach = ...` (suite status is rollup autocalculated from linked testruns).
+- **Dual Defect-to-Testcase Traceability in `@bug`:**
+  - **Form 1 (with `@depends_on`):** `@bg-01 @depends_on(@tc-01)` (quotes optional: `@depends_on(@tc-01)` or `@depends_on("@tc-01")`).
+  - **Form 2 (direct side-by-side tags):** `@bg-01 @tc-01` under `Rule: <path.case.feature>`.
+  - **Without `Rule:`:** Supports logical address `@bg-01 @depends_on("path/to.case.feature.@tc-01")` or exploratory `@bg-02` without testcase target (no missing target error).
+- **Contract Field Source Governance (`main.yml`, `src/parsers/testcase-parser.ts`):**
+  - Fields configured with `source: "tag"` in `main.yml` (e.g. `priority: @low | @medium | @high`) MUST be declared as `@tag` and are prohibited from being defined as steps (`* field priority = ...` or `* set priority = ...`), validated by `tag-field-as-step` policy.
+  - Fields configured with `source: "step"` (e.g. `severity`, `bug_type`, `project`) are declared with `* field <name> = <val>`.
+
+### Fixed
+
+- **Gherkin Tokenizer Tag Reassembly for `@depends_on` (`src/parsers/base-parser.ts`, `src/core/utils.ts`):**
+  - Reassembles `@depends_on(...)` tags split across `@` characters by Cucumber Gherkin's tokenizer, preventing accidental whitespace injection and ensuring clean dependency parsing.
+- **Scaffolding Generators Updated (`src/commands/import.ts`, `src/commands/spec.ts`):**
+  - Generated bug specifications now emit `Background: * set run = ...`, grouped under `Rule: <case.feature>`, with `@bg-X @depends_on(@tc-Y)`, `* set status = open`, and `* field severity = ...`.
+- **Automatic Target Derivation in `@bug` (`src/parsers/testcase-parser.ts`):**
+  - Automatically resolves and populates `customFields['target']` and planned bug resource `testcase` attribute from enclosing `Rule:` and `@depends_on(@tc-XX)` or `@tc-XX` tags.
+
 ## [1.1.0-beta.8] - 2026-11-20
 
 ### Added

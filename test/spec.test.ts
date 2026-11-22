@@ -215,7 +215,7 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
 
             const markedContent = readFileSync(filePath, 'utf-8');
             expect(markedContent).toContain('* set status = passed');
-            expect(markedContent).toContain('* set evidence = evidence/step_ok.png');
+            expect(markedContent).toContain('* set attach = evidence/step_ok.png');
         });
 
         it('should display testrun dashboard with -show-name and -show-detail', async () => {
@@ -325,13 +325,14 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
 
             let content = readFileSync(filePath, 'utf-8');
             expect(content).toContain('@bg-1');
+            expect(content).toContain('Rule: Magento/checkout.case.feature');
+            expect(content).toContain('@depends_on(@tc-05)');
             expect(content).toContain('Scenario: Payment gateway timeout');
-            expect(content).toContain('* set target = Magento/checkout.case.feature.@tc-05');
             expect(content).toContain('* set status = failed');
-            expect(content).toContain('* set severity = critical');
-            expect(content).toContain('* set priority = high');
+            expect(content).toContain('* field severity = critical');
+            expect(content).toContain('* field priority = high');
             expect(content).toContain('* set trace = TimeoutError: Gateway did not respond in 30s');
-            expect(content).toContain('* set evidence = evidence/gateway_timeout.png');
+            expect(content).toContain('* set attach = evidence/gateway_timeout.png');
 
             // Mark bug resolved
             await specCmd({
@@ -430,7 +431,7 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             expect(runContent).toContain('Scenario: Magento/cart.case.feature.@tc-02');
             expect(runContent).toContain('* set status = failed');
             expect(runContent).toContain('* set trace = AssertionError: Expected cart error banner not shown');
-            expect(runContent).toContain('* set evidence = evidence/ev_');
+            expect(runContent).toContain('* set attach = evidence/ev_');
 
             // Verify bug feature created
             const bugsDir = join(tmpDir, 'tests/bugs');
@@ -441,12 +442,13 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             const bugContent = readFileSync(join(bugsDir, bugFiles[0]), 'utf-8');
             expect(bugContent).toContain('@bug');
             expect(bugContent).toContain('@bg-1');
+            expect(bugContent).toContain('Rule: Magento/cart.case.feature');
+            expect(bugContent).toContain('@depends_on(@tc-02)');
             expect(bugContent).toContain('Scenario: Bug in Checkout empty cart');
-            expect(bugContent).toContain('* set target = Magento/cart.case.feature.@tc-02');
-            expect(bugContent).toContain('* set status = failed');
-            expect(bugContent).toContain('* set severity = high');
+            expect(bugContent).toContain('* set status = open');
+            expect(bugContent).toContain('* field severity = high');
             expect(bugContent).toContain('* set trace = AssertionError: Expected cart error banner not shown');
-            expect(bugContent).toContain('* set evidence = evidence/ev_');
+            expect(bugContent).toContain('* set attach = evidence/ev_');
         });
     });
 

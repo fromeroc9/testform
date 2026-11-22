@@ -182,7 +182,7 @@ describe('Command importCmd', () => {
         expect(runContent).toContain('Scenario: tests/auth/login.case.feature.@tc-01');
         expect(runContent).toContain('* set status = passed');
         expect(runContent).toContain('* set duration = 1.10s');
-        expect(runContent).toContain('* set evidence = evidence/login-ok.png');
+        expect(runContent).toContain('* set attach = evidence/login-ok.png');
 
         expect(runContent).toContain('Scenario: tests/auth/login.case.feature.@tc-02');
         expect(runContent).toContain('* set status = failed');
@@ -195,8 +195,9 @@ describe('Command importCmd', () => {
         const bugFiles = readdirSync(bugsDir);
         expect(bugFiles.length).toBeGreaterThan(0);
         const bugContent = readFileSync(join(bugsDir, bugFiles[0]), 'utf8');
-        expect(bugContent).toContain('* set target = tests/auth/login.case.feature.@tc-02');
-        expect(bugContent).toContain('* set status = failed');
+        expect(bugContent).toContain('Rule: tests/auth/login.case.feature');
+        expect(bugContent).toContain('@bg-1 @depends_on(@tc-02)');
+        expect(bugContent).toContain('* set status = open');
     });
 
     it('should parse Playwright JSON results format', async () => {
