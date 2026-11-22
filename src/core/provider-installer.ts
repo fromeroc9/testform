@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, readd
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 import { isGitSource, parseGitSource } from './module';
-import { FILE_LOCK } from './const';
+import { FILE_LOCK, FILE_ROOT_LOCK } from './const';
 
 export interface ProviderInstallSpec {
     source: string;
@@ -290,8 +290,8 @@ export class ProviderInstaller {
         }
         writeFileSync(lockJsonPath, JSON.stringify(lockJsonData, null, 2), 'utf-8');
 
-        // 2. HCL Standard Lockfile (.testform.lock.hcl in workspace root - canonical Terraform parity)
-        const lockHclPath = resolve(this.workDir, '.testform.lock.hcl');
+        // 2. Standard Lockfile (.testform.lock in workspace root)
+        const lockHclPath = resolve(this.workDir, FILE_ROOT_LOCK);
         let hclContent = `# This file is maintained automatically by "testform init".\n# Manual edits may be lost in future updates.\n\n`;
 
         for (const p of providers) {

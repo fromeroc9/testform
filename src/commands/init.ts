@@ -731,7 +731,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
 
     if (installedList.length > 0) {
         installer.recordLockfile(installedList);
-        logger.info(`\n${TITLE_APP} has created/updated the lock file .testform.lock.hcl to record the provider\nselections it made above. Include this file in your version control repository\nso that ${TITLE_APP} can guarantee to make the same selections by default when you\nrun "${TITLE_CLI} init" in the future.`);
+        logger.info(`\n${TITLE_APP} has created/updated the lock file .testform.lock to record the provider\nselections it made above. Include this file in your version control repository\nso that ${TITLE_APP} can guarantee to make the same selections by default when you\nrun "${TITLE_CLI} init" in the future.`);
     }
     logger.blank();
 

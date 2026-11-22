@@ -53,6 +53,9 @@ export const FILE_DATA_LEGACY = ".testform/cache/data.json";
 /** Default dependency lock file name (stored in dedicated cache folder). */
 export const FILE_LOCK = ".testform/cache/lock.json";
 
+/** Default root dependency lock file name. */
+export const FILE_ROOT_LOCK = ".testform.lock";
+
 /** Default active backend metadata file name (stored in dedicated cache folder). */
 export const FILE_BACKEND = ".testform/cache/backend.json";
 

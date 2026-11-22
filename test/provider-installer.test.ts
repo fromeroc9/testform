@@ -83,7 +83,7 @@ module.exports = CustomGitLab;
         // Record lockfile
         installer.recordLockfile([result]);
 
-        const lockHcl = join(tempDir, '.testform.lock.hcl');
+        const lockHcl = join(tempDir, '.testform.lock');
         expect(existsSync(lockHcl)).toBe(true);
         const content = readFileSync(lockHcl, 'utf-8');
         expect(content).toContain('provider "custom_gitlab"');
