@@ -62,7 +62,7 @@ export class TestcaseParser extends BaseParser {
                                 field: setKey,
                                 message: `Mark "${setKey}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, evidence, duration). If "${setKey}" is a contract field, use "* field ${setKey} = <value>".`
                             });
-                            return true;
+                            return false;
                         }
                         if (setKey === 'evidence' || setKey === 'attach') {
                             if (scope === 'bug') {
@@ -109,7 +109,7 @@ export class TestcaseParser extends BaseParser {
                         } else {
                             s.custom.policy!.push({ type: 'undeclared-field', field: rawName });
                         }
-                        return true;
+                        return false;
                     }
 
                     customFields[fieldDef.name] = rawValue;
@@ -132,7 +132,7 @@ export class TestcaseParser extends BaseParser {
                             field: setKey,
                             message: `Mark "${setKey}" is not a valid execution mark. "set" is reserved for execution marks (target, status, trace, attach, evidence, duration). If "${setKey}" is a contract field, use "* field ${setKey} = <value>".`
                         });
-                        return true;
+                        return false;
                     }
                     if (setKey === 'evidence' || setKey === 'attach') {
                         if (scope === 'testplan') {
@@ -180,7 +180,7 @@ export class TestcaseParser extends BaseParser {
                     } else {
                         s.custom.policy!.push({ type: 'undeclared-field', field: rawName });
                     }
-                    return true;
+                    return false;
                 }
 
                 customFields[fieldDef.name] = rawValue;

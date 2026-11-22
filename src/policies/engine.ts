@@ -214,8 +214,19 @@ export class PolicyEngine {
             };
         });
 
+        // Deduplicate identical rules (same policy id, URI, line, and title)
+        const seenRuleKeys = new Set<string>();
+        const uniqueRules: PolicyRule[] = [];
+        for (const r of processedRules) {
+            const key = `${r.id}|${r.uri}|${r.line ?? ''}|${r.title}`;
+            if (!seenRuleKeys.has(key)) {
+                seenRuleKeys.add(key);
+                uniqueRules.push(r);
+            }
+        }
+
         // Filter by target severity threshold if requested
-        let filteredRules = processedRules;
+        let filteredRules = uniqueRules;
         if (options.severity) {
             if (options.severity === 'error') {
                 filteredRules = processedRules.filter(r => r.type === 'error');
