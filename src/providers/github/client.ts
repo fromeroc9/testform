@@ -645,12 +645,28 @@ export class GitHubProvider implements IProvider {
                     const valLower = cleanVal.toLowerCase();
                     // 1. Direct match (e.g. "pending" matches "Pending", "failed" matches "Failed")
                     let opt = field.options.find((o: any) => o.name && o.name.toLowerCase() === valLower);
-                    // 2. Intelligent semantic fallback for QA status options
+                    // 2. Intelligent semantic fallback for QA status options in candidate priority order
                     if (!opt) {
-                        if (valLower === 'passed') {
-                            opt = field.options.find((o: any) => ['done', 'completed', 'resolved', 'closed'].includes(o.name?.toLowerCase()));
-                        } else if (valLower === 'ambiguous' || valLower === 'blocked' || valLower === 'undefined') {
-                            opt = field.options.find((o: any) => ['pending', 'failed', 'todo', 'in progress'].includes(o.name?.toLowerCase()));
+                        const matchSemantic = (candidates: string[]) => {
+                            for (const c of candidates) {
+                                const found = field.options.find((o: any) => o.name?.toLowerCase() === c);
+                                if (found) return found;
+                            }
+                            return undefined;
+                        };
+
+                        if (valLower === 'passed' || valLower === 'success') {
+                            opt = matchSemantic(['passed', 'done', 'completed', 'resolved', 'closed', 'success']);
+                        } else if (valLower === 'pending' || valLower === 'unexecuted' || valLower === 'todo') {
+                            opt = matchSemantic(['pending', 'todo', 'to do', 'backlog', 'unexecuted', 'in progress']);
+                        } else if (valLower === 'failed' || valLower === 'error') {
+                            opt = matchSemantic(['failed', 'error', 'bug', 'in progress', 'todo']);
+                        } else if (valLower === 'open') {
+                            opt = matchSemantic(['open', 'todo', 'to do', 'backlog', 'in progress']);
+                        } else if (valLower === 'closed' || valLower === 'resolved') {
+                            opt = matchSemantic(['closed', 'done', 'completed', 'resolved']);
+                        } else if (valLower === 'ambiguous' || valLower === 'blocked' || valLower === 'undefined' || valLower === 'skipped') {
+                            opt = matchSemantic(['blocked', 'skipped', 'ambiguous', 'pending', 'todo', 'in progress', 'failed']);
                         }
                     }
                     if (opt) {

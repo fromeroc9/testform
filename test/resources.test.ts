@@ -104,7 +104,7 @@ describe('Resource Registry and User Overrides', () => {
             'cart.case.feature.@tc-01': 'passed',
             'cart.case.feature.@tc-02': 'failed'
         });
-        expect(evaluated.metadata).toEqual({});
+        expect(evaluated.metadata).toEqual({ Status: 'failed' });
     });
 
     it('should compute rollup verdict and testruns map for testplan', () => {
@@ -133,7 +133,7 @@ describe('Resource Registry and User Overrides', () => {
             'testruns/run-1.run.feature': 'passed',
             'testruns/run-2.run.feature': 'failed'
         });
-        expect(evaluated.metadata).toEqual({});
+        expect(evaluated.metadata).toEqual({ Status: 'failed' });
     });
 
     it('should support declarative { api, state } schema registration and evaluation', () => {

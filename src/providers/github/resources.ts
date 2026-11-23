@@ -31,7 +31,7 @@ export const githubTestcaseTemplate: ResourceTemplate = {
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
         state: 'open',
-        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {}
+        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {}
     }),
     state: {}
 };
@@ -45,10 +45,8 @@ export const githubTestrunTemplate: ResourceTemplate = {
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
         // Sincroniza el campo Status de GitHub Projects con el veredicto del testrun
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
-        if (statusFieldKey) {
-            meta[statusFieldKey] = rollupStatus;
-        }
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status') || 'Status';
+        meta[statusFieldKey] = rollupStatus;
 
         return {
             title: s.feature?.name || '',
@@ -87,10 +85,8 @@ export const githubTestplanTemplate: ResourceTemplate = {
         const rollupStatus = calculatePlanRollup(s, context);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
 
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
-        if (statusFieldKey) {
-            meta[statusFieldKey] = rollupStatus;
-        }
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status') || 'Status';
+        meta[statusFieldKey] = rollupStatus;
 
         return {
             title: s.feature?.name || '',
@@ -118,10 +114,8 @@ export const githubBugTemplate: ResourceTemplate = {
             'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
 
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
-        if (statusFieldKey) {
-            meta[statusFieldKey] = bugStatus;
-        }
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status') || 'Status';
+        meta[statusFieldKey] = bugStatus;
 
         return {
             title: s.name || s.feature?.name || '',
