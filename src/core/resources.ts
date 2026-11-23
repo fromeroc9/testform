@@ -11,7 +11,6 @@ import {
 import { formatIdentityDisplay, formatResourceAddress, formatHclValue, calculateRollupVerdict } from '../core/utils';
 import { arraysEqual } from '../core/sync';
 import { normalizeScenarioAddress, matchesTestrunSelector, extractNamespaceFromTag } from '../core/selector';
-import { buildGitHubTestplanBody, buildGitHubTestrunBody, buildGitHubBugBody } from '../providers/github/templates';
 
 function deriveFieldsFromTemplate(template: ResourceTemplate): ResourceField[] {
     const fields: ResourceField[] = [];
@@ -755,13 +754,9 @@ class Resource {
 
         const scopeOrder: Record<string, number> = {
             testcase: 1,
-            github_testcase: 1,
             testrun: 2,
-            github_testrun: 2,
             testplan: 3,
-            github_testplan: 3,
             bug: 4,
-            github_bug: 4,
         };
         const sortedChanges = [...changes].sort((a, b) => {
             const orderA = scopeOrder[a.resourceType] || 99;
@@ -772,8 +767,11 @@ class Resource {
             return addrA.localeCompare(addrB);
         });
 
+        const defaultProvider = context?.provider || context?.state?.provider || (typeof context?.config?.getProviderType === 'function' ? context.config.getProviderType() : undefined) || changes[0]?.provider;
+
         for (const change of sortedChanges) {
-            const address = formatResourceAddress(change.resourceType, change.address);
+            const changeProvider = change.provider || defaultProvider;
+            const address = formatResourceAddress(change.resourceType, change.address, changeProvider);
             const actionText =
                 change.action === 'add'
                     ? bold(green(`# ${address} will be created`))
@@ -791,9 +789,9 @@ class Resource {
             }
 
             if (context?.gherkin || context?.feature) {
-                output.push(this.formatFeature(change, context));
+                output.push(this.formatFeature(change, { ...context, provider: changeProvider }));
             } else {
-                output.push(this.format(change, context));
+                output.push(this.format(change, { ...context, provider: changeProvider }));
             }
             output.push('');
         }
@@ -825,7 +823,7 @@ class Resource {
 
 // ─── Built-in Resource Helpers ────────────────────────────────────────────────
 
-function extractLabels(s: any, extraTag?: string): string[] {
+export function extractLabels(s: any, extraTag?: string): string[] {
     const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
     const base: string[] = extraTag ? [...(s.tags || []), extraTag].map(String) : (s.tags || []).map(String);
     const cleaned = base
@@ -835,11 +833,71 @@ function extractLabels(s: any, extraTag?: string): string[] {
     return Array.from(new Set(cleaned));
 }
 
-function extractAssignees(s: any): string[] {
+export function extractAssignees(s: any): string[] {
     return (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean);
 }
 
-function extractCustomFields(rawFields: Record<string, any> = {}, excludeKeys: string[] = []): Record<string, any> {
+/**
+ * Unified value getter resolving across execution marks (set), declared fields (fields), and properties.
+ * Strictly respects exact case first (so 'status' and 'Status' are distinct), falling back
+ * to case-insensitive lookup only if no exact match exists.
+ */
+export function getScenarioValue(s: any, fieldName: string, defaultValue?: any): any {
+    if (!s) return defaultValue;
+
+    // 1. Strict exact-key match in runtime set marks (e.g. * set status = passed)
+    if (s.custom?.set && s.custom.set[fieldName] !== undefined && s.custom.set[fieldName] !== '') {
+        return s.custom.set[fieldName];
+    }
+
+    // 2. Strict exact-key match in declared metadata fields (e.g. * field Status = Done)
+    if (s.custom?.fields && s.custom.fields[fieldName] !== undefined && s.custom.fields[fieldName] !== '') {
+        return s.custom.fields[fieldName];
+    }
+
+    // 3. Strict exact-key match on direct property
+    if (s[fieldName] !== undefined) return s[fieldName];
+    if (s.feature && s.feature[fieldName] !== undefined) return s.feature[fieldName];
+
+    // 4. Secondary fallback: case-insensitive match only if no exact key existed
+    const lowerName = fieldName.toLowerCase();
+    if (s.custom?.set) {
+        for (const [k, v] of Object.entries(s.custom.set)) {
+            if (k.toLowerCase() === lowerName && v !== undefined && v !== null && v !== '') {
+                return v;
+            }
+        }
+    }
+    if (s.custom?.fields) {
+        for (const [k, v] of Object.entries(s.custom.fields)) {
+            if (k.toLowerCase() === lowerName && v !== undefined && v !== null && v !== '') {
+                return v;
+            }
+        }
+    }
+
+    return defaultValue;
+}
+
+export function getScenarioStatus(s: any, defaultValue: string = 'pending'): string {
+    return getScenarioValue(s, 'status', defaultValue);
+}
+
+export function getScenarioTrace(s: any): string | undefined {
+    return getScenarioValue(s, 'trace') || getScenarioValue(s, 'error');
+}
+
+export function getScenarioEvidence(s: any): string[] | undefined {
+    const ev = getScenarioValue(s, 'attach') ?? getScenarioValue(s, 'evidence');
+    if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
+    return Array.isArray(ev) ? ev : [ev];
+}
+
+/**
+ * Extracts custom fields by deleting specified exclusion keys with exact-case matching,
+ * preserving distinct fields such as 'Status' vs 'status'.
+ */
+export function extractCustomFields(rawFields: Record<string, any> = {}, excludeKeys: string[] = []): Record<string, any> {
     const fields = { ...rawFields };
     for (const k of excludeKeys) {
         delete fields[k];
@@ -847,23 +905,23 @@ function extractCustomFields(rawFields: Record<string, any> = {}, excludeKeys: s
     return fields;
 }
 
-function extractTestcaseStatusMap(s: any): Record<string, string> {
+export function extractTestcaseStatusMap(s: any): Record<string, string> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, string> = {};
     for (const gs of groupScenarios) {
         if (gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
-            map[key] = gs.custom?.set?.status ?? gs.custom?.fields?.status ?? 'pending';
+            map[key] = getScenarioStatus(gs, 'pending');
         }
     }
     return map;
 }
 
-function extractTestcaseTraceMap(s: any): Record<string, string> {
+export function extractTestcaseTraceMap(s: any): Record<string, string> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, string> = {};
     for (const gs of groupScenarios) {
-        const trace = gs.custom?.set?.trace ?? gs.custom?.fields?.trace ?? gs.custom?.set?.error ?? gs.custom?.fields?.error;
+        const trace = getScenarioTrace(gs);
         if (trace && gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             if (key) map[key] = trace;
@@ -872,28 +930,25 @@ function extractTestcaseTraceMap(s: any): Record<string, string> {
     return map;
 }
 
-function extractTestcaseEvidenceMap(s: any): Record<string, any> {
+export function extractTestcaseEvidenceMap(s: any): Record<string, any> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, any> = {};
     for (const gs of groupScenarios) {
-        const ev = gs.custom?.set?.attach ?? gs.custom?.fields?.attach ?? gs.custom?.set?.evidence ?? gs.custom?.fields?.evidence;
+        const ev = getScenarioEvidence(gs);
         if (ev && gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
-            if (key) map[key] = Array.isArray(ev) ? ev : [ev];
+            if (key) map[key] = ev;
         }
     }
     return map;
 }
 
-function calculatePlanRollup(s: any, context?: any): string {
+export function calculatePlanRollup(s: any, context?: any): string {
     const trList = s.custom?.testruns || [];
     const state = context?.state;
     if (!state || trList.length === 0) return 'pending';
     const statuses: string[] = [];
-    let runResources = state.getResources('testrun');
-    if (!runResources || runResources.length === 0) {
-        runResources = state.getResources('github_testrun');
-    }
+    const runResources = state.getResources('testrun') || [];
     for (const tr of trList) {
         const found = runResources.find((r: any) => matchesTestrunSelector(r, String(tr)));
         statuses.push(found?.attributes?.status || 'pending');
@@ -901,14 +956,11 @@ function calculatePlanRollup(s: any, context?: any): string {
     return calculateRollupVerdict(statuses);
 }
 
-function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
+export function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
     const trList = s.custom?.testruns || [];
     const map: Record<string, string> = {};
     const state = context?.state;
-    let runResources = state ? state.getResources('testrun') : [];
-    if (state && (!runResources || runResources.length === 0)) {
-        runResources = state.getResources('github_testrun') || [];
-    }
+    const runResources = state ? state.getResources('testrun') || [] : [];
     for (const tr of trList) {
         const normTr = String(tr).replace(/\\/g, '/');
         let status = 'pending';
@@ -928,14 +980,20 @@ function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
 export const resource = new Resource();
 export const registerResource = (template: ResourceTemplate) => resource.registry(template, 'user');
 
-const testcaseTemplate: ResourceTemplate = {
+function buildGenericTestcaseBody(s: any): string {
+    const steps = (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n');
+    return steps ? '```gherkin\n' + steps + '\n```' : '';
+}
+
+export const defaultTestcaseTemplate: ResourceTemplate = {
     type: 'testcase',
     attributes: (s: any) => ({
         title: s.name,
-        body: '```gherkin\n' + (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n') + '\n```',
+        body: buildGenericTestcaseBody(s),
         labels: extractLabels(s),
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
+        state: 'open',
         custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
     }),
     state: {
@@ -943,29 +1001,38 @@ const testcaseTemplate: ResourceTemplate = {
     }
 };
 
-const testrunTemplate: ResourceTemplate = {
+export const defaultTestrunTemplate: ResourceTemplate = {
     type: 'testrun',
-    attributes: (s: any, context?: any) => ({
-        title: s.feature?.name || '',
-        body: buildGitHubTestrunBody(s, context),
-        labels: extractLabels(s),
-        assignees: extractAssignees(s),
-        milestone: s.custom?.fields?.milestone || undefined,
-        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
-    }),
+    attributes: (s: any, context?: any) => {
+        const groupScenarios = s.custom?.groupScenarios || [];
+        const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
+        const rollupStatus = calculateRollupVerdict(statuses);
+        const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
+
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            customFields[statusFieldKey] = rollupStatus;
+        }
+
+        return {
+            title: s.feature?.name || '',
+            body: '',
+            labels: extractLabels(s),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+            state: rollupStatus === 'passed' ? 'closed' : 'open',
+            custom_fields: customFields
+        };
+    },
     state: {
         status: (s: any) => {
             const groupScenarios = s.custom?.groupScenarios || [];
-            const statuses = groupScenarios.map((gs: any) => gs.custom?.set?.status ?? gs.custom?.fields?.status ?? 'pending');
+            const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
             return calculateRollupVerdict(statuses);
         },
-        duration: (s: any) => s.custom?.set?.duration ?? s.custom?.fields?.duration ?? undefined,
-        attach: (s: any) => {
-            const ev = s.custom?.set?.attach ?? s.custom?.fields?.attach ?? s.custom?.set?.evidence ?? s.custom?.fields?.evidence;
-            if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
-            return Array.isArray(ev) ? ev : [ev];
-        },
-        trace: (s: any) => s.custom?.set?.trace ?? s.custom?.fields?.trace ?? undefined,
+        duration: (s: any) => getScenarioValue(s, 'duration'),
+        attach: (s: any) => getScenarioEvidence(s),
+        trace: (s: any) => getScenarioTrace(s),
         testcases: (s: any) => extractTestcaseStatusMap(s),
         testcaseTraces: (s: any) => {
             const map = extractTestcaseTraceMap(s);
@@ -979,64 +1046,78 @@ const testrunTemplate: ResourceTemplate = {
     }
 };
 
-const testplanTemplate: ResourceTemplate = {
+export const defaultTestplanTemplate: ResourceTemplate = {
     type: 'testplan',
-    attributes: (s: any, context?: any) => ({
-        title: s.feature?.name || '',
-        body: buildGitHubTestplanBody(s, context),
-        labels: extractLabels(s),
-        assignees: extractAssignees(s),
-        milestone: s.custom?.fields?.milestone || undefined,
-        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
-    }),
+    attributes: (s: any, context?: any) => {
+        const rollupStatus = calculatePlanRollup(s, context);
+        const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
+
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            customFields[statusFieldKey] = rollupStatus;
+        }
+
+        return {
+            title: s.feature?.name || '',
+            body: '',
+            labels: extractLabels(s),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+            state: rollupStatus === 'passed' ? 'closed' : 'open',
+            custom_fields: customFields
+        };
+    },
     state: {
         status: (s: any, context?: any) => calculatePlanRollup(s, context),
-        attach: (s: any) => {
-            const ev = s.custom?.set?.attach ?? s.custom?.fields?.attach ?? s.custom?.set?.evidence ?? s.custom?.fields?.evidence;
-            if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
-            return Array.isArray(ev) ? ev : [ev];
-        },
+        attach: (s: any) => getScenarioEvidence(s),
         testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context),
         metadata: (s: any) => extractCustomFields(s.custom?.fields, ['status', 'evidence', 'attach'])
     }
 };
 
-const bugTemplate: ResourceTemplate = {
+export const defaultBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: any) => ({
-        title: s.name || s.feature?.name || '',
-        body: buildGitHubBugBody(s),
-        labels: extractLabels(s, 'bug'),
-        assignees: extractAssignees(s),
-        milestone: s.custom?.fields?.milestone || undefined,
-        custom_fields: extractCustomFields(s.custom?.fields, [
+    attributes: (s: any) => {
+        const rawStatus = getScenarioStatus(s, 'open');
+        const bugStatus = ['open', 'in_progress', 'closed', 'resolved'].includes(rawStatus.toLowerCase()) ? rawStatus : 'open';
+        const customFields = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'status', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
-        ])
-    }),
+        ]) || {};
+
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            customFields[statusFieldKey] = bugStatus;
+        }
+
+        return {
+            title: s.name || s.feature?.name || '',
+            body: '',
+            labels: extractLabels(s, 'bug'),
+            assignees: extractAssignees(s),
+            milestone: s.custom?.fields?.milestone || undefined,
+            state: (bugStatus === 'closed' || bugStatus === 'resolved') ? 'closed' : 'open',
+            custom_fields: customFields
+        };
+    },
     state: {
-        status: (s: any) => s.custom?.set?.status ?? (s.custom?.fields?.status && ['open', 'in_progress', 'closed', 'resolved'].includes(String(s.custom?.fields?.status).toLowerCase()) ? s.custom?.fields?.status : 'open'),
-        trace: (s: any) => s.custom?.set?.trace ?? s.custom?.fields?.trace ?? s.custom?.set?.error ?? s.custom?.fields?.error ?? undefined,
-        attach: (s: any) => {
-            const ev = s.custom?.set?.attach ?? s.custom?.fields?.attach ?? s.custom?.set?.evidence ?? s.custom?.fields?.evidence;
-            if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
-            return Array.isArray(ev) ? ev : [ev];
+        status: (s: any) => {
+            const rawStatus = getScenarioStatus(s, 'open');
+            return ['open', 'in_progress', 'closed', 'resolved'].includes(rawStatus.toLowerCase()) ? rawStatus : 'open';
         },
-        testcase: (s: any) => s.custom?.set?.target ?? s.custom?.fields?.target ?? s.custom?.set?.testcase ?? s.custom?.fields?.testcase ?? undefined,
-        testrun: (s: any) => s.custom?.set?.run ?? s.custom?.fields?.run ?? s.feature?.name ?? s.custom?.set?.testrun ?? s.custom?.fields?.testrun ?? undefined,
+        trace: (s: any) => getScenarioTrace(s),
+        attach: (s: any) => getScenarioEvidence(s),
+        testcase: (s: any) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
+        testrun: (s: any) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun'),
         metadata: (s: any) => extractCustomFields(s.custom?.fields, [
             'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ])
     }
 };
 
-// Register primary agnostic domain resources
-resource.registry(testcaseTemplate);
-resource.registry(testrunTemplate);
-resource.registry(testplanTemplate);
-resource.registry(bugTemplate);
+// Register pure agnostic baseline resources
+resource.registry(defaultTestcaseTemplate);
+resource.registry(defaultTestrunTemplate);
+resource.registry(defaultTestplanTemplate);
+resource.registry(defaultBugTemplate);
 
-// Backward compatibility: register legacy github_* aliases
-resource.registry({ ...testcaseTemplate, type: 'github_testcase' });
-resource.registry({ ...testrunTemplate, type: 'github_testrun' });
-resource.registry({ ...testplanTemplate, type: 'github_testplan' });
-resource.registry({ ...bugTemplate, type: 'github_bug' });
+

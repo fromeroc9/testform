@@ -6,6 +6,7 @@
  */
 import { existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
+import * as os from 'os';
 import type { TestcaseStatus } from './const';
 
 /**
@@ -55,11 +56,15 @@ export function formatIdentityDisplay(identity?: string): string {
  *
  * @param type     - The resource type (e.g. `'testcase'`).
  * @param identity - The resource identity (e.g. `'testcase/Magento/customer.case.feature.@tc-01'`).
+ * @param provider - Optional provider identifier (e.g. `'github'`, `'gitlab'`, `'local'`).
  * @returns A formatted address like `"github.testcase.customer.case.feature.@tc-01"`.
  */
-export function formatResourceAddress(type?: string, identity?: string): string {
+export function formatResourceAddress(type?: string, identity?: string, provider?: string): string {
     const rawType = type || 'testcase';
-    const formattedType = rawType.includes('_') ? rawType.replace(/_/g, '.') : rawType;
+    let formattedType = rawType.includes('_') ? rawType.replace(/_/g, '.') : rawType;
+    if (provider && !formattedType.startsWith(`${provider}.`)) {
+        formattedType = `${provider}.${formattedType}`;
+    }
     const shortIdentity = formatIdentityDisplay(identity);
     return `${formattedType}.${shortIdentity}`;
 }
@@ -287,6 +292,15 @@ export function calculateRollupVerdict(statuses: string[]): TestcaseStatus {
     if (cleanStatuses.some(s => s === 'skipped')) return 'skipped';
     if (cleanStatuses.every(s => s === 'passed')) return 'passed';
     return 'pending';
+}
+
+/**
+ * Returns user@host in the standard format expected for state lock ownership.
+ */
+export function getSystemUser(): string {
+    const user = process.env.USER || process.env.USERNAME || (typeof os.userInfo === 'function' ? (os.userInfo()?.username || 'unknown') : 'unknown');
+    const host = typeof os.hostname === 'function' ? os.hostname() : '';
+    return host ? `${user}@${host}` : user;
 }
 
 

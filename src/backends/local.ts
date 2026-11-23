@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { FILE_STATE, VERSION_STATE } from '../core/const';
+import { getSystemUser } from '../core/utils';
 
 export class LocalBackend implements IBackend {
     constructor(
@@ -83,19 +84,23 @@ export class LocalBackend implements IBackend {
         await fs.writeFile(path, JSON.stringify(state, null, 2), "utf-8");
     }
 
-    async lock(timeoutRaw: string): Promise<boolean> {
+    async lock(timeoutRaw: string, lockMeta?: { operation?: string; who?: string }): Promise<boolean> {
         const timeoutMatch = timeoutRaw.match(/^(\d+)s$/);
         const timeoutMs = timeoutMatch ? parseInt(timeoutMatch[1], 10) * 1000 : 0;
         const lockFile = this.lockPath();
         const start = Date.now();
+
+        const defaultOp = process.argv[2] ? `OperationType${process.argv[2].charAt(0).toUpperCase() + process.argv[2].slice(1)}` : 'Operation';
+        const operation = lockMeta?.operation || defaultOp;
+        const who = lockMeta?.who || getSystemUser();
 
         while (true) {
             try {
                 // wx flag: open for writing, fails if the file exists
                 await fs.writeFile(lockFile, JSON.stringify({
                     id: randomUUID(),
-                    operation: 'Operation',
-                    who: process.env.USER || 'unknown',
+                    operation,
+                    who,
                     created: new Date().toISOString()
                 }, null, 2), { flag: 'wx' });
                 return true;

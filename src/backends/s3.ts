@@ -5,6 +5,7 @@ import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
 import { loadDriver } from '../core/driver';
+import { getSystemUser } from '../core/utils';
 
 function getAwsS3(): any {
     return loadDriver('@aws-sdk/client-s3');
@@ -122,7 +123,7 @@ export class S3Backend implements IBackend {
         await this.s3.send(command);
     }
 
-    async lock(timeoutRaw: string): Promise<boolean> {
+    async lock(timeoutRaw: string, lockMeta?: { operation?: string; who?: string }): Promise<boolean> {
         if (!this.dynamo || !this.config.dynamodb_table) {
             return true;
         }
@@ -132,13 +133,14 @@ export class S3Backend implements IBackend {
         const timeoutMs = timeoutMatch ? parseInt(timeoutMatch[1], 10) * 1000 : 0;
         const start = Date.now();
         const lockId = randomUUID();
+        const defaultOp = process.argv[2] ? `OperationType${process.argv[2].charAt(0).toUpperCase() + process.argv[2].slice(1)}` : 'Operation';
 
         const item = {
             LockID: { S: this.config.bucket + '/' + this.config.key },
             Info: { S: JSON.stringify({
                 id: lockId,
-                operation: 'Operation',
-                who: process.env.USER || 'unknown',
+                operation: lockMeta?.operation || defaultOp,
+                who: lockMeta?.who || getSystemUser(),
                 created: new Date().toISOString()
             })}
         };

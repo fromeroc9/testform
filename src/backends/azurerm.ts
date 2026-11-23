@@ -4,6 +4,7 @@ import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
 import { loadDriver } from '../core/driver';
+import { getSystemUser } from '../core/utils';
 
 export interface AzureRMBackendConfig {
     resource_group_name: string;
@@ -78,10 +79,11 @@ export class AzureRMBackend implements IBackend {
         await this.blobClient.upload(content, content.length, options);
     }
 
-    async lock(timeoutRaw: string): Promise<boolean> {
+    async lock(timeoutRaw: string, lockMeta?: { operation?: string; who?: string }): Promise<boolean> {
         const timeoutMatch = timeoutRaw.match(/^(\d+)s$/);
         const timeoutMs = timeoutMatch ? parseInt(timeoutMatch[1], 10) * 1000 : 0;
         const start = Date.now();
+        const defaultOp = process.argv[2] ? `OperationType${process.argv[2].charAt(0).toUpperCase() + process.argv[2].slice(1)}` : 'Operation';
 
         // Ensure blob exists before leasing
         const exists = await this.blobClient.exists();
@@ -101,8 +103,8 @@ export class AzureRMBackend implements IBackend {
                 try {
                     await this.blobClient.setMetadata({
                         id: randomUUID(),
-                        operation: 'Operation',
-                        who: process.env.USER || 'unknown',
+                        operation: lockMeta?.operation || defaultOp,
+                        who: lockMeta?.who || getSystemUser(),
                         created: new Date().toISOString()
                     }, { conditions: { leaseId: this.currentLeaseId } });
                 } catch (metaErr: any) {

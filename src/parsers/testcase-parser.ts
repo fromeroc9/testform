@@ -69,8 +69,9 @@ export class TestcaseParser extends BaseParser {
             }
 
             const currentScopeKey = scope || 'testcase';
-            const allowedBgMarks = VALID_SET_MARKS_BY_SCOPE[currentScopeKey]?.background ?? new Set();
-            const allowedScenMarks = VALID_SET_MARKS_BY_SCOPE[currentScopeKey]?.scenario ?? new Set();
+            const isCustomScope = !VALID_SET_MARKS_BY_SCOPE[currentScopeKey];
+            const allowedBgMarks = VALID_SET_MARKS_BY_SCOPE[currentScopeKey]?.background ?? new Set(['duration', 'attach', 'trace', 'status']);
+            const allowedScenMarks = VALID_SET_MARKS_BY_SCOPE[currentScopeKey]?.scenario ?? new Set(['status', 'attach', 'trace', 'duration', 'target', 'error']);
 
             if (s.background) {
                 s.background.steps = s.background.steps.filter((step: any) => {

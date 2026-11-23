@@ -143,6 +143,18 @@ export class GitHubProvider implements IProvider {
             milestone: payload.milestone,
         });
 
+        if (payload.state === 'closed') {
+            try {
+                const closedData = await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${data.number}`, {
+                    state: 'closed',
+                    state_reason: 'completed'
+                });
+                data.state = closedData.state || 'closed';
+            } catch (err: any) {
+                logger.warn(`Failed to auto-close issue #${data.number}: ${err.message}`);
+            }
+        }
+
         return {
             id: data.id,
             number: data.number,
@@ -180,13 +192,24 @@ export class GitHubProvider implements IProvider {
      * Update an existing GitHub Issue.
      */
     async updateIssue(issueNumber: number | string, payload: Partial<IProviderIssuePayload>): Promise<IProviderIssueResult> {
-        const data = await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
+        const patchBody: any = {
             title: payload.title,
             body: payload.body,
             labels: payload.labels,
             assignees: payload.assignees,
             milestone: payload.milestone,
-        });
+        };
+
+        if (payload.state) {
+            patchBody.state = payload.state;
+            if (payload.state === 'closed') {
+                patchBody.state_reason = 'completed';
+            } else if (payload.state === 'open') {
+                patchBody.state_reason = 'reopened';
+            }
+        }
+
+        const data = await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, patchBody);
 
         return {
             id: data.id,

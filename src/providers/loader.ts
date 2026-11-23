@@ -8,6 +8,26 @@ import { loadCustomProvider } from './custom';
 import { Config } from '../core/config';
 import { findProviderEntrypoint } from '../core/provider-installer';
 import { isGitSource } from '../core/module';
+import { registerGitHubResources } from './github/resources';
+import { registerGitLabResources } from './gitlab/resources';
+import { registerLocalResources } from './local/resources';
+
+/**
+ * Activates the specific provider's resource templates into the agnostic Resource engine.
+ */
+export function registerProviderResources(providerType: string = 'github'): void {
+    const type = (providerType || '').toLowerCase();
+    if (type === 'gitlab') {
+        registerGitLabResources();
+    } else if (type === 'local') {
+        registerLocalResources();
+    } else {
+        registerGitHubResources();
+    }
+}
+
+// Initial baseline registration
+registerProviderResources('github');
 
 /**
  * Creates and initializes the active provider instance based on the resolved configuration.
@@ -17,7 +37,9 @@ export async function createProvider(
     dir: string = process.cwd()
 ): Promise<IProvider> {
     const providerType = config.getProviderType();
+    registerProviderResources(providerType);
     const providerProps = config.getProviderConfig(providerType);
+
     const required = config.getRequiredProviders();
     const reqKeys = Object.keys(required);
 
@@ -37,7 +59,7 @@ export async function createProvider(
         const installedDir = resolve(dir, '.testform', 'providers', providerType);
         if (!existsSync(installedDir) && (isGitSource(spec.source) || spec.source.startsWith('@') || spec.source.startsWith('npm::'))) {
             throw new Error(
-                `[Testform Provider Error] Provider "${providerType}" is not installed.\n` +
+                `[Testform Provider] Provider "${providerType}" is not installed.\n` +
                 `This configuration requires provider "${providerType}" (${spec.source}), but it is not installed in .testform/providers/${providerType}.\n\n` +
                 `Please run "testform init" to install required providers.`
             );

@@ -11,6 +11,7 @@ import { OutputResolver } from '../core/outputs';
 import { refreshState } from './refresh';
 import { askApproval } from '../core/prompt';
 import { formatResourceAddress, elapsedSeconds } from '../core/utils';
+import { Config } from '../core/config';
 import { createCommandContext } from '../core/context';
 import { executeInBatches } from '../core/sync';
 import { resolveScopes, assertApprovalAllowed } from '../core/cli';
@@ -62,6 +63,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
     const stateObj = new State(dir, statePath, backupPath);
     await stateObj.init();
     await stateObj.acquireLock(lock, lockTimeout);
+
+    const config = new Config(dir, false);
+    const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : (stateObj.getProvider?.() || 'local');
 
     try {
         let plan: import('../core/types').PlanResult;
@@ -118,7 +122,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             plan = { changes: allChanges, hasChanges: allChanges.length > 0, state: finalState };
 
             // Show plan summary
-            resource.summary(plan.changes, false, { state: plan.state, gherkin });
+            resource.summary(plan.changes, false, { state: plan.state, gherkin, provider: providerType });
 
             if (!plan.hasChanges) {
                 await stateObj.save();
@@ -348,7 +352,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         await executeInBatches(orderedChanges, parallelismNum, async (change) => {
             try {
                     if (change.action === 'add') {
-                        const address = formatResourceAddress(change.resourceType, change.address);
+                        const address = formatResourceAddress(change.resourceType, change.address, change.provider || providerType);
                         console.log(`${address}: Creating...`);
                         const startTime = Date.now();
 
@@ -379,6 +383,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 labels: issueData.labels,
                                 assignees: issueData.assignees,
                                 milestone: issueData.milestone || undefined,
+                                state: result.state || issueData.state || 'open',
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
                                 ...projectData,
@@ -390,7 +395,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         added++;
 
                     } else if (change.action === 'replace') {
-                        const address = formatResourceAddress(change.resourceType, change.address);
+                        const address = formatResourceAddress(change.resourceType, change.address, change.provider || providerType);
                         const remoteId = change.remoteId ?? '';
                         console.log(`${address}: Replacing... [id=${remoteId}]`);
                         const startTime = Date.now();
@@ -455,6 +460,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 labels: issueData.labels,
                                 assignees: issueData.assignees,
                                 milestone: issueData.milestone || undefined,
+                                state: result.state || issueData.state || 'open',
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
                                 ...projectData,
@@ -467,7 +473,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         added++;
 
                     } else if (change.action === 'change') {
-                        const address = formatResourceAddress(change.resourceType, change.address);
+                        const address = formatResourceAddress(change.resourceType, change.address, change.provider || providerType);
                         const remoteId = change.remoteId ?? '';
                         console.log(`${address}: Modifying... [id=${remoteId}]`);
                         const startTime = Date.now();
@@ -498,6 +504,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                 labels: issueData.labels,
                                 assignees: issueData.assignees,
                                 milestone: issueData.milestone || undefined,
+                                state: result.state || issueData.state || 'open',
                                 createdAt: result.created_at,
                                 updatedAt: result.updated_at,
                                 ...projectData,
@@ -509,7 +516,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         changed++;
 
                     } else if (change.action === 'destroy') {
-                        const address = formatResourceAddress(change.resourceType, change.address);
+                        const address = formatResourceAddress(change.resourceType, change.address, change.provider || providerType);
                         const remoteId = change.remoteId ?? '';
                         console.log(`${address}: Destroying... [id=${remoteId}]`);
                         const startTime = Date.now();

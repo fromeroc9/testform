@@ -207,6 +207,7 @@ export interface PlanChange {
     physicalAddress?: string;
     identity?: string;
     resourceType: string;
+    provider?: string;
     scenario: ParserScenario;
     remoteId?: string;
     issueNumber?: number;

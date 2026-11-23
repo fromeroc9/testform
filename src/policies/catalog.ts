@@ -354,7 +354,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
         scope: ["testplan"],
         severity: "error",
         action: (scenarios: ParserScenario[], rules: PolicyRule[], scope: IScope) => {
-            const globalSeen = new Map<string, { uri: string; scenario: string; line: number }[]>();
+            const globalSeen = new Map<string, { uri: string; scenario: string; line: number; rawTr: string }[]>();
 
             for (const scenario of scenarios) {
                 const testruns = scenario.custom?.testruns || [];
@@ -362,14 +362,16 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 const fileDuplicates = new Set<string>();
 
                 for (const tr of testruns) {
-                    if (seenInFile.has(tr)) {
+                    const normTr = tr.trim().replace(/\\/g, '/');
+                    const trKey = normTr.replace(/^(?:\.\/)?(?:testruns|testcycle)\//i, '').replace(/\.[a-zA-Z0-9_-]+\.feature$/i, '').replace(/\.feature$/i, '');
+
+                    if (seenInFile.has(trKey)) {
                         fileDuplicates.add(tr);
                     } else {
-                        seenInFile.add(tr);
+                        seenInFile.add(trKey);
                     }
 
-                    const trKey = tr.trim();
-                    const info = { uri: scenario.uri, scenario: scenario.name, line: scenario.location };
+                    const info = { uri: scenario.uri, scenario: scenario.name, line: scenario.location, rawTr: tr };
                     if (!globalSeen.has(trKey)) {
                         globalSeen.set(trKey, []);
                     }
@@ -389,7 +391,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                 }
             }
 
-            for (const [tr, occurrences] of globalSeen) {
+            for (const [trKey, occurrences] of globalSeen) {
                 if (occurrences.length > 1) {
                     const distinctUris = new Set(occurrences.map(o => o.uri));
                     if (distinctUris.size > 1) {
@@ -398,7 +400,7 @@ export const BUILTIN_POLICIES: PolicyDefinition[] = [
                             rules.push({
                                 id: "duplicate-testruns-across-testplans",
                                 type: 'error',
-                                title: `Testrun "${tr}" is declared in multiple testplans`,
+                                title: `Testrun "${occ.rawTr}" is declared in multiple testplans`,
                                 detail: `This testrun is also declared in: ${otherFiles.join(", ")}. A testrun should only belong to one testplan.`,
                                 uri: occ.uri,
                                 scenario: occ.scenario,

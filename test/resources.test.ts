@@ -1,9 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resource, registerResource } from '../src/core/resources';
+import { registerGitHubResources } from '../src/providers/github/resources';
+import { registerGitLabResources } from '../src/providers/gitlab/resources';
+import { registerLocalResources } from '../src/providers/local/resources';
 import { ParserScenario } from '../src/core/types';
-import { calculateRollupVerdict } from '../src/core/utils';
+import { calculateRollupVerdict, formatResourceAddress } from '../src/core/utils';
 
 describe('Resource Registry and User Overrides', () => {
+    beforeEach(() => {
+        registerGitHubResources();
+    });
+
     it('should allow user to override fields of already declared builtin resources', () => {
         const mockScenario: ParserScenario = {
             uri: 'features/login.case.feature',
@@ -32,21 +39,21 @@ describe('Resource Registry and User Overrides', () => {
             }
         };
 
-        // Before override: evaluate github_testcase
-        const defaultEvaluated = resource.evaluate('github_testcase', mockScenario);
+        // Before override: evaluate testcase
+        const defaultEvaluated = resource.evaluate('testcase', mockScenario);
         expect(defaultEvaluated.title).toBe('Successful User Login');
         expect(defaultEvaluated.milestone).toBe('Sprint 10');
 
         // User overrides the title field
         registerResource({
-            type: 'github_testcase',
+            type: 'testcase',
             fields: [
                 { name: 'title', value: (s) => `[QA-CUSTOM] ${s.name}` }
             ]
         });
 
         // After override: title should be customized, while other fields (milestone, body) are preserved!
-        const customEvaluated = resource.evaluate('github_testcase', mockScenario);
+        const customEvaluated = resource.evaluate('testcase', mockScenario);
         expect(customEvaluated.title).toBe('[QA-CUSTOM] Successful User Login');
         expect(customEvaluated.milestone).toBe('Sprint 10');
         expect(customEvaluated.body).toContain('```gherkin');
@@ -91,7 +98,7 @@ describe('Resource Registry and User Overrides', () => {
             }
         };
 
-        const evaluated = resource.evaluate('github_testrun', mockRunScenario);
+        const evaluated = resource.evaluate('testrun', mockRunScenario);
         expect(evaluated.status).toBe('failed');
         expect(evaluated.testcases).toEqual({
             'cart.case.feature.@tc-01': 'passed',
@@ -110,7 +117,7 @@ describe('Resource Registry and User Overrides', () => {
 
         const mockState = {
             getResources: (type: string) => {
-                if (type === 'github_testrun' || type === 'testrun') {
+                if (type === 'testrun') {
                     return [
                         { identity: 'testruns/run-1.run.feature.@tr-1', attributes: { status: 'passed' } },
                         { identity: 'testruns/run-2.run.feature.@tr-2', attributes: { status: 'failed' } }
@@ -120,7 +127,7 @@ describe('Resource Registry and User Overrides', () => {
             }
         };
 
-        const evaluated = resource.evaluate('github_testplan', mockPlanScenario, { state: mockState });
+        const evaluated = resource.evaluate('testplan', mockPlanScenario, { state: mockState });
         expect(evaluated.status).toBe('failed');
         expect(evaluated.testruns).toEqual({
             'testruns/run-1.run.feature': 'passed',
@@ -266,5 +273,44 @@ describe('Resource Registry and User Overrides', () => {
             context: {}
         });
         expect(subirFotoMock).toHaveBeenCalledWith('pk-025', 'https://img.pokemondb.net/sprites/home/normal/pikachu.png');
+    });
+
+    it('should separate ResourceTemplate cleanly per provider (GitHub, GitLab, Local)', () => {
+        const mockScenario: any = {
+            name: 'Login Test',
+            steps: [{ keyword: 'Given ', text: 'a user' }],
+            tags: ['@auth']
+        };
+
+        // 1. GitHub
+        registerGitHubResources();
+        const ghTestcase = resource.evaluateAttributes('testcase', mockScenario);
+        expect(ghTestcase.title).toBe('Login Test');
+        expect(ghTestcase.body).toContain('```gherkin');
+
+        // 2. GitLab
+        registerGitLabResources();
+        const glTestcase = resource.evaluateAttributes('testcase', mockScenario);
+        expect(glTestcase.title).toBe('Login Test');
+        expect(glTestcase.body).toContain('```gherkin');
+
+        // 3. Local
+        registerLocalResources();
+        const localTestcase = resource.evaluateAttributes('testcase', mockScenario);
+        expect(localTestcase.title).toBe('Login Test');
+        expect(localTestcase.body).toContain('```gherkin');
+    });
+
+    it('should format resource address dynamically with provider prefix adhering to Terraform convention', () => {
+        expect(formatResourceAddress('testcase', 'my_info.case.feature.@tc-01', 'github'))
+            .toBe('github.testcase.my_info.case.feature.@tc-01');
+        expect(formatResourceAddress('testrun', 'checkout.run.feature', 'gitlab'))
+            .toBe('gitlab.testrun.checkout.run.feature');
+        expect(formatResourceAddress('testplan', 'regression.plan.feature.@tp-1', 'local'))
+            .toBe('local.testplan.regression.plan.feature.@tp-1');
+        expect(formatResourceAddress('testcase', 'login.case.feature.@tc-1'))
+            .toBe('testcase.login.case.feature.@tc-1');
+        expect(formatResourceAddress('github_testcase', 'login.case.feature.@tc-1', 'github'))
+            .toBe('github.testcase.login.case.feature.@tc-1');
     });
 });

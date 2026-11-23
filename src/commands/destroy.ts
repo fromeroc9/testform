@@ -13,6 +13,7 @@ import { TITLE_APP, SCOPE_RESOURCE_MAP } from '../core/const';
 import { createCommandContext } from '../core/context';
 import { askDestroyApproval } from '../core/prompt';
 import { elapsedSeconds, formatResourceAddress } from '../core/utils';
+import { Config } from '../core/config';
 import { matchesTarget } from '../core/selector';
 import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
@@ -72,6 +73,9 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
         assertApprovalAllowed(autoApprove, input);
 
+        const config = new Config(dir, false);
+        const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : (stateObj.getProvider?.() || 'local');
+
         const lifecycleResolver = new LifecycleResolver(dir);
         const protectedResources = allResources.filter(res => {
             const lc = lifecycleResolver.getLifecycle(res.address, res.attributes.labels || []);
@@ -80,7 +84,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
         if (protectedResources.length > 0) {
             const details = protectedResources.map(r => 
-                `Resource ${formatResourceAddress(r.type, r.address)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
+                `Resource ${formatResourceAddress(r.type, r.address, (r as any).provider || providerType)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
             );
             notify.push({
                 type: 'error',
@@ -111,7 +115,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log(bold(`\n${TITLE_APP} will destroy the following resources in scope '${s}':\n`));
             for (const res of resources) {
                 const remoteId = res.attributes.remoteId ?? '';
-                console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.address)} [id=${remoteId}]`);
+                console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.address, (res as any).provider || providerType)} [id=${remoteId}]`);
             }
             console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
 
@@ -134,7 +138,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             const github = (ctx.adapter || (ctx as any).github);
             
             for (const res of resources) {
-                const address = formatResourceAddress(res.type, res.address);
+                const address = formatResourceAddress(res.type, res.address, (res as any).provider || providerType);
                 const remoteId = res.attributes.remoteId ?? '';
                 console.log(`${address}: Destroying... [id=${remoteId}]`);
 

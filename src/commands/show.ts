@@ -5,6 +5,7 @@ import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { TITLE_APP } from '../core/const';
 import { resource } from '../core/resources';
+import { Config } from '../core/config';
 
 interface ShowCmdOptions {
     path?: string;
@@ -51,7 +52,9 @@ export const showCmd = async (options: ShowCmdOptions = {}) => {
                 } catch {
                     // ignore state init errors when displaying plan
                 }
-                resource.summary(changes, true, { state, gherkin });
+                const config = new Config(dir, false);
+                const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : (state.getProvider?.() || 'local');
+                resource.summary(changes, true, { state, gherkin, provider: providerType });
                 return;
             }
         } catch (err: any) {

@@ -100,7 +100,7 @@ describe('Command refreshCmd', () => {
         expect(logs).toContain('1 resource(s) refreshed');
     });
 
-    it('should remove a resource if issue is closed', async () => {
+    it('should retain a resource if issue is closed and sync its state', async () => {
         writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', provider: { github: {} } }));
 
         const mockResource = {
@@ -108,7 +108,55 @@ describe('Command refreshCmd', () => {
             address: 'tc2',
             attributes: {
                 title: 'Some Title',
-                issueNumber: 124
+                issueNumber: 124,
+                state: 'open'
+            }
+        };
+
+        const mockRemoveResource = vi.fn();
+        const mockUpsertResource = vi.fn();
+        const mockSave = vi.fn();
+
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn().mockReturnValue([mockResource]),
+                removeResource: mockRemoveResource,
+                upsertResource: mockUpsertResource,
+                save: mockSave
+            };
+        });
+
+        (GitHubAdapter as any).mockImplementation(function() {
+            return {
+                getIssue: vi.fn<any>().mockResolvedValue({
+                    title: 'Some Title',
+                    state: 'closed'
+                })
+            };
+        });
+
+        await refreshCmd({ dir: tmpDir, target: 'testcase' });
+
+        expect(mockRemoveResource).not.toHaveBeenCalled();
+        expect(mockResource.attributes.state).toBe('closed');
+        expect(mockSave).toHaveBeenCalled();
+        expect(mockLog).toHaveBeenCalled();
+        const logs = mockLog.mock.calls.join(' ');
+        expect(logs).toContain('1 resource(s) refreshed');
+    });
+
+    it('should remove a resource if its remote status is deleted', async () => {
+        writeFileSync(join(tmpDir, 'testform.yml'), JSON.stringify({ version: '1.0', provider: { github: {} } }));
+
+        const mockResource = {
+            type: 'github_testcase',
+            address: 'tc-del',
+            attributes: {
+                title: 'Deleted Title',
+                issueNumber: 999
             }
         };
 
@@ -129,19 +177,18 @@ describe('Command refreshCmd', () => {
         (GitHubAdapter as any).mockImplementation(function() {
             return {
                 getIssue: vi.fn<any>().mockResolvedValue({
-                    title: 'Some Title',
-                    state: 'closed'
+                    title: 'Deleted Title',
+                    status: 'deleted'
                 })
             };
         });
 
         await refreshCmd({ dir: tmpDir, target: 'testcase' });
 
-        expect(mockRemoveResource).toHaveBeenCalledWith('tc2');
+        expect(mockRemoveResource).toHaveBeenCalledWith('tc-del');
         expect(mockSave).toHaveBeenCalled();
-        expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');
-        expect(logs).toContain('Issue #124 is closed');
+        expect(logs).toContain('was deleted remotely');
         expect(logs).toContain('1 removed');
     });
 

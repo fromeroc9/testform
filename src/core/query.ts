@@ -136,13 +136,9 @@ export class StateQuery {
                 this.allResources = st.resources;
             } else if (typeof this.stateObj.getResources === 'function') {
                 const list = [
-                    ...(this.stateObj.getResources('github_testcase') || []),
                     ...(this.stateObj.getResources('testcase') || []),
-                    ...(this.stateObj.getResources('github_testrun') || []),
                     ...(this.stateObj.getResources('testrun') || []),
-                    ...(this.stateObj.getResources('github_testplan') || []),
                     ...(this.stateObj.getResources('testplan') || []),
-                    ...(this.stateObj.getResources('github_bug') || []),
                     ...(this.stateObj.getResources('bug') || []),
                     ...(this.stateObj.getResources() || [])
                 ];

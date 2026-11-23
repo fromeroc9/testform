@@ -17,7 +17,7 @@ import { Config } from '../core/config';
 import { WorkspaceManager } from '../core/workspace';
 import { StateLockError } from '../core/errors';
 import { detectScopeFromTarget, findResourceInState } from '../core/selector';
-import { normalizeAddress } from '../core/utils';
+import { normalizeAddress, getSystemUser } from '../core/utils';
 
 export function parseBackendOverrides(raw: string | string[], baseDir: string = '.'): Record<string, string> {
     const overrides: Record<string, string> = {};
@@ -183,19 +183,22 @@ export class State {
         };
     }
 
-    async acquireLock(enabled: boolean, timeoutRaw: string): Promise<void> {
+    async acquireLock(enabled: boolean, timeoutRaw: string, operation?: string): Promise<void> {
         if (!enabled) return;
 
-        const success = await this.backend.lock(timeoutRaw);
+        const defaultOp = process.argv[2] ? `OperationType${process.argv[2].charAt(0).toUpperCase() + process.argv[2].slice(1)}` : 'Operation';
+        const op = operation ? (operation.startsWith('Operation') ? operation : `OperationType${operation.charAt(0).toUpperCase() + operation.slice(1)}`) : defaultOp;
+
+        const success = await (this.backend as any).lock(timeoutRaw, { operation: op, who: getSystemUser() });
         if (!success) {
             let lockInfoStr = '';
             try {
                 const info = typeof (this.backend as any).getLockInfo === 'function' ? await (this.backend as any).getLockInfo() : null;
                 if (info && info.id) {
-                    lockInfoStr = `\n\nLock Info:\n  ID:        ${info.id}\n  Path:      ${this.customStatePath || FILE_STATE}\n  Operation: ${info.operation || 'Operation'}\n  Who:       ${info.who || 'unknown'}\n  Created:   ${info.created || ''}`;
+                    lockInfoStr = `\n\nLock Info:\n  ID:        ${info.id}\n  Path:      ${this.customStatePath || FILE_STATE}\n  Operation: ${info.operation || op}\n  Who:       ${info.who || getSystemUser()}\n  Created:   ${info.created || ''}`;
                 }
             } catch {}
-            throw new StateLockError(`Error acquiring the state lock\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.${lockInfoStr}`);
+            throw new StateLockError(`Unable to acquire the state lock\n\nTestform acquires a state lock to protect the state from being written\nby multiple users at the same time. Please resolve the issue above and try\nagain. For most commands, you can disable locking with the "-lock=false"\nflag, but this is not recommended.${lockInfoStr}`);
         }
 
         this.lockAcquired = true;
@@ -258,6 +261,10 @@ export class State {
      */
     getState(): Readonly<IState> {
         return this.state;
+    }
+
+    getProvider(): string | undefined {
+        return this.state?.provider;
     }
 
     /**

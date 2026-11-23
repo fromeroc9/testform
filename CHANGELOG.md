@@ -5,7 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.9] - 2026-11-22
+## [1.1.0-beta.9] - 2026-11-23
+
+### Added
+
+- **Provider-Specific ResourceTemplate Decoupling (`src/providers/*`):**
+  - Completely separated and modularized `ResourceTemplate` definitions per provider into dedicated modules:
+    - GitHub Provider: `src/providers/github/resources.ts`
+    - GitLab Provider: `src/providers/gitlab/resources.ts` & `src/providers/gitlab/templates.ts`
+    - Local Provider: `src/providers/local/resources.ts` & `src/providers/local/templates.ts`
+  - Completely purged provider imports from `src/core/resources.ts`, making the Core Resource Engine 100% agnostic.
+  - Added `registerProviderResources(providerType)` in `src/providers/loader.ts` to dynamically register the active provider's templates upon initialization in `plan` and `apply`.
+- **Dynamic Active Provider Prefix in Resource Addresses (`src/core/utils.ts`, `src/core/resources.ts`, `src/commands/*.ts`):**
+  - Restored the active provider prefix in plan/apply/refresh headers and execution logs following Terraform convention (`# <provider>.<resource_type>.<name> will be created/updated/destroyed`).
+  - Example: `# github.testcase.my_info.case.feature.@tc-01 will be created`, while the resource block remains 100% agnostic: `+ resource "testcase" "my_info.case.feature.@tc-01" { ... }`.
+  - Dynamically formats address with the active provider (`github`, `gitlab`, `local`) across `plan`, `apply`, `refresh`, `destroy`, and `show`.
+- **Complete Deprecation and Removal of Legacy Prefixes (`github_*`):**
+  - Fully removed legacy backward-compatibility prefixes (`github_testcase`, `github_testrun`, `github_testplan`, `github_bug`) across Core, State, Query, and Providers.
+  - Standardized all operations exclusively on pure, agnostic domain resource types: `testcase`, `testrun`, `testplan`, and `bug`.
+
+- **Visual Execution Verdict Banners in Issue Descriptions (`src/providers/github/templates.ts`):**
+  - Embeds GFM Markdown banners at the top of `testrun` and `testplan` issue descriptions:
+    `> ### 🟢 PASSED • Execution Verdict`
+    `> Passed: X | Failed: Y | Blocked: Z | Skipped: W | Pending: K | Total: N`
+  - Checklist items now render the individual testcase/testrun status and task checkbox (`- [x] #123 - **passed**`, `- [ ] #124 - **failed**`).
+- **Native Issue Lifecycle Auto-Close on Passed Verdicts (`src/providers/github/client.ts`, `src/commands/apply.ts`):**
+  - Automatically marks GitHub issues as `state: 'closed'` with `state_reason: 'completed'` when a `testrun` or `testplan` rollup verdict evaluates to `passed`.
+  - Reopens or maintains issues as `state: 'open'` (with `state_reason: 'reopened'`) when any failure, blocker, or pending test remains.
+  - Retains closed issues in `testform.state` during `refresh` without purging, ensuring continuous state synchronization.
+- **Unrestricted Execution Marks for Custom Scopes (`src/parsers/testcase-parser.ts`):**
+  - Custom resources defined outside built-in scopes (`isCustomScope`) can now use standard execution marks (`* set status = ...`, `* set duration = ...`, `* set attach = ...`, `* set trace = ...`) without triggering `invalid-set-mark` policy violations.
+- **Universal Scenario Access Helpers (`src/core/resources.ts`):**
+  - Added and exported `getScenarioValue(s, name)`, `getScenarioStatus(s)`, `getScenarioTrace(s)`, and `getScenarioEvidence(s)` to seamlessly extract execution marks and declared fields across both built-in and user-defined custom resources.
+
+### Fixed
+
+- **Dynamic Project Status Synchronization — Elimination of Hardcoded 'Status' (`src/core/resources.ts`):**
+  - Replaced hardcoded `customFields['Status'] = rollupStatus` with dynamic field key discovery.
+  - If and only if the user explicitly configured a status column in `main.yml` (e.g. `Status` or `status`), Testform synchronizes it with the calculated rollup verdict using the exact casing declared by the user. If unconfigured, no synthetic field is injected into `custom_fields`.
+- **Strict Distinction between `status` and `Status` (`src/core/resources.ts`):**
+  - `extractCustomFields` now uses exact-case key matching so excluding lowercase `'status'` (internal execution verdict) never strips or mutates a user-declared `'Status'` (project board column).
+  - `getScenarioValue` strictly prioritizes exact-key lookups before falling back to case-insensitive matching.
+- **State Lock Diagnostic Formatting & System User Resolution (`src/core/utils.ts`, `src/core/logger.ts`, `src/core/state.ts`, `src/backends/*.ts`):**
+  - Replaced hardcoded `Who: unknown` with cross-platform `getSystemUser()` returning `username@hostname` on Windows, macOS, and Linux.
+  - Replaced hardcoded `Operation: Operation` with dynamic operation type inference (`OperationTypePlan`, `OperationTypeApply`).
+  - Stripped duplicate `Error:` prefixes in diagnostic banner titles.
+
+### Fixed
+
+- **Namespace-Aware Testcase Specificity in Testrun Matching (`src/providers/github/templates.ts`):**
+  - Resolved an overmatching bug where rules with qualified paths or namespaces (e.g. `Rule: Magento/cart.case.feature` alongside `OpenCart/cart.case.feature` and `SauceDemo/cart.case.feature`) caused false-positive ambiguity errors (`Multiple testcases found for rule...`).
+  - Implemented hierarchical specificity: when a rule contains a directory path or namespace (`Magento/cart` or `magento.cart`), matching is restricted exclusively to resources in that namespace/directory, completely preventing bare `ruleBaseName` fallback from cross-pollinating testcases across disparate projects.
+- **Early Attribute & Reference Validation in `testform plan` (`src/commands/plan.ts`):**
+  - Added proactive attribute evaluation and reference resolution checks during the planning phase. Any template error, reference ambiguity, or missing dependency is now caught and reported upfront in `testform plan` before requesting user confirmation, eliminating runtime interruptions during `testform apply`.
 
 ### Added
 

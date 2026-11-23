@@ -16,6 +16,8 @@ import { join } from 'path';
 import { matchesScope, matchesTarget, computeResourceIdentity, detectCollidingBasenames } from '../core/selector';
 import { resolveScopes } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
+import { registerProviderResources } from '../providers/loader';
+
 
 /**
  * Calculate the hash for a scenario (used for idempotency).
@@ -109,7 +111,10 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         compactWarnings,
         testDirectory
     } = options;
-    const config = new Config(dir);
+    const config = new Config(dir, false);
+    const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : 'local';
+    registerProviderResources(providerType);
+
 
     if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scope)) {
         throw new Error(`Invalid scope: ${scope}`);
@@ -220,6 +225,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 namespace,
                 physicalAddress,
                 resourceType: RESOURCE_TYPE,
+                provider: providerType,
                 scenario,
                 localHash,
             });
@@ -233,6 +239,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 namespace,
                 physicalAddress,
                 resourceType: RESOURCE_TYPE,
+                provider: providerType,
                 scenario,
                 remoteId: existing.attributes.remoteId,
                 issueNumber: existing.attributes.issueNumber,
@@ -257,6 +264,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 namespace,
                 physicalAddress,
                 resourceType: RESOURCE_TYPE,
+                provider: providerType,
                 scenario,
                 remoteId: existing.attributes.remoteId,
                 issueNumber: existing.attributes.issueNumber,
@@ -296,7 +304,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                     type: 'error',
                     title: 'Instance cannot be destroyed',
                     detail: [
-                        `Resource ${formatResourceAddress(res.type, resAddr)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
+                        `Resource ${formatResourceAddress(res.type, resAddr, (res as any).provider || providerType)} has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and continue with the plan, either disable lifecycle.prevent_destroy or target other resources.`
                     ],
                     close: true
                 });
@@ -312,6 +320,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 namespace: res.namespace,
                 physicalAddress: res.physicalAddress,
                 resourceType: RESOURCE_TYPE,
+                provider: (res as any).provider || providerType,
                 scenario: (scope === 'testrun' || scope === 'testplan') ? {
                     uri: res.path || '(state)',
                     feature: { tags: [], keyword: '', name: res.attributes.title, description: '', location: 0 },
@@ -434,6 +443,9 @@ export const planCmd = async (options: PlanCmdOptions): Promise<PlanResult> => {
     await stateObj.init();
     await stateObj.acquireLock(lock, lockTimeout);
 
+    const config = new Config(dir, false);
+    const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : 'local';
+
     let plan: PlanResult = { changes: [], hasChanges: false, state: stateObj };
     try {
         const effectiveTarget = target || (options as any).scope;
@@ -468,6 +480,18 @@ export const planCmd = async (options: PlanCmdOptions): Promise<PlanResult> => {
         plan.changes = allChanges;
         plan.hasChanges = allChanges.length > 0;
 
+        // Pre-validate planned resource attributes and reference integrity early during plan
+        for (const change of allChanges) {
+            if (change.action === 'add' || change.action === 'change' || change.action === 'replace') {
+                try {
+                    resource.evaluateAttributes(change.resourceType, change.scenario, { state: plan.state, testDirectory: dir });
+                } catch (err: any) {
+                    const addr = formatResourceAddress(change.resourceType, change.address, change.provider || providerType);
+                    throw new Error(`Invalid plan for ${addr}: ${err.message}`);
+                }
+            }
+        }
+
         if (isJson) {
             const planData = {
                 format_version: '1.0',
@@ -476,7 +500,7 @@ export const planCmd = async (options: PlanCmdOptions): Promise<PlanResult> => {
             };
             console.log(JSON.stringify(planData, null, 2));
         } else {
-            resource.summary(plan.changes, true, { state: plan.state, outPath, gherkin });
+            resource.summary(plan.changes, true, { state: plan.state, outPath, gherkin, provider: providerType });
         }
     } finally {
         await stateObj.releaseLock();

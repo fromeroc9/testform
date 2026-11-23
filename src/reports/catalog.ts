@@ -6,7 +6,7 @@ function resolveItemUrl(d: QueryResultItem): string | undefined {
     const attrs = (d.originalResource?.attributes || {}) as Record<string, any>;
     if (attrs.html_url) return String(attrs.html_url);
     if (attrs.url) return String(attrs.url);
-    if (d.issueNumber && d.type.includes('github')) {
+    if (d.issueNumber && !attrs.remoteId?.startsWith('local:') && !d.id?.startsWith('local:') && !d.id?.startsWith('sim:')) {
         return `https://github.com/issues/${d.issueNumber}`;
     }
     return undefined;

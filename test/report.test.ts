@@ -33,12 +33,12 @@ describe('Command reportCmd', () => {
     const mockTestCases = [
         {
             identity: 'tc1',
-            type: 'github_testcase',
+            type: 'testcase',
             attributes: { title: 'Test 1', issueNumber: 1, labels: ['@sprint-1'], assignees: ['user1'], milestone: 'v1.0' }
         },
         {
             identity: 'tc2',
-            type: 'github_testcase',
+            type: 'testcase',
             attributes: { title: 'Test 2', issueNumber: 2, labels: ['@sprint-2'], assignees: ['user2'], milestone: 'v1.0', custom_fields: { priority: 'high' } }
         }
     ];
@@ -46,7 +46,7 @@ describe('Command reportCmd', () => {
     const mockTestRuns = [
         {
             identity: 'tr1',
-            type: 'github_testrun',
+            type: 'testrun',
             attributes: { testcaseStatuses: { 'tc1': 'passed', 'tc2': 'failed' } }
         }
     ];
@@ -56,8 +56,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -78,8 +78,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -97,8 +97,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -117,8 +117,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -137,8 +137,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -156,8 +156,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -176,8 +176,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -196,8 +196,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -216,8 +216,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -236,8 +236,8 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return mockTestCases;
-                    if (type === 'github_testrun') return mockTestRuns;
+                    if (type === 'testcase') return mockTestCases;
+                    if (type === 'testrun') return mockTestRuns;
                     return [];
                 }
             };
@@ -256,7 +256,7 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return [
+                    if (type === 'testcase') return [
                         { identity: 'tc1', type: 'testcase', attributes: { title: 'T1', status: 'passed', custom_fields: { squad: 'Checkout', priority: 'high' } } },
                         { identity: 'tc2', type: 'testcase', attributes: { title: 'T2', status: 'failed', custom_fields: { squad: 'Checkout', priority: 'low' } } },
                         { identity: 'tc3', type: 'testcase', attributes: { title: 'T3', status: 'passed', custom_fields: { squad: 'Auth', priority: 'medium' } } }
@@ -281,7 +281,7 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return [
+                    if (type === 'testcase') return [
                         { identity: 'tc1', type: 'testcase', attributes: { title: 'T1', status: 'passed', custom_fields: { module: 'cart', automate: 'yes' } } },
                         { identity: 'tc2', type: 'testcase', attributes: { title: 'T2', status: 'failed', custom_fields: { module: 'cart', automate: 'no' } } }
                     ];
@@ -304,11 +304,11 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return [
+                    if (type === 'testcase') return [
                         { identity: 'tc1', type: 'testcase', attributes: { title: 'T1', status: 'passed', custom_fields: { module: 'cart' } } },
                         { identity: 'tc2', type: 'testcase', attributes: { title: 'T2', status: 'unexecuted', custom_fields: { module: 'cart' } } }
                     ];
-                    if (type === 'github_testrun') return [
+                    if (type === 'testrun') return [
                         { identity: 'tr1', type: 'testrun', attributes: { testcases: { tc1: 'passed' } } }
                     ];
                     return [];
@@ -329,10 +329,10 @@ describe('Command reportCmd', () => {
             return {
                 init: vi.fn<any>().mockResolvedValue(undefined),
                 getResources: (type: string) => {
-                    if (type === 'github_testcase') return [
+                    if (type === 'testcase') return [
                         { identity: 'auth/login.case.feature.@tc-01', type: 'testcase', attributes: { title: 'Login with valid credentials', status: 'passed' } }
                     ];
-                    if (type === 'github_testrun') return [
+                    if (type === 'testrun') return [
                         { identity: 'tr-1', type: 'testrun', attributes: { testcases: { 'auth/login.case.feature.@tc-01': 'passed' } } }
                     ];
                     return [];

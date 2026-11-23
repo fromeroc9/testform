@@ -228,3 +228,7 @@ export class GitLabProvider implements IProvider {
 /** Backward-compatibility alias */
 export const GitLabAdapter = GitLabProvider;
 export type GitLabAdapter = GitLabProvider;
+
+export * from './templates';
+export * from './resources';
+

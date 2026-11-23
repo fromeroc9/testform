@@ -26,6 +26,11 @@ Testform is a declarative Test-as-Code orchestration engine modeled after Terraf
 | **`testplan`** | `@testplan` | `*.plan.feature` | **Feature** (`@tp-01`, `@tp-02`) | Structured with `Rule:` blocks grouping suites. |
 | **`bug`** | `@bug` | `*.bug.feature` | **Scenario** (`@bg-01`, `@bg-02`) | `* set target = <testcase.id>` and reproduction steps. |
 
+### 🌐 Terraform-Compliant Resource Addressing & Agnostic Architecture
+* **Plan & Apply Comment Headers**: Resources are addressed following the Terraform convention: `# <provider>.<resource_type>.<address>` (e.g. `# github.testcase.auth.case.feature.@tc-01 will be created`).
+* **Agnostic Resource Blocks**: The resource declaration itself is 100% provider-agnostic (`resource "testcase" "..." { ... }`).
+* **Provider Decoupling**: Each provider (`github`, `gitlab`, `local`) registers its own templates in `src/providers/<provider>/`, ensuring zero vendor lock-in in Core.
+
 ---
 
 ## 🔒 Strict Syntax & Placement Contracts
@@ -35,13 +40,15 @@ Testform is a declarative Test-as-Code orchestration engine modeled after Terraf
 * **Feature Tags Restriction**: Arbitrary tags are **strictly forbidden** on the `Feature:` line. Only `@testcase` and `@ns(namespace)` are permitted at the feature level. All functional tags (e.g. `@smoke`, `@regression`, `@auth`) MUST be placed on individual `Scenario:` lines.
 * **Identity Tags**: Every scenario MUST have a sequential identity tag matching `@tc-*` (e.g. `@tc-01`, `@tc-02`).
 * **Steps**: Every scenario MUST contain at least one `Given`, `When`, and `Then` step.
+* **No `* set` marks**: Testcases are immutable definitions. All `* set` statements are prohibited; contract metadata fields use `* field <name> = <val>`.
 
 ```gherkin
 @testcase
 Feature: User Authentication
 
   Background:
-    * set attach = "attachments/wireframe_login.png"
+    * field story = "PROJ-101"
+    * field wireframe = "attachments/wireframe_login.png"
 
   @tc-01 @smoke
   Scenario: Successful login with valid credentials
@@ -97,8 +104,8 @@ Feature: Regression Sprint 24
 Feature: Release 1.4.0 Test Plan
 
   Background:
-    * set release = "1.4.0"
-    * set targetDate = "2026-12-01"
+    * field release = "1.4.0"
+    * field targetDate = "2026-12-01"
     * set attach = "attachments/release_criteria.pdf"
 
   Rule: Smoke & Critical Path
@@ -124,29 +131,34 @@ Feature: Release 1.4.0 Test Plan
 @bug
 Feature: Authentication Failures
 
-  @bg-01
-  Scenario: 504 Gateway Timeout during password recovery
-    * set target = tests/auth.case.feature.@tc-02
-    * set severity = high
-    * set status = open
-    * set attach = "attachments/bugs/timeout_trace.log"
-    Given the user requests a password reset token
-    When the backend identity provider stalls for 30s
-    Then the application displays a 504 error instead of fallback
+  Background:
+    * set run = testruns/auth-regression.run.feature
+
+  Rule: tests/auth.case.feature
+    @bg-01 @depends_on(@tc-02)
+    Scenario: 504 Gateway Timeout during password recovery
+      * field severity = high
+      * set status = open
+      * set attach = "attachments/bugs/timeout_trace.log"
+      * set trace = "Error: Gateway Timeout (HTTP 504)"
+      Given the user requests a password reset token
+      When the backend identity provider stalls for 30s
+      Then the application displays a 504 error instead of fallback
 ```
 
 ---
 
 ## 📎 Attachment & Evidence Governance Matrix
 
-Follow these strict placement rules for `* set attach = "..."` / `* set evidence = "..."`:
+Follow these strict placement rules for execution marks `* set attach = "..."` and contract fields `* field attach = "..."`:
 
 | Resource Scope | `Background:` Allowed? | `Scenario:` Allowed? | Governance Notes |
 |---|:---:|:---:|---|
-| **`testcase`** | ✅ **YES** | ✅ **YES** | Background for story wireframes/PRDs; Scenario for case mockups. |
-| **`testrun`** | ✅ **YES** | ✅ **YES** | Background for environment logs; Scenario for execution screenshots. |
-| **`testplan`** | ✅ **YES** | ❌ **FORBIDDEN** | **Only permitted in Background**. Emits warning diagnostic if placed in Scenario. |
-| **`bug`** | ❌ **FORBIDDEN** | ✅ **YES** | **Strictly forbidden in Background**. Defect evidence must be tied to specific bug scenarios. |
+| **`testcase`** | ✅ `* field` | ✅ `* field` | Use `* field attach = "..."` (contract metadata). All `* set` statements are prohibited in testcase. |
+| **`testrun`** | ✅ `* set` | ✅ `* set` | Background for environment logs; Scenario for execution screenshots. |
+| **`testplan`** | ✅ `* set` | ❌ **FORBIDDEN** | **Only permitted in Background**. Emits warning diagnostic if placed in Scenario. |
+| **`bug`** | ❌ **FORBIDDEN** | ✅ `* set` | **Strictly forbidden in Background**. Defect evidence must be tied to specific bug scenarios. |
+
 
 ---
 

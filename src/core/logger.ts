@@ -123,7 +123,11 @@ export class Logger {
         const prefix = bold(red('Error:'));
 
         const lines = msgStr.split('\n');
-        this.print(`${red('│')} ${prefix} ${bold(lines[0])}`, true);
+        let firstLine = lines[0];
+        if (/^Error:\s*/i.test(firstLine)) {
+            firstLine = firstLine.replace(/^Error:\s*/i, '');
+        }
+        this.print(`${red('│')} ${prefix} ${bold(firstLine)}`, true);
         for (let i = 1; i < lines.length; i++) {
             this.print(`${red('│')} ${lines[i]}`, true);
         }

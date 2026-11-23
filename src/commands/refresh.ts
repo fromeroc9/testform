@@ -76,6 +76,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     const config = new Config(dir);
     const adapterType = config.getAdapterType();
+    const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : adapterType;
     let github: IProviderAdapter;
 
     if (adapterType === 'local') {
@@ -104,7 +105,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     await executeInBatches(resources, parallelism, async (res) => {
         const remoteId = res.attributes.remoteId ?? '';
-        if (!silent) console.log(`${formatResourceAddress(res.type, res.address)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
+        if (!silent) console.log(`${formatResourceAddress(res.type, res.address, (res as any).provider || providerType)}: Refreshing state... ${dim(`[id=${remoteId}]`)}`);
 
         try {
             const targetId = res.attributes.issueNumber || res.attributes.remoteId;
@@ -130,14 +131,17 @@ export const refreshState = async (options: RefreshStateOptions) => {
             }
 
             if (!issue) {
-                if (!silent) console.log(red(`  ${res.address || (res as any).identity}: Issue #${targetId} not found — removing from state`));
+                if (!silent) console.log(red(`  ${res.address || (res as any).identity}: Resource #${targetId} not found remotely — removing from state`));
                 state.removeResource(res.address || (res as any).identity);
                 removed++;
-            } else if (issue.state === 'closed' || issue.status === 'deleted') {
-                if (!silent) console.log(yellow(`  ${res.address || (res as any).identity}: Issue #${targetId} is closed — removing from state`));
+            } else if (issue.status === 'deleted') {
+                if (!silent) console.log(yellow(`  ${res.address || (res as any).identity}: Resource #${targetId} was deleted remotely — removing from state`));
                 state.removeResource(res.address || (res as any).identity);
                 removed++;
             } else {
+                if (issue.state && res.attributes.state !== issue.state) {
+                    res.attributes.state = issue.state;
+                }
                 const remoteCustomFields = (issue.node_id && (github as any).getProjectItemFields)
                     ? await (github as any).getProjectItemFields(issue.node_id)
                     : undefined;

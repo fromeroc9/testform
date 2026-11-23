@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
+import { getSystemUser } from '../core/utils';
 
 export interface GitHubBackendConfig {
     owner?: string;
@@ -183,19 +184,20 @@ export class GitHubBackend implements IBackend {
         this.currentSha = result.content?.sha;
     }
 
-    async lock(timeoutRaw: string): Promise<boolean> {
+    async lock(timeoutRaw: string, lockMeta?: { operation?: string; who?: string }): Promise<boolean> {
         const timeoutMatch = timeoutRaw.match(/^(\d+)s$/);
         const timeoutMs = timeoutMatch ? parseInt(timeoutMatch[1], 10) * 1000 : 0;
         const start = Date.now();
         const lockId = randomUUID();
 
+        const defaultOp = process.argv[2] ? `OperationType${process.argv[2].charAt(0).toUpperCase() + process.argv[2].slice(1)}` : 'Operation';
         await this.ensureBranchExists();
 
         while (true) {
             const lockPayload = {
                 id: lockId,
-                operation: 'Operation',
-                who: process.env.USER || process.env.USERNAME || 'unknown',
+                operation: lockMeta?.operation || defaultOp,
+                who: lockMeta?.who || getSystemUser(),
                 created: new Date().toISOString()
             };
 

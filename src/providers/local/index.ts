@@ -290,3 +290,7 @@ export class LocalProvider implements IProvider {
 /** Backward-compatibility alias */
 export const LocalAdapter = LocalProvider;
 export type LocalAdapter = LocalProvider;
+
+export * from './templates';
+export * from './resources';
+
