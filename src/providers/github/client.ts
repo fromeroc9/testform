@@ -527,7 +527,17 @@ export class GitHubProvider implements IProvider {
             } else if (field.dataType === 'SINGLE_SELECT' && field.options) {
                 if (typeof val === 'string') {
                     const cleanVal = val.startsWith('@') ? val.substring(1) : val;
-                    const opt = field.options.find((o: any) => o.name.toLowerCase() === cleanVal.toLowerCase());
+                    const valLower = cleanVal.toLowerCase();
+                    // 1. Direct match (e.g. "pending" matches "Pending", "failed" matches "Failed")
+                    let opt = field.options.find((o: any) => o.name && o.name.toLowerCase() === valLower);
+                    // 2. Intelligent semantic fallback for QA status options
+                    if (!opt) {
+                        if (valLower === 'passed') {
+                            opt = field.options.find((o: any) => ['done', 'completed', 'resolved', 'closed'].includes(o.name?.toLowerCase()));
+                        } else if (valLower === 'ambiguous' || valLower === 'blocked' || valLower === 'undefined') {
+                            opt = field.options.find((o: any) => ['pending', 'failed', 'todo', 'in progress'].includes(o.name?.toLowerCase()));
+                        }
+                    }
                     if (opt) {
                         fieldValue = { singleSelectOptionId: opt.id };
                     } else {

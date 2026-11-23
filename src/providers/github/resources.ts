@@ -46,6 +46,12 @@ export const githubTestrunTemplate: ResourceTemplate = {
         const rollupStatus = calculateRollupVerdict(statuses);
         const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
 
+        // Sincroniza el campo Status de GitHub Projects con el veredicto del testrun
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            customFields[statusFieldKey] = rollupStatus;
+        }
+
         return {
             title: s.feature?.name || '',
             body: buildGitHubTestrunBody(s, context),
@@ -84,6 +90,11 @@ export const githubTestplanTemplate: ResourceTemplate = {
         const rollupStatus = calculatePlanRollup(s, context);
         const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
 
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            customFields[statusFieldKey] = rollupStatus;
+        }
+
         return {
             title: s.feature?.name || '',
             body: buildGitHubTestplanBody(s, context),
@@ -110,6 +121,11 @@ export const githubBugTemplate: ResourceTemplate = {
         const customFields = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'status', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
+
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            customFields[statusFieldKey] = bugStatus;
+        }
 
         return {
             title: s.name || s.feature?.name || '',
