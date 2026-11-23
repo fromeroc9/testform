@@ -219,6 +219,8 @@ resource:
                 issueNumber: 10,
                 remoteId: 'local:10',
                 title: 'Login scenario',
+                body: "```gherkin\nGiven que estoy en la pagina de login\nWhen ingreso mis credenciales\nThen veo el dashboard\n```",
+                state: 'open',
                 labels: ['smoke']
             },
             lastApplied: new Date().toISOString()

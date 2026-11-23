@@ -246,31 +246,33 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 localHash,
                 oldAttributes: existing.attributes,
             });
-        } else if (existing.attributes.localHash !== localHash) {
+        } else {
             const hasActualChanges = resource.hasFieldChanges(RESOURCE_TYPE, scenario, existing.attributes, { state, testDirectory: dir, ignoreChanges: lc.ignore_changes });
-            if (!hasActualChanges) {
-                // If there are zero attribute differences, don't generate a ghost update in-place.
-                // Heal the in-memory hash so state converges.
-                existing.attributes.localHash = localHash;
-                continue;
-            }
+            if (existing.attributes.localHash !== localHash || hasActualChanges) {
+                if (!hasActualChanges) {
+                    // If there are zero attribute differences, don't generate a ghost update in-place.
+                    // Heal the in-memory hash so state converges.
+                    existing.attributes.localHash = localHash;
+                    continue;
+                }
 
-            // Changed resource — needs to be updated
-            changes.push({
-                action: 'change',
-                address,
-                path: relPath,
-                tag,
-                namespace,
-                physicalAddress,
-                resourceType: RESOURCE_TYPE,
-                provider: providerType,
-                scenario,
-                remoteId: existing.attributes.remoteId,
-                issueNumber: existing.attributes.issueNumber,
-                localHash,
-                oldAttributes: existing.attributes,
-            });
+                // Changed resource — needs to be updated
+                changes.push({
+                    action: 'change',
+                    address,
+                    path: relPath,
+                    tag,
+                    namespace,
+                    physicalAddress,
+                    resourceType: RESOURCE_TYPE,
+                    provider: providerType,
+                    scenario,
+                    remoteId: existing.attributes.remoteId,
+                    issueNumber: existing.attributes.issueNumber,
+                    localHash,
+                    oldAttributes: existing.attributes,
+                });
+            }
         }
         // If hashes match → synced, no action needed
     }
