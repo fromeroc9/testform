@@ -24,6 +24,12 @@ export class TestrunParser extends TestcaseParser {
         return Object.entries(groups).map(([uri, groupScenarios]) => {
             const aggregated = JSON.parse(JSON.stringify(groupScenarios[0])) as ParserScenario;
             aggregated.custom ??= {};
+            aggregated.custom.explicitFields = {};
+            for (const gs of groupScenarios) {
+                if (gs.custom?.explicitFields) {
+                    Object.assign(aggregated.custom.explicitFields, gs.custom.explicitFields);
+                }
+            }
             // If the base parser extracted an identity from tags, preserve it, otherwise fallback to uri
             const firstScenarioWithIdentity = groupScenarios.find(s => s.custom && s.custom.identity);
             if (firstScenarioWithIdentity && firstScenarioWithIdentity.custom?.identity) {

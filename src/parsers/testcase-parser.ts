@@ -41,6 +41,7 @@ export class TestcaseParser extends BaseParser {
                 ? [...s.background.steps.map((st: any) => ({ ...st })), ...(s.steps || []).map((st: any) => ({ ...st }))]
                 : [...(s.steps || []).map((st: any) => ({ ...st }))];
             const customFields: Record<string, string> = {};
+            const explicitFields: Record<string, string> = {};
             const setMarks: Record<string, any> = {};
 
             if (scope) {
@@ -159,6 +160,7 @@ export class TestcaseParser extends BaseParser {
                     }
 
                     customFields[fieldDef.name] = rawValue;
+                    explicitFields[fieldDef.name] = rawValue;
                     return false;
                 });
 
@@ -243,6 +245,7 @@ export class TestcaseParser extends BaseParser {
                 }
 
                 customFields[fieldDef.name] = rawValue;
+                explicitFields[fieldDef.name] = rawValue;
                 return false;
             });
 
@@ -257,6 +260,7 @@ export class TestcaseParser extends BaseParser {
 
                     if (enumValues.includes(tag)) {
                         customFields[fieldDef.name] = tag;
+                        explicitFields[fieldDef.name] = tag;
                         return false;
                     }
                 }
@@ -327,6 +331,7 @@ export class TestcaseParser extends BaseParser {
                 ...(s.custom ?? {}),
                 identity: identityValue,
                 fields: customFields,
+                explicitFields,
                 set: setMarks,
                 rawTags,
                 rawSteps,

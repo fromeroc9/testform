@@ -4,7 +4,7 @@ import { githubTestrunTemplate, githubTestplanTemplate, githubBugTemplate, githu
 
 describe('GitHubProvider and GitHub Resources', () => {
     describe('GitHub Resource Templates Status injection', () => {
-        it('automatically injects Status into metadata for testrun when not defined in fields', () => {
+        it('does NOT inject Status into metadata when not declared in fields', () => {
             const mockScenario: any = {
                 feature: { name: 'Magento-20260612_120000_6be4l9' },
                 custom: {
@@ -20,43 +20,51 @@ describe('GitHubProvider and GitHub Resources', () => {
             };
 
             const attrs = (githubTestrunTemplate.attributes as Function)(mockScenario);
-            expect(attrs.metadata.Status).toBe('pending');
+            expect(attrs.metadata.Status).toBeUndefined();
             expect(attrs.metadata.component).toBe('microservicio-1');
             expect(attrs.state).toBe('open');
         });
 
-        it('automatically injects Status into metadata for testplan when not defined in fields', () => {
+        it('autocalculates Status when declared in fields without manual override', () => {
             const mockScenario: any = {
-                feature: { name: 'Core Testplan' },
-                custom: {
-                    fields: {
-                        squad: 'QA-Team'
-                    }
-                }
-            };
-
-            const attrs = (githubTestplanTemplate.attributes as Function)(mockScenario);
-            expect(attrs.metadata.Status).toBe('pending');
-            expect(attrs.metadata.squad).toBe('QA-Team');
-            expect(attrs.state).toBe('open');
-        });
-
-        it('preserves user custom case (e.g. status vs Status) if defined in fields', () => {
-            const mockScenario: any = {
-                feature: { name: 'Run 1' },
+                feature: { name: 'Magento-20260612_120000_6be4l9' },
                 custom: {
                     groupScenarios: [
-                        { custom: { fields: { status: 'passed' } } }
+                        { rule: { name: 'catalog.case.feature' }, custom: { fields: { status: 'pending' } } }
                     ],
                     fields: {
-                        status: 'initial'
+                        component: 'microservicio-1',
+                        Status: 'Done' // default from main.yml
                     }
                 }
             };
 
             const attrs = (githubTestrunTemplate.attributes as Function)(mockScenario);
-            expect(attrs.metadata.status).toBe('passed');
-            expect(attrs.state).toBe('closed');
+            expect(attrs.metadata.Status).toBe('pending');
+            expect(attrs.state).toBe('open');
+        });
+
+        it('strictly respects explicit user override in feature (e.g. * field Status = skipped)', () => {
+            const mockScenario: any = {
+                feature: { name: 'Magento-20260611_155546_5f736a' },
+                custom: {
+                    groupScenarios: [
+                        { rule: { name: 'cart.case.feature' }, custom: { fields: { status: 'passed' } } },
+                        { rule: { name: 'catalog.case.feature' }, custom: { fields: { status: 'passed' } } }
+                    ],
+                    fields: {
+                        Status: 'skipped'
+                    },
+                    explicitFields: {
+                        Status: 'skipped'
+                    }
+                }
+            };
+
+            const attrs = (githubTestrunTemplate.attributes as Function)(mockScenario);
+            // All scenarios passed, but user explicitly declared Status = skipped!
+            expect(attrs.metadata.Status).toBe('skipped');
+            expect(attrs.state).toBe('open');
         });
     });
 

@@ -44,9 +44,19 @@ export const githubTestrunTemplate: ResourceTemplate = {
         const rollupStatus = calculateRollupVerdict(statuses);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
-        // Sincroniza el campo Status de GitHub Projects con el veredicto del testrun
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status') || 'Status';
-        meta[statusFieldKey] = rollupStatus;
+        // Sincroniza el campo Status de GitHub Projects únicamente si fue declarado por el usuario en main.yml
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === statusFieldKey.toLowerCase());
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && explicitVal !== '') {
+                meta[statusFieldKey] = explicitVal;
+            } else {
+                meta[statusFieldKey] = rollupStatus;
+            }
+        }
+
+        const effectiveStatus = (statusFieldKey && meta[statusFieldKey]) || rollupStatus;
 
         return {
             title: s.feature?.name || '',
@@ -54,7 +64,7 @@ export const githubTestrunTemplate: ResourceTemplate = {
             labels: extractLabels(s),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: rollupStatus === 'passed' ? 'closed' : 'open',
+            state: effectiveStatus === 'passed' ? 'closed' : 'open',
             metadata: meta
         };
     },
@@ -85,8 +95,18 @@ export const githubTestplanTemplate: ResourceTemplate = {
         const rollupStatus = calculatePlanRollup(s, context);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
 
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status') || 'Status';
-        meta[statusFieldKey] = rollupStatus;
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === statusFieldKey.toLowerCase());
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && explicitVal !== '') {
+                meta[statusFieldKey] = explicitVal;
+            } else {
+                meta[statusFieldKey] = rollupStatus;
+            }
+        }
+
+        const effectiveStatus = (statusFieldKey && meta[statusFieldKey]) || rollupStatus;
 
         return {
             title: s.feature?.name || '',
@@ -94,7 +114,7 @@ export const githubTestplanTemplate: ResourceTemplate = {
             labels: extractLabels(s),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: rollupStatus === 'passed' ? 'closed' : 'open',
+            state: effectiveStatus === 'passed' ? 'closed' : 'open',
             metadata: meta
         };
     },
@@ -114,8 +134,18 @@ export const githubBugTemplate: ResourceTemplate = {
             'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
 
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status') || 'Status';
-        meta[statusFieldKey] = bugStatus;
+        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === statusFieldKey.toLowerCase());
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && explicitVal !== '') {
+                meta[statusFieldKey] = explicitVal;
+            } else {
+                meta[statusFieldKey] = bugStatus;
+            }
+        }
+
+        const effectiveBugStatus = (statusFieldKey && meta[statusFieldKey]) || bugStatus;
 
         return {
             title: s.name || s.feature?.name || '',
@@ -123,7 +153,7 @@ export const githubBugTemplate: ResourceTemplate = {
             labels: extractLabels(s, 'bug'),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: (bugStatus === 'closed' || bugStatus === 'resolved') ? 'closed' : 'open',
+            state: (effectiveBugStatus === 'closed' || effectiveBugStatus === 'resolved') ? 'closed' : 'open',
             metadata: meta
         };
     },
