@@ -238,7 +238,8 @@ describe('Target and Spec Selector (src/core/selector)', () => {
 
             expect(idInfo.namespace).toBe('cart_magento');
             expect(idInfo.address).toBe('cart_magento.cart.case.feature.@tc-01');
-            expect(idInfo.physicalAddress).toBe('Magento/cart.case.feature.@tc-01');
+            expect(idInfo.path).toBe('testcase/Magento/cart.case.feature');
+            expect(idInfo.physicalAddress).toBe('testcase/Magento/cart.case.feature.@tc-01');
         });
 
         it('should exclude @ns directive tags from extracted resource labels', () => {
@@ -270,7 +271,8 @@ describe('Target and Spec Selector (src/core/selector)', () => {
 
             expect(idInfo.namespace).toBeUndefined();
             expect(idInfo.address).toBe('OpenCart/cart.case.feature.@tc-01');
-            expect(idInfo.physicalAddress).toBe('OpenCart/cart.case.feature.@tc-01');
+            expect(idInfo.path).toBe('testcase/OpenCart/cart.case.feature');
+            expect(idInfo.physicalAddress).toBe('testcase/OpenCart/cart.case.feature.@tc-01');
 
             const resources = [
                 { type: 'testcase', address: 'testcase/ParaBank/account_services.case.feature.@tc-01', identity: 'testcase/ParaBank/account_services.case.feature.@tc-01', tag: '@tc-01' },

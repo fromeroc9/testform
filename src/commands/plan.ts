@@ -247,6 +247,15 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 oldAttributes: existing.attributes,
             });
         } else {
+            // Self-heal: If existing.path or physicalAddress in state was stored with an old shortened path,
+            // update it to the authoritative full path so subsequent lookups in this run have it.
+            if (existing.path !== relPath) {
+                existing.path = relPath;
+            }
+            if (existing.physicalAddress !== physicalAddress) {
+                existing.physicalAddress = physicalAddress;
+            }
+
             const hasActualChanges = resource.hasFieldChanges(RESOURCE_TYPE, scenario, existing.attributes, { state, testDirectory: dir, ignoreChanges: lc.ignore_changes });
             if (existing.attributes.localHash !== localHash || hasActualChanges) {
                 if (!hasActualChanges) {

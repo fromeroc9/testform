@@ -148,8 +148,11 @@ export function computeResourceIdentity(
         }
     }
 
-    // Relative path to scaffold
-    let relUri = (scenario.uri || '').replace(/\\/g, '/');
+    // Full relative path to workspace root (never stripped)
+    const fullPath = (scenario.uri || '').replace(/\\/g, '/');
+
+    // Relative path to scaffold (used for collision disambiguation address)
+    let relUri = fullPath;
     if (scaffoldDir) {
         const normScaffold = scaffoldDir.replace(/^[/\\]+|[/\\]+$/g, '').toLowerCase() + '/';
         if (relUri.toLowerCase().startsWith(normScaffold)) {
@@ -157,26 +160,29 @@ export function computeResourceIdentity(
         }
     }
 
-    const fileName = basename(relUri);
+    const fileName = basename(fullPath);
 
-    // Physical address: path + tag for tc/bug, path (+ optional tag) for run/plan
-    const physicalAddress = tag ? `${relUri}.${tag}` : relUri;
+    // Physical address: full project path + tag for tc/bug, full project path (+ optional tag) for run/plan
+    const physicalAddress = tag ? `${fullPath}.${tag}` : fullPath;
+
+    // Disambiguated address when collision occurs without @ns
+    const disambiguatedAddress = tag ? `${relUri}.${tag}` : relUri;
 
     // Logical address: [namespace.]basename.[@tag]
-    // If colliding basename in different folders without @ns, use physical address to eliminate conflict
+    // If colliding basename in different folders without @ns, use disambiguated address to eliminate conflict
     const isColliding = collidingBasenames ? collidingBasenames.has(fileName) : false;
     let address: string;
     if (namespace) {
         address = tag ? `${namespace}.${fileName}.${tag}` : `${namespace}.${fileName}`;
     } else if (isColliding && relUri !== fileName) {
-        address = physicalAddress;
+        address = disambiguatedAddress;
     } else {
         address = tag ? `${fileName}.${tag}` : fileName;
     }
 
     return {
         address,
-        path: relUri,
+        path: fullPath,
         tag,
         namespace,
         physicalAddress,
