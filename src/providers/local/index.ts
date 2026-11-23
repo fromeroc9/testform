@@ -18,10 +18,12 @@ interface LocalDB {
     issues: LocalIssue[];
     next_issue_number: number;
     next_comment_id: number;
+    schema?: string;
 }
 
 export class LocalProvider implements IProvider {
     public name = 'local';
+    public schema?: string;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Configuration & State Fields
@@ -122,10 +124,15 @@ export class LocalProvider implements IProvider {
     // Constructor
     // ──────────────────────────────────────────────────────────────────────────
 
-    constructor(dir: string = '.') {
+    constructor(dir: string = '.', schema?: string) {
+        this.schema = schema;
         this.dbPath = path.resolve(dir, FILE_DATA);
         this.legacyDbPath = path.resolve(dir, FILE_DATA_LEGACY);
         this.db = this.loadDB();
+        if (schema && this.db.schema !== schema) {
+            this.db.schema = schema;
+            this.saveDB();
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -319,6 +326,9 @@ export class LocalProvider implements IProvider {
         const dir = path.dirname(this.dbPath);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
+        }
+        if (this.schema && !this.db.schema) {
+            this.db.schema = this.schema;
         }
         fs.writeFileSync(this.dbPath, JSON.stringify(this.db, null, 2), 'utf8');
     }

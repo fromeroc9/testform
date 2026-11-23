@@ -17,6 +17,7 @@ import { Config } from '../core/config';
 import { matchesTarget } from '../core/selector';
 import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
+import { registerProviderResources } from '../providers/loader';
 
 /**
  * Destroy command: closes all GitHub issues tracked by TestForm in the current scope.
@@ -75,6 +76,8 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
 
         const config = new Config(dir, false);
         const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : (stateObj.getProvider?.() || 'local');
+        const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
+        registerProviderResources(providerType, { schema: localCfg?.schema });
 
         const lifecycleResolver = new LifecycleResolver(dir);
         const protectedResources = allResources.filter(res => {

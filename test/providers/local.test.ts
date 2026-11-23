@@ -173,5 +173,22 @@ describe('LocalProvider', () => {
         expect(migratedContent.next_issue_number).toBe(100);
         expect(migratedContent.issues[0].title).toBe('Legacy issue from cache');
     });
+
+    it('supports git-native schema configuration (e.g. gitlab, github)', async () => {
+        const gitlabProvider = new LocalProvider(tmpDir, 'gitlab');
+        expect(gitlabProvider.schema).toBe('gitlab');
+
+        await gitlabProvider.createIssue({
+            title: 'GitLab formatted issue',
+            body: '```gherkin\nGiven something\n```',
+            labels: ['severity::major', 'type::bug']
+        });
+
+        const dbPath = join(tmpDir, '.testform', 'data.json');
+        const dbContent = JSON.parse(readFileSync(dbPath, 'utf8'));
+        expect(dbContent.schema).toBe('gitlab');
+        expect(dbContent.issues[0].title).toBe('GitLab formatted issue');
+        expect(dbContent.issues[0].labels).toContain('severity::major');
+    });
 });
 

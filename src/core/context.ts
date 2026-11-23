@@ -8,7 +8,7 @@
  */
 
 import { GitHubProvider as GitHubAdapter, LocalProvider as LocalAdapter, IProvider as IProviderAdapter } from '../providers';
-import { createProvider } from '../providers/loader';
+import { createProvider, registerProviderResources } from '../providers/loader';
 import { Config } from './config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
@@ -92,7 +92,9 @@ export async function createCommandContext(
     let adapter: IProviderAdapter;
 
     if (providerType === 'local') {
-        adapter = new LocalAdapter(dir);
+        const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
+        registerProviderResources('local', { schema: localCfg?.schema });
+        adapter = new LocalAdapter(dir, localCfg?.schema);
     } else if (providerType === 'github') {
         if (!ghConfig) {
             if (!silent) {

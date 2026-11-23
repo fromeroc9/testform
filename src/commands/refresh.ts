@@ -21,6 +21,7 @@ import { formatResourceAddress, formatIdentityDisplay } from '../core/utils';
 import { executeInBatches, detectAttributeDrift } from '../core/sync';
 import { withStateLock, resolveScopes } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
+import { registerProviderResources } from '../providers/loader';
 
 /**
  * Core refresh logic: updates the state to reflect remote GitHub reality.
@@ -80,7 +81,9 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let github: IProviderAdapter;
 
     if (adapterType === 'local') {
-        github = new LocalAdapter(dir);
+        const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
+        registerProviderResources('local', { schema: localCfg?.schema });
+        github = new LocalAdapter(dir, localCfg?.schema);
     } else {
         const ghConfig = config.getGitHub();
         if (!ghConfig) {

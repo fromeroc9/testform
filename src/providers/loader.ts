@@ -15,12 +15,19 @@ import { registerLocalResources } from './local/resources';
 /**
  * Activates the specific provider's resource templates into the agnostic Resource engine.
  */
-export function registerProviderResources(providerType: string = 'github'): void {
+export function registerProviderResources(providerType: string = 'github', options?: { schema?: string }): void {
     const type = (providerType || '').toLowerCase();
     if (type === 'gitlab') {
         registerGitLabResources();
     } else if (type === 'local') {
-        registerLocalResources();
+        const schema = (options?.schema || '').toLowerCase().trim();
+        if (schema === 'gitlab') {
+            registerGitLabResources();
+        } else if (schema === 'github') {
+            registerGitHubResources();
+        } else {
+            registerLocalResources();
+        }
     } else {
         registerGitHubResources();
     }
@@ -37,8 +44,9 @@ export async function createProvider(
     dir: string = process.cwd()
 ): Promise<IProvider> {
     const providerType = config.getProviderType();
-    registerProviderResources(providerType);
-    const providerProps = config.getProviderConfig(providerType);
+    const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
+    registerProviderResources(providerType, { schema: localCfg?.schema });
+    const providerProps = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig(providerType) : {};
 
     const required = config.getRequiredProviders();
     const reqKeys = Object.keys(required);
@@ -82,7 +90,7 @@ export async function createProvider(
 
     // 5. Fallback to built-in providers
     if (providerType === 'local') {
-        return new LocalProvider(dir);
+        return new LocalProvider(dir, localCfg?.schema);
     }
 
     if (providerType === 'github') {
@@ -98,5 +106,5 @@ export async function createProvider(
     }
 
     // Default fallback to local provider if unknown
-    return new LocalProvider(dir);
+    return new LocalProvider(dir, localCfg?.schema);
 }

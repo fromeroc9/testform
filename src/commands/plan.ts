@@ -113,7 +113,8 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     } = options;
     const config = new Config(dir, false);
     const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : 'local';
-    registerProviderResources(providerType);
+    const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
+    registerProviderResources(providerType, { schema: localCfg?.schema });
 
 
     if (!Object.prototype.hasOwnProperty.call(SCOPE_CONFIG, scope)) {

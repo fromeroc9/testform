@@ -8,6 +8,7 @@ import { LocalAdapter } from '../providers/local';
 import { IProviderAdapter } from '../providers/interface';
 import { Parser } from '../core/parser';
 import { resource } from '../core/resources';
+import { registerProviderResources } from '../providers/loader';
 import { bold, green, red, yellow } from "chalk";
 import { hashScenario } from "./plan";
 import fs from "fs";
@@ -646,7 +647,9 @@ export const importCmd = async (options: ImportCmdOptions) => {
         const config: IConfig = configClass.getConfig();
         let github: IProviderAdapter;
         if (configClass.getAdapterType() === 'local') {
-            github = new LocalAdapter(dir);
+            const localCfg = (typeof configClass.getProviderConfig === 'function') ? configClass.getProviderConfig('local') : undefined;
+            registerProviderResources('local', { schema: localCfg?.schema });
+            github = new LocalAdapter(dir, localCfg?.schema);
         } else {
             github = new GitHubAdapter(configClass.getGitHub()!);
         }

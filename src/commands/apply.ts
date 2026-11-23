@@ -17,6 +17,7 @@ import { executeInBatches } from '../core/sync';
 import { resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { DependencyResolver } from '../core/dependencies';
 import { matchesTestrunSelector } from '../core/selector';
+import { registerProviderResources } from '../providers/loader';
 
 interface ApplyCmdOptions {
     dir?: string;
@@ -67,6 +68,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
     const config = new Config(dir, false);
     const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : (stateObj.getProvider?.() || 'local');
+    const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
+    registerProviderResources(providerType, { schema: localCfg?.schema });
 
     try {
         let plan: import('../core/types').PlanResult;
