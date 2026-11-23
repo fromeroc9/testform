@@ -16,6 +16,7 @@ import { createCommandContext } from '../core/context';
 import { executeInBatches } from '../core/sync';
 import { resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { DependencyResolver } from '../core/dependencies';
+import { matchesTestrunSelector } from '../core/selector';
 
 interface ApplyCmdOptions {
     dir?: string;
@@ -175,7 +176,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             if (change.resourceType.endsWith('testplan') && change.scenario.custom?.testruns) {
                 for (const tr of change.scenario.custom.testruns) {
                     const runResources = stateObj.getResources('testrun').filter(r =>
-                        r.address.endsWith(tr) || r.address.includes(tr) || (r.path && (r.path.endsWith(tr) || r.path.includes(tr))) || r.tag === tr
+                        matchesTestrunSelector(r, String(tr))
                     );
 
                     if (runResources.length > 1) {
@@ -193,7 +194,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                     : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(runResource.attributes.issueNumber as number) : null);
                                 if (issueDetails && issueDetails.id) {
                                     if ((github as any).addSubIssue) await (github as any).addSubIssue(parentIssueNumber, issueDetails.id);
-                                    console.log(`  -> Linked testrun ${runResource.address} as sub-issue to testplan`);
+                                    console.log(`  -> Linked testrun #${runResource.attributes.issueNumber} (${runResource.address}) as sub-issue to testplan #${parentIssueNumber}`);
                                 }
                             } catch (e: any) {
                                 console.log(`  -> Failed to link testrun ${runResource.address} as sub-issue: ${e.message}`);

@@ -1056,16 +1056,16 @@ export function matchesTestrunSelector(resource: any, selector: string): boolean
     const title = (resource.attributes?.title || '').trim().toLowerCase();
     if (title && title === lowerSel) return true;
 
-    // 4. File-tag (e.g. "20261024.run.feature.@tr-1" or "20261024.run.feature.tr-1")
-    const fileTagMatch = normSel.match(/^([a-zA-Z0-9_.-]+\.feature)\.@?(tr-\d+)$/i);
+    // 4. File-tag (e.g. "20261024.run.feature.@tr-1", "testruns/20261024.run.feature.@tr-1", or bare tag)
+    const fileTagMatch = normSel.match(/^(?:.*\/)?([a-zA-Z0-9_.-]+\.feature)\.@?(tr-\d+)$/i);
     if (fileTagMatch) {
         const filePart = fileTagMatch[1].toLowerCase();
         const tagPart = fileTagMatch[2].toLowerCase();
         if (idBaseName === filePart && cleanIdTag === tagPart) return true;
     }
 
-    // 5. Slug-tag (e.g. "20261024.@tr-1" or "20261024.tr-1")
-    const slugTagMatch = normSel.match(/^([a-zA-Z0-9_-]+)\.@?(tr-\d+)$/i);
+    // 5. Slug-tag (e.g. "20261024.@tr-1" or "testruns/20261024.@tr-1")
+    const slugTagMatch = normSel.match(/^(?:.*\/)?([a-zA-Z0-9_-]+)\.@?(tr-\d+)$/i);
     if (slugTagMatch && !slugTagMatch[1].includes('.')) {
         const slugPart = slugTagMatch[1].toLowerCase();
         const tagPart = slugTagMatch[2].toLowerCase();
@@ -1074,14 +1074,23 @@ export function matchesTestrunSelector(resource: any, selector: string): boolean
 
     // 6. Path / Basename / Slug matches (without tag)
     const lowerIdPath = idPath.toLowerCase();
+    const selBaseName = basename(normSel).toLowerCase();
+    const selSlug = selBaseName.replace(/(\.(run|case|plan|bug))?\.feature$/i, '');
+
     if (
         lowerIdPath === lowerSel ||
         lowerIdPath.endsWith(`/${lowerSel}`) ||
+        lowerSel.endsWith(`/${lowerIdPath}`) ||
+        (relPath && lowerSel.endsWith(`/${relPath.toLowerCase()}`)) ||
+        (relPath && relPath.toLowerCase().endsWith(`/${lowerSel}`)) ||
         lowerIdPath.endsWith(`/${lowerSel}.run.feature`) ||
         lowerIdPath.endsWith(`/${lowerSel}.feature`) ||
         idBaseName === lowerSel ||
+        idBaseName === selBaseName ||
         idBaseName.replace(/(\.(run|case|plan|bug))?\.feature$/i, '') === lowerSel ||
-        idSlug === lowerSel
+        idBaseName === `${selSlug}.run.feature` ||
+        idSlug === lowerSel ||
+        idSlug === selSlug
     ) {
         return true;
     }

@@ -194,7 +194,9 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
     const statusCounts: Record<string, number> = {
         passed: 0,
         failed: 0,
+        ambiguous: 0,
         blocked: 0,
+        skipped: 0,
         pending: 0,
     };
 
@@ -206,7 +208,8 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
         const distinctFiles = new Set(matches.map((r: any) => r.path || (r.address || r.identity || '').replace(/\\/g, '/')));
         if (distinctFiles.size > 1 && context?.testDirectory) {
             const normalizedTestDir = context.testDirectory.replace(/^\.\//, '').replace(/\\/g, '/');
-            valid = matches.filter((r: any) => (r.path || r.address || r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
+            const dirFiltered = matches.filter((r: any) => (r.path || r.address || r.identity || '').replace(/\\/g, '/').startsWith(normalizedTestDir));
+            if (dirFiltered.length > 0) valid = dirFiltered;
         }
 
         if (valid.length > 0) {
@@ -253,10 +256,10 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
         }
     };
 
-    let banner = `> ### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n>\n`;
-    banner += `> | 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
-    banner += `> | :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
-    banner += `> | **${statusCounts.passed}** | **${statusCounts.failed}** | **${statusCounts.ambiguous || 0}** | **${statusCounts.blocked}** | **${statusCounts.skipped || 0}** | **${statusCounts.pending}** | **${resolvedRuns.length}** |\n\n`;
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n>\n`;
+    banner += `| 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
+    banner += `| :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
+    banner += `| **${statusCounts.passed}** | **${statusCounts.failed}** | **${statusCounts.ambiguous || 0}** | **${statusCounts.blocked}** | **${statusCounts.skipped || 0}** | **${statusCounts.pending}** | **${resolvedRuns.length}** |\n\n`;
 
     let body = banner;
     if (userDesc) {
@@ -485,10 +488,10 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
         }
     };
 
-    let banner = `> ### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n>\n`;
-    banner += `> | 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
-    banner += `> | :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
-    banner += `> | **${statusCounts.passed}** | **${statusCounts.failed}** | **${statusCounts.ambiguous}** | **${statusCounts.blocked}** | **${statusCounts.skipped}** | **${statusCounts.pending}** | **${uniqueResources.length}** |\n\n`;
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n>\n`;
+    banner += `| 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
+    banner += `| :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
+    banner += `| **${statusCounts.passed}** | **${statusCounts.failed}** | **${statusCounts.ambiguous}** | **${statusCounts.blocked}** | **${statusCounts.skipped}** | **${statusCounts.pending}** | **${uniqueResources.length}** |\n\n`;
 
     let body = banner;
     if (userDesc) {
