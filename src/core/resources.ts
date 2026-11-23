@@ -466,6 +466,15 @@ class Resource {
 
         lines.push(`  ${sym} resource "${resourceType}" "${formatIdentityDisplay(address)}" {`);
         for (const field of template.fields || []) {
+            if (field.name === 'status') {
+                const attrs = this.evaluateAttributes(resourceType, scenario, context);
+                const meta = attrs.metadata || attrs.custom_fields || {};
+                const hasMetaStatus = Object.keys(meta).some(k => k.toLowerCase() === 'status');
+                if (hasMetaStatus) {
+                    continue; // Skip redundant root status if already displayed under metadata
+                }
+            }
+
             const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
             const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
             if (raw === undefined && oldRaw === undefined) continue;

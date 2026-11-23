@@ -136,16 +136,8 @@ export const githubBugTemplate: ResourceTemplate = {
 
         const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
         if (statusFieldKey) {
-            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === statusFieldKey.toLowerCase());
-            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
-            if (explicitVal !== undefined && explicitVal !== '') {
-                meta[statusFieldKey] = explicitVal;
-            } else {
-                meta[statusFieldKey] = bugStatus;
-            }
+            meta[statusFieldKey] = bugStatus;
         }
-
-        const effectiveBugStatus = (statusFieldKey && meta[statusFieldKey]) || bugStatus;
 
         return {
             title: s.name || s.feature?.name || '',
@@ -153,7 +145,7 @@ export const githubBugTemplate: ResourceTemplate = {
             labels: extractLabels(s, 'bug'),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: (effectiveBugStatus === 'closed' || effectiveBugStatus === 'resolved') ? 'closed' : 'open',
+            state: (bugStatus === 'closed' || bugStatus === 'resolved') ? 'closed' : 'open',
             metadata: meta
         };
     },
