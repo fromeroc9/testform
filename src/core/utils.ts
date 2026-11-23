@@ -80,7 +80,9 @@ export const formatHclValue = (value: any, indentLevel: number): string => {
         return `[\n${indent}    ${items.join(`,\n${indent}    `)},\n${indent}]`;
     }
     if (typeof value === 'object') {
-        const keys = Object.keys(value);
+        const keys = Object.keys(value).sort((a, b) => 
+            a.localeCompare(b, undefined, { sensitivity: 'base' }) || a.localeCompare(b)
+        );
         if (keys.length === 0) return '{}';
 
         let maxKeyLen = 0;

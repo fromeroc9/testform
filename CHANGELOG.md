@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Strict Separation of `* set` vs `* field` vs `@tag` (`src/parsers/testcase-parser.ts`, `src/parsers/base-parser.ts`, `src/policies/catalog.ts`):**
   - **`testcase` (`*.case.feature`):** Prohibited all `* set` marks (including `attach`). Only standard Gherkin steps (`Given`, `When`, `Then`) and contract metadata fields (`* field <name> = <value>`) are permitted.
+  - **Resource State Metadata Extraction (`src/core/resources.ts`):**
+    - Corrected resource template `state.metadata` definitions to dynamically extract custom contract fields (`project`, `module`, `assignees`, `priority`, etc.) from `scenario.custom.fields`, ensuring `testform plan` and state files accurately reflect all declared and default field values under `+ metadata = { ... }`.
   - **`testrun` (`*.run.feature`):**
     - `Background:` allows suite execution marks `* set duration = ...`, `* set attach = ...`, and `* set trace = ...`. Manual `* set status` in Background is strictly prohibited (suite status is autocalculated from scenarios).
     - `Scenario:` strictly declares execution verdict `* set status = passed | failed | skipped | blocked | pending`.

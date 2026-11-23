@@ -146,7 +146,8 @@ export function evaluateGitHubTestrunComments(s: any, context?: any): GitHubComm
                 });
             }
 
-            const localStatus = groupScenario?.custom?.fields?.status ||
+            const localStatus = groupScenario?.custom?.set?.status ||
+                groupScenario?.custom?.fields?.status ||
                 context?.existingAttributes?.testcaseStatuses?.[tcIdentity] ||
                 context?.existingAttributes?.testcaseStatuses?.[normTc] ||
                 'pending';
@@ -350,7 +351,7 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
                     });
                 }
 
-                const localStatus = groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || existingStatuses[normTcId] || 'pending';
+                const localStatus = groupScenario?.custom?.set?.status || groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || existingStatuses[normTcId] || 'pending';
                 const checkbox = localStatus === 'passed' ? '[x]' : '[ ]';
 
                 if (tcResource?.attributes?.issueNumber) {

@@ -493,25 +493,26 @@ class Resource {
                 const isDiffAction = action === 'change' || action === 'add' || action === 'replace';
 
                 if (isDiffAction && safeOldRaw && typeof safeOldRaw === 'object' && !Array.isArray(safeOldRaw)) {
-                    const allKeys = Array.from(new Set([...Object.keys(safeOldRaw), ...Object.keys(raw)])).sort();
+                    const allKeys = Array.from(new Set([...Object.keys(safeOldRaw), ...Object.keys(raw)])).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }) || a.localeCompare(b));
+                    const maxKeyLen = allKeys.reduce((max, k) => Math.max(max, ('"' + k + '"').length), 0);
                     const diffLines: string[] = [];
                     diffLines.push('{');
                     for (const k of allKeys) {
                         const oldVal = safeOldRaw[k];
                         const newVal = raw[k];
-                        const kStr = `"${k}"`;
+                        const kStr = `"${k}"`.padEnd(maxKeyLen);
 
                         if (action === 'add') {
                             const formattedNewVal = formatHclValue(newVal, 2).trimStart();
-                            diffLines.push(`          ${green('+')} ${kStr}: ${formattedNewVal}`);
+                            diffLines.push(`          ${green('+')} ${kStr} = ${formattedNewVal}`);
                             fieldChanged = true;
                         } else if (oldVal === undefined) {
                             const formattedNewVal = formatHclValue(newVal, 2).trimStart();
-                            diffLines.push(`          ${green('+')} ${kStr}: ${formattedNewVal}`);
+                            diffLines.push(`          ${green('+')} ${kStr} = ${formattedNewVal}`);
                             fieldChanged = true;
                         } else if (newVal === undefined) {
                             const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
-                            diffLines.push(`          ${red('-')} ${kStr}: ${formattedOldVal}`);
+                            diffLines.push(`          ${red('-')} ${kStr} = ${formattedOldVal}`);
                             fieldChanged = true;
                         } else {
                             let isKeyChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal);
@@ -523,11 +524,11 @@ class Resource {
                             if (isKeyChanged) {
                                 const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
                                 const formattedNewVal = formatHclValue(newVal, 2).trimStart();
-                                diffLines.push(`          ${yellow('~')} ${kStr}: ${formattedOldVal} -> ${formattedNewVal}`);
+                                diffLines.push(`          ${yellow('~')} ${kStr} = ${formattedOldVal} -> ${formattedNewVal}`);
                                 fieldChanged = true;
                             } else {
                                 const formattedOldVal = formatHclValue(oldVal, 2).trimStart();
-                                diffLines.push(`            ${kStr}: ${formattedOldVal}`);
+                                diffLines.push(`            ${kStr} = ${formattedOldVal}`);
                             }
                         }
                     }
@@ -752,10 +753,26 @@ class Resource {
         // Changes grouped by type
         output.push(`${TITLE_APP} will perform the following actions:`);
 
+        const scopeOrder: Record<string, number> = {
+            testcase: 1,
+            github_testcase: 1,
+            testrun: 2,
+            github_testrun: 2,
+            testplan: 3,
+            github_testplan: 3,
+            bug: 4,
+            github_bug: 4,
+        };
+        const sortedChanges = [...changes].sort((a, b) => {
+            const orderA = scopeOrder[a.resourceType] || 99;
+            const orderB = scopeOrder[b.resourceType] || 99;
+            if (orderA !== orderB) return orderA - orderB;
+            const addrA = (a.address || '').toLowerCase();
+            const addrB = (b.address || '').toLowerCase();
+            return addrA.localeCompare(addrB);
+        });
 
-        output.push('');
-
-        for (const change of changes) {
+        for (const change of sortedChanges) {
             const address = formatResourceAddress(change.resourceType, change.address);
             const actionText =
                 change.action === 'add'
@@ -836,7 +853,7 @@ function extractTestcaseStatusMap(s: any): Record<string, string> {
     for (const gs of groupScenarios) {
         if (gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
-            map[key] = gs.custom?.fields?.status || 'pending';
+            map[key] = gs.custom?.set?.status ?? gs.custom?.fields?.status ?? 'pending';
         }
     }
     return map;
@@ -846,7 +863,7 @@ function extractTestcaseTraceMap(s: any): Record<string, string> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, string> = {};
     for (const gs of groupScenarios) {
-        const trace = gs.custom?.fields?.trace || gs.custom?.fields?.error;
+        const trace = gs.custom?.set?.trace ?? gs.custom?.fields?.trace ?? gs.custom?.set?.error ?? gs.custom?.fields?.error;
         if (trace && gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             if (key) map[key] = trace;
@@ -859,7 +876,7 @@ function extractTestcaseEvidenceMap(s: any): Record<string, any> {
     const groupScenarios = s.custom?.groupScenarios || [];
     const map: Record<string, any> = {};
     for (const gs of groupScenarios) {
-        const ev = gs.custom?.fields?.evidence ?? gs.custom?.fields?.attach;
+        const ev = gs.custom?.set?.attach ?? gs.custom?.fields?.attach ?? gs.custom?.set?.evidence ?? gs.custom?.fields?.evidence;
         if (ev && gs.name) {
             const key = normalizeScenarioAddress(gs.rule?.name, gs.name);
             if (key) map[key] = Array.isArray(ev) ? ev : [ev];
@@ -922,8 +939,7 @@ const testcaseTemplate: ResourceTemplate = {
         custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
     }),
     state: {
-        status: (s: any) => s.custom?.fields?.status || 'pending',
-        metadata: (s: any) => s.custom?.metadata || {}
+        metadata: (s: any) => extractCustomFields(s.custom?.fields, ['evidence', 'attach'])
     }
 };
 
@@ -940,13 +956,26 @@ const testrunTemplate: ResourceTemplate = {
     state: {
         status: (s: any) => {
             const groupScenarios = s.custom?.groupScenarios || [];
-            const statuses = groupScenarios.map((gs: any) => gs.custom?.fields?.status || 'pending');
+            const statuses = groupScenarios.map((gs: any) => gs.custom?.set?.status ?? gs.custom?.fields?.status ?? 'pending');
             return calculateRollupVerdict(statuses);
         },
+        duration: (s: any) => s.custom?.set?.duration ?? s.custom?.fields?.duration ?? undefined,
+        attach: (s: any) => {
+            const ev = s.custom?.set?.attach ?? s.custom?.fields?.attach ?? s.custom?.set?.evidence ?? s.custom?.fields?.evidence;
+            if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
+            return Array.isArray(ev) ? ev : [ev];
+        },
+        trace: (s: any) => s.custom?.set?.trace ?? s.custom?.fields?.trace ?? undefined,
         testcases: (s: any) => extractTestcaseStatusMap(s),
-        testcaseTraces: (s: any) => extractTestcaseTraceMap(s),
-        testcaseEvidence: (s: any) => extractTestcaseEvidenceMap(s),
-        metadata: (s: any) => s.custom?.metadata || {}
+        testcaseTraces: (s: any) => {
+            const map = extractTestcaseTraceMap(s);
+            return Object.keys(map).length > 0 ? map : undefined;
+        },
+        testcaseEvidence: (s: any) => {
+            const map = extractTestcaseEvidenceMap(s);
+            return Object.keys(map).length > 0 ? map : undefined;
+        },
+        metadata: (s: any) => extractCustomFields(s.custom?.fields, ['evidence', 'attach', 'duration', 'trace'])
     }
 };
 
@@ -962,8 +991,13 @@ const testplanTemplate: ResourceTemplate = {
     }),
     state: {
         status: (s: any, context?: any) => calculatePlanRollup(s, context),
+        attach: (s: any) => {
+            const ev = s.custom?.set?.attach ?? s.custom?.fields?.attach ?? s.custom?.set?.evidence ?? s.custom?.fields?.evidence;
+            if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
+            return Array.isArray(ev) ? ev : [ev];
+        },
         testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context),
-        metadata: (s: any) => s.custom?.metadata || {}
+        metadata: (s: any) => extractCustomFields(s.custom?.fields, ['status', 'evidence', 'attach'])
     }
 };
 
@@ -976,22 +1010,22 @@ const bugTemplate: ResourceTemplate = {
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
         custom_fields: extractCustomFields(s.custom?.fields, [
-            'labels', 'assignees', 'milestone', 'status', 'severity', 'priority',
-            'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun'
+            'labels', 'assignees', 'milestone', 'status', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ])
     }),
     state: {
-        status: (s: any) => s.custom?.fields?.status || 'failed',
-        severity: (s: any) => s.custom?.fields?.severity || undefined,
-        priority: (s: any) => s.custom?.fields?.priority || undefined,
-        trace: (s: any) => s.custom?.fields?.trace || s.custom?.fields?.error || undefined,
-        evidence: (s: any) => {
-            const ev = s.custom?.fields?.evidence ?? s.custom?.fields?.attach;
-            return Array.isArray(ev) ? ev : (ev ? [ev] : []);
+        status: (s: any) => s.custom?.set?.status ?? (s.custom?.fields?.status && ['open', 'in_progress', 'closed', 'resolved'].includes(String(s.custom?.fields?.status).toLowerCase()) ? s.custom?.fields?.status : 'open'),
+        trace: (s: any) => s.custom?.set?.trace ?? s.custom?.fields?.trace ?? s.custom?.set?.error ?? s.custom?.fields?.error ?? undefined,
+        attach: (s: any) => {
+            const ev = s.custom?.set?.attach ?? s.custom?.fields?.attach ?? s.custom?.set?.evidence ?? s.custom?.fields?.evidence;
+            if (!ev || (Array.isArray(ev) && ev.length === 0)) return undefined;
+            return Array.isArray(ev) ? ev : [ev];
         },
-        testcase: (s: any) => s.custom?.fields?.target || s.custom?.fields?.testcase || undefined,
-        testrun: (s: any) => s.feature?.name || s.custom?.fields?.testrun || undefined,
-        metadata: (s: any) => s.custom?.metadata || {}
+        testcase: (s: any) => s.custom?.set?.target ?? s.custom?.fields?.target ?? s.custom?.set?.testcase ?? s.custom?.fields?.testcase ?? undefined,
+        testrun: (s: any) => s.custom?.set?.run ?? s.custom?.fields?.run ?? s.feature?.name ?? s.custom?.set?.testrun ?? s.custom?.fields?.testrun ?? undefined,
+        metadata: (s: any) => extractCustomFields(s.custom?.fields, [
+            'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
+        ])
     }
 };
 

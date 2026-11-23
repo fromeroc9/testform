@@ -41,6 +41,7 @@ export class TestcaseParser extends BaseParser {
                 ? [...s.background.steps.map((st: any) => ({ ...st })), ...(s.steps || []).map((st: any) => ({ ...st }))]
                 : [...(s.steps || []).map((st: any) => ({ ...st }))];
             const customFields: Record<string, string> = {};
+            const setMarks: Record<string, any> = {};
 
             if (scope) {
                 const scopeTag = `@${scope}`;
@@ -63,7 +64,7 @@ export class TestcaseParser extends BaseParser {
             if (s.description) {
                 const descMatch = s.description.match(/^\s*\*\s*set\s+status\s*=\s*(.*)$/im);
                 if (descMatch) {
-                    customFields['status'] = descMatch[1]?.trim();
+                    setMarks['status'] = descMatch[1]?.trim();
                 }
             }
 
@@ -127,9 +128,9 @@ export class TestcaseParser extends BaseParser {
                             } catch {
                                 parsedVal = setVal;
                             }
-                            customFields['attach'] = parsedVal;
+                            setMarks['attach'] = parsedVal;
                         } else {
-                            customFields[setKey] = setVal;
+                            setMarks[setKey] = setVal;
                         }
                         return false;
                     }
@@ -211,9 +212,9 @@ export class TestcaseParser extends BaseParser {
                         } catch {
                             parsedVal = setVal;
                         }
-                        customFields['attach'] = parsedVal;
+                        setMarks['attach'] = parsedVal;
                     } else {
-                        customFields[setKey] = setVal;
+                        setMarks[setKey] = setVal;
                     }
                     return false;
                 }
@@ -310,14 +311,14 @@ export class TestcaseParser extends BaseParser {
                 if (s.rule?.name) {
                     const ruleFile = s.rule.name.trim();
                     if (targetTag) {
-                        customFields['target'] = normalizeScenarioAddress(ruleFile, targetTag);
+                        setMarks['target'] = normalizeScenarioAddress(ruleFile, targetTag);
                     } else if (targetAddr) {
-                        customFields['target'] = normalizeScenarioAddress(ruleFile, targetAddr);
+                        setMarks['target'] = normalizeScenarioAddress(ruleFile, targetAddr);
                     }
                 } else if (targetAddr) {
-                    customFields['target'] = targetAddr;
+                    setMarks['target'] = targetAddr;
                 } else if (targetTag) {
-                    customFields['target'] = targetTag;
+                    setMarks['target'] = targetTag;
                 }
             }
 
@@ -325,6 +326,7 @@ export class TestcaseParser extends BaseParser {
                 ...(s.custom ?? {}),
                 identity: identityValue,
                 fields: customFields,
+                set: setMarks,
                 rawTags,
                 rawSteps,
             };
