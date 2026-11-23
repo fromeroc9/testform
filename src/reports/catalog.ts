@@ -41,7 +41,7 @@ export function enrichWithCustomFields(
                 }
             }
             const rawAttrs = (it.originalResource?.attributes || {}) as Record<string, any>;
-            const rawFields = rawAttrs.custom_fields || rawAttrs.fields || {};
+            const rawFields = rawAttrs.metadata || rawAttrs.custom_fields || rawAttrs.fields || {};
             if (typeof rawFields === 'object') {
                 for (const k of Object.keys(rawFields)) {
                     if (k) fieldSet.add(k);
@@ -67,6 +67,8 @@ export function enrichWithCustomFields(
             const lowerF = f.toLowerCase();
             const val = item.custom_fields?.[lowerF]
                 ?? item.custom_fields?.[f]
+                ?? resolvePath(item.originalResource, `attributes.metadata.${lowerF}`)
+                ?? resolvePath(item.originalResource, `attributes.metadata.${f}`)
                 ?? resolvePath(item.originalResource, `attributes.custom_fields.${lowerF}`)
                 ?? resolvePath(item.originalResource, `attributes.custom_fields.${f}`)
                 ?? resolvePath(item.originalResource, `attributes.fields.${lowerF}`)
@@ -211,7 +213,10 @@ export const builtinReports: Record<string, IReport> = {
             const rows: (string | number)[][] = [];
 
             for (const plan of plans) {
-                const linkedRuns = (plan.attributes.testruns as string[]) || [];
+                const rawRuns = plan.attributes.testruns;
+                const linkedRuns: string[] = Array.isArray(rawRuns)
+                    ? rawRuns
+                    : (rawRuns && typeof rawRuns === 'object' ? Object.keys(rawRuns) : []);
                 const planItems = ctx.items.filter(it => it.testRunId && linkedRuns.some(r => it.testRunId!.endsWith(r)));
                 const pStats = ctx.stateQuery.getStats(planItems);
                 const pct = planItems.length > 0 ? Math.round((pStats.passed / planItems.length) * 100) : 0;

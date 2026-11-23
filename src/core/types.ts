@@ -177,8 +177,8 @@ export interface StateResource {
 export interface StateAttributes {
     localHash: string;
     remoteId: string;
-    issueNumber: number;
-    title: string;
+    issueNumber?: number;
+    title?: string;
     body?: string;
     labels?: string[];
     assignees?: string[];

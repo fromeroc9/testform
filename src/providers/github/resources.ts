@@ -31,11 +31,9 @@ export const githubTestcaseTemplate: ResourceTemplate = {
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
         state: 'open',
-        custom_fields: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach'])
+        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {}
     }),
-    state: {
-        metadata: (s: any) => extractCustomFields(s.custom?.fields, ['evidence', 'attach'])
-    }
+    state: {}
 };
 
 export const githubTestrunTemplate: ResourceTemplate = {
@@ -44,12 +42,12 @@ export const githubTestrunTemplate: ResourceTemplate = {
         const groupScenarios = s.custom?.groupScenarios || [];
         const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
         const rollupStatus = calculateRollupVerdict(statuses);
-        const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
+        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
         // Sincroniza el campo Status de GitHub Projects con el veredicto del testrun
         const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
         if (statusFieldKey) {
-            customFields[statusFieldKey] = rollupStatus;
+            meta[statusFieldKey] = rollupStatus;
         }
 
         return {
@@ -59,7 +57,7 @@ export const githubTestrunTemplate: ResourceTemplate = {
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
             state: rollupStatus === 'passed' ? 'closed' : 'open',
-            custom_fields: customFields
+            metadata: meta
         };
     },
     state: {
@@ -79,17 +77,6 @@ export const githubTestrunTemplate: ResourceTemplate = {
         testcaseEvidence: (s: any) => {
             const map = extractTestcaseEvidenceMap(s);
             return Object.keys(map).length > 0 ? map : undefined;
-        },
-        metadata: (s: any) => {
-            const groupScenarios = s.custom?.groupScenarios || [];
-            const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
-            const rollupStatus = calculateRollupVerdict(statuses);
-            const meta = extractCustomFields(s.custom?.fields, ['evidence', 'attach', 'duration', 'trace']) || {};
-            const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
-            if (statusFieldKey) {
-                meta[statusFieldKey] = rollupStatus;
-            }
-            return meta;
         }
     }
 };
@@ -98,11 +85,11 @@ export const githubTestplanTemplate: ResourceTemplate = {
     type: 'testplan',
     attributes: (s: any, context?: any) => {
         const rollupStatus = calculatePlanRollup(s, context);
-        const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
+        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
 
         const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
         if (statusFieldKey) {
-            customFields[statusFieldKey] = rollupStatus;
+            meta[statusFieldKey] = rollupStatus;
         }
 
         return {
@@ -112,22 +99,13 @@ export const githubTestplanTemplate: ResourceTemplate = {
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
             state: rollupStatus === 'passed' ? 'closed' : 'open',
-            custom_fields: customFields
+            metadata: meta
         };
     },
     state: {
         status: (s: any, context?: any) => calculatePlanRollup(s, context),
         attach: (s: any) => getScenarioEvidence(s),
-        testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context),
-        metadata: (s: any, context?: any) => {
-            const rollupStatus = calculatePlanRollup(s, context);
-            const meta = extractCustomFields(s.custom?.fields, ['status', 'evidence', 'attach']) || {};
-            const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
-            if (statusFieldKey) {
-                meta[statusFieldKey] = rollupStatus;
-            }
-            return meta;
-        }
+        testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context)
     }
 };
 
@@ -136,13 +114,13 @@ export const githubBugTemplate: ResourceTemplate = {
     attributes: (s: any) => {
         const rawStatus = getScenarioStatus(s, 'open');
         const bugStatus = ['open', 'in_progress', 'closed', 'resolved'].includes(rawStatus.toLowerCase()) ? rawStatus : 'open';
-        const customFields = extractCustomFields(s.custom?.fields, [
-            'labels', 'assignees', 'milestone', 'status', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
+        const meta = extractCustomFields(s.custom?.fields, [
+            'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
 
         const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
         if (statusFieldKey) {
-            customFields[statusFieldKey] = bugStatus;
+            meta[statusFieldKey] = bugStatus;
         }
 
         return {
@@ -152,7 +130,7 @@ export const githubBugTemplate: ResourceTemplate = {
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
             state: (bugStatus === 'closed' || bugStatus === 'resolved') ? 'closed' : 'open',
-            custom_fields: customFields
+            metadata: meta
         };
     },
     state: {
@@ -163,19 +141,7 @@ export const githubBugTemplate: ResourceTemplate = {
         trace: (s: any) => getScenarioTrace(s),
         attach: (s: any) => getScenarioEvidence(s),
         testcase: (s: any) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
-        testrun: (s: any) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun'),
-        metadata: (s: any) => {
-            const rawStatus = getScenarioStatus(s, 'open');
-            const bugStatus = ['open', 'in_progress', 'closed', 'resolved'].includes(rawStatus.toLowerCase()) ? rawStatus : 'open';
-            const meta = extractCustomFields(s.custom?.fields, [
-                'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
-            ]) || {};
-            const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
-            if (statusFieldKey) {
-                meta[statusFieldKey] = bugStatus;
-            }
-            return meta;
-        }
+        testrun: (s: any) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun')
     }
 };
 

@@ -515,7 +515,8 @@ export class DataResolver {
             title: attrs.title || '',
             labels: attrs.labels || [],
             status: attrs.status || '',
-            custom_fields: attrs.custom_fields || {}
+            metadata: attrs.metadata || attrs.custom_fields || {},
+            custom_fields: attrs.metadata || attrs.custom_fields || {}
         };
     }
 
@@ -533,7 +534,7 @@ export class DataResolver {
             }
             for (const [k, v] of Object.entries(filter)) {
                 if (k === 'tags') continue;
-                if (attrs[k] !== v && attrs.custom_fields?.[k] !== v) {
+                if (attrs[k] !== v && attrs.metadata?.[k] !== v && attrs.custom_fields?.[k] !== v) {
                     return false;
                 }
             }

@@ -20,6 +20,7 @@ export interface QueryResultItem {
     testRunId?: string;
     testPlanId?: string;
     custom_fields: Record<string, string>;
+    metadata?: Record<string, string>;
     createdAt?: string;
     updatedAt?: string;
     lastApplied?: string;
@@ -459,7 +460,10 @@ export class StateQuery {
                 if (cScope === 'testplan') {
                     // Testplan: extract all linked testruns and their identities
                     matchingItemIds.add(res.address || (res as any).identity);
-                    const linkedRuns = (res.attributes.testruns as string[]) || [];
+                    const rawRuns = res.attributes.testruns;
+                    const linkedRuns: string[] = Array.isArray(rawRuns)
+                        ? rawRuns
+                        : (rawRuns && typeof rawRuns === 'object' ? Object.keys(rawRuns) : []);
                     for (const lr of linkedRuns) {
                         const runs = this.allResources.filter(r =>
                             this.getCanonicalScope(r.type) === 'testrun' &&
@@ -503,13 +507,13 @@ export class StateQuery {
 
     private toQueryItem(res: StateResource, status: string, testRunId: string): QueryResultItem {
         const cScope = this.getCanonicalScope(res.type);
-        const rawCustom = (res.attributes.custom_fields || res.attributes.fields || {}) as Record<string, any>;
+        const rawCustom = (res.attributes.metadata || res.attributes.custom_fields || res.attributes.fields || {}) as Record<string, any>;
         const customFields: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawCustom)) {
             customFields[k.toLowerCase()] = String(v);
         }
         for (const [k, v] of Object.entries(res.attributes || {})) {
-            if (['title', 'status', 'labels', 'assignees', 'milestone', 'issueNumber', 'remoteId', 'createdAt', 'updatedAt', 'testcases', 'testcaseStatuses', 'testruns', 'custom_fields', 'fields'].includes(k)) continue;
+            if (['title', 'status', 'labels', 'assignees', 'milestone', 'issueNumber', 'remoteId', 'createdAt', 'updatedAt', 'testcases', 'testcaseStatuses', 'testruns', 'custom_fields', 'metadata', 'fields'].includes(k)) continue;
             if (v !== undefined && v !== null && typeof v !== 'object') {
                 if (!customFields[k.toLowerCase()]) {
                     customFields[k.toLowerCase()] = String(v);
@@ -538,6 +542,7 @@ export class StateQuery {
             milestone: res.attributes.milestone ? String(res.attributes.milestone) : undefined,
             testRunId: testRunId || undefined,
             custom_fields: customFields,
+            metadata: customFields,
             createdAt: String(res.attributes.createdAt || res.lastApplied || new Date().toISOString()),
             updatedAt: String(res.attributes.updatedAt || res.lastApplied || new Date().toISOString()),
             lastApplied: res.lastApplied,

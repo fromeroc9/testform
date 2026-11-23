@@ -24,7 +24,28 @@ export class GitLabProvider implements IProvider {
     // Agnostic Multi-Resource Bus (Mode 2)
     // ──────────────────────────────────────────────────────────────────────────
 
+    private createDomainHandler(resourceType: string): IProviderResourceHandler {
+        return {
+            create: async (data: any, context?: any) => {
+                return this.createIssue(data);
+            },
+            read: async (id: number | string) => {
+                return this.getIssue(id);
+            },
+            update: async (id: number | string, data: any, context?: any) => {
+                return this.updateIssue(id, data);
+            },
+            delete: async (id: number | string) => {
+                return this.closeIssue(id);
+            }
+        };
+    }
+
     public resources: Record<string, IProviderResourceHandler> = {
+        testcase: this.createDomainHandler('testcase'),
+        testrun: this.createDomainHandler('testrun'),
+        testplan: this.createDomainHandler('testplan'),
+        bug: this.createDomainHandler('bug'),
         issue: {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             read: async (id: number | string) => this.getIssue(id),

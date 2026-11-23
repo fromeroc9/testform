@@ -35,7 +35,44 @@ export class LocalProvider implements IProvider {
     // Agnostic Multi-Resource Bus (Mode 2)
     // ──────────────────────────────────────────────────────────────────────────
 
+    private createDomainHandler(resourceType: string): IProviderResourceHandler {
+        return {
+            create: async (data: any, context?: any) => {
+                const result = await this.createIssue(data);
+                const meta = data.metadata || data.custom_fields || data.fields;
+                if (meta) {
+                    await this.updateProjectItemFields(String(result.number), meta);
+                }
+                return result;
+            },
+            read: async (id: number | string) => {
+                const issue = await this.getIssue(id);
+                if (!issue) return null;
+                const result: any = { ...issue };
+                if ((issue as any).custom_fields) {
+                    result.metadata = (issue as any).custom_fields;
+                }
+                return result;
+            },
+            update: async (id: number | string, data: any, context?: any) => {
+                const result = await this.updateIssue(id, data);
+                const meta = data.metadata || data.custom_fields || data.fields;
+                if (meta) {
+                    await this.updateProjectItemFields(String(id), meta);
+                }
+                return result;
+            },
+            delete: async (id: number | string) => {
+                return this.closeIssue(id);
+            }
+        };
+    }
+
     public resources: Record<string, IProviderResourceHandler> = {
+        testcase: this.createDomainHandler('testcase'),
+        testrun: this.createDomainHandler('testrun'),
+        testplan: this.createDomainHandler('testplan'),
+        bug: this.createDomainHandler('bug'),
         issue: {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             read: async (id: number | string) => this.getIssue(id),

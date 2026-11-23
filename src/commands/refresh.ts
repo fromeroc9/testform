@@ -144,13 +144,13 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 }
                 const remoteCustomFields = (issue.node_id && (github as any).getProjectItemFields)
                     ? await (github as any).getProjectItemFields(issue.node_id)
-                    : undefined;
+                    : issue.metadata;
 
                 const lifecycle = lifecycleResolver.getLifecycle(res.address, res.attributes.labels || []);
                 const { hasDrift, newAttributes } = detectAttributeDrift(
                     res.attributes,
                     issue,
-                    remoteCustomFields,
+                    remoteCustomFields || issue.metadata,
                     lifecycle.ignore_changes
                 );
 

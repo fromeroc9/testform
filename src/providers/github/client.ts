@@ -4,6 +4,7 @@ import { logger } from '../../core/logger';
 import { Credentials } from '../../core/credentials';
 import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
 import { TITLE_CLI, VERSION_CLI } from '../../core/const';
+import { matchesTestrunSelector } from '../../core/selector';
 
 class Mutex {
     private mutex = Promise.resolve();
@@ -35,7 +36,121 @@ export class GitHubProvider implements IProvider {
     // Agnostic Multi-Resource Bus (Mode 2)
     // ──────────────────────────────────────────────────────────────────────────
 
+    private extractIssueNumber(id: number | string): string {
+        const str = String(id);
+        return str.includes(':') ? str.split(':').pop()! : str;
+    }
+
+    private async prepareIssuePayload(data: any): Promise<IProviderIssuePayload> {
+        const payload: any = {
+            title: data.title || '',
+            body: data.body || '',
+            labels: data.labels,
+            assignees: data.assignees,
+            state: data.state,
+        };
+        if (typeof data.milestone === 'string' && data.milestone) {
+            const msId = await this.getMilestoneByTitle(data.milestone);
+            if (msId) payload.milestone = msId;
+        } else if (data.milestone) {
+            payload.milestone = data.milestone;
+        }
+        return payload;
+    }
+
+    private async syncProjectFields(issueNodeId: string, metadata?: Record<string, any>) {
+        if (!issueNodeId || !this.projectId || !metadata || Object.keys(metadata).length === 0) return;
+        try {
+            const itemId = await this.addToProject(issueNodeId);
+            if (itemId) {
+                await this.updateProjectItemFields(itemId, metadata);
+            }
+        } catch {
+            // graceful fallback if projects v2 permissions not available
+        }
+    }
+
+    private async linkTestplanSubIssues(parentIssueNumber: number | string, testruns: any[], state: any) {
+        if (!testruns || !Array.isArray(testruns) || !state) return;
+        const parentNum = this.extractIssueNumber(parentIssueNumber);
+        for (const tr of testruns) {
+            const runResources = state.getResources('testrun').filter((r: any) =>
+                matchesTestrunSelector(r, String(tr))
+            );
+            for (const runResource of runResources) {
+                const runIssueNum = runResource?.attributes?.issueNumber || runResource?.attributes?.remoteId;
+                if (runIssueNum) {
+                    try {
+                        const rawNum = this.extractIssueNumber(runIssueNum);
+                        const issueDetails = await this.getIssue(rawNum);
+                        if (issueDetails && issueDetails.id) {
+                            await this.addSubIssue(parentNum, issueDetails.id);
+                        }
+                    } catch {
+                        // ignore link errors
+                    }
+                }
+            }
+        }
+    }
+
+    private createDomainResourceHandler(resourceType: string): IProviderResourceHandler {
+        return {
+            create: async (data: any, context?: any) => {
+                const issuePayload = await this.prepareIssuePayload(data);
+                const result = await this.createIssue(issuePayload);
+                if (result?.node_id) {
+                    const meta = data.metadata || data.custom_fields || data.fields;
+                    await this.syncProjectFields(result.node_id, meta);
+                }
+                if (resourceType === 'testplan' && context?.scenario?.custom?.testruns && context?.state) {
+                    await this.linkTestplanSubIssues(result.number ?? result.id, context.scenario.custom.testruns, context.state);
+                }
+                return result;
+            },
+            read: async (id: number | string) => {
+                const rawNum = this.extractIssueNumber(id);
+                const issue = await this.getIssue(rawNum);
+                if (!issue) return null;
+                const result: any = { ...issue };
+                if (issue.node_id && this.projectId) {
+                    try {
+                        const projectFields = await this.getProjectItemFields(issue.node_id);
+                        if (projectFields && Object.keys(projectFields).length > 0) {
+                            result.metadata = projectFields;
+                        }
+                    } catch {
+                        // ignore project field read errors
+                    }
+                }
+                return result;
+            },
+            update: async (id: number | string, data: any, context?: any) => {
+                const rawNum = this.extractIssueNumber(id);
+                const issuePayload = await this.prepareIssuePayload(data);
+                const result = await this.updateIssue(rawNum, issuePayload);
+                const nodeId = result?.node_id || (await this.getIssueNodeId(rawNum));
+                if (nodeId) {
+                    const meta = data.metadata || data.custom_fields || data.fields;
+                    await this.syncProjectFields(nodeId, meta);
+                }
+                if (resourceType === 'testplan' && context?.scenario?.custom?.testruns && context?.state) {
+                    await this.linkTestplanSubIssues(rawNum, context.scenario.custom.testruns, context.state);
+                }
+                return result;
+            },
+            delete: async (id: number | string) => {
+                const rawNum = this.extractIssueNumber(id);
+                return this.closeIssue(rawNum);
+            }
+        };
+    }
+
     public resources: Record<string, IProviderResourceHandler> = {
+        testcase: this.createDomainResourceHandler('testcase'),
+        testrun: this.createDomainResourceHandler('testrun'),
+        testplan: this.createDomainResourceHandler('testplan'),
+        bug: this.createDomainResourceHandler('bug'),
         issue: {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             read: async (id: number | string) => this.getIssue(id),

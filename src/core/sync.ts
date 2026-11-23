@@ -130,13 +130,30 @@ export function detectAttributeDrift(
         hasDrift = true;
     }
 
-    // 5. Custom Fields
-    if (remoteCustomFields !== undefined && !ignored.has('custom_fields')) {
-        const localCustomFields = (newAttributes.custom_fields as Record<string, string>) || {};
-        const fieldComparison = compareCustomFields(localCustomFields, remoteCustomFields, ignoreChanges);
+    // 5. Custom Fields & Metadata
+    const remoteMeta = (remoteIssue as any).metadata || remoteCustomFields;
+    if (remoteMeta !== undefined && !ignored.has('custom_fields') && !ignored.has('metadata')) {
+        const localMeta = (newAttributes.metadata || newAttributes.custom_fields) as Record<string, string> || {};
+        const fieldComparison = compareCustomFields(localMeta, remoteMeta, ignoreChanges);
         if (fieldComparison.hasDrift) {
-            newAttributes.custom_fields = fieldComparison.reconciled;
+            if (newAttributes.metadata !== undefined || newAttributes.custom_fields === undefined) {
+                newAttributes.metadata = fieldComparison.reconciled;
+            } else {
+                newAttributes.custom_fields = fieldComparison.reconciled;
+            }
             hasDrift = true;
+        }
+    }
+
+    // 6. Agnostic generic attributes
+    for (const key of Object.keys(newAttributes)) {
+        if (['title', 'labels', 'assignees', 'milestone', 'custom_fields', 'metadata', 'localHash', 'remoteId', 'issueNumber', 'createdAt', 'updatedAt'].includes(key)) continue;
+        if (ignored.has(key.toLowerCase())) continue;
+        if ((remoteIssue as any)[key] !== undefined && typeof (remoteIssue as any)[key] !== 'object') {
+            if (String(newAttributes[key] ?? '').trim() !== String((remoteIssue as any)[key] ?? '').trim()) {
+                newAttributes[key] = (remoteIssue as any)[key];
+                hasDrift = true;
+            }
         }
     }
 

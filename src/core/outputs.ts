@@ -307,6 +307,9 @@ export class OutputResolver {
                 return attrs.updatedAt || '';
             default:
                 if (attrs[attr] !== undefined) return attrs[attr];
+                if (attrs.metadata && attrs.metadata[attr] !== undefined) {
+                    return attrs.metadata[attr];
+                }
                 if (attrs.custom_fields && attrs.custom_fields[attr] !== undefined) {
                     return attrs.custom_fields[attr];
                 }

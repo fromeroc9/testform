@@ -232,14 +232,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             const statePayload = resource.evaluateState(change.resourceType, change.scenario, { state: stateObj, testDirectory });
             const lifecycle = resource.getLifecycle(change.resourceType);
 
-            // Backward compatibility data extraction for legacy issue/project attributes
-            const issueData: any = { ...attributes };
-            const projectData = (attributes.custom_fields && Object.keys(attributes.custom_fields).length > 0)
-                ? { custom_fields: attributes.custom_fields }
-                : {};
-
-            await resolvePayloadMilestone(issueData);
-
             const providerResources = github.resources || github.apis;
             let result: any;
 
@@ -262,29 +254,21 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                     if (service) {
                         if (service.update) {
-                            result = await service.update(existingIssueNumber, issueData, { scenario: change.scenario, state: stateObj });
+                            result = await service.update(existingIssueNumber, attributes, { scenario: change.scenario, state: stateObj });
                         } else if (service.patch) {
-                            result = await service.patch(existingIssueNumber, issueData, { scenario: change.scenario, state: stateObj });
+                            result = await service.patch(existingIssueNumber, attributes, { scenario: change.scenario, state: stateObj });
                         } else if (service.put) {
-                            result = await service.put(existingIssueNumber, issueData, { scenario: change.scenario, state: stateObj });
+                            result = await service.put(existingIssueNumber, attributes, { scenario: change.scenario, state: stateObj });
                         }
                     }
 
-                    if (providerResources.project && projectData.custom_fields) {
-                        const projectCtx = {
-                            issueResult: result,
-                            issueNumber: existingIssueNumber,
-                            scenario: change.scenario,
-                            state: stateObj
-                        };
-                        if (providerResources.project.update) {
-                            await providerResources.project.update(String(existingIssueNumber), { fields: projectData.custom_fields }, projectCtx);
-                        } else if (providerResources.project.patch) {
-                            await providerResources.project.patch(String(existingIssueNumber), { fields: projectData.custom_fields }, projectCtx);
-                        }
+                    if (!service && providerResources.issue) {
+                        await resolvePayloadMilestone(attributes);
+                        result = await providerResources.issue.update?.(existingIssueNumber, attributes, { scenario: change.scenario, state: stateObj });
                     }
                 } else if ((github as any).updateIssue) {
-                    result = await (github as any).updateIssue(existingIssueNumber, issueData);
+                    await resolvePayloadMilestone(attributes);
+                    result = await (github as any).updateIssue(existingIssueNumber, attributes);
                 }
 
                 if (lifecycle?.afterUpdate) {
@@ -314,25 +298,24 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                     if (service) {
                         if (service.create) {
-                            result = await service.create(issueData, { scenario: change.scenario, state: stateObj });
+                            result = await service.create(attributes, { scenario: change.scenario, state: stateObj });
                         } else if (service.post) {
-                            result = await service.post(issueData, { scenario: change.scenario, state: stateObj });
+                            result = await service.post(attributes, { scenario: change.scenario, state: stateObj });
                         }
                     }
 
-                    if (providerResources.project && projectData.custom_fields) {
-                        if (providerResources.project.create) {
-                            await providerResources.project.create({ fields: projectData.custom_fields }, { issueResult: result });
-                        } else if (providerResources.project.post) {
-                            await providerResources.project.post({ fields: projectData.custom_fields }, { issueResult: result });
-                        }
+                    if (!service && providerResources.issue) {
+                        await resolvePayloadMilestone(attributes);
+                        result = await providerResources.issue.create?.(attributes, { scenario: change.scenario, state: stateObj });
                     }
                 } else {
-                    result = (github as any).createIssue ? await (github as any).createIssue(issueData) : undefined;
-                    if (result?.node_id && (github as any).addToProject && projectData.custom_fields) {
+                    await resolvePayloadMilestone(attributes);
+                    result = (github as any).createIssue ? await (github as any).createIssue(attributes) : undefined;
+                    const meta = attributes.metadata || attributes.custom_fields;
+                    if (result?.node_id && (github as any).addToProject && meta) {
                         const itemId = await (github as any).addToProject(result.node_id);
                         if (itemId && (github as any).updateProjectItemFields) {
-                            await (github as any).updateProjectItemFields(itemId, projectData.custom_fields);
+                            await (github as any).updateProjectItemFields(itemId, meta);
                         }
                     }
                 }
@@ -353,7 +336,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 result = { id: existingIssueNumber || 1, number: existingIssueNumber || 1 };
             }
 
-            return { result, issueData: attributes, projectData, statePayload };
+            return { result, attributes, statePayload };
         };
 
         await executeInBatches(orderedChanges, parallelismNum, async (change) => {
@@ -363,7 +346,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Creating...`);
                         const startTime = Date.now();
 
-                        const { result, issueData, projectData, statePayload } = await applyApiPayload(change);
+                        const { result, attributes, statePayload } = await applyApiPayload(change);
 
                         const elapsed = elapsedSeconds(startTime);
                         const numOrId = result.number ?? result.id ?? 1;
@@ -384,16 +367,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId,
-                                issueNumber: numOrId,
-                                title: issueData.title,
-                                body: issueData.body,
-                                labels: issueData.labels,
-                                assignees: issueData.assignees,
-                                milestone: issueData.milestone || undefined,
-                                state: result.state || issueData.state || 'open',
-                                createdAt: result.created_at,
-                                updatedAt: result.updated_at,
-                                ...projectData,
+                                ...(numOrId ? { issueNumber: numOrId } : {}),
+                                ...(result.created_at ? { createdAt: result.created_at } : {}),
+                                ...(result.updated_at ? { updatedAt: result.updated_at } : {}),
+                                ...attributes,
+                                ...(result.state ? { state: result.state } : {}),
                                 ...statePayload,
                             },
                             lastApplied: new Date().toISOString(),
@@ -440,7 +418,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         }
 
                         // 2. Add (create new issue or agnostic resource)
-                        const { result, issueData, projectData, statePayload } = await applyApiPayload(change);
+                        const { result, attributes, statePayload } = await applyApiPayload(change);
 
                         const elapsed = elapsedSeconds(startTime);
                         const numOrId = result.number ?? result.id ?? 1;
@@ -461,16 +439,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId: newRemoteId,
-                                issueNumber: numOrId,
-                                title: issueData.title,
-                                body: issueData.body,
-                                labels: issueData.labels,
-                                assignees: issueData.assignees,
-                                milestone: issueData.milestone || undefined,
-                                state: result.state || issueData.state || 'open',
-                                createdAt: result.created_at,
-                                updatedAt: result.updated_at,
-                                ...projectData,
+                                ...(numOrId ? { issueNumber: numOrId } : {}),
+                                ...(result.created_at ? { createdAt: result.created_at } : {}),
+                                ...(result.updated_at ? { updatedAt: result.updated_at } : {}),
+                                ...attributes,
+                                ...(result.state ? { state: result.state } : {}),
                                 ...statePayload,
                             },
                             lastApplied: new Date().toISOString(),
@@ -485,7 +458,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         console.log(`${address}: Modifying... [id=${remoteId}]`);
                         const startTime = Date.now();
 
-                        const { result, issueData, projectData, statePayload } = await applyApiPayload(change, change.issueNumber);
+                        const { result, attributes, statePayload } = await applyApiPayload(change, change.issueNumber);
 
                         const elapsed = elapsedSeconds(startTime);
                         const numOrId = result.number ?? result.id ?? change.issueNumber;
@@ -505,16 +478,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             attributes: {
                                 localHash: change.localHash,
                                 remoteId,
-                                issueNumber: change.issueNumber!,
-                                title: issueData.title,
-                                body: issueData.body,
-                                labels: issueData.labels,
-                                assignees: issueData.assignees,
-                                milestone: issueData.milestone || undefined,
-                                state: result.state || issueData.state || 'open',
-                                createdAt: result.created_at,
-                                updatedAt: result.updated_at,
-                                ...projectData,
+                                ...(change.issueNumber ? { issueNumber: change.issueNumber } : {}),
+                                ...(result.created_at ? { createdAt: result.created_at } : {}),
+                                ...(result.updated_at ? { updatedAt: result.updated_at } : {}),
+                                ...attributes,
+                                ...(result.state ? { state: result.state } : {}),
                                 ...statePayload,
                             },
                             lastApplied: new Date().toISOString(),
