@@ -823,13 +823,34 @@ class Resource {
 
 // ─── Built-in Resource Helpers ────────────────────────────────────────────────
 
+export function isNonLabelTag(tag: string, idTag?: string): boolean {
+    const clean = (tag || '').replace(/^@/, '').trim();
+    if (!clean) return true;
+
+    // 1. Matches identity tag of current scenario (e.g. tc-01, bg-01)
+    if (idTag && clean.toLowerCase() === idTag.toLowerCase()) return true;
+
+    // 2. Namespace tags (@ns(...) or @namespace(...))
+    if (extractNamespaceFromTag(tag.startsWith('@') ? tag : `@${tag}`)) return true;
+
+    // 3. Dependency and directive tags:
+    // e.g. @depends_on(@tc-01), @depends(...), @target(...), @run(...), @suite(...)
+    if (/^depends(?:_on)?(?:\(.*?\))?$/i.test(clean)) return true;
+    if (/^(?:target|run|suite|parent|source)(?:\(.*?\))?$/i.test(clean)) return true;
+
+    // 4. Resource identifiers / target reference tags:
+    // e.g. @tc-01, @tc-02, @tr-1, @tp-1, @bg-1, @sub-1
+    if (/^(?:tc|tr|tp|bg|sub)-[a-zA-Z0-9_-]+$/i.test(clean)) return true;
+
+    return false;
+}
+
 export function extractLabels(s: any, extraTag?: string): string[] {
     const idTag = s.custom?.identity?.startsWith('@') ? s.custom.identity.substring(1) : s.custom?.identity;
     const base: string[] = extraTag ? [...(s.tags || []), extraTag].map(String) : (s.tags || []).map(String);
     const cleaned = base
-        .filter((t: string) => !extractNamespaceFromTag(t.startsWith('@') ? t : `@${t}`))
-        .map((t: string) => t.startsWith('@') ? t.substring(1) : t)
-        .filter((t: string) => t !== idTag);
+        .filter((t: string) => !isNonLabelTag(t, idTag))
+        .map((t: string) => t.startsWith('@') ? t.substring(1) : t);
     return Array.from(new Set(cleaned));
 }
 
