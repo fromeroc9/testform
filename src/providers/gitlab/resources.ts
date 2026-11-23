@@ -46,11 +46,6 @@ export const gitlabTestrunTemplate: ResourceTemplate = {
         const rollupStatus = calculateRollupVerdict(statuses);
         const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
 
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
-        if (statusFieldKey) {
-            customFields[statusFieldKey] = rollupStatus;
-        }
-
         return {
             title: s.feature?.name || '',
             body: buildGitLabTestrunBody(s, context),
@@ -89,11 +84,6 @@ export const gitlabTestplanTemplate: ResourceTemplate = {
         const rollupStatus = calculatePlanRollup(s, context);
         const customFields = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {};
 
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
-        if (statusFieldKey) {
-            customFields[statusFieldKey] = rollupStatus;
-        }
-
         return {
             title: s.feature?.name || '',
             body: buildGitLabTestplanBody(s, context),
@@ -120,11 +110,6 @@ export const gitlabBugTemplate: ResourceTemplate = {
         const customFields = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'status', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
-
-        const statusFieldKey = Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
-        if (statusFieldKey) {
-            customFields[statusFieldKey] = bugStatus;
-        }
 
         return {
             title: s.name || s.feature?.name || '',

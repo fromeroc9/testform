@@ -270,10 +270,16 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     }
 
                     if (providerResources.project && projectData.custom_fields) {
+                        const projectCtx = {
+                            issueResult: result,
+                            issueNumber: existingIssueNumber,
+                            scenario: change.scenario,
+                            state: stateObj
+                        };
                         if (providerResources.project.update) {
-                            await providerResources.project.update(String(existingIssueNumber), { fields: projectData.custom_fields });
+                            await providerResources.project.update(String(existingIssueNumber), { fields: projectData.custom_fields }, projectCtx);
                         } else if (providerResources.project.patch) {
-                            await providerResources.project.patch(String(existingIssueNumber), { fields: projectData.custom_fields });
+                            await providerResources.project.patch(String(existingIssueNumber), { fields: projectData.custom_fields }, projectCtx);
                         }
                     }
                 } else if ((github as any).updateIssue) {

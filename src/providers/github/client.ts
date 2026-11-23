@@ -56,9 +56,35 @@ export class GitHubProvider implements IProvider {
                 }
                 return itemId;
             },
-            update: async (itemId: string, data: { fields?: Record<string, any> }) => {
-                if (!itemId || !data.fields) return;
-                await this.updateProjectItemFields(itemId, data.fields);
+            update: async (targetId: string | number, data: { fields?: Record<string, any> }, context?: any) => {
+                if (!targetId || !data.fields || !this.projectId) return;
+                const idStr = String(targetId);
+                let itemId: string | undefined;
+
+                if (idStr.startsWith('PVTI_')) {
+                    itemId = idStr;
+                } else {
+                    let issueNodeId = context?.issueResult?.node_id || context?.node_id;
+                    if (!issueNodeId) {
+                        if (idStr.startsWith('I_')) {
+                            issueNodeId = idStr;
+                        } else {
+                            try {
+                                const issue = await this.getIssue(targetId);
+                                issueNodeId = issue?.node_id;
+                            } catch {
+                                // fallback fetch failed
+                            }
+                        }
+                    }
+                    if (issueNodeId) {
+                        itemId = await this.addToProject(issueNodeId);
+                    }
+                }
+
+                if (itemId && data.fields) {
+                    await this.updateProjectItemFields(itemId, data.fields);
+                }
             },
             post: async (data: { fields?: Record<string, any> }, context?: any) => {
                 const issueNodeId = context?.issueResult?.node_id;
@@ -69,9 +95,35 @@ export class GitHubProvider implements IProvider {
                 }
                 return itemId;
             },
-            patch: async (itemId: string, data: { fields?: Record<string, any> }) => {
-                if (!itemId || !data.fields) return;
-                await this.updateProjectItemFields(itemId, data.fields);
+            patch: async (targetId: string | number, data: { fields?: Record<string, any> }, context?: any) => {
+                if (!targetId || !data.fields || !this.projectId) return;
+                const idStr = String(targetId);
+                let itemId: string | undefined;
+
+                if (idStr.startsWith('PVTI_')) {
+                    itemId = idStr;
+                } else {
+                    let issueNodeId = context?.issueResult?.node_id || context?.node_id;
+                    if (!issueNodeId) {
+                        if (idStr.startsWith('I_')) {
+                            issueNodeId = idStr;
+                        } else {
+                            try {
+                                const issue = await this.getIssue(targetId);
+                                issueNodeId = issue?.node_id;
+                            } catch {
+                                // fallback fetch failed
+                            }
+                        }
+                    }
+                    if (issueNodeId) {
+                        itemId = await this.addToProject(issueNodeId);
+                    }
+                }
+
+                if (itemId && data.fields) {
+                    await this.updateProjectItemFields(itemId, data.fields);
+                }
             }
         }
     };

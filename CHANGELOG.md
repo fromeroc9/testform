@@ -40,11 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Dynamic Project Status Synchronization — Elimination of Hardcoded 'Status' (`src/core/resources.ts`):**
-  - Replaced hardcoded `customFields['Status'] = rollupStatus` with dynamic field key discovery.
-  - If and only if the user explicitly configured a status column in `main.yml` (e.g. `Status` or `status`), Testform synchronizes it with the calculated rollup verdict using the exact casing declared by the user. If unconfigured, no synthetic field is injected into `custom_fields`.
+- **Complete Elimination of Hardcoded `customFields['Status'] = rollupStatus` across Providers (`src/providers/*`, `src/core/resources.ts`):**
+  - Completely purged any automatic mutation or overwrite of `customFields['Status']` or case-insensitive status field key lookups across all resource templates (`testrun`, `testplan`, `bug`).
+  - Strict preservation of user custom fields: if the user declares `Status: "Done"` in `main.yml` or feature files, it remains untouched and is synchronized as `"Done"` directly to GitHub Projects without triggering single select option mismatch warnings.
+  - Strict separation of concern: `status` (lowercase) represents the test execution verdict (`state.status`, issue state `open`/`closed`, and Markdown execution banner), while `Status` (capitalized) represents the user's project board custom field.
+- **Robust ProjectV2Item ID Resolution in In-Place Updates (`src/providers/github/client.ts`, `src/commands/apply.ts`):**
+  - Resolved fatal GraphQL error (`Could not resolve to a node with the global id of '<issueNumber>'`) during `testform apply` in-place updates.
+  - `providerResources.project.update` and `patch` now receive context `{ issueResult, issueNumber, scenario, state }` and automatically resolve issue numbers to their corresponding `ProjectV2Item` ID (`PVTI_...`) via `addToProject(issueNodeId)` or fallback issue retrieval before updating project fields.
 - **Strict Distinction between `status` and `Status` (`src/core/resources.ts`):**
-  - `extractCustomFields` now uses exact-case key matching so excluding lowercase `'status'` (internal execution verdict) never strips or mutates a user-declared `'Status'` (project board column).
+  - `extractCustomFields` uses exact-case key matching so excluding lowercase `'status'` (internal execution verdict) never strips or mutates a user-declared `'Status'` (project board column).
   - `getScenarioValue` strictly prioritizes exact-key lookups before falling back to case-insensitive matching.
 - **State Lock Diagnostic Formatting & System User Resolution (`src/core/utils.ts`, `src/core/logger.ts`, `src/core/state.ts`, `src/backends/*.ts`):**
   - Replaced hardcoded `Who: unknown` with cross-platform `getSystemUser()` returning `username@hostname` on Windows, macOS, and Linux.
