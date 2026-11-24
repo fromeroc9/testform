@@ -1,4 +1,4 @@
-import { ResourceTemplate } from '../../core/types';
+import { ResourceTemplate, ParserScenario, ResourceContext } from '../../core/types';
 import {
     resource,
     extractCustomFields,
@@ -24,7 +24,7 @@ import {
 
 export const localTestcaseTemplate: ResourceTemplate = {
     type: 'testcase',
-    attributes: (s: any) => ({
+    attributes: (s: ParserScenario) => ({
         title: s.name,
         body: buildLocalTestcaseBody(s),
         labels: extractLabels(s),
@@ -37,9 +37,9 @@ export const localTestcaseTemplate: ResourceTemplate = {
 
 export const localTestrunTemplate: ResourceTemplate = {
     type: 'testrun',
-    attributes: (s: any, context?: any) => {
+    attributes: (s: ParserScenario, context?: ResourceContext) => {
         const groupScenarios = s.custom?.groupScenarios || [];
-        const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
+        const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
         const rollupStatus = calculateRollupVerdict(statuses, context?.config);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
@@ -65,20 +65,20 @@ export const localTestrunTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: any) => {
+        status: (s: ParserScenario) => {
             const groupScenarios = s.custom?.groupScenarios || [];
-            const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
+            const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
             return calculateRollupVerdict(statuses);
         },
-        duration: (s: any) => getScenarioValue(s, 'duration'),
-        attach: (s: any) => getScenarioEvidence(s),
-        trace: (s: any) => getScenarioTrace(s),
-        testcases: (s: any) => extractTestcaseStatusMap(s),
-        testcaseTraces: (s: any) => {
+        duration: (s: ParserScenario) => getScenarioValue(s, 'duration'),
+        attach: (s: ParserScenario) => getScenarioEvidence(s),
+        trace: (s: ParserScenario) => getScenarioTrace(s),
+        testcases: (s: ParserScenario) => extractTestcaseStatusMap(s),
+        testcaseTraces: (s: ParserScenario) => {
             const map = extractTestcaseTraceMap(s);
             return Object.keys(map).length > 0 ? map : undefined;
         },
-        testcaseEvidence: (s: any) => {
+        testcaseEvidence: (s: ParserScenario) => {
             const map = extractTestcaseEvidenceMap(s);
             return Object.keys(map).length > 0 ? map : undefined;
         }
@@ -87,7 +87,7 @@ export const localTestrunTemplate: ResourceTemplate = {
 
 export const localTestplanTemplate: ResourceTemplate = {
     type: 'testplan',
-    attributes: (s: any, context?: any) => {
+    attributes: (s: ParserScenario, context?: ResourceContext) => {
         const rollupStatus = calculatePlanRollup(s, context);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
 
@@ -113,15 +113,15 @@ export const localTestplanTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: any, context?: any) => calculatePlanRollup(s, context),
-        attach: (s: any) => getScenarioEvidence(s),
-        testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context)
+        status: (s: ParserScenario, context?: ResourceContext) => calculatePlanRollup(s, context),
+        attach: (s: ParserScenario) => getScenarioEvidence(s),
+        testruns: (s: ParserScenario, context?: ResourceContext) => extractPlanTestrunsMap(s, context)
     }
 };
 
 export const localBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: any) => {
+    attributes: (s: ParserScenario) => {
         const rawStatus = getScenarioStatus(s, 'open');
         const meta = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
@@ -144,11 +144,11 @@ export const localBugTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: any) => getScenarioStatus(s, 'open'),
-        trace: (s: any) => getScenarioTrace(s),
-        attach: (s: any) => getScenarioEvidence(s),
-        testcase: (s: any) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
-        testrun: (s: any) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun')
+        status: (s: ParserScenario) => getScenarioStatus(s, 'open'),
+        trace: (s: ParserScenario) => getScenarioTrace(s),
+        attach: (s: ParserScenario) => getScenarioEvidence(s),
+        testcase: (s: ParserScenario) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
+        testrun: (s: ParserScenario) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun')
     }
 };
 

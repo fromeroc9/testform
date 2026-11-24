@@ -118,26 +118,56 @@ interface ParserPolicy {
     message?: string;
 }
 
+/**
+ * Represents a parsed Gherkin scenario with extracted domain metadata.
+ * This is the primary data structure (`s`) supplied to ResourceTemplate evaluators.
+ */
 export interface ParserScenario {
+    /** File path or URI of the `.feature` file where this scenario is declared. */
     uri: string;
+    /** Parent feature metadata (name, tags, description, line location). */
     feature: ParserFeature;
+    /** Line number where the scenario keyword appears. */
     location: number;
+    /** Gherkin keyword used (e.g. 'Scenario' or 'Scenario Outline'). */
     keyword: string;
+    /** Human-readable scenario name/title. */
     name: string;
+    /** Optional scenario description block. */
     description: string;
+    /** Ordered list of executable Gherkin steps (Given, When, Then, And, But). */
     steps: ParserStep[];
+    /** Direct scenario tags (e.g. ['@tc-01', '@smoke', '@priority=high']). */
     tags: string[];
+    /** Optional background section associated with the scenario. */
     background?: ParserBackground;
+    /** Optional containing Rule block (e.g. 'Rule: Magento/catalog.case.feature'). */
     rule?: ParserRule;
+    /**
+     * Enriched domain metadata extracted and evaluated by Testform parsers.
+     */
     custom?: {
+        /** Associated testcase identities or file references. */
         testcases?: string[];
+        /** Associated testrun identities or file references (used in testplans). */
         testruns?: string[];
+        /** Canonical scenario identity tag (e.g. 'tc-01', 'tr-02', 'bg-01'). */
         identity?: string;
+        /** Merged metadata fields (from global defaults, resource defaults, and scenario steps). */
         fields?: Record<string, string>;
+        /** Explicitly written fields in the scenario (allows distinguishing overrides from defaults). */
+        explicitFields?: Record<string, any>;
+        /** Runtime execution marks (* set status, attach, trace, run). */
+        set?: Record<string, any>;
+        /** Policy validation warnings and violations detected on this scenario. */
         policy?: ParserPolicy[];
+        /** Child scenarios grouped under this scenario (e.g., testcases executed in a testrun). */
         groupScenarios?: ParserScenario[];
+        /** Dynamic metadata key-values. */
         metadata?: Record<string, any>;
+        /** Unfiltered raw tag strings. */
         rawTags?: string[];
+        /** Unfiltered raw steps. */
         rawSteps?: ParserStep[];
         [key: string]: any;
     };
@@ -283,18 +313,53 @@ export interface ResourceLifecycleHooks {
     afterDelete?(args: { id: string | number; provider: any; context: any }): Promise<void> | void;
 }
 
+/**
+ * Evaluation runtime context passed to ResourceTemplate evaluators (`attributes`, `state`, `api`).
+ * Provides access to the active Testform engine services, configuration, and state.
+ */
+export interface ResourceContext {
+    /**
+     * Active Testform configuration manager (main.yml), including scopes, custom fields, and status category resolvers.
+     */
+    config?: any;
+    /**
+     * Active Testform state manager, allowing cross-resource lookups (e.g., resolving testruns in testplan rollup).
+     */
+    state?: any;
+    /**
+     * Root directory of the test workspace on disk.
+     */
+    testDirectory?: string;
+    /**
+     * Provider type name currently active (e.g. 'github', 'gitlab', 'local').
+     */
+    provider?: string;
+    /**
+     * Resolved local variables or execution variables.
+     */
+    variables?: Record<string, any>;
+    /**
+     * Path to the target state file.
+     */
+    statePath?: string;
+    /**
+     * Allow custom or user-injected context properties.
+     */
+    [key: string]: any;
+}
+
 export type ResourceAttributesDefinition =
-    | ((scenario: ParserScenario, context?: any) => Record<string, any>)
-    | Record<string, ((scenario: ParserScenario, context?: any) => any) | any>;
+    | ((scenario: ParserScenario, context?: ResourceContext) => Record<string, any>)
+    | Record<string, ((scenario: ParserScenario, context?: ResourceContext) => any) | any>;
 
 export type ResourceApiDefinition = Record<
     string,
-    ((scenario: ParserScenario, context?: any) => any) | Record<string, ((scenario: ParserScenario, context?: any) => any) | any> | any
+    ((scenario: ParserScenario, context?: ResourceContext) => any) | Record<string, ((scenario: ParserScenario, context?: ResourceContext) => any) | any> | any
 >;
 
 export type ResourceStateDefinition = Record<
     string,
-    ((scenario: ParserScenario, context?: any) => any) | any
+    ((scenario: ParserScenario, context?: ResourceContext) => any) | any
 >;
 
 export interface ResourceTemplate {

@@ -1,4 +1,4 @@
-import { ResourceTemplate } from '../../core/types';
+import { ResourceTemplate, ParserScenario, ResourceContext } from '../../core/types';
 import {
     resource,
     extractCustomFields,
@@ -24,7 +24,7 @@ import {
 
 export const gitlabTestcaseTemplate: ResourceTemplate = {
     type: 'testcase',
-    attributes: (s: any) => ({
+    attributes: (s: ParserScenario) => ({
         title: s.name,
         body: buildGitLabTestcaseBody(s),
         labels: extractLabels(s),
@@ -37,21 +37,22 @@ export const gitlabTestcaseTemplate: ResourceTemplate = {
 
 export const gitlabTestrunTemplate: ResourceTemplate = {
     type: 'testrun',
-    attributes: (s: any, context?: any) => {
+    attributes: (s: ParserScenario, context?: ResourceContext) => {
         const groupScenarios = s.custom?.groupScenarios || [];
-        const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
+        const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
         const rollupStatus = calculateRollupVerdict(statuses, context?.config);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
         const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status')
-            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status')
-            || 'Status';
-        const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
-        const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
-        if (explicitVal !== undefined && explicitVal !== '') {
-            meta[statusFieldKey] = explicitVal;
-        } else {
-            meta[statusFieldKey] = rollupStatus;
+            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && explicitVal !== '') {
+                meta[statusFieldKey] = explicitVal;
+            } else {
+                meta[statusFieldKey] = rollupStatus;
+            }
         }
 
         return {
@@ -64,20 +65,20 @@ export const gitlabTestrunTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: any) => {
+        status: (s: ParserScenario) => {
             const groupScenarios = s.custom?.groupScenarios || [];
-            const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
+            const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
             return calculateRollupVerdict(statuses);
         },
-        duration: (s: any) => getScenarioValue(s, 'duration'),
-        attach: (s: any) => getScenarioEvidence(s),
-        trace: (s: any) => getScenarioTrace(s),
-        testcases: (s: any) => extractTestcaseStatusMap(s),
-        testcaseTraces: (s: any) => {
+        duration: (s: ParserScenario) => getScenarioValue(s, 'duration'),
+        attach: (s: ParserScenario) => getScenarioEvidence(s),
+        trace: (s: ParserScenario) => getScenarioTrace(s),
+        testcases: (s: ParserScenario) => extractTestcaseStatusMap(s),
+        testcaseTraces: (s: ParserScenario) => {
             const map = extractTestcaseTraceMap(s);
             return Object.keys(map).length > 0 ? map : undefined;
         },
-        testcaseEvidence: (s: any) => {
+        testcaseEvidence: (s: ParserScenario) => {
             const map = extractTestcaseEvidenceMap(s);
             return Object.keys(map).length > 0 ? map : undefined;
         }
@@ -86,7 +87,7 @@ export const gitlabTestrunTemplate: ResourceTemplate = {
 
 export const gitlabTestplanTemplate: ResourceTemplate = {
     type: 'testplan',
-    attributes: (s: any, context?: any) => {
+    attributes: (s: ParserScenario, context?: ResourceContext) => {
         const rollupStatus = calculatePlanRollup(s, context);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
 
@@ -112,15 +113,15 @@ export const gitlabTestplanTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: any, context?: any) => calculatePlanRollup(s, context),
-        attach: (s: any) => getScenarioEvidence(s),
-        testruns: (s: any, context?: any) => extractPlanTestrunsMap(s, context)
+        status: (s: ParserScenario, context?: ResourceContext) => calculatePlanRollup(s, context),
+        attach: (s: ParserScenario) => getScenarioEvidence(s),
+        testruns: (s: ParserScenario, context?: ResourceContext) => extractPlanTestrunsMap(s, context)
     }
 };
 
 export const gitlabBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: any) => {
+    attributes: (s: ParserScenario) => {
         const setStatus = s.custom?.set?.status;
         const rawStatus = (setStatus !== undefined && setStatus !== null && String(setStatus).trim() !== '')
             ? String(setStatus).trim()
@@ -147,16 +148,16 @@ export const gitlabBugTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: any) => {
+        status: (s: ParserScenario) => {
             const setStatus = s.custom?.set?.status;
             return (setStatus !== undefined && setStatus !== null && String(setStatus).trim() !== '')
                 ? String(setStatus).trim()
                 : 'open';
         },
-        trace: (s: any) => getScenarioTrace(s),
-        attach: (s: any) => getScenarioEvidence(s),
-        testcase: (s: any) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
-        testrun: (s: any) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun')
+        trace: (s: ParserScenario) => getScenarioTrace(s),
+        attach: (s: ParserScenario) => getScenarioEvidence(s),
+        testcase: (s: ParserScenario) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
+        testrun: (s: ParserScenario) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun')
     }
 };
 
