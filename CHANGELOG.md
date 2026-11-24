@@ -81,34 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Custom resources defined outside built-in scopes (`isCustomScope`) can now use standard execution marks (`* set status = ...`, `* set duration = ...`, `* set attach = ...`, `* set trace = ...`) without triggering `invalid-set-mark` policy violations.
 - **Universal Scenario Access Helpers (`src/core/resources.ts`):**
   - Added and exported `getScenarioValue(s, name)`, `getScenarioStatus(s)`, `getScenarioTrace(s)`, and `getScenarioEvidence(s)` to seamlessly extract execution marks and declared fields across both built-in and user-defined custom resources.
-
-### Fixed
-
-- **Complete Elimination of Hardcoded `customFields['Status'] = rollupStatus` across Providers (`src/providers/*`, `src/core/resources.ts`):**
-  - Completely purged any automatic mutation or overwrite of `customFields['Status']` or case-insensitive status field key lookups across all resource templates (`testrun`, `testplan`, `bug`).
-  - Strict preservation of user custom fields: if the user declares `Status: "Done"` in `main.yml` or feature files, it remains untouched and is synchronized as `"Done"` directly to GitHub Projects without triggering single select option mismatch warnings.
-  - Strict separation of concern: `status` (lowercase) represents the test execution verdict (`state.status`, issue state `open`/`closed`, and Markdown execution banner), while `Status` (capitalized) represents the user's project board custom field.
-- **Robust ProjectV2Item ID Resolution in In-Place Updates (`src/providers/github/client.ts`, `src/commands/apply.ts`):**
-  - Resolved fatal GraphQL error (`Could not resolve to a node with the global id of '<issueNumber>'`) during `testform apply` in-place updates.
-  - `providerResources.project.update` and `patch` now receive context `{ issueResult, issueNumber, scenario, state }` and automatically resolve issue numbers to their corresponding `ProjectV2Item` ID (`PVTI_...`) via `addToProject(issueNodeId)` or fallback issue retrieval before updating project fields.
-- **Strict Distinction between `status` and `Status` (`src/core/resources.ts`):**
-  - `extractCustomFields` uses exact-case key matching so excluding lowercase `'status'` (internal execution verdict) never strips or mutates a user-declared `'Status'` (project board column).
-  - `getScenarioValue` strictly prioritizes exact-key lookups before falling back to case-insensitive matching.
-- **State Lock Diagnostic Formatting & System User Resolution (`src/core/utils.ts`, `src/core/logger.ts`, `src/core/state.ts`, `src/backends/*.ts`):**
-  - Replaced hardcoded `Who: unknown` with cross-platform `getSystemUser()` returning `username@hostname` on Windows, macOS, and Linux.
-  - Replaced hardcoded `Operation: Operation` with dynamic operation type inference (`OperationTypePlan`, `OperationTypeApply`).
-  - Stripped duplicate `Error:` prefixes in diagnostic banner titles.
-
-### Fixed
-
-- **Namespace-Aware Testcase Specificity in Testrun Matching (`src/providers/github/templates.ts`):**
-  - Resolved an overmatching bug where rules with qualified paths or namespaces (e.g. `Rule: Magento/cart.case.feature` alongside `OpenCart/cart.case.feature` and `SauceDemo/cart.case.feature`) caused false-positive ambiguity errors (`Multiple testcases found for rule...`).
-  - Implemented hierarchical specificity: when a rule contains a directory path or namespace (`Magento/cart` or `magento.cart`), matching is restricted exclusively to resources in that namespace/directory, completely preventing bare `ruleBaseName` fallback from cross-pollinating testcases across disparate projects.
-- **Early Attribute & Reference Validation in `testform plan` (`src/commands/plan.ts`):**
-  - Added proactive attribute evaluation and reference resolution checks during the planning phase. Any template error, reference ambiguity, or missing dependency is now caught and reported upfront in `testform plan` before requesting user confirmation, eliminating runtime interruptions during `testform apply`.
-
-### Added
-
 - **Strict Separation of `* set` vs `* field` vs `@tag` (`src/parsers/testcase-parser.ts`, `src/parsers/base-parser.ts`, `src/policies/catalog.ts`):**
   - **`testcase` (`*.case.feature`):** Prohibited all `* set` marks (including `attach`). Only standard Gherkin steps (`Given`, `When`, `Then`) and contract metadata fields (`* field <name> = <value>`) are permitted.
   - **Resource State Metadata Extraction (`src/core/resources.ts`):**
@@ -132,6 +104,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Complete Elimination of Hardcoded `customFields['Status'] = rollupStatus` across Providers (`src/providers/*`, `src/core/resources.ts`):**
+  - Completely purged any automatic mutation or overwrite of `customFields['Status']` or case-insensitive status field key lookups across all resource templates (`testrun`, `testplan`, `bug`).
+  - Strict preservation of user custom fields: if the user declares `Status: "Done"` in `main.yml` or feature files, it remains untouched and is synchronized as `"Done"` directly to GitHub Projects without triggering single select option mismatch warnings.
+  - Strict separation of concern: `status` (lowercase) represents the test execution verdict (`state.status`, issue state `open`/`closed`, and Markdown execution banner), while `Status` (capitalized) represents the user's project board custom field.
+- **Robust ProjectV2Item ID Resolution in In-Place Updates (`src/providers/github/client.ts`, `src/commands/apply.ts`):**
+  - Resolved fatal GraphQL error (`Could not resolve to a node with the global id of '<issueNumber>'`) during `testform apply` in-place updates.
+  - `providerResources.project.update` and `patch` now receive context `{ issueResult, issueNumber, scenario, state }` and automatically resolve issue numbers to their corresponding `ProjectV2Item` ID (`PVTI_...`) via `addToProject(issueNodeId)` or fallback issue retrieval before updating project fields.
+- **Strict Distinction between `status` and `Status` (`src/core/resources.ts`):**
+  - `extractCustomFields` uses exact-case key matching so excluding lowercase `'status'` (internal execution verdict) never strips or mutates a user-declared `'Status'` (project board column).
+  - `getScenarioValue` strictly prioritizes exact-key lookups before falling back to case-insensitive matching.
+- **State Lock Diagnostic Formatting & System User Resolution (`src/core/utils.ts`, `src/core/logger.ts`, `src/core/state.ts`, `src/backends/*.ts`):**
+  - Replaced hardcoded `Who: unknown` with cross-platform `getSystemUser()` returning `username@hostname` on Windows, macOS, and Linux.
+  - Replaced hardcoded `Operation: Operation` with dynamic operation type inference (`OperationTypePlan`, `OperationTypeApply`).
+  - Stripped duplicate `Error:` prefixes in diagnostic banner titles.
+- **Namespace-Aware Testcase Specificity in Testrun Matching (`src/providers/github/templates.ts`):**
+  - Resolved an overmatching bug where rules with qualified paths or namespaces (e.g. `Rule: Magento/cart.case.feature` alongside `OpenCart/cart.case.feature` and `SauceDemo/cart.case.feature`) caused false-positive ambiguity errors (`Multiple testcases found for rule...`).
+  - Implemented hierarchical specificity: when a rule contains a directory path or namespace (`Magento/cart` or `magento.cart`), matching is restricted exclusively to resources in that namespace/directory, completely preventing bare `ruleBaseName` fallback from cross-pollinating testcases across disparate projects.
+- **Early Attribute & Reference Validation in `testform plan` (`src/commands/plan.ts`):**
+  - Added proactive attribute evaluation and reference resolution checks during the planning phase. Any template error, reference ambiguity, or missing dependency is now caught and reported upfront in `testform plan` before requesting user confirmation, eliminating runtime interruptions during `testform apply`.
 - **Gherkin Tokenizer Tag Reassembly for `@depends_on` (`src/parsers/base-parser.ts`, `src/core/utils.ts`):**
   - Reassembles `@depends_on(...)` tags split across `@` characters by Cucumber Gherkin's tokenizer, preventing accidental whitespace injection and ensuring clean dependency parsing.
 - **Scaffolding Generators Updated (`src/commands/import.ts`, `src/commands/spec.ts`):**
