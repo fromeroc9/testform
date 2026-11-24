@@ -640,6 +640,7 @@ export function filterResourcesInState(resources: any[], selectors: string[]): a
                 matchesTarget(addr, cleanSel, r.type) ||
                 matchesTarget(fullAddress, cleanSel, r.type) ||
                 (r.physicalAddress && matchesTarget(r.physicalAddress, cleanSel, r.type)) ||
+                (r.path && r.tag && matchesTarget(`${r.path}.${r.tag}`, cleanSel, r.type)) ||
                 (r.path && matchesTarget(r.path, cleanSel, r.type))
             );
         });

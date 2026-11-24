@@ -593,7 +593,7 @@ export function buildGitHubBugBody(s: any): string {
 
     const evidenceList = getScenarioEvidence(s) || [];
     if (evidenceList.length > 0) {
-        body += '### 📸 Evidence / Attachments\n';
+        body += '### Attachments\n';
         for (const ev of evidenceList) {
             const isImg = /\.(png|jpe?g|gif|webp|svg)($|\?)/i.test(ev);
             if (isImg) {

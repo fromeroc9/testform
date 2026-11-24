@@ -365,7 +365,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             address: change.address,
                             path: change.path,
                             tag: change.tag,
-                            physicalAddress: change.physicalAddress,
                             ...(change.namespace ? { namespace: change.namespace } : {}),
                             attributes: {
                                 localHash: change.localHash,
@@ -436,7 +435,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             address: change.address,
                             path: change.path,
                             tag: change.tag,
-                            physicalAddress: change.physicalAddress,
                             ...(change.namespace ? { namespace: change.namespace } : {}),
                             attributes: {
                                 localHash: change.localHash,
@@ -474,7 +472,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             address: change.address,
                             path: change.path,
                             tag: change.tag,
-                            physicalAddress: change.physicalAddress,
                             ...(change.namespace ? { namespace: change.namespace } : {}),
                             attributes: {
                                 localHash: change.localHash,

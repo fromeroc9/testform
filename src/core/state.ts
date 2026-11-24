@@ -331,18 +331,17 @@ export class State {
         const normType = rawType.includes('_') ? rawType.split('_').slice(1).join('_') : rawType;
         const pathStr = (resource.path || '').replace(/\\/g, '/');
         const tagStr = resource.tag || (addressStr.includes('@') ? addressStr.slice(addressStr.lastIndexOf('@')) : '');
-        const physAddr = resource.physicalAddress || (tagStr ? `${pathStr}.${tagStr}` : pathStr);
         const cleanedResource: StateResource = {
             ...resource,
             type: normType,
             address: addressStr,
             path: pathStr,
             tag: tagStr,
-            physicalAddress: physAddr,
             ...(resource.namespace ? { namespace: resource.namespace } : {}),
             attributes: cleanAttributes(resource.attributes) as any,
             lastApplied: resource.lastApplied || new Date().toISOString()
         };
+        delete (cleanedResource as any).physicalAddress;
         const idx = this.state.resources.findIndex(r => r.address === cleanedResource.address);
         if (idx >= 0) {
             this.state.resources[idx] = cleanedResource;
@@ -359,7 +358,6 @@ export class State {
         this.state.resources = this.state.resources.filter(r => 
             r.address !== norm && 
             r.tag !== norm && 
-            r.physicalAddress !== norm &&
             (r.path && r.tag && `${r.path}.${r.tag}` !== norm) &&
             r.path !== norm &&
             (r as any).identity !== norm
