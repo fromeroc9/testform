@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import YAML from 'yaml';
-import { FILE_STATE, VERSION_STATE } from '../core/const';
+import { FILE_STATE, VERSION_STATE, TITLE_CLI, TITLE_APP } from '../core/const';
 import { logger as notify } from '../core/logger';
 import { IState, StateResource, StateOutput } from '../core/types';
 import { IBackend } from '../backends/backend';
@@ -14,8 +14,8 @@ import { GitHubBackend, GitHubBackendConfig } from '../backends/github';
 import { HTTPBackend, HTTPBackendConfig } from '../backends/http';
 import { CustomBackend, CustomBackendConfig } from '../backends/custom';
 import { Config } from '../core/config';
-import { WorkspaceManager } from '../core/workspace';
-import { StateLockError } from '../core/errors';
+import { WorkspaceManager, isBackendEqual } from '../core/workspace';
+import { StateLockError, TestformError } from '../core/errors';
 import { detectScopeFromTarget, findResourceInState } from '../core/selector';
 import { normalizeAddress, getSystemUser } from '../core/utils';
 
@@ -91,6 +91,7 @@ export class State {
 
         this.workspaceManager = new WorkspaceManager(rootDir);
         const currentWorkspace = this.workspaceManager.getCurrentWorkspace();
+        const activeBackend = this.workspaceManager.getActiveBackend();
 
         // If backend is explicitly disabled via CLI or a custom state file path is provided, force local
         if (disableBackend || customStatePath) {
@@ -99,6 +100,26 @@ export class State {
             // Apply CLI overrides to the backend config
             const overrides = parseBackendOverrides(backendConfigRaw, dir);
             backendConfig.config = { ...backendConfig.config, ...overrides };
+        }
+
+        // Enforce backend initialization like Terraform:
+        // If a remote backend is configured, it must have been initialized with "testform init"
+        if (!explicitBackendConfig && backendConfig && backendConfig.type && backendConfig.type !== 'local') {
+            if (!activeBackend) {
+                throw new TestformError(
+                    `Backend initialization required: please run "${TITLE_CLI} init"\n\n` +
+                    `Reason: Initial configuration of the requested backend "${backendConfig.type}"\n\n` +
+                    `The "backend" is the interface that ${TITLE_APP} uses to store state,\n` +
+                    `perform operations, etc. Please run "${TITLE_CLI} init" to initialize.`
+                );
+            }
+            if (!isBackendEqual(activeBackend, backendConfig)) {
+                throw new TestformError(
+                    `Backend configuration changed: please run "${TITLE_CLI} init"\n\n` +
+                    `A change in the backend configuration has been detected, which requires initialization.\n` +
+                    `Run "${TITLE_CLI} init" to initialize the backend with the new configuration.`
+                );
+            }
         }
 
         if (backendConfig?.type === 's3' || backendConfig?.type === 'oci') {

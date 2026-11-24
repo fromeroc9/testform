@@ -1,6 +1,19 @@
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, unlinkSync } from 'fs';
 
+export function isBackendEqual(a: any, b: any): boolean {
+    if (!a || !b) return false;
+    if (a.type !== b.type) return false;
+    const ignoreKeys = new Set(['token_env', 'tokenenv', 'token', 'credentials']);
+    const aKeys = Object.keys(a.config || {}).filter(k => !ignoreKeys.has(k) && a.config[k] !== undefined && a.config[k] !== '');
+    const bKeys = Object.keys(b.config || {}).filter(k => !ignoreKeys.has(k) && b.config[k] !== undefined && b.config[k] !== '');
+    if (aKeys.length !== bKeys.length) return false;
+    for (const k of aKeys) {
+        if (String(a.config[k] || '') !== String(b.config[k] || '')) return false;
+    }
+    return true;
+}
+
 export class WorkspaceManager {
     private testformDir: string;
     private cacheDir: string;

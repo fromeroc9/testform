@@ -8,7 +8,7 @@ import { basename, dirname, join } from 'path';
 import { State, parseBackendOverrides } from '../core/state';
 import { ensureDriverInstalled } from '../core/driver';
 import { findFeatureFiles } from '../core/editor';
-import { WorkspaceManager } from '../core/workspace';
+import { WorkspaceManager, isBackendEqual } from '../core/workspace';
 import { askBackendAttribute, isInteractive } from '../core/prompt';
 import { ModuleRegistry, isGitSource, parseGitSource } from '../core/module';
 import { ProviderInstaller, InstalledProviderResult } from '../core/provider-installer';
@@ -370,18 +370,6 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
     const effectiveBackend = {
         type: effectiveBackendType,
         config: effectiveBackendConfig
-    };
-
-    const isBackendEqual = (a: any, b: any): boolean => {
-        if (!a || !b) return false;
-        if (a.type !== b.type) return false;
-        const aKeys = Object.keys(a.config || {}).filter(k => a.config[k] !== undefined && a.config[k] !== '');
-        const bKeys = Object.keys(b.config || {}).filter(k => b.config[k] !== undefined && b.config[k] !== '');
-        if (aKeys.length !== bKeys.length) return false;
-        for (const k of aKeys) {
-            if (String(a.config[k] || '') !== String(b.config[k] || '')) return false;
-        }
-        return true;
     };
 
     const isBackendChanged = backendEnabled && activeBackend !== null && !isBackendEqual(activeBackend, effectiveBackend);
