@@ -24,22 +24,14 @@ import {
 
 export const githubTestcaseTemplate: ResourceTemplate = {
     type: 'testcase',
-    attributes: (s: any) => {
-        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
-        const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
-        const rawStatus = statusFieldKey ? String(meta[statusFieldKey]).trim().toLowerCase() : '';
-        const isClosed = rawStatus === 'done' || rawStatus === 'closed' || rawStatus === 'resolved';
-
-        return {
-            title: s.name,
-            body: buildGitHubTestcaseBody(s),
-            labels: extractLabels(s),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-            state: isClosed ? 'closed' : 'open',
-            metadata: meta
-        };
-    },
+    attributes: (s: any) => ({
+        title: s.name,
+        body: buildGitHubTestcaseBody(s),
+        labels: extractLabels(s),
+        assignees: extractAssignees(s),
+        milestone: s.custom?.fields?.milestone || undefined,
+        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {}
+    }),
     state: {}
 };
 
@@ -54,18 +46,16 @@ export const githubTestrunTemplate: ResourceTemplate = {
         // El Status de GitHub Projects se alimenta del autocálculo del motor (rollupStatus),
         // pero si el usuario escribió explícitamente * field Status en el feature, ese valor manual manda.
         const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status')
-            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status')
-            || 'Status';
-        const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
-        const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
-        if (explicitVal !== undefined && explicitVal !== '') {
-            meta[statusFieldKey] = explicitVal;
-        } else {
-            meta[statusFieldKey] = rollupStatus;
+            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && explicitVal !== '') {
+                meta[statusFieldKey] = explicitVal;
+            } else {
+                meta[statusFieldKey] = rollupStatus;
+            }
         }
-
-        const effectiveStatus = String(meta[statusFieldKey] || rollupStatus).toLowerCase();
-        const isClosed = ['passed', 'success', 'exitoso', 'done', 'closed', 'resolved'].includes(effectiveStatus);
 
         return {
             title: s.feature?.name || '',
@@ -73,7 +63,6 @@ export const githubTestrunTemplate: ResourceTemplate = {
             labels: extractLabels(s),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: isClosed ? 'closed' : 'open',
             metadata: meta
         };
     },
@@ -107,18 +96,16 @@ export const githubTestplanTemplate: ResourceTemplate = {
         // El Status de GitHub Projects se alimenta del autocálculo del motor (rollupStatus),
         // pero si el usuario escribió explícitamente * field Status en el feature, ese valor manual manda.
         const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status')
-            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status')
-            || 'Status';
-        const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
-        const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
-        if (explicitVal !== undefined && explicitVal !== '') {
-            meta[statusFieldKey] = explicitVal;
-        } else {
-            meta[statusFieldKey] = rollupStatus;
+            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && explicitVal !== '') {
+                meta[statusFieldKey] = explicitVal;
+            } else {
+                meta[statusFieldKey] = rollupStatus;
+            }
         }
-
-        const effectiveStatus = String(meta[statusFieldKey] || rollupStatus).toLowerCase();
-        const isClosed = ['passed', 'success', 'exitoso', 'done', 'closed', 'resolved'].includes(effectiveStatus);
 
         return {
             title: s.feature?.name || '',
@@ -126,7 +113,6 @@ export const githubTestplanTemplate: ResourceTemplate = {
             labels: extractLabels(s),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: isClosed ? 'closed' : 'open',
             metadata: meta
         };
     },
@@ -139,21 +125,11 @@ export const githubTestplanTemplate: ResourceTemplate = {
 
 export const githubBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: any, context?: any) => {
+    attributes: (s: any) => {
         const setStatus = s.custom?.set?.status;
         const rawStatus = (setStatus !== undefined && setStatus !== null && String(setStatus).trim() !== '')
             ? String(setStatus).trim()
             : 'open';
-
-        let category = 'open';
-        if (context?.config && typeof context.config.resolveStatusCategory === 'function') {
-            category = context.config.resolveStatusCategory('bug', rawStatus);
-        } else {
-            const clean = rawStatus.toLowerCase();
-            if (['closed', 'resolved', 'cerrado', 'resuelto'].includes(clean)) category = 'closed';
-            else if (['in_progress', 'en_progreso', 'en_atencion'].includes(clean)) category = 'in_progress';
-        }
-        const isClosed = category === 'closed' || category === 'resolved';
 
         const meta = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
@@ -162,9 +138,10 @@ export const githubBugTemplate: ResourceTemplate = {
         // En bug: * set status viaja IMPLÍCITAMENTE y directamente al campo Status del Tablero.
         // No aplica la sobreescritura manual de * field Status; * set status es el dueño de Status.
         const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status')
-            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status')
-            || 'Status';
-        meta[statusFieldKey] = rawStatus;
+            || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
+        if (statusFieldKey) {
+            meta[statusFieldKey] = rawStatus;
+        }
 
         return {
             title: s.name || s.feature?.name || '',
@@ -172,7 +149,6 @@ export const githubBugTemplate: ResourceTemplate = {
             labels: extractLabels(s, 'bug'),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: isClosed ? 'closed' : 'open',
             metadata: meta
         };
     },

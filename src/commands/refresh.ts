@@ -142,9 +142,6 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 state.removeResource(res.address || (res as any).identity);
                 removed++;
             } else {
-                if (issue.state && res.attributes.state !== issue.state) {
-                    res.attributes.state = issue.state;
-                }
                 const remoteCustomFields = (issue.node_id && (github as any).getProjectItemFields)
                     ? await (github as any).getProjectItemFields(issue.node_id)
                     : issue.metadata;

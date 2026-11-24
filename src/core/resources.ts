@@ -1015,7 +1015,6 @@ export const defaultTestcaseTemplate: ResourceTemplate = {
         labels: extractLabels(s),
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
-        state: 'open',
         metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {}
     }),
     state: {}
@@ -1035,7 +1034,6 @@ export const defaultTestrunTemplate: ResourceTemplate = {
             labels: extractLabels(s),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: rollupStatus === 'passed' ? 'closed' : 'open',
             metadata: meta
         };
     },
@@ -1072,7 +1070,6 @@ export const defaultTestplanTemplate: ResourceTemplate = {
             labels: extractLabels(s),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: rollupStatus === 'passed' ? 'closed' : 'open',
             metadata: meta
         };
     },
@@ -1085,18 +1082,8 @@ export const defaultTestplanTemplate: ResourceTemplate = {
 
 export const defaultBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: any, context?: any) => {
+    attributes: (s: any) => {
         const rawStatus = getScenarioStatus(s, 'open');
-        let category = 'open';
-        if (context?.config && typeof context.config.resolveStatusCategory === 'function') {
-            category = context.config.resolveStatusCategory('bug', rawStatus);
-        } else {
-            const clean = rawStatus.toLowerCase();
-            if (['closed', 'resolved', 'cerrado', 'resuelto'].includes(clean)) category = 'closed';
-            else if (['in_progress', 'en_progreso', 'en_atencion'].includes(clean)) category = 'in_progress';
-        }
-        const isClosed = category === 'closed' || category === 'resolved';
-
         const meta = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
@@ -1107,7 +1094,6 @@ export const defaultBugTemplate: ResourceTemplate = {
             labels: extractLabels(s, 'bug'),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: isClosed ? 'closed' : 'open',
             metadata: meta
         };
     },

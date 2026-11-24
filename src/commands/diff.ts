@@ -289,10 +289,6 @@ async function executeRemoteDrift(
                 const differences: RemoteDriftDifference[] = [];
                 const isClosed = issue.state === 'closed';
 
-                if (isClosed) {
-                    differences.push({ field: 'state', local: 'open/tracked', remote: 'closed on remote' });
-                }
-
                 // Check title
                 const localTitle = matchedScenario?.name || res.attributes.title || '';
                 if (localTitle && issue.title && localTitle.trim() !== issue.title.trim()) {

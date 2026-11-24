@@ -22,7 +22,6 @@ describe('GitHubProvider and GitHub Resources', () => {
             const attrs = (githubTestrunTemplate.attributes as Function)(mockScenario);
             expect(attrs.metadata.Status).toBeUndefined();
             expect(attrs.metadata.component).toBe('microservicio-1');
-            expect(attrs.state).toBe('open');
         });
 
         it('autocalculates Status when declared in fields without manual override', () => {
@@ -41,7 +40,6 @@ describe('GitHubProvider and GitHub Resources', () => {
 
             const attrs = (githubTestrunTemplate.attributes as Function)(mockScenario);
             expect(attrs.metadata.Status).toBe('pending');
-            expect(attrs.state).toBe('open');
         });
 
         it('strictly respects explicit user override in feature (e.g. * field Status = skipped)', () => {
@@ -64,7 +62,6 @@ describe('GitHubProvider and GitHub Resources', () => {
             const attrs = (githubTestrunTemplate.attributes as Function)(mockScenario);
             // All scenarios passed, but user explicitly declared Status = skipped!
             expect(attrs.metadata.Status).toBe('skipped');
-            expect(attrs.state).toBe('open');
         });
     });
 
