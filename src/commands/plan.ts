@@ -185,7 +185,12 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     let resources = state.getResources(RESOURCE_TYPE);
 
     if (target) {
-        resources = resources.filter(r => matchesTarget(r.address || (r as any).identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
+        resources = resources.filter(r => 
+            matchesTarget(r.address || (r as any).identity, target, scope) || 
+            (r.path && matchesTarget(r.path, target, scope)) ||
+            (r.physicalAddress && matchesTarget(r.physicalAddress, target, scope)) ||
+            (r.type && matchesTarget(r.type, target, scope))
+        );
     }
 
     if (refreshOnly) {
@@ -201,6 +206,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 
     // Track which addresses exist locally
     const localAddresses = new Set<string>();
+    const matchedStateAddresses = new Set<string>();
 
     const changes: PlanChange[] = [];
     const lifecycleResolver = new LifecycleResolver(dir);
@@ -216,6 +222,13 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
         const lc = lifecycleResolver.getLifecycle(address, scenarioTags);
         const localHash = hashScenario(scenario, scope, lc.ignore_changes);
         const existing = stateMap.get(address) || (typeof state?.findResource === 'function' ? state.findResource(address) : undefined);
+        if (existing) {
+            matchedStateAddresses.add(existing.address);
+            if ((existing as any).identity) matchedStateAddresses.add((existing as any).identity);
+            if (existing.address !== address) {
+                existing.address = address;
+            }
+        }
 
         const shouldForceReplace = replaceTargets ? matchesTarget(address, replaceTargets) : false;
 
@@ -293,7 +306,14 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     // Check for destroys (in state but not in local files)
     for (const res of resources) {
         const resAddr = res.address || (res as any).identity || '';
-        if (!localAddresses.has(resAddr)) {
+        if (!localAddresses.has(resAddr) && !matchedStateAddresses.has(resAddr)) {
+            // Safety net: Check if any local address matches this state resource by selector/canonical identity
+            const localMatch = Array.from(localAddresses).find(la => matchesTarget(resAddr, la, res.type) || matchesTarget(la, resAddr, res.type));
+            if (localMatch) {
+                matchedStateAddresses.add(resAddr);
+                res.address = localMatch;
+                continue;
+            }
             // Smart Rename / Move Detection:
             // If a newly added local resource has matching hash or matching tag+title,
             // migrate it in-place instead of destroying and recreating the remote issue.

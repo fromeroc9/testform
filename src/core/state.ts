@@ -172,7 +172,7 @@ export class State {
                     path: pathStr,
                     tag: tagStr,
                     ...(r.namespace ? { namespace: r.namespace } : {}),
-                    attributes: r.attributes ?? { ...r },
+                    attributes: cleanAttributes(r.attributes ?? { ...r }) as any,
                     lastApplied: r.lastApplied || new Date().toISOString(),
                     tainted: r.tainted,
                     createdAt: r.createdAt,
@@ -389,6 +389,9 @@ export function cleanAttributes(attrs: Record<string, any>): Record<string, any>
     for (const [key, val] of Object.entries(attrs)) {
         // 1. Omit null and undefined
         if (val === null || val === undefined) continue;
+
+        // 2. Eradicate legacy 'state' attribute (open/closed) - superseded by Board-First Status
+        if (key === 'state') continue;
 
         // 3. Omit empty string
         if (typeof val === 'string') {

@@ -64,7 +64,12 @@ export const refreshState = async (options: RefreshStateOptions) => {
     let resources = state.getResources(resourceType);
 
     if (target) {
-        resources = resources.filter(r => matchesTarget(r.address, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
+        resources = resources.filter(r => 
+            matchesTarget(r.address, target, scope) || 
+            (r.path && matchesTarget(r.path, target, scope)) ||
+            (r.physicalAddress && matchesTarget(r.physicalAddress, target, scope)) ||
+            (r.type && matchesTarget(r.type, target, scope))
+        );
     }
 
     if (resources.length === 0) {

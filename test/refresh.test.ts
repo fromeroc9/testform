@@ -141,7 +141,6 @@ describe('Command refreshCmd', () => {
         await refreshCmd({ dir: tmpDir, target: 'testcase' });
 
         expect(mockRemoveResource).not.toHaveBeenCalled();
-        expect(mockResource.attributes.state).toBe('closed');
         expect(mockSave).toHaveBeenCalled();
         expect(mockLog).toHaveBeenCalled();
         const logs = mockLog.mock.calls.join(' ');

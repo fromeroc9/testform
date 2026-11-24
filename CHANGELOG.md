@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Board-First 2-Status Architecture & Total Eradication of `state` Drift (`src/providers/*`, `src/commands/diff.ts`, `src/commands/refresh.ts`, `src/commands/apply.ts`, `src/core/state.ts`, `src/core/sync.ts`):**
+  - Fully decoupled Testform from micro-managing GitHub/GitLab issue `state` (`open` / `closed`). The project column (`Status` in `metadata`) is the single source of truth.
+  - Eliminated infinite drift loops (`~ state = "closed" -> "open"`) caused by GitHub Project automated issue closure workflows on "Done".
+  - **`cleanAttributes` auto-purge (`src/core/state.ts`)**: Automatically purges legacy `state: "closed"` / `state: "open"` properties from the state ledger upon loading and saving, preventing state pollution.
+  - **Exclusion from drift detection (`src/core/sync.ts`)**: Added `state` to excluded attributes in `detectAttributeDrift` to prevent mass false-positive drift warnings against closed issues.
+  - **Purged from `apply.ts`**: Removed injection of `result.state` when saving created or updated resources to state.
+  - **`testcase`**: Status is governed purely by custom field `Status`. If undeclared, the board column remains unpolluted (clean board).
+  - **`testrun` & `testplan`**: The engine's autocalculated rollup verdict (`passed`, `failed`, `pending`, `skipped`) automatically updates the board's `Status` column, while explicit user declarations (`* field Status`) take priority.
+  - **`bug`**: Sovereign defect status. `* set status` travels implicitly to the board's `Status` column, completely immune to `global.fields.Status.default: "Done"` or manual `* field Status` overrides.
+- **Accurate Resource Canonical Targeting (`-target`) in `plan` & `diff` (`src/commands/plan.ts`, `src/commands/diff.ts`, `src/core/selector.ts`, `src/commands/refresh.ts`):**
+  - Full path targeting support: `-target` now accepts file paths prefixed with root convention directories (e.g. `testcase\Magento\checkout.case.feature` or `testcase/Magento/checkout.case.feature`) on both Windows and Linux, stripping container prefixes automatically.
+  - Evaluates `r.path` and `r.physicalAddress` alongside `r.address` in `refreshState`, `planCmd`, and `diffCmd`.
+  - Added `matchedStateAddresses` and canonical address self-healing (`existing.address = address`) to eliminate false resource destructions when moving between path-based and namespace-based addresses (e.g. `Magento/checkout...` -> `magento.checkout...`).
+  - Added dot/slash hierarchical normalization in `matchesTarget` (`src/core/selector.ts`).
+  - Computes and evaluates canonical identity tags, logical addresses, and physical addresses before applying scope/target filters.
+- **Strong Typing & JSDoc Documentation for `ResourceTemplate` (`src/core/types.ts`, `src/core/resources.ts`, `src/providers/*`):**
+  - Purged untyped `(s: any, context?: any)` across all resource templates and baseline definitions.
+  - Formalized and documented `ParserScenario` (`s`) and `ResourceContext` (`context`) with comprehensive JSDoc descriptions.
+  - Added IntelliSense autocompletion for scenario metadata (`s.custom.fields`, `s.custom.set`, `s.custom.explicitFields`, `s.steps`, `s.tags`) and runtime context (`context.config`, `context.state`, `context.testDirectory`).
 - **Execution Marks Configuration (`set:`) & Custom Status Semantic Categorization (`src/core/config.ts`, `src/core/utils.ts`, `src/providers/*`):**
   - Introduced the `set:` block in `main.yml` under resources (e.g. `resource.testrun.set` and `resource.bug.set`), providing a direct 1:1 conceptual mapping with Gherkin runtime marks (`* set status`, `* set attach`, `* set trace`).
   - Added semantic status mapping (`set.status`) supporting user-defined custom statuses:

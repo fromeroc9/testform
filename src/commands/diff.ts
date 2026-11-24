@@ -135,10 +135,16 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         const resourceType = SCOPE_RESOURCE_MAP[s];
         let resources = state.getResources(resourceType);
         if (target) {
-            resources = resources.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
+            resources = resources.filter(r => 
+                matchesTarget(r.address, target, s) || 
+                (r.path && matchesTarget(r.path, target, s)) ||
+                (r.physicalAddress && matchesTarget(r.physicalAddress, target, s)) ||
+                (r.type && matchesTarget(r.type, target, s))
+            );
         }
         const stateMap = new Map(resources.map(r => [r.address, r]));
         const localAddresses = new Set<string>();
+        const matchedStateAddresses = new Set<string>();
         const lifecycleResolver = new LifecycleResolver(dir);
 
         for (const scenario of filtered) {
@@ -151,6 +157,13 @@ export const diffCmd = async (options: DiffCmdOptions) => {
             const lc = lifecycleResolver.getLifecycle(address, scenarioTags);
             const localHash = hashScenario(scenario, s, lc.ignore_changes);
             const stateRes = stateMap.get(address) || (typeof state.findResource === 'function' ? state.findResource(address) : undefined);
+            if (stateRes) {
+                matchedStateAddresses.add(stateRes.address);
+                if ((stateRes as any).identity) matchedStateAddresses.add((stateRes as any).identity);
+                if (stateRes.address !== address) {
+                    stateRes.address = address;
+                }
+            }
 
             if (!stateRes) {
                 entries.push({ address, status: 'new_local', localHash });
@@ -174,9 +187,16 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         }
 
         for (const res of resources) {
-            if (!localAddresses.has(res.address)) {
+            const resAddr = res.address || (res as any).identity || '';
+            if (!localAddresses.has(resAddr) && !matchedStateAddresses.has(resAddr)) {
+                const localMatch = Array.from(localAddresses).find(la => matchesTarget(resAddr, la, res.type) || matchesTarget(la, resAddr, res.type));
+                if (localMatch) {
+                    matchedStateAddresses.add(resAddr);
+                    res.address = localMatch;
+                    continue;
+                }
                 entries.push({
-                    address: res.address,
+                    address: resAddr,
                     status: 'orphaned_remote',
                     stateHash: res.attributes.localHash,
                     remoteId: res.attributes.remoteId,

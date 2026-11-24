@@ -147,7 +147,7 @@ export function detectAttributeDrift(
 
     // 6. Agnostic generic attributes
     for (const key of Object.keys(newAttributes)) {
-        if (['title', 'labels', 'assignees', 'milestone', 'custom_fields', 'metadata', 'localHash', 'remoteId', 'issueNumber', 'createdAt', 'updatedAt'].includes(key)) continue;
+        if (['title', 'labels', 'assignees', 'milestone', 'custom_fields', 'metadata', 'localHash', 'remoteId', 'issueNumber', 'createdAt', 'updatedAt', 'state'].includes(key)) continue;
         if (ignored.has(key.toLowerCase())) continue;
         if ((remoteIssue as any)[key] !== undefined && typeof (remoteIssue as any)[key] !== 'object') {
             if (String(newAttributes[key] ?? '').trim() !== String((remoteIssue as any)[key] ?? '').trim()) {

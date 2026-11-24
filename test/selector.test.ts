@@ -80,6 +80,12 @@ describe('Target and Spec Selector (src/core/selector)', () => {
             expect(matchesTarget('testcase/ParaBank/account_services.case.feature.@tc-01', 'tc-01')).toBe(true);
             expect(matchesTarget('testcycle/sprint.run.feature.@tr-40', '@tr-4')).toBe(false);
             expect(matchesTarget('testcase/ParaBank/account_services.case.feature.@tc-01', '@tc-02')).toBe(false);
+
+            // Path targets with root directory prefix (e.g. testcase\Magento\checkout.case.feature)
+            expect(matchesTarget('Magento/checkout.case.feature.@tc-01', 'testcase\\Magento\\checkout.case.feature', 'testcase')).toBe(true);
+            expect(matchesTarget('magento.checkout.case.feature.@tc-01', 'testcase\\Magento\\checkout.case.feature', 'testcase')).toBe(true);
+            expect(matchesTarget('magento.checkout.case.feature.@tc-01', 'testcase/Magento/checkout.case.feature', 'testcase')).toBe(true);
+            expect(matchesTarget('magento.checkout.case.feature.@tc-01', 'testcase/Magento', 'testcase')).toBe(true);
         });
     });
 

@@ -311,14 +311,20 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
         let normT = t.replace(/\\/g, '/');
 
         // Check if target is a resource address with type prefix (e.g. testcase.modules/auth/login or github_testcase.modules/auth/login)
+        // or a path with folder prefix (e.g. testcase/Magento/checkout.case.feature)
         if (resourceType) {
             const cleanRes = resourceType.trim().toLowerCase();
             if (normT.toLowerCase().startsWith(`${cleanRes}.`)) {
                 normT = normT.slice(cleanRes.length + 1);
+            } else if (normT.toLowerCase().startsWith(`${cleanRes}/`)) {
+                normT = normT.slice(cleanRes.length + 1);
+            } else if (normT.toLowerCase().startsWith(`${cleanRes}s/`)) {
+                normT = normT.slice(cleanRes.length + 2);
             } else if (normT.toLowerCase().match(new RegExp(`^[a-z0-9_-]+_${cleanRes}\\.`, 'i'))) {
                 normT = normT.replace(new RegExp(`^[a-z0-9_-]+_${cleanRes}\\.`, 'i'), '');
             }
         }
+        const strippedT = normT.replace(/^(?:testcases?|testruns?|testplans?|bugs?)\//i, '');
 
         const lowerIdentity = normIdentity.toLowerCase();
         const lowerT = normT.toLowerCase();
@@ -345,7 +351,7 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             }
         }
 
-        // 3. Target matches end of identity (e.g. "feature.@tc-01", ".@tc-01", "@tc-01", or "ParaBank/account_services.case.feature.@tc-1")
+        // 3. Target matches end of identity or identity matches end of target (e.g. "feature.@tc-01", ".@tc-01", "@tc-01", or "testcase/Magento/checkout.case.feature")
         const idNormTag = lowerIdentity.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
         const tNormTag = lowerT.replace(/@([a-z]+)-0*(\d+)/i, '@$1-$2');
         if (
@@ -359,6 +365,17 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             idNormTag.endsWith(tNormTag)
         ) {
             return true;
+        }
+
+        // When target is a full path (e.g. testcase/Magento/checkout.case.feature) and identity is scoped (Magento/checkout.case.feature)
+        if (lowerCleanIdentity.includes('.feature') || lowerCleanIdentity.includes('/')) {
+            if (
+                lowerT.endsWith(`/${lowerCleanIdentity}`) ||
+                lowerT.endsWith(`/${lowerIdentity}`) ||
+                tNormTag.endsWith(`/${idNormTag}`)
+            ) {
+                return true;
+            }
         }
 
         // Dot/slash interchangeable matching (hierarchical namespace e.g. magento.cart.case.feature.@tc-01 vs magento/cart.case.feature.@tc-01)
@@ -376,6 +393,46 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             dotIdNormTag.endsWith(`.${dotTNormTag}`)
         ) {
             return true;
+        }
+
+        // Target path ends with dot identity (e.g. testcase.magento.checkout.case.feature ends with .magento.checkout.case.feature)
+        if (dotCleanIdentity.includes('.feature') || dotCleanIdentity.includes('.')) {
+            if (
+                dotT.endsWith(`.${dotCleanIdentity}`) ||
+                dotT.endsWith(`.${dotIdentity}`) ||
+                dotTNormTag.endsWith(`.${dotIdNormTag}`)
+            ) {
+                return true;
+            }
+        }
+
+        // Match against stripped container prefix (e.g. target="testcase/Magento/checkout" matches "magento.checkout...")
+        if (strippedT !== normT) {
+            const lowerStrippedT = strippedT.toLowerCase();
+            const dotStrippedT = lowerStrippedT.replace(/[\/\\]+/g, '.');
+            if (
+                lowerIdentity === lowerStrippedT ||
+                lowerCleanIdentity === lowerStrippedT ||
+                lowerIdentity.endsWith(`/${lowerStrippedT}`) ||
+                lowerCleanIdentity.endsWith(`/${lowerStrippedT}`) ||
+                dotIdentity === dotStrippedT ||
+                dotCleanIdentity === dotStrippedT ||
+                dotIdentity.endsWith(`.${dotStrippedT}`) ||
+                dotCleanIdentity.endsWith(`.${dotStrippedT}`)
+            ) {
+                return true;
+            }
+
+            if (lowerCleanIdentity.includes('.feature') || lowerCleanIdentity.includes('/')) {
+                if (
+                    lowerStrippedT.endsWith(`/${lowerCleanIdentity}`) ||
+                    lowerStrippedT.endsWith(`/${lowerIdentity}`) ||
+                    dotStrippedT.endsWith(`.${dotCleanIdentity}`) ||
+                    dotStrippedT.endsWith(`.${dotIdentity}`)
+                ) {
+                    return true;
+                }
+            }
         }
 
         // 4. Target matches path prefix or folder (e.g. target="testcycle" or target="testcase/ParaBank")
