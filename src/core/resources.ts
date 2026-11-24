@@ -419,6 +419,17 @@ class Resource {
                 const normRaw = String(raw ?? '').replace(/\r\n/g, '\n').trim();
                 const normOldRaw = String(oldRaw ?? '').replace(/\r\n/g, '\n').trim();
                 if (normRaw !== normOldRaw) {
+                    if (k === 'body') {
+                        // Normalize user-attachments URLs to compare against local attachment paths
+                        const normalizeBodyAttachments = (b: string) => {
+                            return b
+                                .replace(/!\[([^\]]*)\]\((?:https:\/\/github\.com\/user-attachments\/assets\/[^\s)]+|[^\s)]+)\)/g, '![$1](__IMAGE__)')
+                                .replace(/- 📎 \*\*Evidence:\*\* (?:\[[^\]]*\]\(https:\/\/github\.com\/user-attachments\/assets\/[^\s)]+\)|`[^`]+`)/g, '- 📎 **Evidence:** __ATTACH__');
+                        };
+                        if (normalizeBodyAttachments(normRaw) === normalizeBodyAttachments(normOldRaw)) {
+                            continue;
+                        }
+                    }
                     return true;
                 }
             }

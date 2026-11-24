@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Bug Steps to Reproduce & Clean Defect Body (`src/providers/*`, `src/providers/github/client.ts`, `src/core/resources.ts`)**:
+  - Gherkin steps in bugs are now rendered explicitly under `### 🐾 Steps to Reproduce` instead of an untitled raw block.
+  - Purged redundant and unwanted boilerplate description (`Defect identified: **...**`); `### 📝 Description` is now rendered exclusively when an explicit scenario text description is provided.
+  - **Native GitHub Attachment Uploader (`src/providers/github/client.ts`)**: Local attachments and screenshots (`* set attach`) are automatically uploaded to GitHub via `uploads.github.com/user-attachments/assets` during `testform apply`, embedding live image previews into GitHub Issues.
+  - **Asset Normalization in Drift Detection (`src/core/resources.ts`)**: `hasFieldChanges` normalizes remote `user-attachments` URLs against local file references, preventing ghost updates and state drift.
+  - File extension detection formats image attachments as `![Evidence](url)` and non-images as `📎 Attachment: [filename](url)`.
 - **Board-First 2-Status Architecture & Total Eradication of `state` Drift (`src/providers/*`, `src/commands/diff.ts`, `src/commands/refresh.ts`, `src/commands/apply.ts`, `src/core/state.ts`, `src/core/sync.ts`):**
   - Fully decoupled Testform from micro-managing GitHub/GitLab issue `state` (`open` / `closed`). The project column (`Status` in `metadata`) is the single source of truth.
   - Eliminated infinite drift loops (`~ state = "closed" -> "open"`) caused by GitHub Project automated issue closure workflows on "Done".

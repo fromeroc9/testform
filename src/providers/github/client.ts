@@ -1,4 +1,6 @@
 import chalk from 'chalk';
+import { existsSync, readFileSync, statSync } from 'fs';
+import { resolve, basename, extname } from 'path';
 import { IGitHubConfig } from '../../core/types';
 import { logger } from '../../core/logger';
 import { Credentials } from '../../core/credentials';
@@ -31,6 +33,8 @@ export class GitHubProvider implements IProvider {
 
     private projectNodeId?: string;
     private projectFields?: any[];
+    private repoId?: number | string;
+    private uploadedAssetsCache = new Map<string, string>();
 
     // ──────────────────────────────────────────────────────────────────────────
     // Agnostic Multi-Resource Bus (Mode 2)
@@ -41,10 +45,142 @@ export class GitHubProvider implements IProvider {
         return str.includes(':') ? str.split(':').pop()! : str;
     }
 
+    private async getRepoId(): Promise<number | string | null> {
+        if (this.repoId !== undefined) return this.repoId;
+        try {
+            const data = await this.request('GET', `/repos/${this.owner}/${this.repo}`);
+            if (data?.id !== undefined) {
+                this.repoId = data.id;
+                return this.repoId as number | string;
+            }
+        } catch (err: any) {
+            logger.warn(`Failed to fetch repo ID for asset uploads: ${err.message}`);
+        }
+        return null;
+    }
+
+    private resolveLocalFile(filePath: string): string | null {
+        if (!filePath || filePath.startsWith('http://') || filePath.startsWith('https://')) return null;
+        const clean = filePath.trim().replace(/\\/g, '/');
+        const root = process.cwd();
+        const candidates = [
+            resolve(root, clean),
+            resolve(root, 'attachments', clean),
+            resolve(root, 'attachments', basename(clean)),
+            resolve(root, 'attachments', 'bugs', basename(clean)),
+            resolve(root, 'attachments', 'testruns', basename(clean))
+        ];
+        for (const c of candidates) {
+            try {
+                if (existsSync(c) && statSync(c).isFile()) {
+                    return c;
+                }
+            } catch { }
+        }
+        return null;
+    }
+
+    private getContentType(filePath: string): string {
+        const ext = extname(filePath).toLowerCase();
+        switch (ext) {
+            case '.png': return 'image/png';
+            case '.jpg':
+            case '.jpeg': return 'image/jpeg';
+            case '.gif': return 'image/gif';
+            case '.webp': return 'image/webp';
+            case '.svg': return 'image/svg+xml';
+            case '.mp4': return 'video/mp4';
+            case '.mov': return 'video/quicktime';
+            case '.pdf': return 'application/pdf';
+            case '.txt':
+            case '.log': return 'text/plain';
+            default: return 'application/octet-stream';
+        }
+    }
+
+    public async uploadAttachment(filePath: string): Promise<string | null> {
+        const resolved = this.resolveLocalFile(filePath);
+        if (!resolved) return null;
+
+        if (this.uploadedAssetsCache.has(resolved)) {
+            return this.uploadedAssetsCache.get(resolved)!;
+        }
+
+        const repoId = await this.getRepoId();
+        if (!repoId) return null;
+
+        try {
+            await this.ensureToken();
+            const fileName = basename(resolved);
+            const contentType = this.getContentType(resolved);
+            const fileBytes = readFileSync(resolved);
+
+            const uploadUrl = `https://uploads.github.com/user-attachments/assets?name=${encodeURIComponent(fileName)}&content_type=${encodeURIComponent(contentType)}&repository_id=${repoId}`;
+            const res = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/json',
+                    'Content-Type': contentType,
+                    'User-Agent': `${TITLE_CLI}/${VERSION_CLI}`
+                },
+                body: fileBytes
+            });
+
+            if (res.ok) {
+                const resData: any = await res.json();
+                if (resData?.url) {
+                    this.uploadedAssetsCache.set(resolved, resData.url);
+                    logger.info(`Uploaded attachment ${fileName} -> ${resData.url}`);
+                    return resData.url;
+                }
+            } else {
+                const errText = await res.text();
+                logger.warn(`Failed to upload attachment ${fileName} (HTTP ${res.status}): ${errText}`);
+            }
+        } catch (err: any) {
+            logger.warn(`Error uploading attachment ${basename(resolved)}: ${err.message}`);
+        }
+        return null;
+    }
+
     private async prepareIssuePayload(data: any): Promise<IProviderIssuePayload> {
+        let body = data.body || '';
+
+        // Scan for images: ![alt](path)
+        const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        const matches = [...body.matchAll(imgRegex)];
+        for (const m of matches) {
+            const alt = m[1];
+            const rawPath = m[2];
+            if (!rawPath.startsWith('http://') && !rawPath.startsWith('https://')) {
+                const uploadedUrl = await this.uploadAttachment(rawPath);
+                if (uploadedUrl) {
+                    body = body.replace(m[0], `![${alt}](${uploadedUrl})`);
+                }
+            }
+        }
+
+        // Scan for evidence lines in testruns: - 📎 **Evidence:** `path`
+        const evidenceRegex = /- 📎 \*\*Evidence:\*\* `([^`]+)`/g;
+        const evMatches = [...body.matchAll(evidenceRegex)];
+        for (const m of evMatches) {
+            const rawPath = m[1];
+            if (!rawPath.startsWith('http://') && !rawPath.startsWith('https://')) {
+                const uploadedUrl = await this.uploadAttachment(rawPath);
+                if (uploadedUrl) {
+                    body = body.replace(m[0], `- 📎 **Evidence:** [${basename(rawPath)}](${uploadedUrl})`);
+                }
+            }
+        }
+
+        if (data && data.body) {
+            data.body = body;
+        }
+
         const payload: any = {
             title: data.title || '',
-            body: data.body || '',
+            body: body,
             labels: data.labels,
             assignees: data.assignees,
             state: data.state,
@@ -98,6 +234,9 @@ export class GitHubProvider implements IProvider {
         return {
             create: async (data: any, context?: any) => {
                 const issuePayload = await this.prepareIssuePayload(data);
+                if (issuePayload.body && data) {
+                    data.body = issuePayload.body;
+                }
                 const result = await this.createIssue(issuePayload);
                 if (result?.node_id) {
                     const meta = data.metadata || data.custom_fields || data.fields;
@@ -128,6 +267,9 @@ export class GitHubProvider implements IProvider {
             update: async (id: number | string, data: any, context?: any) => {
                 const rawNum = this.extractIssueNumber(id);
                 const issuePayload = await this.prepareIssuePayload(data);
+                if (issuePayload.body && data) {
+                    data.body = issuePayload.body;
+                }
                 const result = await this.updateIssue(rawNum, issuePayload);
                 const nodeId = result?.node_id || (await this.getIssueNodeId(rawNum));
                 if (nodeId) {
@@ -302,12 +444,16 @@ export class GitHubProvider implements IProvider {
      * Create a GitHub Issue.
      */
     async createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult> {
+        const prepared = await this.prepareIssuePayload(payload);
+        if (payload && prepared.body) {
+            payload.body = prepared.body;
+        }
         const data = await this.request('POST', `/repos/${this.owner}/${this.repo}/issues`, {
-            title: payload.title,
-            body: payload.body,
-            labels: payload.labels,
-            assignees: payload.assignees,
-            milestone: payload.milestone,
+            title: prepared.title,
+            body: prepared.body,
+            labels: prepared.labels,
+            assignees: prepared.assignees,
+            milestone: prepared.milestone,
         });
 
         if (payload.state === 'closed') {
@@ -359,12 +505,16 @@ export class GitHubProvider implements IProvider {
      * Update an existing GitHub Issue.
      */
     async updateIssue(issueNumber: number | string, payload: Partial<IProviderIssuePayload>): Promise<IProviderIssueResult> {
+        const prepared = await this.prepareIssuePayload(payload);
+        if (payload && prepared.body) {
+            payload.body = prepared.body;
+        }
         const patchBody: any = {
-            title: payload.title,
-            body: payload.body,
-            labels: payload.labels,
-            assignees: payload.assignees,
-            milestone: payload.milestone,
+            title: prepared.title,
+            body: prepared.body,
+            labels: prepared.labels,
+            assignees: prepared.assignees,
+            milestone: prepared.milestone,
         };
 
         if (payload.state) {

@@ -1,7 +1,7 @@
 import { basename } from 'path';
 import { matchesTestrunSelector } from '../../core/selector';
 import { calculateRollupVerdict } from '../../core/utils';
-import { calculatePlanRollup, getRunResourceStatus } from '../../core/resources';
+import { calculatePlanRollup, getRunResourceStatus, getScenarioTrace, getScenarioEvidence } from '../../core/resources';
 
 /**
  * Builds the local file body for a testcase using Gherkin code block syntax.
@@ -268,28 +268,37 @@ export function buildLocalTestplanBody(s: any, context?: any): string {
  */
 export function buildLocalBugBody(s: any): string {
     let body = '';
+    const description = s.description ? s.description.trim() : '';
+    if (description) {
+        body += `### 📝 Description\n${description}\n\n`;
+    }
+
     const gherkinSteps = s.steps?.map((sp: any) => `${sp.keyword}${sp.text}`).join('\n');
     if (gherkinSteps) {
-        body += '```gherkin\n' + gherkinSteps + '\n```\n\n';
+        body += `### 🐾 Steps to Reproduce\n\`\`\`gherkin\n${gherkinSteps}\n\`\`\`\n\n`;
     }
+
     const target = s.custom?.set?.target || s.custom?.fields?.target || s.custom?.fields?.testcase || (s.rule?.name ? s.rule.name : '');
     const testrun = s.custom?.set?.run || s.custom?.fields?.run || s.custom?.fields?.testrun || '';
-    if (target || testrun) {
-        body += '### 🔗 Context\n';
-        if (target) body += `- **Testcase:** \`${target}\`\n`;
-        if (testrun) body += `- **Testrun:** \`${testrun}\`\n`;
-        body += '\n';
-    }
-    const trace = s.custom?.fields?.trace || s.custom?.fields?.error || '';
+    body += '### 🔗 Context\n';
+    body += `- **Testcase:** \`${target || 'Not applicable'}\`\n`;
+    body += `- **Testrun:** \`${testrun || 'Not applicable'}\`\n\n`;
+
+    const trace = getScenarioTrace(s);
     if (trace) {
         body += '### 🚨 Trace\n```text\n' + trace + '\n```\n\n';
     }
-    const rawEvidence = s.custom?.fields?.evidence ?? s.custom?.fields?.attach;
-    const evidenceList = Array.isArray(rawEvidence) ? rawEvidence : (rawEvidence ? [rawEvidence] : []);
+
+    const evidenceList = getScenarioEvidence(s) || [];
     if (evidenceList.length > 0) {
         body += '### 📸 Evidence / Attachments\n';
         for (const ev of evidenceList) {
-            body += `- ![Evidence](${ev})\n`;
+            const isImg = /\.(png|jpe?g|gif|webp|svg)($|\?)/i.test(ev);
+            if (isImg) {
+                body += `- ![Evidence](${ev})\n`;
+            } else {
+                body += `- 📎 **Attachment:** \`${ev}\`\n`;
+            }
         }
         body += '\n';
     }
