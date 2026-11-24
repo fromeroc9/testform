@@ -141,7 +141,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                 if (!approved) {
                     notify.push({
                         type: 'error',
-                        title: 'error asking for approval: interrupted',
+                        title: 'Asking for approval: interrupted',
                         detail: [],
                     });
                     return;

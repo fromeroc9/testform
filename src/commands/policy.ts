@@ -194,7 +194,7 @@ export default ${varName};
         const targetId = show.trim();
         const p = policy.get(targetId);
         if (!p) {
-            logger.error(`Error: Policy "${targetId}" was not found.`);
+            logger.error(`Policy "${targetId}" was not found.`);
             process.exit(1);
         }
 

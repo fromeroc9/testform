@@ -129,7 +129,10 @@ export function withContext<T extends CommandContextOptions>(
         try {
             await action(ctx, options, ...args);
         } catch (error: any) {
-            ctx.logger.error(error.message, error);
+            if ((error as any)?.logged) {
+                throw error;
+            }
+            ctx.logger.error(error.message || String(error), error);
             throw error;
         } finally {
             await ctx.state.releaseLock();

@@ -9,6 +9,44 @@ function cleanText(text: string): string {
     return text;
 }
 
+export function sanitizeTitle(
+    rawTitle: string,
+    fallback: string = 'An unexpected error occurred'
+): string {
+    if (!rawTitle) return fallback;
+    let title = rawTitle.trim();
+
+    // 1. Repeatedly strip leading "Error:", "error:", "Warning:", "warning:" prefixes with colon
+    while (/^(?:error|warning):\s*/i.test(title)) {
+        title = title.replace(/^(?:error|warning):\s*/i, '').trim();
+    }
+
+    // 2. If it is literally just "error" or "warning" (case-insensitive)
+    if (/^(?:error|warning)$/i.test(title)) {
+        return fallback;
+    }
+
+    // 3. If it starts with "error " or "warning " followed by words
+    // e.g. "error asking for approval: interrupted" -> "asking for approval: interrupted"
+    if (/^error\s+/i.test(title)) {
+        title = title.replace(/^error\s+/i, '').trim();
+    } else if (/^warning\s+/i.test(title)) {
+        title = title.replace(/^warning\s+/i, '').trim();
+    }
+
+    // 4. Check again after stripping
+    if (!title || /^(?:error|warning)$/i.test(title)) {
+        return fallback;
+    }
+
+    // 5. Capitalize first character if it's lowercase
+    if (/^[a-z]/.test(title)) {
+        title = title.charAt(0).toUpperCase() + title.slice(1);
+    }
+
+    return title;
+}
+
 export class Logger {
     private verbose: boolean = false;
     private isJson: boolean = false;
@@ -100,8 +138,13 @@ export class Logger {
         }
         this.print(yellow('╷'), true);
         const prefix = bold(yellow('Warning:'));
-        const styledMsg = this.applyStyle(msgStr, options);
+        const lines = msgStr.split('\n');
+        const cleanFirst = sanitizeTitle(lines[0], 'Warning encountered');
+        const styledMsg = this.applyStyle(cleanFirst, options);
         this.print(`${yellow('│')} ${prefix} ${styledMsg}`, true);
+        for (let i = 1; i < lines.length; i++) {
+            this.print(`${yellow('│')} ${lines[i]}`, true);
+        }
 
         if (options?.data && this.verbose) {
             this.print(yellow('│'), true);
@@ -123,31 +166,45 @@ export class Logger {
         const prefix = bold(red('Error:'));
 
         const lines = msgStr.split('\n');
-        let firstLine = lines[0];
-        if (/^Error:\s*/i.test(firstLine)) {
-            firstLine = firstLine.replace(/^Error:\s*/i, '');
-        }
-        this.print(`${red('│')} ${prefix} ${bold(firstLine)}`, true);
+        const rawFirstLine = lines[0];
+        const fallbackTitle = (error instanceof Error && error.message)
+            ? sanitizeTitle(error.message, 'An unexpected error occurred')
+            : 'An unexpected error occurred';
+        const cleanFirstLine = sanitizeTitle(rawFirstLine, fallbackTitle);
+
+        this.print(`${red('│')} ${prefix} ${bold(cleanFirstLine)}`, true);
         for (let i = 1; i < lines.length; i++) {
             this.print(`${red('│')} ${lines[i]}`, true);
         }
 
         if (error) {
-            this.print(red('│'), true);
-            if (error instanceof Error) {
-                this.print(`${red('│')}   ${error.message}`, true);
-                if (this.verbose && error.stack) {
-                    error.stack.split('\n').forEach(line => this.print(`${red('│')}   ${dim(line)}`, true));
+            const errMsg = error instanceof Error ? error.message : (typeof error === 'object' ? '' : String(error));
+            const isDuplicate = errMsg && (
+                errMsg.trim().toLowerCase() === rawFirstLine.trim().toLowerCase() ||
+                errMsg.trim().toLowerCase() === cleanFirstLine.trim().toLowerCase() ||
+                sanitizeTitle(errMsg).toLowerCase() === cleanFirstLine.toLowerCase()
+            );
+
+            if (!isDuplicate || (this.verbose && error instanceof Error && error.stack)) {
+                this.print(red('│'), true);
+                if (error instanceof Error) {
+                    if (!isDuplicate && error.message) {
+                        const cleanErrMsg = sanitizeTitle(error.message);
+                        this.print(`${red('│')}   ${cleanErrMsg}`, true);
+                    }
+                    if (this.verbose && error.stack) {
+                        error.stack.split('\n').forEach(line => this.print(`${red('│')}   ${dim(line)}`, true));
+                    }
+                } else if (typeof error === 'object') {
+                    const str = JSON.stringify(error, null, 2);
+                    str.split('\n').forEach(line => this.print(`${red('│')}   ${line}`, true));
+                } else {
+                    this.print(`${red('│')}   ${String(error)}`, true);
                 }
-            } else if (typeof error === 'object') {
-                const str = JSON.stringify(error, null, 2);
-                str.split('\n').forEach(line => this.print(`${red('│')}   ${line}`, true));
-            } else {
-                this.print(`${red('│')}   ${String(error)}`, true);
             }
         }
         this.print(red('╵'), true);
-        const err = new TestformError(msgStr);
+        const err = new TestformError(cleanFirstLine);
         (err as any).logged = true;
         throw err;
     }
@@ -161,13 +218,17 @@ export class Logger {
         const isWarning = options.type === 'warning';
         const prefixStr = isWarning ? bold(yellow('Warning:')) : bold(red('Error:'));
         const lineColor = isWarning ? yellow : red;
-        const title = bold(options.title);
+        const fallbackTitle = (options.detail && options.detail.length > 0 && options.detail[0].trim())
+            ? options.detail[0].trim()
+            : (isWarning ? 'Warning encountered' : 'An unexpected error occurred');
+        const cleanTitleStr = sanitizeTitle(options.title, fallbackTitle);
+        const title = bold(cleanTitleStr);
         const close = options.close ?? false;
 
         if (this.isJson) {
-            this.emitJson(options.type === 'warning' ? "warn" : "error", options.title, { detail: options.detail, extra: options.extra });
+            this.emitJson(options.type === 'warning' ? "warn" : "error", cleanTitleStr, { detail: options.detail, extra: options.extra });
             if (close) {
-                const err = new TestformError(options.title);
+                const err = new TestformError(cleanTitleStr);
                 (err as any).logged = true;
                 throw err;
             }
@@ -193,7 +254,7 @@ export class Logger {
         this.print(lineColor('╵'));
 
         if (close) {
-            const err = new TestformError(options.title);
+            const err = new TestformError(cleanTitleStr);
             (err as any).logged = true;
             throw err;
         }

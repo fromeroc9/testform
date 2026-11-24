@@ -84,7 +84,7 @@ export default ${varName}Resource;
         const targetType = name || action;
         const template = targetType ? resource.findTemplate(targetType) : undefined;
         if (!template) {
-            logger.error(`Error: Resource type "${targetType}" was not found.`);
+            logger.error(`Resource type "${targetType}" was not found.`);
             process.exit(1);
         }
 
