@@ -965,6 +965,22 @@ export function extractTestcaseEvidenceMap(s: any): Record<string, any> {
     return map;
 }
 
+export function getRunResourceStatus(r: any): string {
+    if (!r) return 'pending';
+    const attrs = r.attributes ?? r;
+    const meta = attrs.metadata || attrs.custom_fields || {};
+    const metaStatusKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
+    const metaStatus = metaStatusKey ? String(meta[metaStatusKey]).trim().toLowerCase() : undefined;
+    if (metaStatus && metaStatus !== '') {
+        return metaStatus;
+    }
+    const rawStatus = attrs.status || attrs.status_run;
+    if (rawStatus && String(rawStatus).trim() !== '') {
+        return String(rawStatus).trim().toLowerCase();
+    }
+    return 'pending';
+}
+
 export function calculatePlanRollup(s: any, context?: any): string {
     const trList = s.custom?.testruns || [];
     const state = context?.state;
@@ -973,9 +989,9 @@ export function calculatePlanRollup(s: any, context?: any): string {
     const runResources = state.getResources('testrun') || [];
     for (const tr of trList) {
         const found = runResources.find((r: any) => matchesTestrunSelector(r, String(tr)));
-        statuses.push(found?.attributes?.status || 'pending');
+        statuses.push(getRunResourceStatus(found));
     }
-    return calculateRollupVerdict(statuses);
+    return calculateRollupVerdict(statuses, context?.config);
 }
 
 export function extractPlanTestrunsMap(s: any, context?: any): Record<string, string> {
@@ -988,8 +1004,8 @@ export function extractPlanTestrunsMap(s: any, context?: any): Record<string, st
         let status = 'pending';
         if (state) {
             const found = runResources.find((r: any) => matchesTestrunSelector(r, normTr));
-            if (found?.attributes?.status) {
-                status = found.attributes.status;
+            if (found) {
+                status = getRunResourceStatus(found);
             }
         }
         map[normTr] = status;
@@ -1038,10 +1054,15 @@ export const defaultTestrunTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: ParserScenario) => {
+        status: (s: ParserScenario, context?: ResourceContext) => {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && String(explicitVal).trim() !== '') {
+                return String(explicitVal).trim().toLowerCase();
+            }
             const groupScenarios = s.custom?.groupScenarios || [];
             const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
-            return calculateRollupVerdict(statuses);
+            return calculateRollupVerdict(statuses, context?.config);
         },
         duration: (s: ParserScenario) => getScenarioValue(s, 'duration'),
         attach: (s: ParserScenario) => getScenarioEvidence(s),
@@ -1074,7 +1095,14 @@ export const defaultTestplanTemplate: ResourceTemplate = {
         };
     },
     state: {
-        status: (s: ParserScenario, context?: ResourceContext) => calculatePlanRollup(s, context),
+        status: (s: ParserScenario, context?: ResourceContext) => {
+            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
+            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
+            if (explicitVal !== undefined && String(explicitVal).trim() !== '') {
+                return String(explicitVal).trim().toLowerCase();
+            }
+            return calculatePlanRollup(s, context);
+        },
         attach: (s: ParserScenario) => getScenarioEvidence(s),
         testruns: (s: ParserScenario, context?: ResourceContext) => extractPlanTestrunsMap(s, context)
     }
@@ -1102,7 +1130,7 @@ export const defaultBugTemplate: ResourceTemplate = {
         trace: (s: ParserScenario) => getScenarioTrace(s),
         attach: (s: ParserScenario) => getScenarioEvidence(s),
         testcase: (s: ParserScenario) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
-        testrun: (s: ParserScenario) => getScenarioValue(s, 'run') ?? s.feature?.name ?? getScenarioValue(s, 'testrun')
+        testrun: (s: ParserScenario) => getScenarioValue(s, 'run') ?? getScenarioValue(s, 'testrun')
     }
 };
 

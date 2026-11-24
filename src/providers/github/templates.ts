@@ -1,7 +1,7 @@
 import { basename } from 'path';
 import { matchesTestrunSelector } from '../../core/selector';
 import { calculateRollupVerdict } from '../../core/utils';
-import { calculatePlanRollup } from '../../core/resources';
+import { calculatePlanRollup, getRunResourceStatus } from '../../core/resources';
 
 export interface GitHubCommentResult {
     identity: string;
@@ -214,7 +214,7 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
 
         if (valid.length > 0) {
             for (const runResource of valid) {
-                const runStatus = (runResource.attributes?.status || runResource.attributes?.status_run || 'pending').toLowerCase();
+                const runStatus = getRunResourceStatus(runResource);
                 resolvedRuns.push({ runResource, tr, status: runStatus });
                 allStatuses.push(runStatus);
                 if (statusCounts[runStatus] !== undefined) {
@@ -462,7 +462,9 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
         }
     }
 
-    const rollupVerdict = calculateRollupVerdict(allStatuses);
+    const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
+    const explicitStatus = explicitEntry ? String(explicitEntry[1]).trim().toLowerCase() : undefined;
+    const rollupVerdict = (explicitStatus && explicitStatus !== '') ? explicitStatus : calculateRollupVerdict(allStatuses);
     const ICONS: Record<string, string> = {
         passed: '🟢',
         failed: '🔴',
@@ -572,8 +574,8 @@ export function buildGitHubBugBody(s: any): string {
     if (gherkinSteps) {
         body += '```gherkin\n' + gherkinSteps + '\n```\n\n';
     }
-    const target = s.custom?.fields?.target || s.custom?.fields?.testcase || '';
-    const testrun = s.feature?.name || s.custom?.fields?.testrun || '';
+    const target = s.custom?.set?.target || s.custom?.fields?.target || s.custom?.fields?.testcase || (s.rule?.name ? s.rule.name : '');
+    const testrun = s.custom?.set?.run || s.custom?.fields?.run || s.custom?.fields?.testrun || '';
     if (target || testrun) {
         body += '### 🔗 Context\n';
         if (target) body += `- **Testcase:** \`${target}\`\n`;
