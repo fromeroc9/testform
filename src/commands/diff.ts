@@ -122,8 +122,13 @@ export const diffCmd = async (options: DiffCmdOptions) => {
         let filtered = allScopeScenarios;
         if (target) {
             filtered = filtered.filter(sc => {
+                const idInfo = computeResourceIdentity(sc, s, scaffoldDir, collidingBasenames);
                 const id = sc.custom?.identity ? `${sc.uri}.${sc.custom.identity}` : sc.uri;
-                return matchesTarget(id, target, s) || matchesTarget(sc.uri, target, s);
+                return matchesTarget(id, target, s) 
+                    || matchesTarget(sc.uri, target, s)
+                    || (idInfo?.address ? matchesTarget(idInfo.address, target, s) : false)
+                    || (idInfo?.physicalAddress ? matchesTarget(idInfo.physicalAddress, target, s) : false)
+                    || (idInfo?.tag ? matchesTarget(idInfo.tag, target, s) : false);
             });
         }
 

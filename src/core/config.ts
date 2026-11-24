@@ -346,21 +346,83 @@ export class Config {
         const globalScaffold = globalConf?.scaffold;
         const scopeScaffold = scopeConf?.scaffold;
 
-        if (!globalScaffold && !scopeScaffold) return undefined;
-        
         const merged: any = {
             ...(globalScaffold || {}),
             ...(scopeScaffold || {})
         };
+
+        if (scopeConf?.directory) merged.directory = scopeConf.directory;
+        if (scopeConf?.filename) merged.filename = scopeConf.filename;
+
+        if (Object.keys(merged).length === 0) return undefined;
         return merged;
     }
 
     getAttachmentDirectory(scope?: IScope): string {
-        const convention = scope ? this.getConvention(scope) : undefined;
-        if (convention?.attach) return convention.attach;
-        const globalScaffold = this.getScopeConf('global')?.scaffold;
+        if (scope) {
+            const scopeConf = this.getScopeConf(scope);
+            if (scopeConf?.set?.attach) return scopeConf.set.attach;
+            const convention = this.getConvention(scope);
+            if (convention?.attach) return convention.attach;
+        }
+        const globalConf = this.getScopeConf('global');
+        if (globalConf?.set?.attach) return globalConf.set.attach;
+        const globalScaffold = globalConf?.scaffold;
         if (globalScaffold?.attach) return globalScaffold.attach;
         return 'evidence';
+    }
+
+    getSetStatusConfig(scope: IScope): import('./types').ISetStatusConfig | undefined {
+        const scopeConf = this.getScopeConf(scope);
+        return scopeConf?.set?.status || (scopeConf as any)?.status;
+    }
+
+    resolveStatusCategory(scope: IScope, rawStatus: string): string {
+        const clean = (rawStatus || '').trim().toLowerCase();
+        const setStatus = this.getSetStatusConfig(scope);
+
+        if (setStatus && typeof setStatus === 'object') {
+            for (const [category, values] of Object.entries(setStatus)) {
+                if (Array.isArray(values)) {
+                    if (values.map(v => String(v).trim().toLowerCase()).includes(clean)) {
+                        return category;
+                    }
+                } else if (typeof values === 'string') {
+                    if (values.trim().toLowerCase() === clean) {
+                        return category;
+                    }
+                }
+            }
+        }
+
+        // Semantic fallback resolution
+        if (scope === 'testrun' || scope === 'testcase') {
+            if (['passed', 'pass', 'success', 'ok', 'exitoso', 'aprobado'].includes(clean)) return 'success';
+            if (['failed', 'fail', 'failure', 'error', 'fallido', 'roto'].includes(clean)) return 'failure';
+            if (['pending', 'in_progress', 'running', 'espera'].includes(clean)) return 'pending';
+            if (['skipped', 'omitido', 'skip', 'blocked', 'bloqueado'].includes(clean)) return 'skipped';
+        } else if (scope === 'bug') {
+            if (['closed', 'cerrado'].includes(clean)) return 'closed';
+            if (['resolved', 'resuelto', 'corregido'].includes(clean)) return 'resolved';
+            if (['in_progress', 'en_progreso', 'en_atencion', 'analisis'].includes(clean)) return 'in_progress';
+            if (['open', 'nuevo', 'abierto', 'reportado'].includes(clean)) return 'open';
+        }
+
+        return clean;
+    }
+
+    getCustomStatuses(scope: IScope): string[] {
+        const setStatus = this.getSetStatusConfig(scope);
+        if (!setStatus || typeof setStatus !== 'object') return [];
+        const result: string[] = [];
+        for (const val of Object.values(setStatus)) {
+            if (Array.isArray(val)) {
+                result.push(...val.map(String));
+            } else if (typeof val === 'string') {
+                result.push(val);
+            }
+        }
+        return result;
     }
 
     getReportMapping(key: string): string | undefined {

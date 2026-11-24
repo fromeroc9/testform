@@ -281,9 +281,21 @@ export function suggestCommand(input: string, candidates: string[]): string | un
  * `blocked` > `pending` > `skipped` > `passed`).
  * Empty collections default to `'pending'`.
  */
-export function calculateRollupVerdict(statuses: string[]): TestcaseStatus {
+export function calculateRollupVerdict(statuses: string[], config?: any): TestcaseStatus {
     if (!statuses || statuses.length === 0) return 'pending';
-    const cleanStatuses = statuses.map(s => String(s || '').trim().toLowerCase());
+    const cleanStatuses = statuses.map(s => {
+        if (config && typeof config.resolveStatusCategory === 'function') {
+            const cat = config.resolveStatusCategory('testrun', s);
+            if (cat === 'success') return 'passed';
+            if (cat === 'failure') return 'failed';
+            if (cat === 'pending') return 'pending';
+            if (cat === 'skipped') return 'skipped';
+        }
+        const clean = String(s || '').trim().toLowerCase();
+        if (['passed', 'exitoso', 'aprobado', 'success', 'ok'].includes(clean)) return 'passed';
+        if (['failed', 'fallido', 'failure', 'error', 'roto'].includes(clean)) return 'failed';
+        return clean;
+    });
     if (cleanStatuses.some(s => s === 'failed')) return 'failed';
     if (cleanStatuses.some(s => s === 'ambiguous')) return 'ambiguous';
     if (cleanStatuses.some(s => s === 'undefined')) return 'undefined';

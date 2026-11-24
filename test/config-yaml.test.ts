@@ -376,5 +376,47 @@ testform:
 `, 'utf8');
         expect(() => new Config(tmpDir)).toThrow(/Unsupported Testform Core version/);
     });
+
+    it('should support flattened directory and filename without scaffold wrapper and set block', () => {
+        const yamlContent = `
+version: "1.0"
+resource:
+  testrun:
+    directory: "custom_runs"
+    filename: "{slug}.run.feature"
+    set:
+      status:
+        success: ["passed", "exitoso", "aprobado"]
+        failure: ["failed", "fallido"]
+        pending: ["pending", "en_espera"]
+      attach: "attachments/testruns"
+  bug:
+    directory: "custom_bugs"
+    set:
+      status:
+        open: ["open", "nuevo"]
+        closed: ["resolved", "closed", "resuelto"]
+      attach: "attachments/bugs"
+`;
+        writeFileSync(join(tmpDir, 'main.yml'), yamlContent, 'utf8');
+        const config = new Config(tmpDir);
+
+        const trConv = config.getConvention('testrun');
+        expect(trConv?.directory).toBe('custom_runs');
+        expect(trConv?.filename).toBe('{slug}.run.feature');
+        expect(config.getAttachmentDirectory('testrun')).toBe('attachments/testruns');
+
+        const bugConv = config.getConvention('bug');
+        expect(bugConv?.directory).toBe('custom_bugs');
+        expect(config.getAttachmentDirectory('bug')).toBe('attachments/bugs');
+
+        // Test custom status resolution
+        expect(config.resolveStatusCategory('testrun', 'exitoso')).toBe('success');
+        expect(config.resolveStatusCategory('testrun', 'fallido')).toBe('failure');
+        expect(config.resolveStatusCategory('testrun', 'en_espera')).toBe('pending');
+        expect(config.resolveStatusCategory('bug', 'nuevo')).toBe('open');
+        expect(config.resolveStatusCategory('bug', 'resuelto')).toBe('closed');
+        expect(config.getCustomStatuses('testrun')).toEqual(['passed', 'exitoso', 'aprobado', 'failed', 'fallido', 'pending', 'en_espera']);
+    });
 });
 

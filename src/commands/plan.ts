@@ -137,12 +137,20 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     };
 
     const allScopeScenarios = parser.filter(rawScenarios, data, scope) || [];
+    const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(scope)?.directory : undefined;
+    const collidingBasenames = detectCollidingBasenames(allScopeScenarios, scaffoldDir);
+
     let filtered = allScopeScenarios;
 
     if (target) {
         filtered = filtered.filter(s => {
+            const idInfo = computeResourceIdentity(s, scope, scaffoldDir, collidingBasenames);
             const id = s.custom?.identity ? `${s.uri}.${s.custom.identity}` : s.uri;
-            return matchesTarget(id, target, scope) || matchesTarget(s.uri, target, scope);
+            return matchesTarget(id, target, scope) 
+                || matchesTarget(s.uri, target, scope)
+                || (idInfo?.address ? matchesTarget(idInfo.address, target, scope) : false)
+                || (idInfo?.physicalAddress ? matchesTarget(idInfo.physicalAddress, target, scope) : false)
+                || (idInfo?.tag ? matchesTarget(idInfo.tag, target, scope) : false);
         });
     }
 
@@ -176,8 +184,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     }
     let resources = state.getResources(RESOURCE_TYPE);
 
-    const scaffoldDir = typeof config?.getConvention === 'function' ? config.getConvention(scope)?.directory : undefined;
-
     if (target) {
         resources = resources.filter(r => matchesTarget(r.address || (r as any).identity, target, scope) || (r.type && matchesTarget(r.type, target, scope)));
     }
@@ -192,9 +198,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
 
     // Build a lookup map for O(1) access by address
     const stateMap = new Map(resources.map(r => [r.address || (r as any).identity, r]));
-
-    // Detect files with identical basename in different directories across the whole scope (before -target filtering)
-    const collidingBasenames = detectCollidingBasenames(allScopeScenarios, scaffoldDir);
 
     // Track which addresses exist locally
     const localAddresses = new Set<string>();

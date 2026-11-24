@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Execution Marks Configuration (`set:`) & Custom Status Semantic Categorization (`src/core/config.ts`, `src/core/utils.ts`, `src/providers/*`):**
+  - Introduced the `set:` block in `main.yml` under resources (e.g. `resource.testrun.set` and `resource.bug.set`), providing a direct 1:1 conceptual mapping with Gherkin runtime marks (`* set status`, `* set attach`, `* set trace`).
+  - Added semantic status mapping (`set.status`) supporting user-defined custom statuses:
+    - `testrun`: categorizes custom statuses into `success`, `failure`, `pending`, and `skipped`. Testrun rollups automatically resolve custom statuses (e.g. `exitoso`, `aprobado` count towards a passed testrun and auto-closes issues).
+    - `bug`: categorizes custom statuses into `open`, `in_progress`, `resolved`, and `closed` to drive remote ticket states (`open` / `closed`).
+  - Added `set.attach` as an intuitive alternative to `scaffold.attach`.
+  - Added support for top-level flattened `directory` and `filename` properties directly on resource blocks, while retaining 100% backward compatibility for nested `scaffold:` definitions.
 - **Agnostic Login and Convention-Based Credential Resolution (`src/commands/login.ts`, `src/commands/logout.ts`, `src/providers/loader.ts`):**
   - Pure convention-driven credential architecture: zero credential, token, or host configuration required in `main.yml`.
   - `testform login` auto-detects the active provider from `main.yml` (e.g. `github`, `gitlab`, custom providers like `docker`) or accepts explicit provider arguments (`testform login gitlab`, `testform login docker`).

@@ -35,6 +35,25 @@ export interface IField {
     default?: string | string[];
 }
 
+export interface ISetStatusConfig {
+    success?: string | string[];
+    failure?: string | string[];
+    pending?: string | string[];
+    skipped?: string | string[];
+    open?: string | string[];
+    in_progress?: string | string[];
+    resolved?: string | string[];
+    closed?: string | string[];
+    [key: string]: any;
+}
+
+export interface ISetConfig {
+    status?: ISetStatusConfig;
+    attach?: string;
+    trace?: any;
+    [key: string]: any;
+}
+
 export interface IScopeConfig {
     match?: string;
     identity?: string;
@@ -42,6 +61,7 @@ export interface IScopeConfig {
     scaffold?: IScaffold;
     directory?: string;
     filename?: string;
+    set?: ISetConfig;
 }
 
 export interface ITest {

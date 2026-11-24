@@ -361,6 +361,23 @@ export function matchesTarget(identityOrUri: string, target: string | string[], 
             return true;
         }
 
+        // Dot/slash interchangeable matching (hierarchical namespace e.g. magento.cart.case.feature.@tc-01 vs magento/cart.case.feature.@tc-01)
+        const dotIdentity = lowerIdentity.replace(/[\/\\]+/g, '.');
+        const dotCleanIdentity = lowerCleanIdentity.replace(/[\/\\]+/g, '.');
+        const dotT = lowerT.replace(/[\/\\]+/g, '.');
+        const dotIdNormTag = idNormTag.replace(/[\/\\]+/g, '.');
+        const dotTNormTag = tNormTag.replace(/[\/\\]+/g, '.');
+        if (
+            dotIdentity === dotT ||
+            dotCleanIdentity === dotT ||
+            dotIdentity.endsWith(`.${dotT}`) ||
+            dotCleanIdentity.endsWith(`.${dotT}`) ||
+            dotIdNormTag === dotTNormTag ||
+            dotIdNormTag.endsWith(`.${dotTNormTag}`)
+        ) {
+            return true;
+        }
+
         // 4. Target matches path prefix or folder (e.g. target="testcycle" or target="testcase/ParaBank")
         if (
             lowerIdentity.startsWith(`${lowerT}.`) ||

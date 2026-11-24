@@ -1026,7 +1026,7 @@ export const defaultTestrunTemplate: ResourceTemplate = {
     attributes: (s: any, context?: any) => {
         const groupScenarios = s.custom?.groupScenarios || [];
         const statuses = groupScenarios.map((gs: any) => getScenarioStatus(gs, 'pending'));
-        const rollupStatus = calculateRollupVerdict(statuses);
+        const rollupStatus = calculateRollupVerdict(statuses, context?.config);
         const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
         return {
@@ -1085,9 +1085,18 @@ export const defaultTestplanTemplate: ResourceTemplate = {
 
 export const defaultBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: any) => {
+    attributes: (s: any, context?: any) => {
         const rawStatus = getScenarioStatus(s, 'open');
-        const bugStatus = ['open', 'in_progress', 'closed', 'resolved'].includes(rawStatus.toLowerCase()) ? rawStatus : 'open';
+        let category = 'open';
+        if (context?.config && typeof context.config.resolveStatusCategory === 'function') {
+            category = context.config.resolveStatusCategory('bug', rawStatus);
+        } else {
+            const clean = rawStatus.toLowerCase();
+            if (['closed', 'resolved', 'cerrado', 'resuelto'].includes(clean)) category = 'closed';
+            else if (['in_progress', 'en_progreso', 'en_atencion'].includes(clean)) category = 'in_progress';
+        }
+        const isClosed = category === 'closed' || category === 'resolved';
+
         const meta = extractCustomFields(s.custom?.fields, [
             'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
@@ -1098,15 +1107,12 @@ export const defaultBugTemplate: ResourceTemplate = {
             labels: extractLabels(s, 'bug'),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,
-            state: (bugStatus === 'closed' || bugStatus === 'resolved') ? 'closed' : 'open',
+            state: isClosed ? 'closed' : 'open',
             metadata: meta
         };
     },
     state: {
-        status: (s: any) => {
-            const rawStatus = getScenarioStatus(s, 'open');
-            return ['open', 'in_progress', 'closed', 'resolved'].includes(rawStatus.toLowerCase()) ? rawStatus : 'open';
-        },
+        status: (s: any) => getScenarioStatus(s, 'open'),
         trace: (s: any) => getScenarioTrace(s),
         attach: (s: any) => getScenarioEvidence(s),
         testcase: (s: any) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
