@@ -8,7 +8,7 @@ import { LocalAdapter } from '../providers/local';
 import { IProviderAdapter } from '../providers/interface';
 import { Parser } from '../core/parser';
 import { resource } from '../core/resources';
-import { registerProviderResources } from '../providers/loader';
+import { registerProviderResources, createProvider } from '../providers/loader';
 import { bold, green, red, yellow } from "chalk";
 import { hashScenario } from "./plan";
 import fs from "fs";
@@ -646,12 +646,15 @@ export const importCmd = async (options: ImportCmdOptions) => {
         const configClass = new Config(dir, false);
         const config: IConfig = configClass.getConfig();
         let github: IProviderAdapter;
-        if (configClass.getAdapterType() === 'local') {
+        const pType = (typeof configClass.getProviderType === 'function') ? configClass.getProviderType() : configClass.getAdapterType();
+        if (pType === 'local') {
             const localCfg = (typeof configClass.getProviderConfig === 'function') ? configClass.getProviderConfig('local') : undefined;
             registerProviderResources('local', { schema: localCfg?.schema });
             github = new LocalAdapter(dir, localCfg?.schema);
-        } else {
+        } else if (pType === 'github') {
             github = new GitHubAdapter(configClass.getGitHub()!);
+        } else {
+            github = (await createProvider(configClass, dir)) as any;
         }
 
         // Validate issueNumber

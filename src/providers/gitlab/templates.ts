@@ -4,11 +4,46 @@ import { calculateRollupVerdict } from '../../core/utils';
 import { calculatePlanRollup, getRunResourceStatus, getScenarioTrace, getScenarioEvidence } from '../../core/resources';
 
 /**
+ * Renders a clean Markdown table for custom metadata fields in GitLab issue body.
+ */
+export function formatGitLabMetadataSection(s: any, excludeKeys: string[] = []): string {
+    const rawFields = { ...(s.custom?.fields || {}), ...(s.custom?.set || {}) };
+    const defaultExcludes = new Set([
+        'labels', 'assignees', 'assignee', 'milestone', 'evidence', 'attach',
+        'trace', 'error', 'target', 'testcase', 'testrun', 'run',
+        ...excludeKeys.map(k => k.toLowerCase())
+    ]);
+
+    const entries: [string, any][] = [];
+    for (const [key, val] of Object.entries(rawFields)) {
+        if (defaultExcludes.has(key.toLowerCase())) continue;
+        if (val === undefined || val === null || val === '') continue;
+        entries.push([key, val]);
+    }
+
+    if (entries.length === 0) return '';
+
+    let out = '\n\n### 📋 Metadata\n\n';
+    out += '| Field | Value |\n';
+    out += '| :--- | :--- |\n';
+    for (const [key, val] of entries) {
+        const displayKey = key
+            .replace(/[_-]/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+        const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        out += `| **${displayKey}** | ${displayVal} |\n`;
+    }
+    return out;
+}
+
+/**
  * Builds the GitLab issue description for a testcase using Gherkin code block syntax.
  */
 export function buildGitLabTestcaseBody(s: any): string {
     const steps = (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n');
-    return '```gherkin\n' + steps + '\n```';
+    let body = '```gherkin\n' + steps + '\n```';
+    body += formatGitLabMetadataSection(s);
+    return body.trim();
 }
 
 /**
@@ -210,6 +245,7 @@ export function buildGitLabTestrunBody(s: any, context?: any): string {
         }
     }
 
+    body += formatGitLabMetadataSection(s);
     return body.trim();
 }
 
@@ -291,6 +327,7 @@ export function buildGitLabTestplanBody(s: any, context?: any): string {
         }
     }
 
+    body += formatGitLabMetadataSection(s);
     return body.trim();
 }
 
@@ -333,5 +370,7 @@ export function buildGitLabBugBody(s: any): string {
         }
         body += '\n';
     }
+
+    body += formatGitLabMetadataSection(s);
     return body.trim();
 }

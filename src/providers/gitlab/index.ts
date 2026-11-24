@@ -3,10 +3,14 @@ import { Credentials } from '../../core/credentials';
 
 export interface IGitLabConfig {
     host?: string;
-    projectId: string | number;
+    projectId?: string | number;
+    project_id?: string | number;
+    project?: string | number;
     tokenEnv?: string;
+    token_env?: string;
     token?: string;
     boardId?: number;
+    board_id?: number;
     [key: string]: any;
 }
 
@@ -20,6 +24,7 @@ export class GitLabProvider implements IProvider {
     private host: string;
     private projectId: string | number;
     private token: string;
+    private userIdCache: Map<string, number> = new Map();
 
     // ──────────────────────────────────────────────────────────────────────────
     // Agnostic Multi-Resource Bus (Mode 2)
@@ -72,8 +77,8 @@ export class GitLabProvider implements IProvider {
 
     constructor(config: IGitLabConfig) {
         this.host = (config.host || 'https://gitlab.com').replace(/\/+$/, '');
-        this.projectId = config.projectId;
-        const envVar = config.tokenEnv || 'GITLAB_TOKEN';
+        this.projectId = config.projectId || config.project_id || config.project || '';
+        const envVar = config.tokenEnv || config.token_env || 'GITLAB_TOKEN';
         let storedToken: string | undefined;
         try {
             const creds = new Credentials();
@@ -97,10 +102,60 @@ export class GitLabProvider implements IProvider {
     // 2. Primary Issue Lifecycle (Mode 1: Issue-based)
     // ──────────────────────────────────────────────────────────────────────────
 
+    private async resolveAssigneeIds(assignees: string[]): Promise<number[]> {
+        if (!assignees || assignees.length === 0) return [];
+        const ids: number[] = [];
+
+        for (const a of assignees) {
+            const clean = String(a).trim().replace(/^@/, '');
+            if (!clean) continue;
+
+            if (/^\d+$/.test(clean)) {
+                ids.push(parseInt(clean, 10));
+                continue;
+            }
+
+            const lower = clean.toLowerCase();
+            if (this.userIdCache.has(lower)) {
+                ids.push(this.userIdCache.get(lower)!);
+                continue;
+            }
+
+            try {
+                const users = await this.request('GET', `/users?username=${encodeURIComponent(clean)}`);
+                if (Array.isArray(users) && users.length > 0 && users[0]?.id) {
+                    const uid = users[0].id;
+                    this.userIdCache.set(lower, uid);
+                    ids.push(uid);
+                    continue;
+                }
+            } catch {
+                // Best effort via /users endpoint
+            }
+
+            try {
+                const members = await this.request('GET', `/projects/${this.encodedProjectId}/members/all?query=${encodeURIComponent(clean)}`);
+                if (Array.isArray(members) && members.length > 0) {
+                    const match = members.find((m: any) => m.username?.toLowerCase() === lower) || members[0];
+                    if (match?.id) {
+                        this.userIdCache.set(lower, match.id);
+                        ids.push(match.id);
+                        continue;
+                    }
+                }
+            } catch {
+                // Best effort via project members
+            }
+        }
+
+        return ids;
+    }
+
     async createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult> {
+        let body = payload.body || '';
         const reqBody: Record<string, any> = {
             title: payload.title,
-            description: payload.body,
+            description: body,
         };
 
         if (payload.labels && payload.labels.length > 0) {
@@ -109,6 +164,17 @@ export class GitLabProvider implements IProvider {
 
         if (payload.milestone) {
             reqBody.milestone_id = payload.milestone;
+        }
+
+        if (payload.assignees && payload.assignees.length > 0) {
+            const resolvedIds = await this.resolveAssigneeIds(payload.assignees);
+            if (resolvedIds.length > 0) {
+                reqBody.assignee_ids = resolvedIds;
+            } else {
+                // Resilient fallback: GitLab quick actions work even when user-lookup endpoints are restricted
+                const qa = '\n\n/assign ' + payload.assignees.map(u => `@${String(u).replace(/^@/, '')}`).join(' ');
+                reqBody.description = (reqBody.description || '') + qa;
+            }
         }
 
         const data = await this.request('POST', `/projects/${this.encodedProjectId}/issues`, reqBody);
@@ -134,6 +200,16 @@ export class GitLabProvider implements IProvider {
         if (payload.body !== undefined) reqBody.description = payload.body;
         if (payload.labels !== undefined) reqBody.labels = payload.labels.join(',');
         if (payload.milestone !== undefined) reqBody.milestone_id = payload.milestone;
+        if (payload.assignees !== undefined) {
+            const resolvedIds = await this.resolveAssigneeIds(payload.assignees);
+            if (resolvedIds.length > 0) {
+                reqBody.assignee_ids = resolvedIds;
+            } else if (payload.assignees.length > 0) {
+                // Quick action fallback
+                const qa = '\n\n/assign ' + payload.assignees.map(u => `@${String(u).replace(/^@/, '')}`).join(' ');
+                reqBody.description = (reqBody.description || '') + qa;
+            }
+        }
         if (payload.state !== undefined) {
             reqBody.state_event = payload.state === 'closed' ? 'close' : 'reopen';
         }

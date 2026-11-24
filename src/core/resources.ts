@@ -867,7 +867,13 @@ export function extractLabels(s: any, extraTag?: string): string[] {
 }
 
 export function extractAssignees(s: any): string[] {
-    return (s.custom?.fields?.assignees || '').split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean);
+    const raw = s?.custom?.fields?.assignees ?? s?.custom?.fields?.assignee ??
+        s?.custom?.set?.assignees ?? s?.custom?.set?.assignee ??
+        s?.custom?.explicitFields?.assignees ?? s?.custom?.explicitFields?.assignee ?? '';
+    if (Array.isArray(raw)) {
+        return raw.map((a: any) => String(a).trim().replace(/^@/, '')).filter(Boolean);
+    }
+    return String(raw).split(',').map((a: string) => a.trim().replace(/^@/, '')).filter(Boolean);
 }
 
 /**

@@ -21,7 +21,7 @@ import { formatResourceAddress, formatIdentityDisplay } from '../core/utils';
 import { executeInBatches, detectAttributeDrift } from '../core/sync';
 import { withStateLock, resolveScopes } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
-import { registerProviderResources } from '../providers/loader';
+import { registerProviderResources, createProvider } from '../providers/loader';
 
 /**
  * Core refresh logic: updates the state to reflect remote GitHub reality.
@@ -81,15 +81,14 @@ export const refreshState = async (options: RefreshStateOptions) => {
     }
 
     const config = new Config(dir);
-    const adapterType = config.getAdapterType();
-    const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : adapterType;
+    const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : config.getAdapterType();
     let github: IProviderAdapter;
 
-    if (adapterType === 'local') {
+    if (providerType === 'local') {
         const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
         registerProviderResources('local', { schema: localCfg?.schema });
         github = new LocalAdapter(dir, localCfg?.schema);
-    } else {
+    } else if (providerType === 'github') {
         const ghConfig = config.getGitHub();
         if (!ghConfig) {
             if (!silent) {
@@ -103,6 +102,8 @@ export const refreshState = async (options: RefreshStateOptions) => {
             return;
         }
         github = new GitHubAdapter(ghConfig);
+    } else {
+        github = (await createProvider(config, dir)) as any;
     }
 
     let refreshed = 0;

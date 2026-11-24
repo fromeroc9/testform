@@ -30,7 +30,7 @@ export const gitlabTestcaseTemplate: ResourceTemplate = {
         labels: extractLabels(s),
         assignees: extractAssignees(s),
         milestone: s.custom?.fields?.milestone || undefined,
-        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {}
+        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'assignee', 'milestone', 'status', 'evidence', 'attach']) || {}
     }),
     state: {}
 };
@@ -41,7 +41,7 @@ export const gitlabTestrunTemplate: ResourceTemplate = {
         const groupScenarios = s.custom?.groupScenarios || [];
         const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
         const rollupStatus = calculateRollupVerdict(statuses, context?.config);
-        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
+        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'assignee', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
 
         const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status')
             || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
@@ -94,7 +94,7 @@ export const gitlabTestplanTemplate: ResourceTemplate = {
     type: 'testplan',
     attributes: (s: ParserScenario, context?: ResourceContext) => {
         const rollupStatus = calculatePlanRollup(s, context);
-        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
+        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'assignee', 'milestone', 'evidence', 'attach']) || {};
 
         const statusFieldKey = Object.keys(meta).find(k => k.toLowerCase() === 'status')
             || Object.keys(s.custom?.fields || {}).find(k => k.toLowerCase() === 'status');
@@ -140,7 +140,7 @@ export const gitlabBugTemplate: ResourceTemplate = {
             : 'open';
 
         const meta = extractCustomFields(s.custom?.fields, [
-            'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
+            'labels', 'assignees', 'assignee', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
         ]) || {};
 
         // En bug: * set status viaja IMPLÍCITAMENTE y directamente al campo Status del Tablero.

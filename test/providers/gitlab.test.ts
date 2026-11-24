@@ -212,5 +212,95 @@ describe('GitLabProvider', () => {
             link_type: 'relates_to'
         });
     });
+
+    it('resolves assignees by username and passes assignee_ids', async () => {
+        // Mock user lookup
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => [{ id: 456, username: 'fromeroc9' }]
+        });
+        // Mock issue creation
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 201,
+            json: async () => ({
+                id: 102,
+                iid: 6,
+                title: 'Assigned Issue',
+                state: 'opened',
+                assignees: [{ username: 'fromeroc9' }]
+            })
+        });
+
+        const result = await provider.createIssue({
+            title: 'Assigned Issue',
+            body: 'steps',
+            labels: [],
+            assignees: ['fromeroc9']
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const [lookupUrl] = fetchMock.mock.calls[0];
+        expect(lookupUrl).toBe('https://gitlab.example.com/api/v4/users?username=fromeroc9');
+
+        const [createUrl, createOpts] = fetchMock.mock.calls[1];
+        expect(createUrl).toBe('https://gitlab.example.com/api/v4/projects/my-group%2Fmy-project/issues');
+        const body = JSON.parse(createOpts.body);
+        expect(body.assignee_ids).toEqual([456]);
+        expect(result.assignees).toEqual(['fromeroc9']);
+    });
+
+    it('falls back to /assign quick action when user lookup fails', async () => {
+        // Mock user lookup 403 or empty
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => []
+        });
+        // Mock project members lookup empty
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => []
+        });
+        // Mock issue creation
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 201,
+            json: async () => ({
+                id: 103,
+                iid: 7,
+                title: 'Fallback Issue',
+                state: 'opened'
+            })
+        });
+
+        await provider.createIssue({
+            title: 'Fallback Issue',
+            body: '```gherkin\nGiven user is logged in\n```',
+            labels: [],
+            assignees: ['fromeroc9']
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        const [, createOpts] = fetchMock.mock.calls[2];
+        const body = JSON.parse(createOpts.body);
+        expect(body.description).toContain('/assign @fromeroc9');
+    });
+
+    it('accepts project_id or projectId and defaults host to https://gitlab.com', () => {
+        const p1 = new GitLabProvider({
+            project_id: 'owner/project'
+        });
+        expect((p1 as any).host).toBe('https://gitlab.com');
+        expect((p1 as any).projectId).toBe('owner/project');
+
+        const p2 = new GitLabProvider({
+            projectId: '12345'
+        });
+        expect((p2 as any).host).toBe('https://gitlab.com');
+        expect((p2 as any).projectId).toBe('12345');
+    });
 });
 
