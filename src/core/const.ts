@@ -159,20 +159,13 @@ export const TESTCASE_STATUS_EMOJI: Record<TestcaseStatus, string> = {
  * - open: Defect is actively reported and unassigned/unresolved.
  * - in_progress: Resolution or retest is actively underway.
  * - resolved: Defect has been verified and resolved.
- * - reopened: Previously resolved defect reproduced or failed retest.
- * - discarded: Defect was rejected, won't fix, or not reproducible.
- * - duplicate: Defect tracks an identical root cause already reported.
+ * - closed: Defect has been verified and closed permanently.
  */
 export const BUG_STATUSES = [
     'open',
     'in_progress',
     'resolved',
-    'reopened',
-    'discarded',
-    'duplicate',
-    'failed',
-    'pending',
-    'passed',
+    'closed',
 ] as const;
 
 export type BugStatus = typeof BUG_STATUSES[number];

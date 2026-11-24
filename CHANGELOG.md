@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Agnostic Login and Convention-Based Credential Resolution (`src/commands/login.ts`, `src/commands/logout.ts`, `src/providers/loader.ts`):**
+  - Pure convention-driven credential architecture: zero credential, token, or host configuration required in `main.yml`.
+  - `testform login` auto-detects the active provider from `main.yml` (e.g. `github`, `gitlab`, custom providers like `docker`) or accepts explicit provider arguments (`testform login gitlab`, `testform login docker`).
+  - Added clean informational notice for the `local` provider clarifying that Git-native local storage operates on the local repository and does not require remote credentials.
+  - `src/providers/loader.ts` automatically wires credentials to provider instances by convention hierarchy: `<PROVIDER>_TOKEN` environment variable, stored credentials in `~/.testform.d/credentials.json`, or explicit configuration.
+- **Defect Lifecycle Status Harmonization (`src/core/const.ts`, `src/core/help.ts`, `src/commands/spec.ts`):**
+  - Standardized `BUG_STATUSES` strictly to the 4 essential lifecycle statuses: `open`, `in_progress`, `resolved`, and `closed`.
+  - Aligned CLI syntax, diagnostics, and help messages with domain-pure defect lifecycles, eliminating test execution status leaks (`passed`, `failed`, `pending`).
 - **Provider-Specific ResourceTemplate Decoupling (`src/providers/*`):**
   - Completely separated and modularized `ResourceTemplate` definitions per provider into dedicated modules:
     - GitHub Provider: `src/providers/github/resources.ts`

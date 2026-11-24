@@ -773,12 +773,12 @@ export function createCli() {
     // ─── login / logout ───────────────────────────────────────────────────
     cli.command('login [hostname]', 'Authenticate with a remote provider')
         .action(async (hostname) => {
-            await loginCmd({ hostname: hostname || 'github.com' });
+            await loginCmd({ hostname });
         });
 
     cli.command('logout [hostname]', 'Remove stored credentials')
         .action(async (hostname) => {
-            await logoutCmd({ hostname: hostname || 'github.com' });
+            await logoutCmd({ hostname });
         });
 
     // ─── modules ──────────────────────────────────────────────────────────

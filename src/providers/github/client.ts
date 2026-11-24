@@ -258,7 +258,7 @@ export class GitHubProvider implements IProvider {
         this.config = config;
         const creds = new Credentials();
         const envToken = Object.prototype.hasOwnProperty.call(process.env, config.tokenEnv) ? process.env[config.tokenEnv] : undefined;
-        let token = creds.getToken('github.com') || envToken || process.env.GITHUB_TOKEN;
+        let token = creds.getToken('github.com') || creds.getToken('github') || envToken || process.env.GITHUB_TOKEN;
 
         // Allow user to provide token directly instead of env var name
         if (!token && (config.tokenEnv.startsWith('ghp_') || config.tokenEnv.startsWith('github_pat_') || config.tokenEnv.startsWith('ghs_'))) {

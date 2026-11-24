@@ -1,4 +1,5 @@
 import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
+import { Credentials } from '../../core/credentials';
 
 export interface IGitLabConfig {
     host?: string;
@@ -73,7 +74,15 @@ export class GitLabProvider implements IProvider {
         this.host = (config.host || 'https://gitlab.com').replace(/\/+$/, '');
         this.projectId = config.projectId;
         const envVar = config.tokenEnv || 'GITLAB_TOKEN';
-        this.token = config.token || process.env[envVar] || '';
+        let storedToken: string | undefined;
+        try {
+            const creds = new Credentials();
+            const hostDomain = this.host.replace(/^https?:\/\//, '').split('/')[0];
+            storedToken = creds.getToken(hostDomain) || creds.getToken('gitlab.com') || creds.getToken('gitlab');
+        } catch {
+            // credentials lookup is best-effort
+        }
+        this.token = config.token || process.env[envVar] || storedToken || '';
     }
 
     // ──────────────────────────────────────────────────────────────────────────

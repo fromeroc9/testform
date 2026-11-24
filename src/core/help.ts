@@ -507,13 +507,14 @@ ${bold(`Options:`)}
 `.trim();
 
 export const HELP_LOGIN = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] login [hostname]
+${bold(`Usage:`)} ${TITLE_CLI} [global options] login [hostname | provider]
 
-  Retrieves an authentication token for the given hostname, if it supports
-  automatic login, and saves it in a credentials file in your home directory.
+  Retrieves an authentication token for the given hostname or provider name
+  (e.g. github, gitlab, docker, or a custom host) and saves it in a credentials
+  file in your home directory (~/.testform.d/credentials.json).
 
-  If no hostname is provided, the default hostname is github.com, to
-  log in to GitHub.
+  If no hostname or provider is provided, Testform auto-detects the active
+  provider from your main.yml configuration (or defaults to github.com).
 
   If not overridden by credentials helper settings in the CLI configuration,
   the credentials will be written to the following local file:
@@ -521,14 +522,14 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] login [hostname]
 `.trim();
 
 export const HELP_LOGOUT = `
-${bold(`Usage:`)} ${TITLE_CLI} [global options] logout [hostname]
+${bold(`Usage:`)} ${TITLE_CLI} [global options] logout [hostname | provider]
 
-  Removes locally-stored credentials for specified hostname.
+  Removes locally-stored credentials for the specified hostname or provider name.
+  If no hostname or provider is provided, Testform resolves the active provider
+  from your main.yml configuration (or defaults to github.com).
 
   Note: the API token is only removed from local storage, not destroyed on the
   remote server, so it will remain valid until manually revoked.
-
-  If no hostname is provided, the default hostname is github.com.
 `.trim();
 
 export const HELP_STATE = `
@@ -1454,7 +1455,7 @@ ${bold(`Options:`)}
   -case         Target testcase address, tag, or file
   -run          Target testrun address, tag, or file
   -title        Title for the specification or scenario
-  -status       Execution or defect verdict (passed, failed, pending, skipped, undefined, ambiguous, blocked, open, in_progress, resolved, reopened, discarded, duplicate)
+  -status       Execution or defect verdict (passed, failed, pending, skipped, undefined, ambiguous, blocked, open, in_progress, resolved, closed)
   -trace        Error stack trace or log message
   -evidence     Path to evidence screenshot or file
   -show-name    Display scenario titles in place of canonical addresses
@@ -1594,7 +1595,7 @@ ${bold(`Actions:`)}
 ${bold(`Options:`)}
   -target           Target bug identifier (@bg-N) or file
   -case             Associated testcase address or tag (@tc-N)
-  -status           Defect status (open, in_progress, resolved, reopened, discarded, duplicate)
+  -status           Defect status (open, in_progress, resolved, closed)
   -trace            Stack trace or defect description
   -evidence         Path to evidence screenshot or file
   -title            Bug title

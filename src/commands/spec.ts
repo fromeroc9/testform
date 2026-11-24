@@ -1055,7 +1055,7 @@ async function handleBug(options: SpecCmdOptions) {
             const targetFile = effectiveTarget || runArg;
             if (!targetFile) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug add -target=<file> [-case=<testcase_address>] [-title="Bug title"] [-status=open|in_progress|resolved|reopened|discarded|duplicate] [-trace="..."] [-evidence="..."]`,
+                    syntax: `${TITLE_CLI} spec bug add -target=<file> [-case=<testcase_address>] [-title="Bug title"] [-status=open|in_progress|resolved|closed] [-trace="..."] [-evidence="..."]`,
                     detail: [`Add a new bug scenario to a bug specification file.`]
                 }).abort();
                 return;
@@ -1191,7 +1191,7 @@ async function handleBug(options: SpecCmdOptions) {
         case 'mark': {
             if (!effectiveTarget) {
                 Diag.usage({
-                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<open|in_progress|resolved|reopened|discarded|duplicate> [-trace="..."] [-attach="..."]`,
+                    syntax: `${TITLE_CLI} spec bug set -target=<@bg-X> -status=<open|in_progress|resolved|closed> [-trace="..."] [-attach="..."]`,
                     detail: [`Update resolution status, stack trace, and attachment for a bug scenario.`]
                 }).abort();
                 return;

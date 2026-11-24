@@ -347,7 +347,7 @@ describe('Testform Spec Command Tree & Results Ingestion', () => {
             expect(content).toContain('* set status = resolved');
 
             // Update bug through lifecycle statuses
-            for (const nextStatus of ['in_progress', 'reopened', 'discarded', 'duplicate']) {
+            for (const nextStatus of ['in_progress', 'resolved', 'closed', 'open']) {
                 await specCmd({
                     dir: tmpDir,
                     resource: 'bug',

@@ -88,4 +88,39 @@ describe('Command loginCmd', () => {
 
         expect(mockSetAuth).toHaveBeenCalledWith('github.com', { token: 'token123' });
     });
+
+    it('should support gitlab login and save credentials under gitlab.com and gitlab alias', async () => {
+        const mockSetAuth = vi.fn();
+        (Credentials as any).mockImplementation(function() {
+            return {
+                setAuth: mockSetAuth
+            };
+        });
+
+        mockQuestion.mockImplementation(((_questionText: string, cb: any) => {
+            cb('glpat-secret-token');
+        }) as any);
+
+        await loginCmd({ hostname: 'gitlab' });
+
+        expect(mockSetAuth).toHaveBeenCalledWith('gitlab.com', { token: 'glpat-secret-token' });
+        expect(mockSetAuth).toHaveBeenCalledWith('gitlab', { token: 'glpat-secret-token' });
+    });
+
+    it('should support custom provider / hostname login (e.g. docker or custom domain)', async () => {
+        const mockSetAuth = vi.fn();
+        (Credentials as any).mockImplementation(function() {
+            return {
+                setAuth: mockSetAuth
+            };
+        });
+
+        mockQuestion.mockImplementation(((_questionText: string, cb: any) => {
+            cb('docker-pat-token');
+        }) as any);
+
+        await loginCmd({ hostname: 'docker' });
+
+        expect(mockSetAuth).toHaveBeenCalledWith('docker', { token: 'docker-pat-token' });
+    });
 });

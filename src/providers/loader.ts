@@ -6,6 +6,7 @@ import { LocalProvider } from './local';
 import { GitLabProvider } from './gitlab';
 import { loadCustomProvider } from './custom';
 import { Config } from '../core/config';
+import { Credentials } from '../core/credentials';
 import { findProviderEntrypoint } from '../core/provider-installer';
 import { isGitSource } from '../core/module';
 import { registerGitHubResources } from './github/resources';
@@ -47,6 +48,28 @@ export async function createProvider(
     const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
     registerProviderResources(providerType, { schema: localCfg?.schema });
     const providerProps = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig(providerType) : {};
+
+    // Agnostic Credential Resolution: automatically wire up credentials from ~/.testform.d/credentials.json
+    try {
+        const creds = new Credentials();
+        const hostKey = providerProps.host ? String(providerProps.host).replace(/^https?:\/\//, '').split('/')[0] : undefined;
+        const resolvedToken = (hostKey ? creds.getToken(hostKey) : undefined)
+            || creds.getToken(providerType)
+            || (providerType === 'github' ? creds.getToken('github.com') : undefined)
+            || (providerType === 'gitlab' ? creds.getToken('gitlab.com') : undefined);
+
+        if (resolvedToken) {
+            if (!providerProps.token) {
+                providerProps.token = resolvedToken;
+            }
+            const tokenEnvVar = providerProps.token_env || providerProps.tokenEnv;
+            if (tokenEnvVar && !process.env[tokenEnvVar]) {
+                process.env[tokenEnvVar] = resolvedToken;
+            }
+        }
+    } catch {
+        // credentials resolution is best-effort
+    }
 
     const required = config.getRequiredProviders();
     const reqKeys = Object.keys(required);
