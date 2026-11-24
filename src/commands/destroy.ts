@@ -138,7 +138,7 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
             console.log('');
             const ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
             if (!ctx) return;
-            const github = (ctx.adapter || (ctx as any).github);
+            const provider = ctx.adapter || (ctx as any).provider || (ctx as any).github;
             
             for (const res of resources) {
                 const address = formatResourceAddress(res.type, res.address, (res as any).provider || providerType);
@@ -152,25 +152,25 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
                     if (lifecycle?.beforeDelete) {
                         await lifecycle.beforeDelete({
                             id: targetId,
-                            provider: github,
+                            provider,
                             context: { state: stateObj }
                         });
                     }
 
-                    const providerResources = github.resources || github.apis;
+                    const providerResources = provider.resources || provider.apis;
                     const svcKey = providerResources ? Object.keys(providerResources).find(k => k === res.type || res.type.endsWith(`_${k}`) || k === 'issue') : null;
                     const svc = (providerResources && svcKey) ? providerResources[svcKey] : null;
 
                     if (svc?.delete) {
                         await svc.delete(res.attributes.issueNumber || res.attributes.remoteId);
-                    } else if (res.attributes.issueNumber && (github as any).closeIssue) {
-                        await (github as any).closeIssue(res.attributes.issueNumber);
+                    } else if (res.attributes.issueNumber && (provider as any).closeIssue) {
+                        await (provider as any).closeIssue(res.attributes.issueNumber);
                     }
 
                     if (lifecycle?.afterDelete) {
                         await lifecycle.afterDelete({
                             id: targetId,
-                            provider: github,
+                            provider,
                             context: { state: stateObj }
                         });
                     }

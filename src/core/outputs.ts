@@ -251,8 +251,8 @@ export class OutputResolver {
                 if (rPath && addressesMatch(rPath, resourceRef)) return true;
                 if (fullPathTag && addressesMatch(fullPathTag, resourceRef)) return true;
 
-                // Strip leading scope prefix (e.g. testcase., testrun., testplan.)
-                const stripped = resourceRef.replace(/^(github_|local_)?(testcase|testrun|testplan|bug)\./, '');
+                // Strip leading scope prefix (e.g. testcase., testrun., testplan., github.testcase., gitlab.testcase.)
+                const stripped = resourceRef.replace(/^([a-zA-Z0-9_-]+[._])?(testcase|testrun|testplan|bug)\./, '');
                 if (addressesMatch(rAddr, stripped) || (rPath && addressesMatch(rPath, stripped)) || (fullPathTag && addressesMatch(fullPathTag, stripped))) return true;
 
                 return false;
@@ -277,7 +277,7 @@ export class OutputResolver {
             case 'issueNumber':
                 return attrs.issueNumber !== undefined ? attrs.issueNumber : 0;
             case 'url':
-                return attrs.url || (attrs.issueNumber ? `https://github.com/issues/${attrs.issueNumber}` : '');
+                return attrs.url || attrs.html_url || attrs.web_url || '';
             case 'title':
                 return attrs.title || '';
             case 'body':

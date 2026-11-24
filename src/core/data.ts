@@ -359,7 +359,7 @@ export class DataResolver {
                 // Exact match on address or type.address
                 if (addressesMatch(rAddr, address) ||
                     addressesMatch(`${r.type}.${rAddr}`, address) ||
-                    addressesMatch(rAddr, address.replace(/^(github_|local_)?(testcase|testrun|testplan|bug)\./, '')) ||
+                    addressesMatch(rAddr, address.replace(/^([a-zA-Z0-9_-]+[._])?(testcase|testrun|testplan|bug)\./, '')) ||
                     (rPath && addressesMatch(rPath, address))) {
                     return true;
                 }

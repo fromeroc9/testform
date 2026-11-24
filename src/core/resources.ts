@@ -420,11 +420,12 @@ class Resource {
                 const normOldRaw = String(oldRaw ?? '').replace(/\r\n/g, '\n').trim();
                 if (normRaw !== normOldRaw) {
                     if (k === 'body') {
-                        // Normalize user-attachments URLs to compare against local attachment paths
+                        // Normalize remote upload and CDN URLs to compare against local attachment paths agnostically
                         const normalizeBodyAttachments = (b: string) => {
                             return b
-                                .replace(/!\[([^\]]*)\]\((?:https:\/\/github\.com\/user-attachments\/assets\/[^\s)]+|[^\s)]+)\)/g, '![$1](__IMAGE__)')
-                                .replace(/- 📎 \*\*Evidence:\*\* (?:\[[^\]]*\]\(https:\/\/github\.com\/user-attachments\/assets\/[^\s)]+\)|`[^`]+`)/g, '- 📎 **Evidence:** __ATTACH__');
+                                .replace(/!\[([^\]]*)\]\([^)]+\)/g, '![$1](__IMAGE__)')
+                                .replace(/- 📎 \*\*Evidence:\*\* (?:\[[^\]]*\]\([^)]+\)|`[^`]+`)/g, '- 📎 **Evidence:** __ATTACH__')
+                                .replace(/📎 \*\*Attachment:\*\* (?:\[[^\]]*\]\([^)]+\)|`[^`]+`)/g, '📎 **Attachment:** __ATTACH__');
                         };
                         if (normalizeBodyAttachments(normRaw) === normalizeBodyAttachments(normOldRaw)) {
                             continue;

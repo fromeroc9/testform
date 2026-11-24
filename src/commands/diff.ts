@@ -259,7 +259,7 @@ async function executeRemoteDrift(
         console.error(red('Failed to initialize provider context for remote drift check.'));
         return;
     }
-    const github = ctx.adapter || (ctx as any).github;
+    const provider = ctx.adapter || (ctx as any).provider || (ctx as any).github;
 
     const scopesToRun = resolveScopes(target);
     const driftedItems: RemoteDriftItem[] = [];
@@ -286,13 +286,13 @@ async function executeRemoteDrift(
             });
 
             try {
-                const providerResources = (github as any).resources || (github as any).apis;
+                const providerResources = (provider as any).resources || (provider as any).apis;
                 const resHandler = providerResources
                     ? (providerResources[resourceType] || providerResources[resourceType.replace(/^.*_/, '')] || providerResources.issue || Object.values(providerResources)[0])
                     : null;
                 const issue = resHandler?.read
                     ? await resHandler.read(issueNum)
-                    : (resHandler?.get ? await resHandler.get(issueNum) : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(issueNum) : null));
+                    : (resHandler?.get ? await resHandler.get(issueNum) : (typeof (provider as any).getIssue === 'function' ? await (provider as any).getIssue(issueNum) : null));
 
                 if (!issue) {
                     driftedItems.push({

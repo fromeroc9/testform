@@ -7,17 +7,16 @@
  * instead of repeating this pattern inline.
  */
 
-import { GitHubProvider as GitHubAdapter, LocalProvider as LocalAdapter, IProvider as IProviderAdapter } from '../providers';
-import { createProvider, registerProviderResources } from '../providers/loader';
+import { IProvider as IProviderAdapter } from '../providers';
+import { createProvider } from '../providers/loader';
 import { Config } from './config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
-import { ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
 import { TestformError } from './errors';
 
 /**
- * The initialized context shared by commands that interact with GitHub
+ * The initialized context shared by commands that interact with the remote provider
  * and the local state file.
  */
 export interface CommandContext {
@@ -25,8 +24,9 @@ export interface CommandContext {
     state: State;
     /** Authenticated provider adapter ready for API calls. */
     adapter: IProviderAdapter;
+    provider: IProviderAdapter;
     github: IProviderAdapter;
-    /** Loaded project configuration (testform.yml). */
+    /** Loaded project configuration (main.yml). */
     config: Config;
     /** Logger configured with the command's verbosity setting. */
     logger: Logger;
@@ -87,36 +87,28 @@ export async function createCommandContext(
 
     const logger = new Logger(verbose);
     const config = new Config(dir);
-    const ghConfig = config.getGitHub();
     const providerType = config.getProviderType();
     let adapter: IProviderAdapter;
 
-    if (providerType === 'local') {
-        const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
-        registerProviderResources('local', { schema: localCfg?.schema });
-        adapter = new LocalAdapter(dir, localCfg?.schema);
-    } else if (providerType === 'github') {
-        if (!ghConfig) {
-            if (!silent) {
-                notify.push({
-                    type: 'error',
-                    title: 'GitHub configuration not found',
-                    detail: [ERR_GITHUB_CONFIG_NOT_FOUND],
-                    close: true,
-                });
-            }
-            return null;
-        }
-        adapter = new GitHubAdapter(ghConfig);
-    } else {
+    try {
         adapter = await createProvider(config, dir);
+    } catch (e: any) {
+        if (!silent) {
+            notify.push({
+                type: 'error',
+                title: `${providerType.charAt(0).toUpperCase() + providerType.slice(1)} configuration error`,
+                detail: [e.message || String(e)],
+                close: true,
+            });
+        }
+        return null;
     }
 
     const state = new State(dir, statePath, backupPath);
     await state.init();
     await state.acquireLock(lock, lockTimeout);
 
-    return { state, adapter, github: adapter, config, logger };
+    return { state, adapter, provider: adapter, github: adapter, config, logger };
 }
 
 /**
