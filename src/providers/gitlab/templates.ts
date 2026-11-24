@@ -4,6 +4,22 @@ import { calculateRollupVerdict } from '../../core/utils';
 import { calculatePlanRollup, getRunResourceStatus, getScenarioTrace, getScenarioEvidence } from '../../core/resources';
 
 /**
+ * Sanitizes values for GitLab markdown to avoid unwanted user mentions (e.g. '@low' -> 'low', '@Low' -> 'Low').
+ */
+function sanitizeGitLabMetadataValue(val: any): string {
+    if (val === undefined || val === null) return '';
+    if (Array.isArray(val)) {
+        return val.map(v => sanitizeGitLabMetadataValue(v)).join(', ');
+    }
+    if (typeof val === 'object') {
+        return JSON.stringify(val);
+    }
+    const str = String(val).trim();
+    // Strip leading '@' from Gherkin tags (e.g. '@Low' -> 'Low', '@medium' -> 'medium') to prevent GitLab user mentions
+    return str.replace(/(^|\s)@([a-zA-Z0-9_\-]+)/g, '$1$2');
+}
+
+/**
  * Renders a clean Markdown table for custom metadata fields in GitLab issue body.
  */
 export function formatGitLabMetadataSection(s: any, excludeKeys: string[] = []): string {
@@ -30,7 +46,7 @@ export function formatGitLabMetadataSection(s: any, excludeKeys: string[] = []):
         const displayKey = key
             .replace(/[_-]/g, ' ')
             .replace(/\b\w/g, c => c.toUpperCase());
-        const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        const displayVal = sanitizeGitLabMetadataValue(val);
         out += `| **${displayKey}** | ${displayVal} |\n`;
     }
     return out;

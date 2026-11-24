@@ -125,7 +125,7 @@ export async function createProvider(
     }
 
     if (providerType === 'gitlab') {
-        return new GitLabProvider(providerProps as any);
+        return new GitLabProvider({ ...providerProps, dir } as any);
     }
 
     // Default fallback to local provider if unknown

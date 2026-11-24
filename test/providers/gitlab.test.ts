@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GitLabProvider } from '../../src/providers/gitlab';
+import { formatGitLabMetadataSection } from '../../src/providers/gitlab/templates';
 
 describe('GitLabProvider', () => {
     let provider: GitLabProvider;
@@ -301,6 +302,91 @@ describe('GitLabProvider', () => {
         });
         expect((p2 as any).host).toBe('https://gitlab.com');
         expect((p2 as any).projectId).toBe('12345');
+    });
+
+    it('uploads local image attachments and updates markdown description during createIssue', async () => {
+        vi.spyOn(provider as any, 'uploadAttachment').mockResolvedValue('/uploads/abcd/photo.png');
+
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 201,
+            json: async () => ({
+                id: 104,
+                iid: 8,
+                title: 'Bug Issue with photo',
+                description: '### 📸 Evidence\n![Evidence](/uploads/abcd/photo.png)',
+                state: 'opened'
+            })
+        });
+
+        await provider.createIssue({
+            title: 'Bug Issue with photo',
+            body: '### 📸 Evidence\n![Evidence](photo.png)',
+            labels: ['bug']
+        });
+
+        expect((provider as any).uploadAttachment).toHaveBeenCalledWith('photo.png');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [, createOpts] = fetchMock.mock.calls[0];
+        const sentBody = JSON.parse(createOpts.body);
+        expect(sentBody.description).toContain('![Evidence](/uploads/abcd/photo.png)');
+    });
+
+    it('links testruns to testplan via relates_to, but does NOT link testcases to testruns', async () => {
+        const linkSpy = vi.spyOn(provider, 'addSubIssue').mockResolvedValue(undefined);
+
+        const mockState = {
+            getResources: (type: string) => {
+                if (type === 'testrun') {
+                    return [
+                        { path: 'checkout.run.feature', address: 'gitlab.testrun.checkout.run.feature', attributes: { issueNumber: 20 } }
+                    ];
+                }
+                if (type === 'testcase') {
+                    return [
+                        { path: 'cart.case.feature', address: 'gitlab.testcase.cart.case.feature.@tc-01', attributes: { issueNumber: 30 } }
+                    ];
+                }
+                return [];
+            }
+        };
+
+        // 1. Calling for testplan should trigger addSubIssue for matched testruns
+        await (provider as any).linkRelatedResources('testplan', 10, {
+            scenario: { custom: { testruns: ['checkout.run.feature'] } },
+            state: mockState
+        });
+        expect(linkSpy).toHaveBeenCalledWith(10, 20);
+
+        linkSpy.mockClear();
+
+        // 2. Calling for testrun should NOT link testcases
+        await (provider as any).linkRelatedResources('testrun', 20, {
+            scenario: { custom: { testcases: ['cart.case.feature.@tc-01'] } },
+            state: mockState
+        });
+        expect(linkSpy).not.toHaveBeenCalled();
+    });
+
+    it('strips leading @ from Gherkin tags in metadata section to prevent GitLab user mentions', () => {
+        const scenario = {
+            custom: {
+                fields: {
+                    project: 'Magento',
+                    priority: '@Low',
+                    module: 'catalog',
+                    tags: ['@smoke', '@regression']
+                }
+            }
+        };
+
+        const result = formatGitLabMetadataSection(scenario);
+        expect(result).toContain('| **Project** | Magento |');
+        expect(result).toContain('| **Priority** | Low |');
+        expect(result).toContain('| **Module** | catalog |');
+        expect(result).toContain('| **Tags** | smoke, regression |');
+        expect(result).not.toContain('@Low');
+        expect(result).not.toContain('@smoke');
     });
 });
 

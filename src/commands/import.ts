@@ -3,8 +3,6 @@ import { IConfig, IScope } from '../core/types';
 import { resolve, normalize, join, basename, dirname, isAbsolute, relative } from 'path';
 import { Config } from '../core/config';
 import { State } from '../core/state';
-import { GitHubAdapter } from '../providers/github';
-import { LocalAdapter } from '../providers/local';
 import { IProviderAdapter } from '../providers/interface';
 import { Parser } from '../core/parser';
 import { resource } from '../core/resources';
@@ -645,17 +643,7 @@ export const importCmd = async (options: ImportCmdOptions) => {
         const basePath = resolve(dir);
         const configClass = new Config(dir, false);
         const config: IConfig = configClass.getConfig();
-        let github: IProviderAdapter;
-        const pType = (typeof configClass.getProviderType === 'function') ? configClass.getProviderType() : configClass.getAdapterType();
-        if (pType === 'local') {
-            const localCfg = (typeof configClass.getProviderConfig === 'function') ? configClass.getProviderConfig('local') : undefined;
-            registerProviderResources('local', { schema: localCfg?.schema });
-            github = new LocalAdapter(dir, localCfg?.schema);
-        } else if (pType === 'github') {
-            github = new GitHubAdapter(configClass.getGitHub()!);
-        } else {
-            github = (await createProvider(configClass, dir)) as any;
-        }
+        const provider: IProviderAdapter = (await createProvider(configClass, dir)) as any;
 
         // Validate issueNumber
         const issueNum = parseInt(issueNumber, 10);
@@ -708,11 +696,11 @@ export const importCmd = async (options: ImportCmdOptions) => {
 
         // Fetch from Provider
         console.log(`Fetching issue #${issueNum} from remote provider...`);
-        const providerResources = (github as any).resources || (github as any).apis;
+        const providerResources = (provider as any).resources || (provider as any).apis;
         const resHandler = providerResources?.[scope] || providerResources?.issue || (providerResources ? Object.values(providerResources)[0] : null);
         const issue = resHandler?.read
             ? await resHandler.read(issueNum)
-            : (resHandler?.get ? await resHandler.get(issueNum) : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(issueNum) : null));
+            : (resHandler?.get ? await resHandler.get(issueNum) : (typeof (provider as any).getIssue === 'function' ? await (provider as any).getIssue(issueNum) : null));
 
         if (!issue) {
             console.error(red(`Issue #${issueNum} not found in GitHub repository or remote provider.`));
@@ -728,12 +716,12 @@ export const importCmd = async (options: ImportCmdOptions) => {
             process.exit(1);
         }
         const resourceType = SCOPE_RESOURCE_MAP[scope];
-        const remoteId = github.formatRemoteId(issueNum);
+        const remoteId = provider.formatRemoteId(issueNum);
 
         // Fetch custom fields
         let customFields: Record<string, string> = {};
         if (issue.node_id) {
-            customFields = (github as any).getProjectItemFields ? await (github as any).getProjectItemFields(issue.node_id) : {};
+            customFields = (provider as any).getProjectItemFields ? await (provider as any).getProjectItemFields(issue.node_id) : {};
         }
 
         // Auto-reconstruct code if not matched

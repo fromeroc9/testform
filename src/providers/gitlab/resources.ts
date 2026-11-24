@@ -28,7 +28,7 @@ export const gitlabTestcaseTemplate: ResourceTemplate = {
         title: s.name,
         body: buildGitLabTestcaseBody(s),
         labels: extractLabels(s),
-        assignees: extractAssignees(s),
+        assignees: extractAssignees(s, 'assignee'),
         milestone: s.custom?.fields?.milestone || undefined,
         metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'assignee', 'milestone', 'status', 'evidence', 'attach']) || {}
     }),
@@ -59,7 +59,7 @@ export const gitlabTestrunTemplate: ResourceTemplate = {
             title: s.feature?.name || '',
             body: buildGitLabTestrunBody(s, context),
             labels: extractLabels(s),
-            assignees: extractAssignees(s),
+            assignees: extractAssignees(s, 'assignee'),
             milestone: s.custom?.fields?.milestone || undefined,
             metadata: meta
         };
@@ -112,7 +112,7 @@ export const gitlabTestplanTemplate: ResourceTemplate = {
             title: s.feature?.name || '',
             body: buildGitLabTestplanBody(s, context),
             labels: extractLabels(s),
-            assignees: extractAssignees(s),
+            assignees: extractAssignees(s, 'assignee'),
             milestone: s.custom?.fields?.milestone || undefined,
             metadata: meta
         };
@@ -160,7 +160,7 @@ export const gitlabBugTemplate: ResourceTemplate = {
             title: s.name || s.feature?.name || '',
             body: buildGitLabBugBody(s),
             labels: extractLabels(s, 'bug'),
-            assignees: extractAssignees(s),
+            assignees: extractAssignees(s, 'assignee'),
             milestone: s.custom?.fields?.milestone || undefined,
             metadata: meta
         };

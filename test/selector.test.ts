@@ -12,6 +12,7 @@ import {
     computeResourceIdentity,
 } from '../src/core/selector';
 import { resource } from '../src/core/resources';
+import { registerGitHubResources } from '../src/providers/github/resources';
 import { logger } from '../src/core/logger';
 
 describe('Target and Spec Selector (src/core/selector)', () => {
@@ -249,6 +250,7 @@ describe('Target and Spec Selector (src/core/selector)', () => {
         });
 
         it('should exclude @ns directive tags from extracted resource labels', () => {
+            registerGitHubResources();
             const attrs = resource.evaluate('testcase', {
                 uri: 'testcase/Magento/cart.case.feature',
                 name: 'Cart',

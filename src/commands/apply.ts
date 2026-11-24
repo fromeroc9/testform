@@ -154,11 +154,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             return;
         }
 
-        // Initialize context AFTER approval to connect to GitHub.
+        // Initialize context AFTER approval to connect to the active provider.
         // We pass lock: false because stateObj already holds the lock.
         const ctx = await createCommandContext({ dir, verbose, lock: false });
         if (!ctx) return;
-        const github = (ctx.adapter || (ctx as any).github);
+        const provider = (ctx.adapter || (ctx as any).provider || (ctx as any).github);
 
         let added = 0;
         let changed = 0;
@@ -167,96 +167,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
         // Helper to resolve milestone titles to IDs
         const resolvePayloadMilestone = async (payload: any) => {
             if (typeof payload.milestone === 'string' && payload.milestone) {
-                if (typeof (github as any).getMilestoneByTitle === 'function') {
-                    payload.milestone = await (github as any).getMilestoneByTitle(payload.milestone);
+                if (typeof (provider as any).getMilestoneByTitle === 'function') {
+                    payload.milestone = await (provider as any).getMilestoneByTitle(payload.milestone);
                 }
             } else if (!payload.milestone) {
                 delete payload.milestone;
-            }
-        };
-
-        // Helper to link testruns as sub-issues to testplans, and testcases to testruns in GitLab
-        const linkSubIssues = async (change: any, parentIssueNumber: number) => {
-            const isGitLab = (config && typeof config.getProviderType === 'function' ? config.getProviderType() : config?.getAdapterType?.()) === 'gitlab' || (github as any)?.name === 'gitlab';
-
-            // 1. Testplan -> Testruns
-            if (change.resourceType.endsWith('testplan') && change.scenario.custom?.testruns) {
-                for (const tr of change.scenario.custom.testruns) {
-                    const runResources = stateObj.getResources('testrun').filter(r =>
-                        matchesTestrunSelector(r, String(tr))
-                    );
-
-                    if (runResources.length > 1) {
-                        const uris = Array.from(new Set(runResources.map(r => r.address)));
-                        logger.warn(`Rule '${tr}' in Testplan matches multiple Testruns. Linking all of them:\n` + uris.map(u => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
-                    }
-
-                    for (const runResource of runResources) {
-                        if (runResource?.attributes?.issueNumber) {
-                            try {
-                                const providerResources = github.resources || github.apis;
-                                const issueHandler = providerResources?.testrun || providerResources?.issue;
-                                const issueDetails = issueHandler?.read
-                                    ? await issueHandler.read(runResource.attributes.issueNumber)
-                                    : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(runResource.attributes.issueNumber as number) : null);
-                                if (issueDetails && issueDetails.id) {
-                                    if ((github as any).addSubIssue) await (github as any).addSubIssue(parentIssueNumber, isGitLab ? runResource.attributes.issueNumber : issueDetails.id);
-                                    console.log(`  -> Linked testrun #${runResource.attributes.issueNumber} (${runResource.address}) as sub-issue to testplan #${parentIssueNumber}`);
-                                }
-                            } catch (e: any) {
-                                console.log(`  -> Failed to link testrun ${runResource.address} as sub-issue: ${e.message}`);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. Testrun -> Testcases (in GitLab where many-to-many issue links are fully supported)
-            if (change.resourceType.endsWith('testrun') && change.scenario.custom?.testcases && isGitLab) {
-                const tcResources = stateObj.getResources('testcase');
-                const testcases = change.scenario.custom.testcases;
-                const linkedIids = new Set<number | string>();
-
-                for (const tc of testcases) {
-                    const parts = String(tc).split('.');
-                    const scenarioName = parts.pop() || '';
-                    const ruleName = parts.join('.');
-                    const baseRule = ruleName.replace(/\.[a-zA-Z0-9_-]+\.feature$/i, '').replace(/\.feature$/i, '').replace(/\\/g, '/');
-                    const ruleBaseName = basename(baseRule);
-                    const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
-
-                    const matches = tcResources.filter((r: any) => {
-                        const normAddr = (r.address || r.identity || '').replace(/\\/g, '/');
-                        const relPath = (r.path || '').replace(/\\/g, '/');
-                        const idLastPart = (r.tag || normAddr.split('.').pop() || '').replace(/^@/, '').toLowerCase();
-
-                        let matchScen = (cleanScenario === '*' || idLastPart === cleanScenario);
-                        if (!matchScen) {
-                            const normTitle = (r.attributes?.title || '').toLowerCase();
-                            if (normTitle && (normTitle === cleanScenario || normTitle === scenarioName.toLowerCase())) {
-                                matchScen = true;
-                            }
-                        }
-                        if (!matchScen) return false;
-
-                        return relPath.toLowerCase().includes(ruleBaseName.toLowerCase()) || normAddr.toLowerCase().includes(ruleBaseName.toLowerCase());
-                    });
-
-                    for (const tcRes of matches) {
-                        const tcIid = tcRes.attributes?.issueNumber;
-                        if (tcIid && !linkedIids.has(tcIid)) {
-                            linkedIids.add(tcIid);
-                            try {
-                                if ((github as any).addSubIssue) {
-                                    await (github as any).addSubIssue(parentIssueNumber, tcIid);
-                                    console.log(`  -> Linked testcase #${tcIid} (${tcRes.address}) to testrun #${parentIssueNumber}`);
-                                }
-                            } catch (e: any) {
-                                // Non-blocking
-                            }
-                        }
-                    }
-                }
             }
         };
 
@@ -287,7 +202,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             const statePayload = resource.evaluateState(change.resourceType, change.scenario, { state: stateObj, testDirectory });
             const lifecycle = resource.getLifecycle(change.resourceType);
 
-            const providerResources = github.resources || github.apis;
+            const providerResources = provider.resources || provider.apis;
             let result: any;
 
             if (existingIssueNumber) {
@@ -296,7 +211,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     await lifecycle.beforeUpdate({
                         id: existingIssueNumber,
                         attributes,
-                        provider: github,
+                        provider,
                         scenario: change.scenario,
                         context: { state: stateObj, testDirectory }
                     });
@@ -321,9 +236,9 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         await resolvePayloadMilestone(attributes);
                         result = await providerResources.issue.update?.(existingIssueNumber, attributes, { scenario: change.scenario, state: stateObj });
                     }
-                } else if ((github as any).updateIssue) {
+                } else if ((provider as any).updateIssue) {
                     await resolvePayloadMilestone(attributes);
-                    result = await (github as any).updateIssue(existingIssueNumber, attributes);
+                    result = await (provider as any).updateIssue(existingIssueNumber, attributes);
                 }
 
                 if (lifecycle?.afterUpdate) {
@@ -331,7 +246,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         id: existingIssueNumber,
                         attributes,
                         diff: change.oldAttributes,
-                        provider: github,
+                        provider,
                         scenario: change.scenario,
                         context: { state: stateObj, testDirectory }
                     });
@@ -342,7 +257,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     await lifecycle.beforeCreate({
                         attributes,
                         scenario: change.scenario,
-                        context: { state: stateObj, testDirectory, provider: github }
+                        context: { state: stateObj, testDirectory, provider }
                     });
                 }
 
@@ -365,12 +280,12 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     }
                 } else {
                     await resolvePayloadMilestone(attributes);
-                    result = (github as any).createIssue ? await (github as any).createIssue(attributes) : undefined;
+                    result = (provider as any).createIssue ? await (provider as any).createIssue(attributes) : undefined;
                     const meta = attributes.metadata || attributes.custom_fields;
-                    if (result?.node_id && (github as any).addToProject && meta) {
-                        const itemId = await (github as any).addToProject(result.node_id);
-                        if (itemId && (github as any).updateProjectItemFields) {
-                            await (github as any).updateProjectItemFields(itemId, meta);
+                    if (result?.node_id && (provider as any).addToProject && meta) {
+                        const itemId = await (provider as any).addToProject(result.node_id);
+                        if (itemId && (provider as any).updateProjectItemFields) {
+                            await (provider as any).updateProjectItemFields(itemId, meta);
                         }
                     }
                 }
@@ -380,7 +295,7 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                     await lifecycle.afterCreate({
                         id: createdId,
                         attributes,
-                        provider: github,
+                        provider,
                         scenario: change.scenario,
                         context: { state: stateObj, testDirectory }
                     });
@@ -405,11 +320,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         const elapsed = elapsedSeconds(startTime);
                         const numOrId = result.number ?? result.id ?? 1;
-                        const remoteId = github.formatRemoteId ? github.formatRemoteId(numOrId) : String(numOrId);
+                        const remoteId = provider.formatRemoteId ? provider.formatRemoteId(numOrId) : String(numOrId);
                         console.log(green(`${address}: Creation complete after ${elapsed}s [id=${remoteId}]`));
-
-                        // Link sub-issues
-                        await linkSubIssues(change, numOrId);
 
                         // Update state
                         stateObj.upsertResource({
@@ -444,27 +356,27 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                             if (lifecycle?.beforeDelete) {
                                 await lifecycle.beforeDelete({
                                     id: change.issueNumber,
-                                    provider: github,
+                                    provider,
                                     context: { state: stateObj, testDirectory }
                                 });
                             }
 
-                            const providerResources = github.resources || github.apis;
+                            const providerResources = provider.resources || provider.apis;
                             if (providerResources) {
                                 const svcKey = Object.keys(providerResources).find(k => k === change.resourceType || change.resourceType.endsWith(`_${k}`) || k === 'issue');
                                 if (svcKey && providerResources[svcKey]?.delete) {
                                     await providerResources[svcKey].delete(change.issueNumber);
-                                } else if ((github as any).updateIssue) {
-                                    await (github as any).updateIssue(change.issueNumber, { state: 'closed' });
+                                } else if ((provider as any).updateIssue) {
+                                    await (provider as any).updateIssue(change.issueNumber, { state: 'closed' });
                                 }
-                            } else if ((github as any).updateIssue) {
-                                await (github as any).updateIssue(change.issueNumber, { state: 'closed' });
+                            } else if ((provider as any).updateIssue) {
+                                await (provider as any).updateIssue(change.issueNumber, { state: 'closed' });
                             }
 
                             if (lifecycle?.afterDelete) {
                                 await lifecycle.afterDelete({
                                     id: change.issueNumber,
-                                    provider: github,
+                                    provider,
                                     context: { state: stateObj, testDirectory }
                                 });
                             }
@@ -475,11 +387,8 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
 
                         const elapsed = elapsedSeconds(startTime);
                         const numOrId = result.number ?? result.id ?? 1;
-                        const newRemoteId = github.formatRemoteId ? github.formatRemoteId(numOrId) : String(numOrId);
+                        const newRemoteId = provider.formatRemoteId ? provider.formatRemoteId(numOrId) : String(numOrId);
                         console.log(green(`${address}: Replacement complete after ${elapsed}s [id=${newRemoteId}]`));
-
-                        // Link sub-issues
-                        await linkSubIssues(change, numOrId);
 
                         // 3. Update state
                         stateObj.upsertResource({
@@ -515,9 +424,6 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         const numOrId = result.number ?? result.id ?? change.issueNumber;
                         console.log(green(`${address}: Modifications complete after ${elapsed}s [id=${remoteId}]`));
 
-                        // Link sub-issues
-                        await linkSubIssues(change, numOrId);
-
                         // Update state
                         stateObj.upsertResource({
                             type: change.resourceType,
@@ -550,29 +456,29 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                         if (lifecycle?.beforeDelete) {
                             await lifecycle.beforeDelete({
                                 id: targetId,
-                                provider: github,
+                                provider,
                                 context: { state: stateObj, testDirectory }
                             });
                         }
 
                         if (change.issueNumber) {
-                            const providerResources = github.resources || github.apis;
+                            const providerResources = provider.resources || provider.apis;
                             if (providerResources) {
                                 const svcKey = Object.keys(providerResources).find(k => k === change.resourceType || change.resourceType.endsWith(`_${k}`) || k === 'issue');
                                 if (svcKey && providerResources[svcKey]?.delete) {
                                     await providerResources[svcKey].delete(change.issueNumber);
-                                } else if ((github as any).closeIssue) {
-                                    await (github as any).closeIssue(change.issueNumber);
+                                } else if ((provider as any).closeIssue) {
+                                    await (provider as any).closeIssue(change.issueNumber);
                                 }
-                            } else if ((github as any).closeIssue) {
-                                await (github as any).closeIssue(change.issueNumber);
+                            } else if ((provider as any).closeIssue) {
+                                await (provider as any).closeIssue(change.issueNumber);
                             }
                         }
 
                         if (lifecycle?.afterDelete) {
                             await lifecycle.afterDelete({
                                 id: targetId,
-                                provider: github,
+                                provider,
                                 context: { state: stateObj, testDirectory }
                             });
                         }

@@ -1,5 +1,8 @@
+import { basename, resolve, extname } from 'path';
+import { existsSync, readFileSync } from 'fs';
 import { IProvider, IProviderIssuePayload, IProviderIssueResult, IProviderResourceHandler } from '../interface';
 import { Credentials } from '../../core/credentials';
+import { matchesTestrunSelector } from '../../core/selector';
 
 export interface IGitLabConfig {
     host?: string;
@@ -11,6 +14,7 @@ export interface IGitLabConfig {
     token?: string;
     boardId?: number;
     board_id?: number;
+    dir?: string;
     [key: string]: any;
 }
 
@@ -24,7 +28,141 @@ export class GitLabProvider implements IProvider {
     private host: string;
     private projectId: string | number;
     private token: string;
+    private dir: string;
     private userIdCache: Map<string, number> = new Map();
+    private uploadedAssetsCache: Map<string, string> = new Map();
+
+    private resolveLocalFile(filePath: string): string | null {
+        if (!filePath) return null;
+        const clean = filePath.trim().replace(/^['"]|['"]$/g, '');
+        const root = this.dir || process.cwd();
+        const candidates = [
+            resolve(root, clean),
+            resolve(root, 'attachments', clean),
+            resolve(root, 'attachments', basename(clean)),
+            resolve(root, 'attachments', 'bugs', basename(clean)),
+            resolve(root, 'attachments', 'testruns', basename(clean))
+        ];
+        for (const c of candidates) {
+            if (existsSync(c)) return c;
+        }
+        return null;
+    }
+
+    private getContentType(filePath: string): string {
+        const ext = extname(filePath).toLowerCase();
+        switch (ext) {
+            case '.png': return 'image/png';
+            case '.jpg':
+            case '.jpeg': return 'image/jpeg';
+            case '.gif': return 'image/gif';
+            case '.webp': return 'image/webp';
+            case '.svg': return 'image/svg+xml';
+            case '.pdf': return 'application/pdf';
+            case '.txt':
+            case '.log': return 'text/plain';
+            default: return 'application/octet-stream';
+        }
+    }
+
+    public async uploadAttachment(filePath: string): Promise<string | null> {
+        const resolved = this.resolveLocalFile(filePath);
+        if (!resolved) return null;
+
+        if (this.uploadedAssetsCache.has(resolved)) {
+            return this.uploadedAssetsCache.get(resolved)!;
+        }
+
+        try {
+            const fileName = basename(resolved);
+            const contentType = this.getContentType(resolved);
+            const fileBytes = readFileSync(resolved);
+
+            const formData = new FormData();
+            const blob = new Blob([fileBytes], { type: contentType });
+            formData.append('file', blob, fileName);
+
+            const uploadUrl = `${this.host}/api/v4/projects/${this.encodedProjectId}/uploads`;
+            const headers: Record<string, string> = {};
+            if (this.token) {
+                headers['PRIVATE-TOKEN'] = this.token;
+            }
+
+            const res = await fetch(uploadUrl, {
+                method: 'POST',
+                headers,
+                body: formData
+            });
+
+            if (res.ok) {
+                const resData: any = await res.json();
+                if (resData?.url) {
+                    this.uploadedAssetsCache.set(resolved, resData.url);
+                    console.log(`  -> Uploaded attachment ${fileName} to GitLab`);
+                    return resData.url;
+                }
+            } else {
+                const errText = await res.text();
+                console.log(`  -> Failed to upload attachment ${fileName} to GitLab (HTTP ${res.status}): ${errText}`);
+            }
+        } catch (err: any) {
+            console.log(`  -> Error uploading attachment ${basename(resolved)} to GitLab: ${err.message}`);
+        }
+        return null;
+    }
+
+    private async prepareIssuePayload(data: any): Promise<IProviderIssuePayload> {
+        let body = data.body || '';
+
+        // 1. Scan for images: ![alt](path)
+        const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        const matches = [...body.matchAll(imgRegex)];
+        for (const m of matches) {
+            const alt = m[1];
+            const rawPath = m[2];
+            if (!rawPath.startsWith('http://') && !rawPath.startsWith('https://') && !rawPath.startsWith('/uploads/')) {
+                const uploadedUrl = await this.uploadAttachment(rawPath);
+                if (uploadedUrl) {
+                    body = body.replace(m[0], `![${alt}](${uploadedUrl})`);
+                }
+            }
+        }
+
+        // 2. Scan for attachment marks: 📎 **Attachment:** `path`
+        const attRegex = /📎 \*\*Attachment:\*\* `([^`]+)`/g;
+        const attMatches = [...body.matchAll(attRegex)];
+        for (const m of attMatches) {
+            const rawPath = m[1];
+            if (!rawPath.startsWith('http://') && !rawPath.startsWith('https://') && !rawPath.startsWith('/uploads/')) {
+                const uploadedUrl = await this.uploadAttachment(rawPath);
+                if (uploadedUrl) {
+                    body = body.replace(m[0], `📎 **Attachment:** [${basename(rawPath)}](${uploadedUrl})`);
+                }
+            }
+        }
+
+        // 3. Scan for evidence lines in testruns: - 📎 **Evidence:** `path`
+        const evidenceRegex = /- 📎 \*\*Evidence:\*\* `([^`]+)`/g;
+        const evMatches = [...body.matchAll(evidenceRegex)];
+        for (const m of evMatches) {
+            const rawPath = m[1];
+            if (!rawPath.startsWith('http://') && !rawPath.startsWith('https://') && !rawPath.startsWith('/uploads/')) {
+                const uploadedUrl = await this.uploadAttachment(rawPath);
+                if (uploadedUrl) {
+                    body = body.replace(m[0], `- 📎 **Evidence:** [${basename(rawPath)}](${uploadedUrl})`);
+                }
+            }
+        }
+
+        if (data && data.body) {
+            data.body = body;
+        }
+
+        return {
+            ...data,
+            body
+        };
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Agnostic Multi-Resource Bus (Mode 2)
@@ -33,13 +171,22 @@ export class GitLabProvider implements IProvider {
     private createDomainHandler(resourceType: string): IProviderResourceHandler {
         return {
             create: async (data: any, context?: any) => {
-                return this.createIssue(data);
+                const result = await this.createIssue(data);
+                const issueId = result?.number ?? result?.id;
+                if (issueId && context) {
+                    await this.linkRelatedResources(resourceType, issueId, context);
+                }
+                return result;
             },
             read: async (id: number | string) => {
                 return this.getIssue(id);
             },
             update: async (id: number | string, data: any, context?: any) => {
-                return this.updateIssue(id, data);
+                const result = await this.updateIssue(id, data);
+                if (context) {
+                    await this.linkRelatedResources(resourceType, id, context);
+                }
+                return result;
             },
             delete: async (id: number | string) => {
                 return this.closeIssue(id);
@@ -78,6 +225,7 @@ export class GitLabProvider implements IProvider {
     constructor(config: IGitLabConfig) {
         this.host = (config.host || 'https://gitlab.com').replace(/\/+$/, '');
         this.projectId = config.projectId || config.project_id || config.project || '';
+        this.dir = config.dir || process.cwd();
         const envVar = config.tokenEnv || config.token_env || 'GITLAB_TOKEN';
         let storedToken: string | undefined;
         try {
@@ -152,27 +300,28 @@ export class GitLabProvider implements IProvider {
     }
 
     async createIssue(payload: IProviderIssuePayload): Promise<IProviderIssueResult> {
-        let body = payload.body || '';
+        const prepared = await this.prepareIssuePayload(payload);
+        let body = prepared.body || '';
         const reqBody: Record<string, any> = {
-            title: payload.title,
+            title: prepared.title,
             description: body,
         };
 
-        if (payload.labels && payload.labels.length > 0) {
-            reqBody.labels = payload.labels.join(',');
+        if (prepared.labels && prepared.labels.length > 0) {
+            reqBody.labels = prepared.labels.join(',');
         }
 
-        if (payload.milestone) {
-            reqBody.milestone_id = payload.milestone;
+        if (prepared.milestone) {
+            reqBody.milestone_id = prepared.milestone;
         }
 
-        if (payload.assignees && payload.assignees.length > 0) {
-            const resolvedIds = await this.resolveAssigneeIds(payload.assignees);
+        if (prepared.assignees && prepared.assignees.length > 0) {
+            const resolvedIds = await this.resolveAssigneeIds(prepared.assignees);
             if (resolvedIds.length > 0) {
                 reqBody.assignee_ids = resolvedIds;
             } else {
                 // Resilient fallback: GitLab quick actions work even when user-lookup endpoints are restricted
-                const qa = '\n\n/assign ' + payload.assignees.map(u => `@${String(u).replace(/^@/, '')}`).join(' ');
+                const qa = '\n\n/assign ' + prepared.assignees.map(u => `@${String(u).replace(/^@/, '')}`).join(' ');
                 reqBody.description = (reqBody.description || '') + qa;
             }
         }
@@ -194,24 +343,25 @@ export class GitLabProvider implements IProvider {
     }
 
     async updateIssue(issueId: number | string, payload: Partial<IProviderIssuePayload>): Promise<IProviderIssueResult> {
+        const prepared = await this.prepareIssuePayload(payload as any);
         const reqBody: Record<string, any> = {};
 
-        if (payload.title !== undefined) reqBody.title = payload.title;
-        if (payload.body !== undefined) reqBody.description = payload.body;
-        if (payload.labels !== undefined) reqBody.labels = payload.labels.join(',');
-        if (payload.milestone !== undefined) reqBody.milestone_id = payload.milestone;
-        if (payload.assignees !== undefined) {
-            const resolvedIds = await this.resolveAssigneeIds(payload.assignees);
+        if (prepared.title !== undefined) reqBody.title = prepared.title;
+        if (prepared.body !== undefined) reqBody.description = prepared.body;
+        if (prepared.labels !== undefined) reqBody.labels = prepared.labels.join(',');
+        if (prepared.milestone !== undefined) reqBody.milestone_id = prepared.milestone;
+        if (prepared.assignees !== undefined) {
+            const resolvedIds = await this.resolveAssigneeIds(prepared.assignees);
             if (resolvedIds.length > 0) {
                 reqBody.assignee_ids = resolvedIds;
-            } else if (payload.assignees.length > 0) {
+            } else if (prepared.assignees.length > 0) {
                 // Quick action fallback
-                const qa = '\n\n/assign ' + payload.assignees.map(u => `@${String(u).replace(/^@/, '')}`).join(' ');
+                const qa = '\n\n/assign ' + prepared.assignees.map(u => `@${String(u).replace(/^@/, '')}`).join(' ');
                 reqBody.description = (reqBody.description || '') + qa;
             }
         }
-        if (payload.state !== undefined) {
-            reqBody.state_event = payload.state === 'closed' ? 'close' : 'reopen';
+        if (prepared.state !== undefined) {
+            reqBody.state_event = prepared.state === 'closed' ? 'close' : 'reopen';
         }
 
         const data = await this.request('PUT', `/projects/${this.encodedProjectId}/issues/${issueId}`, reqBody);
@@ -265,6 +415,33 @@ export class GitLabProvider implements IProvider {
             });
         } catch {
             // Non-blocking fallback for link creation
+        }
+    }
+
+    private async linkRelatedResources(resourceType: string, parentNumberOrId: number | string, context: { scenario?: any; state?: any; logger?: any }): Promise<void> {
+        // 1. Testplan -> Testruns
+        if (resourceType === 'testplan' && context.scenario?.custom?.testruns && context.state) {
+            for (const tr of context.scenario.custom.testruns) {
+                const runResources = context.state.getResources('testrun')?.filter((r: any) =>
+                    matchesTestrunSelector(r, String(tr))
+                ) || [];
+
+                if (runResources.length > 1 && context.logger) {
+                    const uris = Array.from(new Set(runResources.map((r: any) => r.address)));
+                    context.logger.warn(`Rule '${tr}' in Testplan matches multiple Testruns. Linking all of them:\n` + uris.map((u: any) => `  - ${u}`).join('\n') + `\nIf this was unintentional, specify the full file path.`);
+                }
+
+                for (const runResource of runResources) {
+                    if (runResource?.attributes?.issueNumber) {
+                        try {
+                            await this.addSubIssue(parentNumberOrId, runResource.attributes.issueNumber);
+                            console.log(`  -> Linked testrun #${runResource.attributes.issueNumber} (${runResource.address}) to testplan #${parentNumberOrId}`);
+                        } catch (e: any) {
+                            console.log(`  -> Failed to link testrun ${runResource.address}: ${e.message}`);
+                        }
+                    }
+                }
+            }
         }
     }
 

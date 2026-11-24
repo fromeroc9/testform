@@ -866,10 +866,10 @@ export function extractLabels(s: any, extraTag?: string): string[] {
     return Array.from(new Set(cleaned));
 }
 
-export function extractAssignees(s: any): string[] {
-    const raw = s?.custom?.fields?.assignees ?? s?.custom?.fields?.assignee ??
-        s?.custom?.set?.assignees ?? s?.custom?.set?.assignee ??
-        s?.custom?.explicitFields?.assignees ?? s?.custom?.explicitFields?.assignee ?? '';
+export function extractAssignees(s: any, fieldKey: string = 'assignees'): string[] {
+    const raw = s?.custom?.fields?.[fieldKey] ??
+        s?.custom?.set?.[fieldKey] ??
+        s?.custom?.explicitFields?.[fieldKey] ?? '';
     if (Array.isArray(raw)) {
         return raw.map((a: any) => String(a).trim().replace(/^@/, '')).filter(Boolean);
     }
@@ -1034,127 +1034,5 @@ export function extractPlanTestrunsMap(s: any, context?: any): Record<string, st
 
 export const resource = new Resource();
 export const registerResource = (template: ResourceTemplate) => resource.registry(template, 'user');
-
-function buildGenericTestcaseBody(s: any): string {
-    const steps = (s.steps || []).map((sp: any) => `${sp.keyword}${sp.text}`).join('\n');
-    return steps ? '```gherkin\n' + steps + '\n```' : '';
-}
-
-export const defaultTestcaseTemplate: ResourceTemplate = {
-    type: 'testcase',
-    attributes: (s: ParserScenario) => ({
-        title: s.name,
-        body: buildGenericTestcaseBody(s),
-        labels: extractLabels(s),
-        assignees: extractAssignees(s),
-        milestone: s.custom?.fields?.milestone || undefined,
-        metadata: extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'status', 'evidence', 'attach']) || {}
-    }),
-    state: {}
-};
-
-export const defaultTestrunTemplate: ResourceTemplate = {
-    type: 'testrun',
-    attributes: (s: ParserScenario, context?: ResourceContext) => {
-        const groupScenarios = s.custom?.groupScenarios || [];
-        const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
-        const rollupStatus = calculateRollupVerdict(statuses, context?.config);
-        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach', 'duration', 'trace']) || {};
-
-        return {
-            title: s.feature?.name || '',
-            body: '',
-            labels: extractLabels(s),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-            metadata: meta
-        };
-    },
-    state: {
-        status: (s: ParserScenario, context?: ResourceContext) => {
-            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
-            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
-            if (explicitVal !== undefined && String(explicitVal).trim() !== '') {
-                return String(explicitVal).trim().toLowerCase();
-            }
-            const groupScenarios = s.custom?.groupScenarios || [];
-            const statuses = groupScenarios.map((gs: ParserScenario) => getScenarioStatus(gs, 'pending'));
-            return calculateRollupVerdict(statuses, context?.config);
-        },
-        duration: (s: ParserScenario) => getScenarioValue(s, 'duration'),
-        attach: (s: ParserScenario) => getScenarioEvidence(s),
-        trace: (s: ParserScenario) => getScenarioTrace(s),
-        testcases: (s: ParserScenario) => extractTestcaseStatusMap(s),
-        testcaseTraces: (s: ParserScenario) => {
-            const map = extractTestcaseTraceMap(s);
-            return Object.keys(map).length > 0 ? map : undefined;
-        },
-        testcaseEvidence: (s: ParserScenario) => {
-            const map = extractTestcaseEvidenceMap(s);
-            return Object.keys(map).length > 0 ? map : undefined;
-        }
-    }
-};
-
-export const defaultTestplanTemplate: ResourceTemplate = {
-    type: 'testplan',
-    attributes: (s: ParserScenario, context?: ResourceContext) => {
-        const rollupStatus = calculatePlanRollup(s, context);
-        const meta = extractCustomFields(s.custom?.fields, ['labels', 'assignees', 'milestone', 'evidence', 'attach']) || {};
-
-        return {
-            title: s.feature?.name || '',
-            body: '',
-            labels: extractLabels(s),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-            metadata: meta
-        };
-    },
-    state: {
-        status: (s: ParserScenario, context?: ResourceContext) => {
-            const explicitEntry = Object.entries(s.custom?.explicitFields || {}).find(([k]) => k.toLowerCase() === 'status');
-            const explicitVal = explicitEntry ? explicitEntry[1] : undefined;
-            if (explicitVal !== undefined && String(explicitVal).trim() !== '') {
-                return String(explicitVal).trim().toLowerCase();
-            }
-            return calculatePlanRollup(s, context);
-        },
-        attach: (s: ParserScenario) => getScenarioEvidence(s),
-        testruns: (s: ParserScenario, context?: ResourceContext) => extractPlanTestrunsMap(s, context)
-    }
-};
-
-export const defaultBugTemplate: ResourceTemplate = {
-    type: 'bug',
-    attributes: (s: ParserScenario) => {
-        const rawStatus = getScenarioStatus(s, 'open');
-        const meta = extractCustomFields(s.custom?.fields, [
-            'labels', 'assignees', 'milestone', 'trace', 'error', 'evidence', 'attach', 'target', 'testcase', 'testrun', 'run'
-        ]) || {};
-
-        return {
-            title: s.name || s.feature?.name || '',
-            body: '',
-            labels: extractLabels(s, 'bug'),
-            assignees: extractAssignees(s),
-            milestone: s.custom?.fields?.milestone || undefined,
-            metadata: meta
-        };
-    },
-    state: {
-        status: (s: ParserScenario) => getScenarioStatus(s, 'open'),
-        trace: (s: ParserScenario) => getScenarioTrace(s),
-        attach: (s: ParserScenario) => getScenarioEvidence(s),
-        testcase: (s: ParserScenario) => getScenarioValue(s, 'target') ?? getScenarioValue(s, 'testcase'),
-        testrun: (s: ParserScenario) => getScenarioValue(s, 'run') ?? getScenarioValue(s, 'testrun')
-    }
-};
-
-// Register pure agnostic baseline resources
-resource.registry(defaultTestcaseTemplate);
-resource.registry(defaultTestrunTemplate);
-resource.registry(defaultTestplanTemplate);
-resource.registry(defaultBugTemplate);
 
 

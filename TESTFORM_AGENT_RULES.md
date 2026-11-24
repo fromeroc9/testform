@@ -30,6 +30,9 @@ Testform is a declarative Test-as-Code orchestration engine modeled after Terraf
 * **Plan & Apply Comment Headers**: Resources are addressed following the Terraform convention: `# <provider>.<resource_type>.<address>` (e.g. `# github.testcase.auth.case.feature.@tc-01 will be created`).
 * **Agnostic Resource Blocks**: The resource declaration itself is 100% provider-agnostic (`resource "testcase" "..." { ... }`).
 * **Provider Decoupling**: Each provider (`github`, `gitlab`, `local`) registers its own templates in `src/providers/<provider>/`, ensuring zero vendor lock-in in Core.
+* **Self-Contained Relational Handling**: Providers manage their own hierarchical and relational dependencies (sub-issues, work items, networks) directly within their standard `resources[type].create/update` handlers using the supplied context and attributes, keeping CLI execution (`apply.ts`) pure CRUD.
+* **Attachment and Evidence Sync**: Providers natively upload evidence and screenshots (such as bug attachments or testrun traces) to remote storage (e.g. GitHub/GitLab uploads API) and rewrite markdown links to remote asset URLs.
+* **Hierarchical Parity**: Only `testplan` establishes remote parent-child or sub-issue issue links with `testrun` resources. `testrun` displays testcase execution details in its structured Markdown execution table without creating duplicate issue links.
 
 ---
 

@@ -7,14 +7,13 @@
  */
 
 import { bold, green, yellow, red, dim } from 'chalk';
-import { GitHubAdapter } from '../providers/github';
 import { LocalAdapter } from '../providers/local';
 import { IProviderAdapter } from '../providers/interface';
 import { Config } from '../core/config';
 import { State } from '../core/state';
 import { Logger } from '../core/logger';
 import { logger as notify } from '../core/logger';
-import { SCOPE_RESOURCE_MAP, ERR_GITHUB_CONFIG_NOT_FOUND } from '../core/const';
+import { SCOPE_RESOURCE_MAP } from '../core/const';
 import { IScope } from '../core/types';
 import { matchesTarget } from '../core/selector';
 import { formatResourceAddress, formatIdentityDisplay } from '../core/utils';
@@ -82,28 +81,19 @@ export const refreshState = async (options: RefreshStateOptions) => {
 
     const config = new Config(dir);
     const providerType = (typeof config.getProviderType === 'function') ? config.getProviderType() : config.getAdapterType();
-    let github: IProviderAdapter;
-
-    if (providerType === 'local') {
-        const localCfg = (typeof config.getProviderConfig === 'function') ? config.getProviderConfig('local') : undefined;
-        registerProviderResources('local', { schema: localCfg?.schema });
-        github = new LocalAdapter(dir, localCfg?.schema);
-    } else if (providerType === 'github') {
-        const ghConfig = config.getGitHub();
-        if (!ghConfig) {
-            if (!silent) {
-                notify.push({
-                    type: 'error',
-                    title: 'GitHub configuration not found',
-                    detail: [ERR_GITHUB_CONFIG_NOT_FOUND],
-                    close: true,
-                });
-            }
-            return;
+    let provider: any;
+    try {
+        provider = await createProvider(config, dir);
+    } catch (e: any) {
+        if (!silent) {
+            notify.push({
+                type: 'error',
+                title: `${providerType} provider error`,
+                detail: [e.message],
+                close: true,
+            });
         }
-        github = new GitHubAdapter(ghConfig);
-    } else {
-        github = (await createProvider(config, dir)) as any;
+        return;
     }
 
     let refreshed = 0;
@@ -125,7 +115,7 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 return;
             }
 
-            const providerResources = github.resources || github.apis;
+            const providerResources = provider.resources || provider.apis;
             const resHandler = providerResources
                 ? (providerResources[res.type] || providerResources[res.type.replace(/^.*_/, '')] || providerResources.issue || Object.values(providerResources)[0])
                 : undefined;
@@ -135,8 +125,8 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 issue = await resHandler.read(targetId);
             } else if (resHandler?.get) {
                 issue = await resHandler.get(targetId);
-            } else if (typeof (github as any).getIssue === 'function') {
-                issue = await (github as any).getIssue(targetId);
+            } else if (typeof (provider as any).getIssue === 'function') {
+                issue = await (provider as any).getIssue(targetId);
             }
 
             if (!issue) {
@@ -148,8 +138,8 @@ export const refreshState = async (options: RefreshStateOptions) => {
                 state.removeResource(res.address || (res as any).identity);
                 removed++;
             } else {
-                const remoteCustomFields = (issue.node_id && (github as any).getProjectItemFields)
-                    ? await (github as any).getProjectItemFields(issue.node_id)
+                const remoteCustomFields = (issue.node_id && (provider as any).getProjectItemFields)
+                    ? await (provider as any).getProjectItemFields(issue.node_id)
                     : issue.metadata;
 
                 const lifecycle = lifecycleResolver.getLifecycle(res.address, res.attributes.labels || []);
