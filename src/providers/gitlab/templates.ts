@@ -326,9 +326,9 @@ export function buildGitLabBugBody(s: any): string {
         for (const ev of evidenceList) {
             const isImg = /\.(png|jpe?g|gif|webp|svg)($|\?)/i.test(ev);
             if (isImg) {
-                body += `- ![Evidence](${ev})\n`;
+                body += `![Evidence](${ev})\n`;
             } else {
-                body += `- 📎 **Attachment:** \`${ev}\`\n`;
+                body += `📎 **Attachment:** \`${ev}\`\n`;
             }
         }
         body += '\n';
