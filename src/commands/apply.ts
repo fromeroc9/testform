@@ -1,5 +1,6 @@
 import { MSG_ACQUIRING_LOCK } from '../core/const';
 import { existsSync, readFileSync } from 'fs';
+import { basename } from 'path';
 import { bold, green } from 'chalk';
 import { resource } from '../core/resources';
 import { State } from '../core/state';
@@ -174,8 +175,11 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
             }
         };
 
-        // Helper to link testruns as sub-issues to testplans
+        // Helper to link testruns as sub-issues to testplans, and testcases to testruns in GitLab
         const linkSubIssues = async (change: any, parentIssueNumber: number) => {
+            const isGitLab = (config && typeof config.getProviderType === 'function' ? config.getProviderType() : config?.getAdapterType?.()) === 'gitlab' || (github as any)?.name === 'gitlab';
+
+            // 1. Testplan -> Testruns
             if (change.resourceType.endsWith('testplan') && change.scenario.custom?.testruns) {
                 for (const tr of change.scenario.custom.testruns) {
                     const runResources = stateObj.getResources('testrun').filter(r =>
@@ -196,11 +200,59 @@ export const applyCmd = async (options: ApplyCmdOptions) => {
                                     ? await issueHandler.read(runResource.attributes.issueNumber)
                                     : (typeof (github as any).getIssue === 'function' ? await (github as any).getIssue(runResource.attributes.issueNumber as number) : null);
                                 if (issueDetails && issueDetails.id) {
-                                    if ((github as any).addSubIssue) await (github as any).addSubIssue(parentIssueNumber, issueDetails.id);
+                                    if ((github as any).addSubIssue) await (github as any).addSubIssue(parentIssueNumber, isGitLab ? runResource.attributes.issueNumber : issueDetails.id);
                                     console.log(`  -> Linked testrun #${runResource.attributes.issueNumber} (${runResource.address}) as sub-issue to testplan #${parentIssueNumber}`);
                                 }
                             } catch (e: any) {
                                 console.log(`  -> Failed to link testrun ${runResource.address} as sub-issue: ${e.message}`);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Testrun -> Testcases (in GitLab where many-to-many issue links are fully supported)
+            if (change.resourceType.endsWith('testrun') && change.scenario.custom?.testcases && isGitLab) {
+                const tcResources = stateObj.getResources('testcase');
+                const testcases = change.scenario.custom.testcases;
+                const linkedIids = new Set<number | string>();
+
+                for (const tc of testcases) {
+                    const parts = String(tc).split('.');
+                    const scenarioName = parts.pop() || '';
+                    const ruleName = parts.join('.');
+                    const baseRule = ruleName.replace(/\.[a-zA-Z0-9_-]+\.feature$/i, '').replace(/\.feature$/i, '').replace(/\\/g, '/');
+                    const ruleBaseName = basename(baseRule);
+                    const cleanScenario = scenarioName.replace(/^@/, '').toLowerCase();
+
+                    const matches = tcResources.filter((r: any) => {
+                        const normAddr = (r.address || r.identity || '').replace(/\\/g, '/');
+                        const relPath = (r.path || '').replace(/\\/g, '/');
+                        const idLastPart = (r.tag || normAddr.split('.').pop() || '').replace(/^@/, '').toLowerCase();
+
+                        let matchScen = (cleanScenario === '*' || idLastPart === cleanScenario);
+                        if (!matchScen) {
+                            const normTitle = (r.attributes?.title || '').toLowerCase();
+                            if (normTitle && (normTitle === cleanScenario || normTitle === scenarioName.toLowerCase())) {
+                                matchScen = true;
+                            }
+                        }
+                        if (!matchScen) return false;
+
+                        return relPath.toLowerCase().includes(ruleBaseName.toLowerCase()) || normAddr.toLowerCase().includes(ruleBaseName.toLowerCase());
+                    });
+
+                    for (const tcRes of matches) {
+                        const tcIid = tcRes.attributes?.issueNumber;
+                        if (tcIid && !linkedIids.has(tcIid)) {
+                            linkedIids.add(tcIid);
+                            try {
+                                if ((github as any).addSubIssue) {
+                                    await (github as any).addSubIssue(parentIssueNumber, tcIid);
+                                    console.log(`  -> Linked testcase #${tcIid} (${tcRes.address}) to testrun #${parentIssueNumber}`);
+                                }
+                            } catch (e: any) {
+                                // Non-blocking
                             }
                         }
                     }

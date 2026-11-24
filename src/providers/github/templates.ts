@@ -256,7 +256,7 @@ export function buildGitHubTestplanBody(s: any, context?: any): string {
         }
     };
 
-    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n>\n`;
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n`;
     banner += `| 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
     banner += `| :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
     banner += `| **${statusCounts.passed}** | **${statusCounts.failed}** | **${statusCounts.ambiguous || 0}** | **${statusCounts.blocked}** | **${statusCounts.skipped || 0}** | **${statusCounts.pending}** | **${resolvedRuns.length}** |\n\n`;
@@ -490,7 +490,7 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
         }
     };
 
-    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n>\n`;
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n`;
     banner += `| 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
     banner += `| :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
     banner += `| **${statusCounts.passed}** | **${statusCounts.failed}** | **${statusCounts.ambiguous}** | **${statusCounts.blocked}** | **${statusCounts.skipped}** | **${statusCounts.pending}** | **${uniqueResources.length}** |\n\n`;

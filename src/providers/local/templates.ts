@@ -141,8 +141,8 @@ export function buildLocalTestrunBody(s: any, context?: any): string {
     const verdictIcon = ICONS[rollupVerdict.toLowerCase()] || '⚪';
     const verdictLabel = rollupVerdict.toUpperCase();
 
-    let banner = `> ### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n`;
-    banner += `> **Passed:** ${statusCounts.passed} &nbsp;|&nbsp; **Failed:** ${statusCounts.failed} &nbsp;|&nbsp; **Blocked:** ${statusCounts.blocked} &nbsp;|&nbsp; **Skipped:** ${statusCounts.skipped} &nbsp;|&nbsp; **Pending:** ${statusCounts.pending} &nbsp;|&nbsp; **Total:** ${uniqueResources.length}\n\n`;
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n`;
+    banner += `**Passed:** ${statusCounts.passed} &nbsp;|&nbsp; **Failed:** ${statusCounts.failed} &nbsp;|&nbsp; **Blocked:** ${statusCounts.blocked} &nbsp;|&nbsp; **Skipped:** ${statusCounts.skipped} &nbsp;|&nbsp; **Pending:** ${statusCounts.pending} &nbsp;|&nbsp; **Total:** ${uniqueResources.length}\n\n`;
 
     let body = banner;
     if (userDesc) {
@@ -244,8 +244,8 @@ export function buildLocalTestplanBody(s: any, context?: any): string {
     const verdictIcon = ICONS[planVerdict.toLowerCase()] || '⚪';
     const verdictLabel = planVerdict.toUpperCase();
 
-    let banner = `> ### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n`;
-    banner += `> **Total Runs:** ${resolvedRuns.length} &nbsp;|&nbsp; **Passed:** ${statusCounts.passed} &nbsp;|&nbsp; **Failed:** ${statusCounts.failed} &nbsp;|&nbsp; **Blocked:** ${statusCounts.blocked} &nbsp;|&nbsp; **Pending:** ${statusCounts.pending}\n\n`;
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n`;
+    banner += `**Total Runs:** ${resolvedRuns.length} &nbsp;|&nbsp; **Passed:** ${statusCounts.passed} &nbsp;|&nbsp; **Failed:** ${statusCounts.failed} &nbsp;|&nbsp; **Blocked:** ${statusCounts.blocked} &nbsp;|&nbsp; **Pending:** ${statusCounts.pending}\n\n`;
 
     let body = banner;
     if (userDesc) {

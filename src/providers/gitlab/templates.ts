@@ -150,6 +150,7 @@ export function buildGitLabTestrunBody(s: any, context?: any): string {
     };
     const allStatuses: string[] = [];
     const resourceStatusMap = new Map<any, string>();
+    const resourceScenarioMap = new Map<any, any>();
 
     for (const tcResource of uniqueResources) {
         const tcIdentity = tcResource.address || tcResource.identity;
@@ -172,6 +173,10 @@ export function buildGitLabTestrunBody(s: any, context?: any): string {
                 const matchesRule = normTcId.includes(gsBaseRule) || normTcId.includes(basename(gsBaseRule));
                 return matchesRule && gs.name === '*';
             });
+        }
+
+        if (groupScenario) {
+            resourceScenarioMap.set(tcResource, groupScenario);
         }
 
         const localStatus = (groupScenario?.custom?.set?.status || groupScenario?.custom?.fields?.status || existingStatuses[tcIdentity] || existingStatuses[normTcId] || 'pending').toLowerCase();
@@ -199,53 +204,107 @@ export function buildGitLabTestrunBody(s: any, context?: any): string {
     const verdictIcon = ICONS[rollupVerdict.toLowerCase()] || '⚪';
     const verdictLabel = rollupVerdict.toUpperCase();
 
-    let banner = `> ### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n`;
-    banner += `> **Passed:** ${statusCounts.passed} &nbsp;|&nbsp; **Failed:** ${statusCounts.failed} &nbsp;|&nbsp; **Blocked:** ${statusCounts.blocked} &nbsp;|&nbsp; **Skipped:** ${statusCounts.skipped} &nbsp;|&nbsp; **Pending:** ${statusCounts.pending} &nbsp;|&nbsp; **Total:** ${uniqueResources.length}\n\n`;
+    const formatStatusBadge = (st: string) => {
+        const lower = (st || 'pending').toLowerCase();
+        switch (lower) {
+            case 'passed': return '🟢 Passed';
+            case 'failed': return '🔴 Failed';
+            case 'ambiguous': return '⚠️ Ambiguous';
+            case 'blocked': return '🚫 Blocked';
+            case 'skipped': return '🟡 Skipped';
+            case 'undefined': return '⚪ Undefined';
+            default: return '⏳ Pending';
+        }
+    };
+
+    // 1. Verdict Banner with summary count table (matching GitHub layout)
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Execution Verdict**\n`;
+    banner += `| 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
+    banner += `| :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
+    banner += `| **${statusCounts.passed}** | **${statusCounts.failed}** | **0** | **${statusCounts.blocked}** | **${statusCounts.skipped}** | **${statusCounts.pending}** | **${uniqueResources.length}** |\n\n`;
 
     let body = banner;
+
+    // 2. Metadata in 2nd position
+    const metadataSection = formatGitLabMetadataSection(s);
+    if (metadataSection) {
+        body += metadataSection.trim() + '\n\n';
+    }
+
     if (userDesc) {
         body += `${userDesc}\n\n`;
     }
 
-    body += `### 📋 Test Cases\n`;
+    // 3. Test Cases Execution table (similar to GitHub in attached image)
+    body += `### 📋 Test Cases Execution\n\n`;
+    body += `| Status | ID | Test Case | Origin |\n`;
+    body += `| :---: | :---: | :--- | :--- |\n`;
 
-    const groupedByOrigin = new Map<string, any[]>();
+    const tracesList: { id: string; origin: string; status: string; trace?: string; evidence?: string[] }[] = [];
+
     for (const tcResource of uniqueResources) {
+        const tcIdentity = tcResource.address || tcResource.identity;
+        const normTcId = (tcIdentity || '').replace(/\\/g, '/');
+        const tcLastPart = normTcId.split('.').pop() || '';
+        const safeName = tcLastPart.replace(/^@/, '') || '';
+        const localStatus = resourceStatusMap.get(tcResource) || 'pending';
+        const statusBadge = formatStatusBadge(localStatus);
         const originFile = tcResource.path ? basename(tcResource.path) : (tcResource.address ? basename(tcResource.address.slice(0, tcResource.address.lastIndexOf('.'))) : 'unknown');
-        if (!groupedByOrigin.has(originFile)) {
-            groupedByOrigin.set(originFile, []);
-        }
-        groupedByOrigin.get(originFile)!.push(tcResource);
-    }
+        const tcTitle = (tcResource.attributes?.title || tcResource.name || '').replace(/\|/g, '\\|').trim();
+        const issueNum = tcResource.attributes?.issueNumber;
 
-    for (const [origin, resources] of groupedByOrigin.entries()) {
-        body += `\n**Origin:** ${origin}\n`;
-        for (const tcResource of resources) {
-            const tcIdentity = tcResource.address || tcResource.identity;
-            const normTcId = (tcIdentity || '').replace(/\\/g, '/');
-            const tcLastPart = normTcId.split('.').pop() || '';
-            const safeName = tcLastPart.replace(/^@/, '') || '';
-            const localStatus = resourceStatusMap.get(tcResource) || 'pending';
-            const checkbox = localStatus === 'passed' ? '[x]' : '[ ]';
-            const statusSuffix = ` - **${localStatus}**`;
+        const testCaseCell = issueNum
+            ? `#${issueNum}${tcTitle ? ` ${tcTitle}` : ''}`
+            : (tcTitle ? `${tcTitle}` : `(known after apply)`);
 
-            if (tcResource?.attributes?.issueNumber) {
-                body += `- ${checkbox} ${safeName}: #${tcResource.attributes.issueNumber}${statusSuffix}\n`;
-            } else {
-                body += `- ${checkbox} ${safeName}: (known after apply) - ${tcIdentity}${statusSuffix}\n`;
-            }
+        body += `| ${statusBadge} | \`@${safeName}\` | ${testCaseCell} | \`${originFile}\` |\n`;
+
+        const groupScenario = resourceScenarioMap.get(tcResource);
+        const trace = groupScenario ? (groupScenario.custom?.set?.trace || groupScenario.custom?.fields?.trace || groupScenario.custom?.set?.error || groupScenario.custom?.fields?.error) : undefined;
+        const rawEv = groupScenario ? (groupScenario.custom?.set?.attach || groupScenario.custom?.fields?.attach || groupScenario.custom?.set?.evidence || groupScenario.custom?.fields?.evidence) : undefined;
+        const evidence = rawEv ? (Array.isArray(rawEv) ? rawEv : [rawEv]) : undefined;
+
+        if (trace || (evidence && evidence.length > 0)) {
+            tracesList.push({
+                id: issueNum ? `#${issueNum} @${safeName}` : `@${safeName}`,
+                origin: originFile,
+                status: localStatus,
+                trace: trace ? String(trace).trim() : undefined,
+                evidence: evidence ? evidence.map(String) : undefined
+            });
         }
     }
 
     if (notFoundTCs.length > 0) {
-        body += `\n**Not Found in State**\n`;
         for (const tc of notFoundTCs) {
             const safeName = tc.split('.').pop()?.replace('@', '') || '';
-            body += `- [ ] ${safeName}: (not found in state) - ${tc}\n`;
+            const originPart = tc.includes('.') ? tc.split('.')[0] : 'unknown';
+            body += `| ❓ Missing | \`@${safeName}\` | *(not found in state)* | \`${originPart}\` |\n`;
         }
     }
 
-    body += formatGitLabMetadataSection(s);
+    // 4. Failure Traces & Evidence
+    if (tracesList.length > 0) {
+        body += '\n### 🚨 Failure Traces & Evidence\n\n';
+        for (const t of tracesList) {
+            body += `#### ${t.id} (\`${t.origin}\`) - **${t.status.toUpperCase()}**\n`;
+            if (t.trace) {
+                body += '```text\n' + t.trace + '\n```\n';
+            }
+            if (t.evidence && t.evidence.length > 0) {
+                for (const ev of t.evidence) {
+                    const isImg = /\.(png|jpe?g|gif|webp|svg)($|\?)/i.test(ev);
+                    if (isImg) {
+                        body += `![Evidence](${ev})\n`;
+                    } else {
+                        body += `📎 **Attachment:** \`${ev}\`\n`;
+                    }
+                }
+            }
+            body += '\n';
+        }
+    }
+
     return body.trim();
 }
 
@@ -306,28 +365,56 @@ export function buildGitLabTestplanBody(s: any, context?: any): string {
     const verdictIcon = ICONS[planVerdict.toLowerCase()] || '⚪';
     const verdictLabel = planVerdict.toUpperCase();
 
-    let banner = `> ### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n`;
-    banner += `> **Total Runs:** ${resolvedRuns.length} &nbsp;|&nbsp; **Passed:** ${statusCounts.passed} &nbsp;|&nbsp; **Failed:** ${statusCounts.failed} &nbsp;|&nbsp; **Blocked:** ${statusCounts.blocked} &nbsp;|&nbsp; **Pending:** ${statusCounts.pending}\n\n`;
+    const formatPlanStatusBadge = (st: string) => {
+        const lower = (st || 'pending').toLowerCase();
+        switch (lower) {
+            case 'passed': return '🟢 Passed';
+            case 'failed': return '🔴 Failed';
+            case 'ambiguous': return '⚠️ Ambiguous';
+            case 'blocked': return '🚫 Blocked';
+            case 'skipped': return '🟡 Skipped';
+            case 'undefined': return '⚪ Undefined';
+            default: return '⏳ Pending';
+        }
+    };
+
+    // 1. Verdict Banner with summary count table
+    let banner = `### ${verdictIcon} **${verdictLabel}** &nbsp;•&nbsp; **Plan Execution Verdict**\n`;
+    banner += `| 🟢 Passed | 🔴 Failed | ⚠️ Ambiguous | 🚫 Blocked | 🟡 Skipped | ⏳ Pending | 📊 Total |\n`;
+    banner += `| :-: | :-: | :-: | :-: | :-: | :-: | :-: |\n`;
+    banner += `| **${statusCounts.passed}** | **${statusCounts.failed}** | **0** | **${statusCounts.blocked}** | **${statusCounts.skipped}** | **${statusCounts.pending}** | **${resolvedRuns.length}** |\n\n`;
 
     let body = banner;
+
+    // 2. Metadata in 2nd position
+    const metadataSection = formatGitLabMetadataSection(s);
+    if (metadataSection) {
+        body += metadataSection.trim() + '\n\n';
+    }
+
     if (userDesc) {
         body += `${userDesc}\n\n`;
     }
 
-    body += `### 🚀 Test Runs\n`;
+    // 3. Test Runs Table
+    body += `### 🚀 Test Runs Execution\n\n`;
+    body += `| Status | Test Run | Target / Origin |\n`;
+    body += `| :---: | :--- | :--- |\n`;
+
     for (const item of resolvedRuns) {
-        const checkbox = item.status === 'passed' ? '[x]' : '[ ]';
-        const statusSuffix = ` - **${item.status}**`;
+        const statusBadge = formatPlanStatusBadge(item.status);
+        const originDisplay = `\`${item.tr}\``;
         if (item.runResource?.attributes?.issueNumber) {
-            body += `- ${checkbox} #${item.runResource.attributes.issueNumber}${statusSuffix}\n`;
+            const runTitle = (item.runResource.attributes.title || '').replace(/\|/g, '\\|').trim();
+            body += `| ${statusBadge} | #${item.runResource.attributes.issueNumber}${runTitle ? ` ${runTitle}` : ''} | ${originDisplay} |\n`;
         } else if (item.runResource) {
-            body += `- ${checkbox} (known after apply) - ${item.runResource.address || item.runResource.identity}${statusSuffix}\n`;
+            const runAddr = item.runResource.address || item.runResource.identity;
+            body += `| ${statusBadge} | *(known after apply)* - ${runAddr} | ${originDisplay} |\n`;
         } else {
-            body += `- [ ] (not found in state) - ${item.tr}\n`;
+            body += `| ${statusBadge} | *(not found in state)* | ${originDisplay} |\n`;
         }
     }
 
-    body += formatGitLabMetadataSection(s);
     return body.trim();
 }
 

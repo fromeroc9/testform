@@ -76,6 +76,12 @@ export interface IProvider {
     apis?: Record<string, IProviderResourceHandler>;
 
     /**
+     * Optional provider hook to link hierarchical or relational resources.
+     * E.g. Testplan -> Testruns, Testrun -> Testcases, Container -> Network, etc.
+     */
+    linkResources?(change: any, parentNumberOrId: number | string, context: { state: any; logger?: any }): Promise<void>;
+
+    /**
      * Arbitrary custom provider actions, SDK clients, and helper methods.
      */
     [customProperty: string]: any;
