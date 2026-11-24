@@ -544,6 +544,20 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
                 });
                 return;
             }
+        } else if (effectiveBackendType === 'github') {
+            const hasOwner = effectiveBackendConfig.owner || (effectiveBackendConfig.repo && effectiveBackendConfig.repo.includes('/')) || (effectiveBackendConfig.repository && effectiveBackendConfig.repository.includes('/')) || config.getGitHub()?.owner;
+            const hasRepo = effectiveBackendConfig.repository || effectiveBackendConfig.repo || config.getGitHub()?.repository;
+            if (!hasOwner || !hasRepo) {
+                logger.push({
+                    type: 'error',
+                    title: 'Missing repository configuration',
+                    detail: [
+                        'The GitHub backend requires "owner" and "repository" (or "repo").',
+                        'Add "repo: <owner>/<repository>" or "owner" and "repository" to your testform.backend.github configuration.'
+                    ]
+                });
+                return;
+            }
         }
     }
 
@@ -642,17 +656,21 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
             });
             return;
         } else if (bType === 'github') {
-            logger.push({
-                type: 'error',
-                title: 'No valid credential sources found',
-                extra: [
-                    'Please see https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
-                    'for more information about providing credentials.',
-                    '',
-                    'Error: GitHub token not found or unauthorized (check GITHUB_TOKEN environment variable or login)'
-                ]
-            });
-            return;
+            const tokenVar = effectiveBackendConfig?.token_env || effectiveBackendConfig?.tokenEnv || 'GITHUB_TOKEN';
+            if (err.message && (err.message.includes('token') || err.message.includes('401') || err.message.includes('403') || err.message.includes('Environment variable'))) {
+                logger.push({
+                    type: 'error',
+                    title: 'GitHub token not found',
+                    detail: [
+                        `Environment variable "${tokenVar}" is not set or empty.`,
+                        `Please set the environment variable or run 'testform login github.com'.`
+                    ]
+                });
+                return;
+            } else {
+                logger.error(err.message || String(err), err);
+                return;
+            }
         }
 
         logger.error(`Failed to initialize remote backend: ${err.message}`);

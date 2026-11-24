@@ -3,6 +3,7 @@ import { IBackend } from './backend';
 import { IState } from '../core/types';
 import { VERSION_STATE, FILE_STATE } from '../core/const';
 import { getSystemUser } from '../core/utils';
+import { Credentials } from '../core/credentials';
 
 export interface GitHubBackendConfig {
     owner?: string;
@@ -33,11 +34,39 @@ export class GitHubBackend implements IBackend {
         defaultRepo?: string,
         defaultTokenEnv?: string
     ) {
-        this.owner = config.owner || defaultOwner || '';
-        this.repository = config.repository || config.repo || defaultRepo || '';
+        let owner = config.owner;
+        let repository = config.repository || config.repo;
+
+        if (repository && repository.includes('/')) {
+            const parts = repository.split('/');
+            if (!owner) {
+                owner = parts[0];
+            }
+            repository = parts.slice(1).join('/');
+        }
+
+        this.owner = owner || defaultOwner || '';
+        this.repository = repository || defaultRepo || '';
         this.branch = config.branch || 'testform-state';
         this.tokenEnv = config.token_env || config.tokenEnv || defaultTokenEnv || 'GITHUB_TOKEN';
-        this.token = process.env[this.tokenEnv] || '';
+
+        let token: string | undefined = undefined;
+        try {
+            const creds = new Credentials();
+            token = creds.getToken('github.com') || creds.getToken('github');
+        } catch {
+            // best-effort
+        }
+
+        const envToken = Object.prototype.hasOwnProperty.call(process.env, this.tokenEnv) ? process.env[this.tokenEnv] : undefined;
+        token = token || envToken || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+
+        // Allow user to provide token directly instead of env var name
+        if (!token && (this.tokenEnv.startsWith('ghp_') || this.tokenEnv.startsWith('github_pat_') || this.tokenEnv.startsWith('ghs_'))) {
+            token = this.tokenEnv;
+        }
+
+        this.token = token || '';
 
         const basePath = config.path || FILE_STATE;
         if (this.workspace !== 'default') {
@@ -50,10 +79,10 @@ export class GitHubBackend implements IBackend {
 
     private async apiRequest(apiPath: string, options: { method?: string; body?: any } = {}): Promise<Response> {
         if (!this.token) {
-            throw new Error(`GitHub Backend: Environment variable "${this.tokenEnv}" is missing or empty.`);
+            throw new Error(`GitHub token not found\n\nEnvironment variable "${this.tokenEnv}" is not set.`);
         }
         if (!this.owner || !this.repository) {
-            throw new Error("GitHub Backend: 'owner' and 'repository' must be specified in backend or provider configuration.");
+            throw new Error(`Missing repository configuration\n\nThe GitHub backend requires 'owner' and 'repository' (or 'repo').`);
         }
 
         const cleanPath = apiPath.replace(/^\//, '');
@@ -91,24 +120,41 @@ export class GitHubBackend implements IBackend {
             const repoData: any = await repoRes.json();
             const defaultBranch = repoData.default_branch || 'main';
 
-            const refRes = await this.apiRequest(`git/ref/heads/${encodeURIComponent(defaultBranch)}`);
+            let refRes = await this.apiRequest(`git/ref/heads/${encodeURIComponent(defaultBranch)}`);
+            
+            // If repository is completely empty (GitHub returns 409 "Git Repository is empty" or 404)
+            if (refRes.status === 409 || refRes.status === 404) {
+                const initRes = await this.apiRequest('contents/README.md', {
+                    method: 'PUT',
+                    body: {
+                        message: 'Initialize Testform state repository',
+                        content: Buffer.from('# Testform State Repository\n\nThis repository stores Testform remote state files.\n', 'utf-8').toString('base64'),
+                    }
+                });
+                if (initRes.ok) {
+                    refRes = await this.apiRequest(`git/ref/heads/${encodeURIComponent(defaultBranch)}`);
+                }
+            }
+
             if (!refRes.ok) {
-                throw new Error(`GitHub Backend: Failed to get default branch ref "${defaultBranch}": HTTP ${refRes.status}`);
+                throw new Error(`GitHub Backend: Failed to get default branch ref "${defaultBranch}": HTTP ${refRes.status}. Make sure the repository exists and has at least an initial commit.`);
             }
             const refData: any = await refRes.json();
             const commitSha = refData.object?.sha;
 
-            const createRefRes = await this.apiRequest('git/refs', {
-                method: 'POST',
-                body: {
-                    ref: `refs/heads/${this.branch}`,
-                    sha: commitSha
-                }
-            });
+            if (this.branch !== defaultBranch) {
+                const createRefRes = await this.apiRequest('git/refs', {
+                    method: 'POST',
+                    body: {
+                        ref: `refs/heads/${this.branch}`,
+                        sha: commitSha
+                    }
+                });
 
-            if (!createRefRes.ok && createRefRes.status !== 422) {
-                const errText = await createRefRes.text();
-                throw new Error(`GitHub Backend: Failed to create state branch "${this.branch}": HTTP ${createRefRes.status} - ${errText}`);
+                if (!createRefRes.ok && createRefRes.status !== 422) {
+                    const errText = await createRefRes.text();
+                    throw new Error(`GitHub Backend: Failed to create state branch "${this.branch}": HTTP ${createRefRes.status} - ${errText}`);
+                }
             }
         }
     }
