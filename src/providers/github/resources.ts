@@ -155,6 +155,12 @@ export const githubBugTemplate: ResourceTemplate = {
             meta[statusFieldKey] = rawStatus;
         }
 
+        // En bug: si * set run tiene valor (diferente de vacío, undefined o ""), viaja al campo 'linked' del tablero
+        const rawRun = getScenarioValue(s, 'run') ?? getScenarioValue(s, 'testrun');
+        if (rawRun !== undefined && rawRun !== null && String(rawRun).trim() !== '') {
+            meta['linked'] = String(rawRun).trim();
+        }
+
         return {
             title: s.name || s.feature?.name || '',
             body: buildGitHubBugBody(s),
