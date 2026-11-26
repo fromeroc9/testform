@@ -220,7 +220,6 @@ export class StateQuery {
                 path: scenario.uri,
                 tag: idInfo?.tag,
                 namespace: idInfo?.namespace,
-                physicalAddress: idInfo?.physicalAddress || address,
                 identity: scenario.custom?.identity,
                 attributes: {
                     title: scenario.name || address,
@@ -268,7 +267,6 @@ export class StateQuery {
                 path: scenario.uri,
                 tag: idInfo?.tag,
                 namespace: idInfo?.namespace,
-                physicalAddress: idInfo?.physicalAddress || address,
                 identity: scenario.custom?.identity,
                 attributes: {
                     title: scenario.name || address,
@@ -300,7 +298,6 @@ export class StateQuery {
                 path: scenario.uri,
                 tag: idInfo?.tag,
                 namespace: idInfo?.namespace,
-                physicalAddress: idInfo?.physicalAddress || address,
                 identity: scenario.custom?.identity,
                 attributes: {
                     title: scenario.name || address,
@@ -330,7 +327,6 @@ export class StateQuery {
                 path: scenario.uri,
                 tag: idInfo?.tag,
                 namespace: idInfo?.namespace,
-                physicalAddress: idInfo?.physicalAddress || address,
                 identity: scenario.custom?.identity,
                 attributes: {
                     title: scenario.name || address,

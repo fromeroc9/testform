@@ -478,15 +478,6 @@ class Resource {
 
         lines.push(`  ${sym} resource "${resourceType}" "${formatIdentityDisplay(address)}" {`);
         for (const field of template.fields || []) {
-            if (field.name === 'status') {
-                const attrs = this.evaluateAttributes(resourceType, scenario, context);
-                const meta = attrs.metadata || attrs.custom_fields || {};
-                const hasMetaStatus = Object.keys(meta).some(k => k.toLowerCase() === 'status');
-                if (hasMetaStatus) {
-                    continue; // Skip redundant root status if already displayed under metadata
-                }
-            }
-
             const raw = typeof field.value === 'function' ? field.value(scenario, context) : field.value;
             const oldRaw = oldAttributes ? oldAttributes[field.name] : undefined;
             if (raw === undefined && oldRaw === undefined) continue;
@@ -986,12 +977,6 @@ export function extractTestcaseEvidenceMap(s: any): Record<string, any> {
 export function getRunResourceStatus(r: any): string {
     if (!r) return 'pending';
     const attrs = r.attributes ?? r;
-    const meta = attrs.metadata || attrs.custom_fields || {};
-    const metaStatusKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
-    const metaStatus = metaStatusKey ? String(meta[metaStatusKey]).trim().toLowerCase() : undefined;
-    if (metaStatus && metaStatus !== '') {
-        return metaStatus;
-    }
     const rawStatus = attrs.status || attrs.status_run;
     if (rawStatus && String(rawStatus).trim() !== '') {
         return String(rawStatus).trim().toLowerCase();

@@ -215,6 +215,7 @@ export interface StateResource {
     path: string;
     tag?: string;
     namespace?: string;
+    /** @deprecated Legacy field no longer persisted in state; kept optional only for reading older state files. */
     physicalAddress?: string;
     identity?: string;
     attributes: StateAttributes;
@@ -254,6 +255,7 @@ export interface PlanChange {
     path: string;
     tag?: string;
     namespace?: string;
+    /** @deprecated Legacy field no longer persisted in state; kept optional only for reading older state files. */
     physicalAddress?: string;
     identity?: string;
     resourceType: string;

@@ -445,14 +445,5 @@ export function cleanAttributes(attrs: Record<string, any>): Record<string, any>
         cleaned[key] = val;
     }
 
-    // Keep attributes.status aligned with attributes.metadata.Status if present
-    const meta = cleaned.metadata || cleaned.custom_fields;
-    if (meta && typeof meta === 'object') {
-        const metaStatusKey = Object.keys(meta).find(k => k.toLowerCase() === 'status');
-        if (metaStatusKey && meta[metaStatusKey] !== undefined && String(meta[metaStatusKey]).trim() !== '') {
-            cleaned.status = String(meta[metaStatusKey]).trim().toLowerCase();
-        }
-    }
-
     return cleaned;
 }

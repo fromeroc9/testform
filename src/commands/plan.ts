@@ -215,7 +215,7 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
     for (const scenario of filtered) {
         const idInfo = computeResourceIdentity(scenario, scope, scaffoldDir, collidingBasenames);
         if (!idInfo) continue;
-        const { address, path: relPath, tag, namespace, physicalAddress } = idInfo;
+        const { address, path: relPath, tag, namespace } = idInfo;
 
         localAddresses.add(address);
         const scenarioTags = scenario.tags ? scenario.tags.map(t => typeof t === 'string' ? t : (t as any).name) : [];
@@ -240,7 +240,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 path: relPath,
                 tag,
                 namespace,
-                physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 provider: providerType,
                 scenario,
@@ -254,7 +253,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 path: relPath,
                 tag,
                 namespace,
-                physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 provider: providerType,
                 scenario,
@@ -264,13 +262,10 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 oldAttributes: existing.attributes,
             });
         } else {
-            // Self-heal: If existing.path or physicalAddress in state was stored with an old shortened path,
+            // Self-heal: If existing.path in state was stored with an old shortened path,
             // update it to the authoritative full path so subsequent lookups in this run have it.
             if (existing.path !== relPath) {
                 existing.path = relPath;
-            }
-            if (existing.physicalAddress !== physicalAddress) {
-                existing.physicalAddress = physicalAddress;
             }
 
             const hasActualChanges = resource.hasFieldChanges(RESOURCE_TYPE, scenario, existing.attributes, { state, testDirectory: dir, ignoreChanges: lc.ignore_changes });
@@ -289,7 +284,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                     path: relPath,
                     tag,
                     namespace,
-                    physicalAddress,
                     resourceType: RESOURCE_TYPE,
                     provider: providerType,
                     scenario,
@@ -353,7 +347,6 @@ export async function calculatePlan(options: CalculatePlanOptions): Promise<Plan
                 path: res.path || '',
                 tag: res.tag || '',
                 namespace: res.namespace,
-                physicalAddress: res.physicalAddress,
                 resourceType: RESOURCE_TYPE,
                 provider: (res as any).provider || providerType,
                 scenario: (scope === 'testrun' || scope === 'testplan') ? {
