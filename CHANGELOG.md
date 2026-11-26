@@ -5,10 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.9] - 2026-11-23
+## [1.1.0-beta.9] - 2026-11-26
 
 ### Added
 
+- **Mandatory Remote Backend Initialization & GitHub Backend Enhancements (`src/core/state.ts`, `src/core/workspace.ts`, `src/backends/github.ts`, `src/commands/init.ts`):**
+  - Enforced prior `testform init` validation against `.testform/cache/backend.json` (`activeBackend`) whenever a remote backend is configured, halting uninitialized `plan`, `apply`, `refresh`, `destroy`, and `state` runs with actionable diagnostics.
+  - Added multi-source credential resolution in `GitHubBackend` (`~/.testform.d/credentials.json`, custom `token_env` / `tokenEnv`, `GITHUB_TOKEN`, `GH_TOKEN`, or direct token support) along with `owner/repo` shorthand parsing and clearer missing-token error messages.
+- **Logger Enhancements & Unit Tests (`src/core/logger.ts`, `test/logger.test.ts`):**
+  - Refined diagnostic logger formatting across `apply`, `policy`, `resource`, and `context` commands and added `test/logger.test.ts`.
 - **Bug Steps to Reproduce & Clean Defect Body (`src/providers/*`, `src/providers/github/client.ts`, `src/core/resources.ts`)**:
   - Gherkin steps in bugs are now rendered explicitly under `### 🐾 Steps to Reproduce` instead of an untitled raw block.
   - Purged redundant and unwanted boilerplate description (`Defect identified: **...**`); `### 📝 Description` is now rendered exclusively when an explicit scenario text description is provided.
@@ -102,6 +107,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fields configured with `source: "tag"` in `main.yml` (e.g. `priority: @low | @medium | @high`) MUST be declared as `@tag` and are prohibited from being defined as steps (`* field priority = ...` or `* set priority = ...`), validated by `tag-field-as-step` policy.
   - Fields configured with `source: "step"` (e.g. `severity`, `bug_type`, `project`) are declared with `* field <name> = <val>`.
 
+### Changed
+
+- **Deprecation of `physicalAddress` Persistence in State & Plan (`src/commands/plan.ts`, `src/core/query.ts`, `src/core/resources.ts`, `src/core/state.ts`, `src/core/types.ts`):**
+  - Stopped persisting `physicalAddress` on newly computed `StateResource`, `PlanChange`, and `StateQuery` objects in favor of canonical addresses, retaining optional `@deprecated` typing on state interfaces to read older state files cleanly.
+  - Removed automatic overwriting of `attributes.status` from `metadata.Status` inside `cleanAttributes` (`src/core/state.ts`).
+  
 ### Fixed
 
 - **Complete Elimination of Hardcoded `customFields['Status'] = rollupStatus` across Providers (`src/providers/*`, `src/core/resources.ts`):**
