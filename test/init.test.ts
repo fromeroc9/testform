@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { initCmd } from '../src/commands/init';
+import { resolveModulePath } from '../src/core/module';
 import { join } from 'path';
+import { execFileSync } from 'child_process';
+import { pathToFileURL } from 'url';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { FILE_CONFIG, FILE_STATE } from '../src/core/const';
@@ -394,5 +397,84 @@ describe('Comando initCmd', () => {
         expect(calls).toContain('Missing key value');
         expect(calls).toContain('The "key" attribute must be set for the s3 backend.');
     });
+
+    it('clona módulos Git recursivamente (parent + parent.child), genera modules.json y resuelve providers con lockfile reuse y -upgrade', async () => {
+        const childRepo = join(tmpDir, '_git_child_mod');
+        mkdirSync(childRepo, { recursive: true });
+        writeFileSync(join(childRepo, 'child.case.feature'), '@testcase\nFeature: Child\n  @tc-c1\n  Scenario: S\n    Given child ok\n');
+        execFileSync('git', ['init'], { cwd: childRepo, stdio: 'pipe' });
+        execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: childRepo, stdio: 'pipe' });
+        execFileSync('git', ['config', 'user.name', 'Test'], { cwd: childRepo, stdio: 'pipe' });
+        execFileSync('git', ['add', '.'], { cwd: childRepo, stdio: 'pipe' });
+        execFileSync('git', ['commit', '-m', 'init child'], { cwd: childRepo, stdio: 'pipe' });
+        execFileSync('git', ['tag', 'v1.0.0'], { cwd: childRepo, stdio: 'pipe' });
+
+        const parentRepo = join(tmpDir, '_git_parent_mod');
+        mkdirSync(parentRepo, { recursive: true });
+        writeFileSync(join(parentRepo, 'main.yml'), YAML.stringify({
+            version: '1.0',
+            module: {
+                kms_global_data: {
+                    source: `git::${pathToFileURL(childRepo).href}?ref=v1.0.0`,
+                },
+            },
+        }));
+        writeFileSync(join(parentRepo, 'parent.case.feature'), '@testcase\nFeature: Parent\n  @tc-p1\n  Scenario: P\n    Given parent ok\n');
+        execFileSync('git', ['init'], { cwd: parentRepo, stdio: 'pipe' });
+        execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: parentRepo, stdio: 'pipe' });
+        execFileSync('git', ['config', 'user.name', 'Test'], { cwd: parentRepo, stdio: 'pipe' });
+        execFileSync('git', ['add', '.'], { cwd: parentRepo, stdio: 'pipe' });
+        execFileSync('git', ['commit', '-m', 'init parent'], { cwd: parentRepo, stdio: 'pipe' });
+        execFileSync('git', ['tag', 'v1.0.0'], { cwd: parentRepo, stdio: 'pipe' });
+
+        const wsDir = join(tmpDir, 'workspace');
+        mkdirSync(wsDir, { recursive: true });
+        writeFileSync(join(wsDir, 'sample.case.feature'), '@testcase\nFeature: Root\n  @tc-1\n  Scenario: R\n    Given ok\n');
+        writeFileSync(join(wsDir, FILE_CONFIG), YAML.stringify({
+            testform: {
+                required_version: '>= 1.0.0',
+                backend: 'local',
+                required_providers: {
+                    local: { source: 'local', version: '>= 1.0.0' },
+                },
+            },
+            module: {
+                iac_mod_oci_kms_key: {
+                    source: `git::${pathToFileURL(parentRepo).href}?ref=v1.0.0`,
+                },
+            },
+        }));
+
+        await initCmd({ dir: wsDir });
+        const firstCalls = mockLog.mock.calls.flat().join(' ');
+        expect(firstCalls).toContain('Initializing modules...');
+        expect(firstCalls).toContain('for iac_mod_oci_kms_key...');
+        expect(firstCalls).toContain('- iac_mod_oci_kms_key in .testform/modules/iac_mod_oci_kms_key');
+        expect(firstCalls).toContain('for iac_mod_oci_kms_key.kms_global_data...');
+        expect(firstCalls).toContain('- iac_mod_oci_kms_key.kms_global_data in .testform/modules/iac_mod_oci_kms_key.kms_global_data');
+        expect(firstCalls).toContain('- Finding builtin/local versions matching ">= 1.0.0"...');
+
+        expect(existsSync(join(wsDir, '.testform', 'modules', 'iac_mod_oci_kms_key', 'parent.case.feature'))).toBe(true);
+        expect(existsSync(join(wsDir, '.testform', 'modules', 'iac_mod_oci_kms_key.kms_global_data', 'child.case.feature'))).toBe(true);
+
+        const manifest = JSON.parse(readFileSync(join(wsDir, '.testform', 'modules', 'modules.json'), 'utf8'));
+        expect(manifest.Modules.map((m: any) => m.Key)).toEqual(['', 'iac_mod_oci_kms_key', 'iac_mod_oci_kms_key.kms_global_data']);
+
+        const resolvedChild = resolveModulePath(join(wsDir, 'sample.case.feature'), 'iac_mod_oci_kms_key.kms_global_data', wsDir);
+        expect(resolvedChild).toContain('child.case.feature');
+
+        // Second init reuses lockfile selection
+        mockLog.mockClear();
+        await initCmd({ dir: wsDir });
+        const secondCalls = mockLog.mock.calls.flat().join(' ');
+        expect(secondCalls).toContain('- Reusing previous version of builtin/local from the dependency lock file');
+
+        // Third init with --upgrade re-evaluates constraint instead of reusing lockfile
+        mockLog.mockClear();
+        await initCmd({ dir: wsDir, upgrade: true });
+        const upgradeCalls = mockLog.mock.calls.flat().join(' ');
+        expect(upgradeCalls).toContain('- Finding builtin/local versions matching ">= 1.0.0"...');
+        expect(upgradeCalls).not.toContain('Reusing previous version');
+    }, 20000);
 });
 

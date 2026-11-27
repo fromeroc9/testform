@@ -130,6 +130,7 @@ export function createCli() {
         .option('--reconfigure', 'Reconfigure backend')
         .option('--migrate-state', 'Migrate state to new backend')
         .option('--backend', 'Configure backend', { default: true })
+        .option('--upgrade', 'Upgrade modules and plugins ignoring lockfile selections')
         .option('--json', 'Output results in JSON format')
         .option('--input', 'Allow interactive input', { default: true })
         .action(async (options) => {
@@ -150,7 +151,8 @@ export function createCli() {
                 migrateState: options.migrateState,
                 backendEnabled: backendEnabled,
                 isJson: options.json,
-                inputEnabled: options.input ?? true
+                inputEnabled: options.input ?? true,
+                upgrade: Boolean(options.upgrade)
             });
         });
 

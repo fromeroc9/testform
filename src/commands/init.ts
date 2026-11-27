@@ -1,8 +1,8 @@
-import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI } from '../core/const';
+import { CONFIG_FILE_NAMES, FILE_CONFIG, FILE_STATE, TITLE_APP, TITLE_CLI, VERSION_CLI } from '../core/const';
 import YAML from 'yaml';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { Config } from '../core/config';
+import { Config, isVersionCompatible } from '../core/config';
 import { Logger } from '../core/logger';
 import { basename, dirname, join } from 'path';
 import { State, parseBackendOverrides } from '../core/state';
@@ -10,7 +10,7 @@ import { ensureDriverInstalled } from '../core/driver';
 import { findFeatureFiles } from '../core/editor';
 import { WorkspaceManager, isBackendEqual } from '../core/workspace';
 import { askBackendAttribute, isInteractive } from '../core/prompt';
-import { ModuleRegistry, isGitSource, parseGitSource } from '../core/module';
+import { ModuleInstaller } from '../core/module-installer';
 import { ProviderInstaller, InstalledProviderResult } from '../core/provider-installer';
 
 export const EXPECTED_BACKEND_ARGS: Record<string, string[]> = {
@@ -216,6 +216,7 @@ interface InitCmdOptions {
     backendEnabled?: boolean;
     isJson?: boolean;
     inputEnabled?: boolean;
+    upgrade?: boolean;
 }
 
 export const initCmd = async (options: InitCmdOptions = {}) => {
@@ -229,7 +230,8 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         lockTimeout = '0s',
         reconfigure = false,
         backendEnabled = true,
-        isJson = false
+        isJson = false,
+        upgrade = false
     } = options;
     
     const logger = new Logger(verbose, isJson);
@@ -675,45 +677,70 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         logger.blank();
     }
 
-    const moduleRegistry = new ModuleRegistry(dir);
-    const declaredModules = moduleRegistry.getDeclaredModules();
-    if (declaredModules.size > 0) {
-        logger.info('Initializing modules...', { bold: true });
-        for (const [name, mod] of declaredModules.entries()) {
-            if (isGitSource(mod.source)) {
-                logger.info(`- Downloading ${mod.source} for ${name}...`);
-                parseGitSource(mod.source);
-                const targetDir = join(dir, '.testform', 'modules', name);
-                if (!existsSync(targetDir)) {
-                    mkdirSync(targetDir, { recursive: true });
-                }
-                logger.info(`- Installed ${name} to .testform/modules/${name}`);
-            } else {
-                logger.info(`- Using local module ${name} from ${mod.source}`);
-            }
+    const moduleInstaller = new ModuleInstaller(dir);
+    try {
+        const installedModules = moduleInstaller.installAll(logger);
+        if (installedModules.length > 0) {
+            logger.blank();
         }
-        logger.blank();
+    } catch (err: any) {
+        logger.error(`Failed to initialize modules: ${err.message || err}`);
+        return;
     }
 
     logger.info('Initializing provider plugins...', { bold: true });
     const installer = new ProviderInstaller(dir);
+    const existingLock = installer.readLockfile();
     const requiredProviders = config.getRequiredProviders();
     const installedList: InstalledProviderResult[] = [];
 
     if (Object.keys(requiredProviders).length > 0) {
         for (const [name, spec] of Object.entries(requiredProviders)) {
+            const lowerName = name.toLowerCase();
+            const isBuiltinProvider =
+                ['github', 'gitlab', 'local'].includes(lowerName) &&
+                (!spec.source ||
+                    ['github', 'gitlab', 'local', 'builtin'].includes(spec.source.toLowerCase()) ||
+                    spec.source.startsWith('builtin/'));
+            const displaySource = isBuiltinProvider ? `builtin/${lowerName}` : spec.source;
+            const locked = existingLock[lowerName];
+
+            if (
+                !upgrade &&
+                locked &&
+                installer.isProviderInstalled(name) &&
+                (!spec.version || isVersionCompatible(locked.version, spec.version))
+            ) {
+                logger.info(`- Reusing previous version of ${displaySource} from the dependency lock file`);
+                logger.info(`- Using previously-installed ${displaySource} v${locked.version}`);
+                installedList.push({
+                    name: name.toLowerCase(),
+                    source: displaySource,
+                    version: locked.version,
+                    constraints: spec.version || locked.constraints,
+                    entrypoint: displaySource,
+                    hash: locked.hashes?.[0] || 'h1:builtin-provider-verified',
+                });
+                continue;
+            }
+
+            if (spec.version) {
+                logger.info(`- Finding ${displaySource} versions matching "${spec.version}"...`);
+            } else {
+                logger.info(`- Finding latest version of ${displaySource}...`);
+            }
+
             try {
-                const isBuiltinName = ['github', 'gitlab', 'local'].includes(name.toLowerCase());
-                const isBuiltinSource = !spec.source || ['github', 'gitlab', 'local', 'builtin'].includes(spec.source.toLowerCase()) || spec.source.startsWith('builtin/');
-                if (!isBuiltinName || !isBuiltinSource) {
-                    logger.info(`- Installing ${name} from ${spec.source}...`);
-                }
-                const result = await installer.install(name, spec, logger);
+                const result = await installer.install(name, spec, logger, {
+                    resolveBuiltInSemver: true,
+                });
                 installedList.push(result);
                 if (result.source.startsWith('builtin/')) {
-                    logger.success(`- Selected built-in ${name} provider`);
+                    logger.success(`- Installing ${result.source} v${result.version}...`);
+                    logger.success(`- Installed ${result.source} v${result.version}`);
                 } else {
-                    logger.success(`- Installed ${name} ${result.version !== 'local' ? `v${result.version}` : ''} (entrypoint: ${basename(result.entrypoint)})`);
+                    const verSuffix = result.version && result.version !== 'local' ? ` v${result.version}` : '';
+                    logger.success(`- Installing ${name}${verSuffix} (entrypoint: ${basename(result.entrypoint)})...`);
                 }
             } catch (err: any) {
                 logger.warn(`Could not install provider "${name}": ${err.message}`);
@@ -724,19 +751,27 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
         const resolvedProvider = config.getProviderType() || 'local';
         const providerConf = config.getProviderConfig(resolvedProvider);
         if (providerConf.source) {
+            logger.info(`- Finding latest version of ${providerConf.source}...`);
             try {
-                const result = await installer.install(resolvedProvider, { source: providerConf.source }, logger);
+                const result = await installer.install(
+                    resolvedProvider,
+                    { source: providerConf.source },
+                    logger,
+                    { resolveBuiltInSemver: true }
+                );
                 installedList.push(result);
                 logger.success(`- Installed custom ${resolvedProvider} (entrypoint: ${basename(result.entrypoint)})`);
             } catch (err: any) {
                 logger.warn(`Could not install custom provider "${resolvedProvider}": ${err.message}`);
             }
         } else {
-            logger.info(`- Using built-in ${resolvedProvider} provider`);
+            logger.info(`- Finding latest version of builtin/${resolvedProvider}...`);
+            logger.info(`- Using built-in ${resolvedProvider} v${VERSION_CLI} provider`);
             installedList.push({
                 name: resolvedProvider,
                 source: `builtin/${resolvedProvider}`,
-                version: '1.0.0',
+                version: VERSION_CLI,
+                constraints: `>= ${VERSION_CLI}`,
                 entrypoint: `builtin/${resolvedProvider}`,
                 hash: 'h1:builtin-provider-verified'
             });

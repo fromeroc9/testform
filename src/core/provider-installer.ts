@@ -1,9 +1,11 @@
 import { join, resolve, basename, dirname } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, readdirSync, rmSync, statSync } from 'fs';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 import { isGitSource, parseGitSource } from './module';
-import { FILE_LOCK, FILE_ROOT_LOCK } from './const';
+import { FILE_LOCK, FILE_ROOT_LOCK, VERSION_CLI } from './const';
+import { isVersionCompatible } from './config';
+import { cloneGitSource, listGitRemoteTags, selectHighestMatchingVersion } from './git-source';
 
 export interface ProviderInstallSpec {
     source: string;
@@ -15,8 +17,19 @@ export interface InstalledProviderResult {
     name: string;
     source: string;
     version: string;
+    constraints?: string;
     entrypoint: string;
     hash: string;
+}
+
+export interface LockedProviderEntry {
+    version: string;
+    constraints?: string;
+    hashes?: string[];
+}
+
+export interface ProviderInstallOptions {
+    resolveBuiltInSemver?: boolean;
 }
 
 /**
@@ -109,12 +122,38 @@ export class ProviderInstaller {
     }
 
     /**
+     * Reads previously recorded provider selections from `.testform/cache/lock.json`.
+     */
+    public readLockfile(): Record<string, LockedProviderEntry> {
+        const lockJsonPath = resolve(this.workDir, FILE_LOCK);
+        if (!existsSync(lockJsonPath)) return {};
+        try {
+            const parsed = JSON.parse(readFileSync(lockJsonPath, 'utf-8'));
+            return parsed?.provider && typeof parsed.provider === 'object' ? parsed.provider : {};
+        } catch {
+            return {};
+        }
+    }
+
+    /**
+     * Checks whether a provider directory (or built-in) is already present for a locked selection.
+     */
+    public isProviderInstalled(name: string): boolean {
+        const providerName = name.toLowerCase().trim();
+        if (['local', 'github', 'gitlab'].includes(providerName)) {
+            return true;
+        }
+        return findProviderEntrypoint(join(this.providersDir, providerName), providerName) !== null;
+    }
+
+    /**
      * Installs or updates a provider according to its specification.
      */
     public async install(
         name: string,
         spec: ProviderInstallSpec,
-        logger?: { info: (msg: string | string[]) => void; warn: (msg: string | string[]) => void }
+        logger?: { info: (msg: string | string[]) => void; warn: (msg: string | string[]) => void },
+        options: ProviderInstallOptions = {}
     ): Promise<InstalledProviderResult> {
         const providerName = name.toLowerCase().trim();
         const targetDir = join(this.providersDir, providerName);
@@ -124,6 +163,7 @@ export class ProviderInstaller {
         }
 
         const source = (spec.source || '').trim();
+        const declaredConstraint = spec.constraints || spec.version;
         let installedVersion = spec.version || '1.0.0';
         let calculatedHash = '';
         let entrypoint = '';
@@ -134,11 +174,21 @@ export class ProviderInstaller {
             (!source || source === providerName || source === 'builtin' || source.startsWith('builtin/'));
 
         if (isBuiltin) {
-            logger?.info(`- Selecting built-in ${providerName} provider${spec.version ? ` (${spec.version})` : ''}`);
+            let resolvedVersion = spec.version || '1.0.0';
+            if (options.resolveBuiltInSemver) {
+                if (spec.version && !isVersionCompatible(VERSION_CLI, spec.version)) {
+                    throw new Error(
+                        `Built-in provider "${providerName}" (v${VERSION_CLI}) does not satisfy constraint "${spec.version}".`
+                    );
+                }
+                resolvedVersion = VERSION_CLI;
+            }
+            logger?.info(`- Selecting built-in ${providerName} provider${resolvedVersion ? ` (${resolvedVersion})` : ''}`);
             return {
                 name: providerName,
                 source: `builtin/${providerName}`,
-                version: spec.version || '1.0.0',
+                version: resolvedVersion,
+                constraints: declaredConstraint,
                 entrypoint: `builtin/${providerName}`,
                 hash: 'h1:builtin-provider-verified'
             };
@@ -173,6 +223,7 @@ export class ProviderInstaller {
                 name: providerName,
                 source,
                 version: spec.version || 'local',
+                constraints: declaredConstraint,
                 entrypoint,
                 hash: calculatedHash
             };
@@ -181,60 +232,40 @@ export class ProviderInstaller {
         // ── Case 2: Remote Git repository or Git subpath (e.g. git::https://...git//gitlab.ts?ref=v1.2.0) ──
         if (isGitSource(source)) {
             const parsed = parseGitSource(source);
-            const ref = parsed.ref || spec.version;
-            if (ref) installedVersion = ref.replace(/^v/, '');
+            let sourceToClone = source;
+            let ref = parsed.ref;
+
+            if (!ref && spec.version) {
+                const tags = listGitRemoteTags(parsed.repoUrl);
+                const bestTag = selectHighestMatchingVersion(tags, spec.version);
+                if (bestTag) {
+                    ref = bestTag;
+                    const sep = source.includes('?') ? '&' : '?';
+                    sourceToClone = `${source}${sep}ref=${bestTag}`;
+                } else if (tags.length > 0) {
+                    throw new Error(
+                        `No versions of provider "${providerName}" in ${parsed.repoUrl} match constraint "${spec.version}".`
+                    );
+                }
+            }
+
+            if (ref) {
+                installedVersion = ref.replace(/^v/i, '');
+            } else if (!spec.version || /[><=~^]/.test(spec.version)) {
+                installedVersion = '1.0.0';
+            }
 
             logger?.info(`- Finding ${providerName} in ${parsed.repoUrl}${ref ? ` (ref: ${ref})` : ''}...`);
+            const cloned = cloneGitSource(
+                sourceToClone,
+                targetDir,
+                join(this.workDir, '.testform', 'cache')
+            );
 
-            // Clean previous installation if needed
-            if (existsSync(targetDir)) {
-                try {
-                    rmSync(targetDir, { recursive: true, force: true });
-                } catch {}
-            }
-            mkdirSync(targetDir, { recursive: true });
-
-            if (parsed.subPath) {
-                // User specified a single file or sub-folder inside the repo (e.g. //gitlab.ts or //providers/gitlab)
-                const tempCloneDir = join(this.workDir, '.testform', 'cache', `git-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
-                mkdirSync(tempCloneDir, { recursive: true });
-
-                try {
-                    const branchArg = ref ? `--branch "${ref}"` : '';
-                    execSync(`git clone --depth 1 ${branchArg} "${parsed.repoUrl}" "${tempCloneDir}"`, {
-                        stdio: ['ignore', 'pipe', 'pipe'],
-                        timeout: 120000
-                    });
-
-                    const sourceSubPath = join(tempCloneDir, parsed.subPath);
-                    if (!existsSync(sourceSubPath)) {
-                        throw new Error(`Subpath "${parsed.subPath}" does not exist in repository "${parsed.repoUrl}".`);
-                    }
-
-                    const subStat = statSync(sourceSubPath);
-                    if (subStat.isFile()) {
-                        const targetFile = join(targetDir, basename(sourceSubPath));
-                        copyFileSync(sourceSubPath, targetFile);
-                        entrypoint = targetFile;
-                        calculatedHash = computeFileHash(targetFile);
-                    } else {
-                        execSync(`node -e "const fs = require('fs'); fs.cpSync(process.argv[1], process.argv[2], { recursive: true });" "${sourceSubPath}" "${targetDir}"`, { stdio: 'pipe' });
-                        entrypoint = findProviderEntrypoint(targetDir, providerName) || targetDir;
-                        calculatedHash = computeDirectoryHash(targetDir);
-                    }
-                } finally {
-                    try {
-                        rmSync(tempCloneDir, { recursive: true, force: true });
-                    } catch {}
-                }
+            if (cloned.isSingleFile) {
+                entrypoint = cloned.entrypointOrDir;
+                calculatedHash = computeFileHash(entrypoint);
             } else {
-                // Clone entire repository directly into provider directory
-                const branchArg = ref ? `--branch "${ref}"` : '';
-                execSync(`git clone --depth 1 ${branchArg} "${parsed.repoUrl}" "${targetDir}"`, {
-                    stdio: ['ignore', 'pipe', 'pipe'],
-                    timeout: 120000
-                });
-
                 entrypoint = findProviderEntrypoint(targetDir, providerName) || targetDir;
                 calculatedHash = computeDirectoryHash(targetDir);
             }
@@ -243,6 +274,7 @@ export class ProviderInstaller {
                 name: providerName,
                 source,
                 version: installedVersion,
+                constraints: declaredConstraint,
                 entrypoint,
                 hash: calculatedHash
             };
@@ -250,17 +282,47 @@ export class ProviderInstaller {
 
         // ── Case 3: NPM Package or Registry (e.g. "@org/testform-provider-gitlab" or "npm::...") ──
         const npmPackage = source.replace(/^npm::/, '');
-        logger?.info(`- Installing ${providerName} package "${npmPackage}"...`);
+        let installSpec = npmPackage;
+
+        if (spec.version) {
+            try {
+                const rawVersions = execFileSync('npm', ['view', npmPackage, 'versions', '--json'], {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    timeout: 20000,
+                    encoding: 'utf-8',
+                });
+                const parsedVersions = JSON.parse(rawVersions);
+                const list = Array.isArray(parsedVersions) ? parsedVersions : [parsedVersions];
+                const bestVersion = selectHighestMatchingVersion(list, spec.version);
+                if (bestVersion) {
+                    installedVersion = bestVersion;
+                    installSpec = `${npmPackage}@${bestVersion}`;
+                }
+            } catch {
+                // Fallback to direct npm install when registry metadata query is unavailable
+            }
+        }
+
+        logger?.info(`- Installing ${providerName} package "${installSpec}"...`);
 
         if (!existsSync(targetDir)) {
             mkdirSync(targetDir, { recursive: true });
         }
 
         try {
-            execSync(`npm install --prefix "${targetDir}" "${npmPackage}" --no-save`, {
+            execFileSync('npm', ['install', '--prefix', targetDir, installSpec, '--no-save'], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 timeout: 120000
             });
+            const installedPkgJson = join(targetDir, 'node_modules', ...npmPackage.split('/'), 'package.json');
+            if (existsSync(installedPkgJson)) {
+                try {
+                    const pkgMeta = JSON.parse(readFileSync(installedPkgJson, 'utf-8'));
+                    if (pkgMeta?.version) {
+                        installedVersion = String(pkgMeta.version);
+                    }
+                } catch {}
+            }
             entrypoint = findProviderEntrypoint(targetDir, providerName) || targetDir;
             calculatedHash = computeDirectoryHash(targetDir);
 
@@ -268,6 +330,7 @@ export class ProviderInstaller {
                 name: providerName,
                 source,
                 version: installedVersion,
+                constraints: declaredConstraint,
                 entrypoint,
                 hash: calculatedHash
             };
@@ -300,7 +363,7 @@ export class ProviderInstaller {
         for (const p of providers) {
             lockJsonData.provider[p.name] = {
                 version: p.version,
-                constraints: `>= ${p.version}`,
+                constraints: p.constraints || `>= ${p.version}`,
                 hashes: [p.hash]
             };
         }
@@ -311,9 +374,10 @@ export class ProviderInstaller {
         let hclContent = `# This file is maintained automatically by "testform init".\n# Manual edits may be lost in future updates.\n\n`;
 
         for (const p of providers) {
+            const constraintsVal = p.constraints || `>= ${p.version}`;
             hclContent += `provider "${p.name}" {\n`;
             hclContent += `  version     = "${p.version}"\n`;
-            hclContent += `  constraints = ">= ${p.version}"\n`;
+            hclContent += `  constraints = "${constraintsVal}"\n`;
             hclContent += `  hashes = [\n`;
             hclContent += `    "${p.hash}",\n`;
             hclContent += `  ]\n`;

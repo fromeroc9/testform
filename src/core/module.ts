@@ -388,7 +388,28 @@ export function resolveModulePath(
         if (candidate) return candidate;
     }
 
-    // 3. Try under .testform/modules/<sourcePath>
+    // 3. Try .testform/modules/modules.json (supports nested module keys like parent.child)
+    const modulesManifestPath = resolve(workspaceRoot, '.testform', 'modules', 'modules.json');
+    if (existsSync(modulesManifestPath)) {
+        try {
+            const manifest = JSON.parse(readFileSync(modulesManifestPath, 'utf-8'));
+            const match = Array.isArray(manifest?.Modules)
+                ? manifest.Modules.find((m: any) => m?.Key === sourcePath && m?.Dir)
+                : undefined;
+            if (match?.Dir) {
+                const resolvedManifestDir = resolve(workspaceRoot, match.Dir);
+                if (existsSync(resolvedManifestDir)) {
+                    if (statSync(resolvedManifestDir).isFile()) return resolvedManifestDir;
+                    const candidate = findFeatureInDir(resolvedManifestDir);
+                    if (candidate) return candidate;
+                }
+            }
+        } catch {
+            // ignore malformed modules.json
+        }
+    }
+
+    // 4. Try under .testform/modules/<sourcePath>
     const underDotTestform = resolve(workspaceRoot, '.testform', 'modules', sourcePath);
     if (existsSync(underDotTestform)) {
         if (statSync(underDotTestform).isFile()) {

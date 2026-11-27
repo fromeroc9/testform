@@ -534,7 +534,7 @@ export class Config {
     }
 }
 
-function parseVersionNumbers(v: string): number[] {
+export function parseVersionNumbers(v: string): number[] {
     return v
         .replace(/^[^\d]+/, '')
         .split('-')[0]
@@ -542,7 +542,7 @@ function parseVersionNumbers(v: string): number[] {
         .map(n => parseInt(n, 10) || 0);
 }
 
-function compareSemver(v1: number[], v2: number[]): number {
+export function compareSemver(v1: number[], v2: number[]): number {
     const len = Math.max(v1.length, v2.length);
     for (let i = 0; i < len; i++) {
         const a = v1[i] ?? 0;

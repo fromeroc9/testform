@@ -227,4 +227,36 @@ provider:
         expect(res).toEqual({ id: 'TC-101', number: 101, title: 'My Agnostic Case' });
         expect(provider.formatRemoteId(res.id)).toBe('AG-TC-101');
     });
+
+    it('resolves highest matching semver Git tag for constraint when no ?ref= is pinned', async () => {
+        const { execFileSync } = await import('child_process');
+        const { pathToFileURL } = await import('url');
+
+        const repoDir = join(tempDir, 'git-provider-repo');
+        mkdirSync(repoDir, { recursive: true });
+        execFileSync('git', ['init'], { cwd: repoDir, stdio: 'pipe' });
+        execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repoDir, stdio: 'pipe' });
+        execFileSync('git', ['config', 'user.name', 'Test'], { cwd: repoDir, stdio: 'pipe' });
+
+        const commitTag = (tag: string, body: string) => {
+            writeFileSync(join(repoDir, 'index.js'), `module.exports = class P { ver() { return '${body}'; } };\n`);
+            execFileSync('git', ['add', '.'], { cwd: repoDir, stdio: 'pipe' });
+            execFileSync('git', ['commit', '-m', tag], { cwd: repoDir, stdio: 'pipe' });
+            execFileSync('git', ['tag', tag], { cwd: repoDir, stdio: 'pipe' });
+        };
+
+        commitTag('v1.0.0', '1.0.0');
+        commitTag('v1.2.5', '1.2.5');
+        commitTag('v2.0.0', '2.0.0');
+
+        const installer = new ProviderInstaller(tempDir);
+        const result = await installer.install('custom_oci', {
+            source: `git::${pathToFileURL(repoDir).href}`,
+            version: '>= 1.0.0, < 2.0.0',
+        });
+
+        expect(result.version).toBe('1.2.5');
+        expect(result.constraints).toBe('>= 1.0.0, < 2.0.0');
+        expect(readFileSync(result.entrypoint, 'utf8')).toContain('1.2.5');
+    }, 20000);
 });
