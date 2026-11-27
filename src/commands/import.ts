@@ -867,7 +867,6 @@ export const importCmd = async (options: ImportCmdOptions) => {
             },
             lastApplied: new Date().toISOString()
         });
-        state.save();
 
         console.log(green(`\nImport successful!`));
         console.log(`State updated for ${bold(`${resourceType}.${address}`)} -> Issue #${issueNum}`);
