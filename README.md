@@ -214,3 +214,7 @@ testform -version
 ---
 
 For full documentation and API specifications, visit our **[Official Documentation Portal](https://fromeroc9.github.io/testform-docs/)**.
+
+## Disclaimer
+
+Testform is an independent open-source project. It is not affiliated with, endorsed by, or sponsored by HashiCorp, Inc., IBM Corp., or any other third-party company or trademark mentioned for technical or compatibility context. All trademarks are the property of their respective owners.

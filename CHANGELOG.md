@@ -98,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Completely purged provider imports from `src/core/resources.ts`, making the Core Resource Engine 100% agnostic.
   - Added `registerProviderResources(providerType)` in `src/providers/loader.ts` to dynamically register the active provider's templates upon initialization in `plan` and `apply`.
 - **Dynamic Active Provider Prefix in Resource Addresses (`src/core/utils.ts`, `src/core/resources.ts`, `src/commands/*.ts`):**
-  - Restored the active provider prefix in plan/apply/refresh headers and execution logs following Terraform convention (`# <provider>.<resource_type>.<name> will be created/updated/destroyed`).
+  - Restored the active provider prefix in plan/apply/refresh headers and execution logs following declarative IaC conventions (`# <provider>.<resource_type>.<name> will be created/updated/destroyed`).
   - Example: `# github.testcase.my_info.case.feature.@tc-01 will be created`, while the resource block remains 100% agnostic: `+ resource "testcase" "my_info.case.feature.@tc-01" { ... }`.
   - Dynamically formats address with the active provider (`github`, `gitlab`, `local`) across `plan`, `apply`, `refresh`, `destroy`, and `show`.
 - **Complete Deprecation and Removal of Legacy Prefixes (`github_*`):**
@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Embeds GFM Markdown banners at the top of `testrun` and `testplan` issue descriptions:
     `> ### 🟢 PASSED • Execution Verdict`
     `> Passed: X | Failed: Y | Blocked: Z | Skipped: W | Pending: K | Total: N`
-  - Checklist items now render the individual testcase/testrun status and task checkbox (`- [x] #123 - **passed**`, `- [ ] #124 - **failed**`).
+- Checklist items now render the individual testcase/testrun status and task checkbox (`- [x] #123 - **passed**`, `- [ ] #124 - **failed**`).
 - **Native Issue Lifecycle Auto-Close on Passed Verdicts (`src/providers/github/client.ts`, `src/commands/apply.ts`):**
   - Automatically marks GitHub issues as `state: 'closed'` with `state_reason: 'completed'` when a `testrun` or `testplan` rollup verdict evaluates to `passed`.
   - Reopens or maintains issues as `state: 'open'` (with `state_reason: 'reopened'`) when any failure, blocker, or pending test remains.
@@ -144,7 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deprecation of `physicalAddress` Persistence in State & Plan (`src/commands/plan.ts`, `src/core/query.ts`, `src/core/resources.ts`, `src/core/state.ts`, `src/core/types.ts`):**
   - Stopped persisting `physicalAddress` on newly computed `StateResource`, `PlanChange`, and `StateQuery` objects in favor of canonical addresses, retaining optional `@deprecated` typing on state interfaces to read older state files cleanly.
   - Removed automatic overwriting of `attributes.status` from `metadata.Status` inside `cleanAttributes` (`src/core/state.ts`).
-  
+
 ### Fixed
 
 - **Complete Elimination of Hardcoded `customFields['Status'] = rollupStatus` across Providers (`src/providers/*`, `src/core/resources.ts`):**
@@ -188,11 +188,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Modular Subcommand Help Architecture & Single-Dash CLI Flag Normalization (`src/core/help.ts`, `src/commands/workspace.ts`, `src/core/cli.ts`, `src/index.ts`):**
   - Streamlined general `testform workspace -h` to present clean subcommand listings without leaking subcommand-specific options into the top-level help text.
   - Implemented dedicated contextual help screens for all workspace subcommands: `testform workspace new -h`, `testform workspace delete -h`, `testform workspace list -h`, `testform workspace select -h`, `testform workspace show -h`, `testform workspace promote -h`, and `testform workspace cleanup -h` (also accessible via `testform workspace help <subcommand>`).
-  - Standardized all flags across CLI help, interactive suggestions, and runtime outputs to use Terraform-style single-dash syntax (`-ephemeral`, `-ttl`, `-auto-approve`, `-force`, `-json`), adding `-e` and `-i` to short-flag normalization tables.
+  - Standardized all flags across CLI help, interactive suggestions, and runtime outputs to use single-dash CLI syntax (`-ephemeral`, `-ttl`, `-auto-approve`, `-force`, `-json`), adding `-e` and `-i` to short-flag normalization tables.
 - **Dual State & Local Files Reporting Engine (`src/commands/report.ts`, `src/reports/engine.ts`, `src/reports/catalog.ts`):**
   - Added `-source=files` and `-from-files` flag to `testform report`, enabling instant simulation/dry-run reporting generated directly from repository feature files without requiring `testform.state`.
   - Added cryptographic simulation signature watermarks (`SIG-SIMULATION-DATA-NO-STATE-VERIFIED`) and legal non-repudiation disclaimers for unapplied local file reports.
-  - Added QMetry-inspired bidimensional cross-tabulation pivot matrix reports (`testform report bidimensional -group-by=<dim> -secondary-group-by=<dim>`).
+  - Added bidimensional cross-tabulation pivot matrix reports (`testform report bidimensional -group-by=<dim> -secondary-group-by=<dim>`).
 
 ### Fixed
 
@@ -213,7 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added support for standard semver operators (`>=`, `>`, `<=`, `<`, `=`, `~>`), enabling developers to set project constraints (e.g., `required_version: ">= 1.1.0"`) that match actual CLI releases.
   - Built-in providers (`local`, `github`, `gitlab`) declared in `required_providers` are now detected automatically and locked into `.testform.lock` without triggering unnecessary npm registry lookups.
 - **Standardized Dependency Lockfile Extension (`src/core/const.ts`, `src/core/provider-installer.ts`, `src/commands/init.ts`, `test/provider-installer.test.ts`):**
-  - Renamed default dependency lockfile from `.testform.lock.hcl` to `.testform.lock`, establishing a clean native extension format while maintaining full HCL dependency lock structure and backward compatibility.
+  - Renamed default dependency lockfile from `.testform.lock.hcl` to `.testform.lock`, establishing a clean native extension format while maintaining full structured dependency lock semantics and backward compatibility.
   - Updated `FILE_LOCK` constant, provider installer lock persistence, `init` command lockfile management, and test suite validations.
 
 ### Removed
@@ -388,7 +388,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `templates/starter-provider/`: Full enterprise project scaffold with TypeScript, client, types, and Vitest suite (`testform providers scaffold <name> --project`).
   - `templates/resource.template.ts`: Standard `ResourceTemplate` scaffold template.
 
-#### ⚡ Agnostic Provider & Resource Architecture (Terraform Parity: `attributes`, `lifecycle`, `resources`)
+#### ⚡ Agnostic Provider & Resource Architecture (`attributes`, `lifecycle`, `resources`)
 - **Agnostic Resource Definition (`attributes` & `lifecycle` in `ResourceTemplate`):**
   - Canonical `attributes` mapping (`(scenario, context) => Record<string, any>` or dictionary) that outputs pure domain data for providers.
   - Full lifecycle orchestration hooks: `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDelete`, `afterDelete`.
@@ -407,8 +407,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unit Test Suite Coverage:**
   - Validated custom domain resource `register-pokemon` registering `attributes`, `lifecycle.afterCreate`, and provider `resources['register-pokemon'].create` invoking `subirFotoPokemon` in `test/resources.test.ts`.
 
-#### 📦 Dynamic Provider Registry & Terraform Parity (`testform.required_providers`)
-- **Declarative Required Providers Syntax:** Added full parsing support for `testform.required_providers` in `main.yml`, enabling string shortcuts and object definitions with version constraints matching Terraform parity.
+#### 📦 Dynamic Provider Registry & Lockfile Verification (`testform.required_providers`)
+- **Declarative Required Providers Syntax:** Added full parsing support for `testform.required_providers` in `main.yml`, enabling string shortcuts and object definitions with version constraints following declarative IaC conventions.
 - **Universal Provider Downloader (`src/core/provider-installer.ts`):** Implemented multi-channel download engine supporting:
   - Git subpaths for single TypeScript/JavaScript files (`git::https://...//provider.ts?ref=v1.2.0`).
   - Full Git repository cloning (`git::https://...`).
@@ -421,14 +421,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mode 1: Generates single-file `.ts` template ready to implement.
   - Mode 2 (`--project`): Generates full enterprise project repository with `package.json`, `tsconfig.json`, `README.md`, `src/index.ts`, `src/client.ts`, `src/types.ts`, and Vitest test suite (`test/provider.test.ts`).
 
-#### 📑 Report Template Interpolation Engine (Terraform `${var.*}` Parity)
-- **Natural Terraform Expression Syntax in Excel and Word Templates:** Enhanced Excel (`xlsx`) and Word (`docx`) report rendering to natively parse `${var.my_variable}` placeholders alongside `${report.title}`, `${date}`, `${total}`, and `${table}` anchors.
+#### 📑 Report Template Interpolation Engine (`${var.*}` Expressions)
+- **Declarative Expression Syntax in Excel and Word Templates:** Enhanced Excel (`xlsx`) and Word (`docx`) report rendering to natively parse `${var.my_variable}` placeholders alongside `${report.title}`, `${date}`, `${total}`, and `${table}` anchors.
 - **Multi-Tier Robust Delimiter Fallback:** Implemented automated multi-pass patching in Word (`DocxFormat`) trying `${...}` first, followed by `{...}` and `{{...}}` to maintain complete flexibility across institutional document templates.
 - **Full Cell-Level Placeholder Replacement in Excel (`XlsxFormat`):** Replaced hardcoded delimiters with universal matcher detecting `${var.name}`, `{var.name}`, `${name}`, and `{name}` across workbooks.
 
 #### 🗃️ Centralized CLI Help System (`src/core/help.ts`)
 - **Single Source of Truth for Command Documentation:** Moved all embedded usage helpers and inline error descriptions from individual command modules (`report.ts`, `workspace.ts`, `state.ts`, `ephemeral.ts`) into centralized constants in `src/core/help.ts`.
-- **Emoji-Free Clean Report Help:** Standardized `testform report` output when called without arguments to present clean, structured CLI documentation aligned with Terraform standards.
+- **Emoji-Free Clean Report Help:** Standardized `testform report` output when called without arguments to present clean, structured CLI documentation.
 
 #### 🌳 Dependency Graph Hierarchy Normalization (`testform graph`)
 - **Strict Architectural Hierarchy:** Ensured `testplan` -> `testrun` -> `testcase` relationship traversal across DOT, Mermaid, and terminal Tree rendering.
@@ -476,7 +476,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Auto-Defect Generation (`-auto-create-bugs`):** Automatically generates linked `@bug` specifications with failure stack traces and screenshot evidence for all failed scenarios.
 
 #### 🌐 Environment Variable Auto-Loading (`TESTFORM_VAR_*` / `TF_VAR_*`)
-- **Terraform Variable Parity:** Automatically detects and loads environment variables prefixed with `TESTFORM_VAR_<NAME>` and `TF_VAR_<NAME>` into `VariableParser`.
+- **Environment Variable Conventions:** Automatically detects and loads environment variables prefixed with `TESTFORM_VAR_<NAME>` and `TF_VAR_<NAME>` into `VariableParser`.
 - **Hierarchical Precedence:** Correct precedence established: `default` < `*.vars.yml` < `TESTFORM_VAR_*`/`TF_VAR_*` < `-var-file` < `-var`.
 
 #### 🗄️ Backend Cache Relocation (`.testform/cache/backend.json`)
@@ -494,13 +494,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Windows Backslash Canonicalization:**
   - Automatically normalizes Windows backslash paths (`\`) into canonical POSIX forward slashes (`/`) in `testform.state`, ensuring cross-platform state file portability between Windows, Linux, and macOS.
 
-
 ### Changed & Refactored
 
 #### Provider-Agnostic Core Domain Resources:
-  - Removed legacy `github_` prefix technical debt from core resource types: migrated `github_testcase`, `github_testrun`, `github_testplan`, and `github_bug` to universal domain primitives (`testcase`, `testrun`, `testplan`, `bug`).
-  - Added transparent backward compatibility in `src/core/resources.ts` and `src/core/state.ts`: legacy `github_*` resources in existing `testform.state` files are seamlessly recognized, queried, and upgraded without breaking state continuity or causing plan destruction.
-  - Updated CLI command outputs (`state list`, `state show`, `plan`, `apply`) to format resources cleanly as `testcase`, `testrun`, etc.
+- Removed legacy `github_` prefix technical debt from core resource types: migrated `github_testcase`, `github_testrun`, `github_testplan`, and `github_bug` to universal domain primitives (`testcase`, `testrun`, `testplan`, `bug`).
+- Added transparent backward compatibility in `src/core/resources.ts` and `src/core/state.ts`: legacy `github_*` resources in existing `testform.state` files are seamlessly recognized, queried, and upgraded without breaking state continuity or causing plan destruction.
+- Updated CLI command outputs (`state list`, `state show`, `plan`, `apply`) to format resources cleanly as `testcase`, `testrun`, etc.
 
 #### 🧹 Clean Sequential Architecture across all Providers (`GitHub`, `GitLab`, `Local`)
 - **Strict Method Sequencing:** Reordered `IProvider` interface and all implementations (`GitHubProvider`, `GitLabProvider`, `LocalProvider`) into logical, predictable sections:
@@ -552,8 +551,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-
-
 #### ⚖️ Rollup Verdict Engine (`calculateRollupVerdict`)
 - **Automated Execution Status Resolution:** Built-in verdict aggregation for `testrun` and `testplan` resources based on strict QA priority rules:
   1. `failed`: If any child execution is failed, the run/plan evaluates to `failed`.
@@ -567,19 +564,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `testruns: Record<string, string>` on `testplan` (e.g. `{"testruns/Magento-xxx.run.feature": "failed"}`).
 - **Universal Provider `metadata` Container:** Introduced generic `metadata: Record<string, any>` attribute across execution resources for adapter-specific data, omitting empty objects to keep state size minimal.
 
-
 #### 🎯 Comprehensive `-target` CLI Standard & Scope Eradication
 - **Universal Target Selector:** Standardized `-target` flag across all core workflow and inspection commands (`validate`, `plan`, `apply`, `diff`, `destroy`, `refresh`), replacing legacy scope-based targeting.
 - **Hierarchical Target Resolution:**
   - **Resource Scope:** `-target=testcase`, `-target=testrun`, `-target=testplan` isolates execution exclusively to that resource type across the workspace.
   - **Specification File:** Direct file targeting (e.g. `-target=tests/testrun/smoke.run.feature` or `-target=modules/auth/login.case.feature`).
   - **Identity Tags:** Direct tag targeting (e.g. `-target=@tc-1`, `-target=@tr-smoke`, `-target=@tp-release1`).
-  - **Terraform Canonical Addresses:** Full support for Terraform-style addresses (e.g. `-target=testcase.modules/auth/login.case.feature.@tc-1` or `-target=github_testcase.modules/auth/login.case.feature.@tc-1`).
+  - **Canonical Resource Addresses:** Full support for dot-delimited canonical addresses (e.g. `-target=testcase.modules/auth/login.case.feature.@tc-1` or `-target=github_testcase.modules/auth/login.case.feature.@tc-1`).
 - **Cross-Platform Path Normalization:** Standardized `matchesTarget()` to seamlessly resolve both Windows backslashes (`\`) and POSIX forward slashes (`/`).
 - **Target Scope Auto-Inference:** Introduced `detectScopeFromTarget()` to automatically infer target scope from file naming conventions (`.case.feature`, `.run.feature`, `.plan.feature`), identity prefixes (`@tc-`, `@tr-`, `@tp-`), or explicit resource keywords.
 
-#### 📜 Official Terraform Parity for `testform validate` Help
-- **HashiCorp Parity Documentation:** Updated `HELP_VALIDATE` to mirror HashiCorp Terraform's official `validate` command help structure and option catalog.
+#### 📜 Standardized CLI Help for `testform validate`
+- **Structured Help Documentation:** Updated `HELP_VALIDATE` to follow a consistent, structured command help layout and option catalog.
 - **Explicit Target Documentation:** Added `-target=resource` flag description, highlighting both resource scope (`-target=testcase`) and specific file examples.
 - **Updated `diff` Help:** Added `-target=resource` to `HELP_DIFF`.
 
@@ -596,42 +592,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed & Refactored
 
-
 #### 🧹 Eradication of Global `-scope` and Scope Retrocompatibility
 - **Removed Global `-scope`:** Eliminated `-s, --scope <scope>` from the CLI root command and global options.
 - **Purged Legacy `getScope()`:** Completely removed `getScope()` calls from `src/index.ts` across `plan`, `apply`, `refresh`, `diff`, `destroy`, `query`, `ephemeral`, `import`, `print`, and `graph`.
 - **Optional Scope in Command Signatures:** Made `scope?: IScope | 'all'` optional across `PlanCmdOptions`, `ApplyCmdOptions`, `RefreshCmdOptions`, `DestroyCmdOptions`, and `DiffCmdOptions`. Commands resolve their execution scopes dynamically via `resolveScopes(scope, target)`.
 - **Preserved Only Where Subcommand-Local:** Kept `--scope` strictly where documented as local subcommand options (`testform policy --scope <scope>` and `testform suite init --scope <scope>`).
 
-#### 📐 Module & Lifecycle Terraform Parity
+#### 📐 Canonical Module & Lifecycle Syntax
 - **Canonical `variable:` in Modules:** Replaced legacy `vars` with canonical `variable` in Gherkin `@module(...)` tags and YAML manifests.
-- **Elimination of `vars` Retrocompatibility:** Removed obsolete `vars` fallback in Gherkin parser to enforce clean Terraform syntax standards.
+- **Elimination of `vars` Retrocompatibility:** Removed obsolete `vars` fallback in Gherkin parser to enforce clean, canonical declarative syntax.
 - **Resource Lifecycle Meta-Arguments (`lifecycle:`):** Standardized lifecycle meta-arguments (`prevent_destroy`, `ignore_changes`, `create_before_destroy`) under `resource: <type>: lifecycle:` in YAML manifests.
 
 #### 📊 State Ledger Versioning & Metadata Streamlining
 - **Canonical State Format:** Aligned state structure with `version: "1.0"`, `lineage`, `lastSync`, and `provider` metadata.
-- **Cleaned State Attributes:** Stripped redundant execution summaries from the state ledger for exact Terraform state parity.
+- **Cleaned State Attributes:** Stripped redundant execution summaries from the state ledger for a streamlined, canonical state schema.
 
 #### 🛡️ Diagnostic & Logger Polish
 - **Duplicate Error Logging Suppression:** Added tracking to prevent duplicate error diagnostic logs across execution catch blocks.
 - **State Lock Failure Messages:** Enhanced error output for lock acquisition failures with clear, actionable resolution commands (`testform force-unlock`).
 
-#### 🌐 Declarative Data Sources Engine (`data:` Block & Terraform Parity)
+#### 🌐 Declarative Data Sources Engine (`data:` Block)
 - **First-Class HTTP Data Source (`data.http`):** Declarative REST API integration in `data:` supporting both `GET` and `POST` methods without requiring external curl/fetch steps.
 - **Compact Inline Auto-Detection (Zero Boilerplate):**
   - Scalar URLs starting with `http://` or `https://` are auto-classified as `http` data sources (`github_user: "https://api.github.com/users/octocat"`).
   - Scalar paths ending in `.json`, `.yaml`, `.yml`, or `.csv` are auto-classified as `local_file` fixtures (`users: "fixtures/users.json"`).
   - Feature file paths and tags (`auth/login.case.feature.@tc-1` or `@tc-smoke`) are auto-classified into `testcase`, `testrun`, or `testplan`.
 - **Advanced HTTP Request Customization:** Native support for `headers` / `request_headers`, `body` / `request_body` (auto-serialized to JSON), and `timeout`.
-- **Auto-Parsed JSON & Terraform Attributes:** Parsed JSON properties are blended directly into the root object (`${data.user.login}`), alongside standard Terraform attributes (`status_code`, `response_body`, `response_headers`, `url`, `id`).
+- **Auto-Parsed JSON & Standard Attributes:** Parsed JSON properties are blended directly into the root object (`${data.user.login}`), alongside standard HTTP response attributes (`status_code`, `response_body`, `response_headers`, `url`, `id`).
 - **In-Memory Lifecycle Caching:** Automatic memoization of HTTP queries during command execution.
 
-#### 🔀 Multi-Scenario Matching & Terraform Splat Expressions (`.*` / `[*]`)
+#### 🔀 Multi-Scenario Matching & Splat Expressions (`.*` / `[*]`)
 - **Array Resolution on Multi-Matches:** When a data source address or tag matches multiple scenarios (e.g. `suites/smoke.run.feature.@tr-smoke` or `@smoke`), it returns a native array of scenario objects; single matches return the single scenario object directly.
-- **Terraform Splat Expressions:** Added support for extracting attributes across all matched elements via `${data.<source>.*.<field>}` and `${data.<source>[*].<field>}` (e.g. `${data.smoke_suite.*.title}` returns an array of all matched titles).
+- **Splat Expressions:** Added support for extracting attributes across all matched elements via `${data.<source>.*.<field>}` and `${data.<source>[*].<field>}` (e.g. `${data.smoke_suite.*.title}` returns an array of all matched titles).
 - **Collection Functions Integration:** Full compatibility of splat arrays with collection functions such as `join(", ", data.smoke_suite.*.title)` and `length(data.smoke_suite)`.
 
-#### 🧩 CLI Parity: Providers & Modules Commands
+#### 🧩 CLI Commands: Providers & Modules
 - **`testform providers` Tree & Subcommands:**
   - `testform providers`: Prints a tree of provider requirements across modules.
   - `testform providers lock`: Updates lock files based on origin registries, supporting `-fs-mirror`, `-net-mirror`, `-platform`, `-enable-plugin-cache`, `-test-directory`, `-var`, and `-var-file`.
@@ -639,7 +634,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `testform providers schema`: Displays provider schemas in human-readable or machine-readable JSON format.
 - **`testform modules` Command:** Added `testform modules` with `-json`, `-var`, and `-var-file` flags to list declared modules and their resolved versions.
 
-#### 🔍 `testform show` Command Parity
+#### 🔍 `testform show` Command Standardization
 - **Execution Plan & State Inspection:** Standardized `testform show [options] [path]` to inspect either saved execution plan files (`testform show tfplan`) or the current state ledger (`testform show`).
 - **Machine-Readable JSON Output:** Added full support for `-json` flag across both plan inspection and state dumps.
 
@@ -650,27 +645,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Removed Issue Comment Sync:** Deprecated GitHub issue comment creation during `apply`; testcase execution tracking is now centralized directly within the testrun issue body and state attributes.
 - **Cross-Platform Path Normalization:** Unified Windows (`\`) and POSIX (`/`) separator handling across `resources.ts`, `templates.ts`, and `selector.ts`.
 - **Target Selector Refinement:** Updated `matchesTarget()` to automatically strip scenario/identity tags (`.@tc-X`, `.@tr-X`) during feature-level target matching.
-
-- **Terraform-Compliant Resource Addressing (provider.resource.shortidentity):** Standardized plan, apply, and refresh logs to display addresses as provider.resource.shortidentity (e.g. github.testcase.customer.case.feature.@tc-01). Eradicated non-standard feature title brackets (# [Feature Name].) and stripped directory path clutter from resource blocks and drift warnings.
+- **Canonical Resource Addressing (`provider.resource.shortidentity`):** Standardized plan, apply, and refresh logs to display addresses as `provider.resource.shortidentity` (e.g. `github.testcase.customer.case.feature.@tc-01`). Eradicated non-standard feature title brackets (`# [Feature Name].`) and stripped directory path clutter from resource blocks and drift warnings.
 
 #### 🛡️ Elimination of Ghost & Phantom Diffs (`hasFieldChanges`)
 - **CRLF vs LF Normalization:** Automatically normalizes `\r\n` carriage returns to `\n` in multiline bodies (`body`, `description`) prior to comparison in `hasFieldChanges()` and diff rendering, eradicating false in-place updates on Windows platforms.
 - **Order-Independent & Prefix-Agnostic Array Comparison:** Leveraged `arraysEqual()` across `labels` and `assignees` in `hasFieldChanges()`, `format()`, and `detectAttributeDrift()`, ensuring arbitrary array order and leading `@` prefixes (`@fromeroc9` vs `fromeroc9`) never trigger spurious changes or remote drift.
-- **Custom Fields Prefix Healing:** Sanitized custom field values (`priority: "@medium"` vs `"medium"`) across diff calculation and HCL output generation.
+- **Custom Fields Prefix Healing:** Sanitized custom field values (`priority: "@medium"` vs `"medium"`) across diff calculation and declarative diff output generation.
 - **Path-Normalized Diff Matching:** Applied `normalizeAddress()` consistently across `testform diff` resource maps and sets, eliminating false `new_local` and `orphaned_remote` dual entries caused by Windows backslashes (`\`) vs POSIX slashes (`/`).
 - **Synchronized Lifecycle Scenarios in Diff:** Integrated `LifecycleResolver` and `ignore_changes` support into `diffCmd`'s scenario hashing, preventing divergence between `diff` and `plan`.
 
-
 #### 📐 Configuration Schema Canonicalization (`main.yml`)
-- **Block Name Alignment with Terraform Conventions:**
-  - `locals:` (plural, matching Terraform `locals { ... }`): Canonical property inside `main.yml`, referenced via `${local.<name>}` and loaded from `locals.yml` or `local.yml`.
-  - `output:` (singular, matching Terraform `output "name" { ... }`): Canonical property inside `main.yml` and child modules, eliminating legacy plural `outputs:`.
-  - `module:` (singular, matching Terraform `module "name" { ... }`): Canonical property inside `main.yml` and domain YAML files, eliminating legacy `modules:`. Modules accept native direct arguments directly in YAML (e.g. `user: "admin"`), support explicit `variable:` blocks, and `@module` tags use `@module(..., variable={...})`.
-  - `variable:` (singular, matching Terraform `variable "name" { ... }`): Canonical property inside `main.yml`, `variables.yml`, and domain files.
+- **Canonical Block Naming:**
+  - `locals:` (plural): Canonical property inside `main.yml`, referenced via `${local.<name>}` and loaded from `locals.yml` or `local.yml`.
+  - `output:` (singular): Canonical property inside `main.yml` and child modules, eliminating legacy plural `outputs:`.
+  - `module:` (singular): Canonical property inside `main.yml` and domain YAML files, eliminating legacy `modules:`. Modules accept native direct arguments directly in YAML (e.g. `user: "admin"`), support explicit `variable:` blocks, and `@module` tags use `@module(..., variable={...})`.
+  - `variable:` (singular): Canonical property inside `main.yml`, `variables.yml`, and domain files.
   - `resource:` (singular, replacing legacy `scopes:`, `scope:`, `fields:`, and `conventions:`).
   - `policy:` (singular, replacing legacy `policies:`).
   - `backend:` (object map style: `backend: local: {}`).
-- **No Artificial Dedicated Files:** Eliminated mandatory special-case handling for `module.yml`; Testform automatically discovers `module:`, `data:`, `output:`, `locals:`, `variable:`, and `resource:` blocks across `main.yml` and any modular domain YAML files (`findDomainConfigFiles`), mirroring Terraform's multi-file discovery model.
+- **No Artificial Dedicated Files:** Eliminated mandatory special-case handling for `module.yml`; Testform automatically discovers `module:`, `data:`, `output:`, `locals:`, `variable:`, and `resource:` blocks across `main.yml` and any modular domain YAML files (`findDomainConfigFiles`), following a multi-file discovery model.
 - **CLI Policy Sync:** `testform policy enable <id>` and `testform policy disable <id>` now directly update the `policy: disabled: [...]` array inside `main.yml`.
 - **Command Engine Refactoring:** Updated all core CLI commands (`apply`, `destroy`, `diff`, `import`, `plan`, `policy`, `query`, `refresh`, `show`, `suite`, `output`) to consume the standardized `resource:`, `policy:`, `locals:`, `module:`, `output:`, and `backend:` schema without legacy pollution.
 
@@ -687,22 +680,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-
-
 #### 🎯 Target Scoping for Reports (`testform report -target`)
 - **Granular Scoping:** Added `-target` option across the reporting engine to restrict outputs to a specific testrun (`-target=@tr-1` or `-target=sprint1.run.feature`) or an entire testplan (`-target=@tp-1`).
 - **Automated Testplan Expansion:** When targeting a test plan (`testplan`), `StateQuery.filterByTarget` inspects `attributes.testruns`, recursively discovers all linked runs, and scopes the report to include all associated test cases and execution outcomes.
 
 #### 📄 Dynamic Binary Reports: Word (`.docx`) & Excel (`.xlsx`)
 - **Native Document Generation:** First-class support for compiling report metrics and tabular data into `.docx` and `.xlsx` files via the `--format` flag.
-- **Dynamic Variable Syntax Parity (`${...}`):**
+- **Dynamic Variable Syntax (`${...}`):**
   - **Word (`.docx`):** Standardized dynamic placeholder replacement supporting `${report.title}`, `${title}`, `${date}`, `${total}`, `${passed}`, `${failed}`, `${var.<name>}`, `${report.<metric>}`, and `${table}` (with styled tables, borders, and alternating cell padding).
   - **Excel (`.xlsx`):** Dynamic cell interpolation for `${var.<name>}`, `${report.<metric>}`, and `${date}`, alongside automated `${table}` block anchoring with dynamic row and column generation.
 - **On-Demand Driver Loading & Bundle Optimization:** Moved heavy binary packages (`docx` and `exceljs`) to optional peer dependencies dynamically resolved via `loadDriver()`, maintaining a lightweight binary footprint (~1.00 MB).
 - **Official Testform Branded Word Template:** Built an official default Word template (`templates/report.docx`) featuring the Testform brand identity, vector-aligned logo, executive KPI metric summary cards, and clean table placeholders with zero external corporate data.
 
-#### 🛡️ Terraform Diagnostic Standard for Reports & Formats
-- **Standardized Error Diagnostics:** Replaced generic error text and raw exceptions across `formats.ts`, `loader.ts`, and `report.ts` with canonical HashiCorp Terraform diagnostic blocks (`logger.push` with `╷ ... │ Error: ... ╵`).
+#### 🛡️ Structured Diagnostic Standard for Reports & Formats
+- **Standardized Error Diagnostics:** Replaced generic error text and raw exceptions across `formats.ts`, `loader.ts`, and `report.ts` with structured CLI diagnostic blocks (`logger.push` with `╷ ... │ Error: ... ╵`).
 - **Actionable Diagnostic Guidance:** Detailed diagnostic boxes for missing optional dependencies (`npm install -g docx` / `npm install -g exceljs`), unrecognized report types (listing all available catalog options), unsupported formats, and missing custom template files.
 
 #### 🌐 Provider URL Decoupling & English Catalog Descriptions
@@ -714,17 +705,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Raw Export Schema:** In `raw` report metadata, `url` and `issueUrl` are omitted/undefined for local provider resources, while maintaining backwards compatibility for remote providers.
 
 ### Fixed
-- **Uncaught ENOENT on Missing Template:** Added explicit filesystem existence checks with Terraform diagnostic output when user supplies a nonexistent path via `-template`.
+- **Uncaught ENOENT on Missing Template:** Added explicit filesystem existence checks with structured CLI diagnostic output when user supplies a nonexistent path via `-template`.
 - **Casing Normalization in Metrics:** Preserved original key casing when generating markdown and text-based reports with custom KPI metrics.
 - **Git History Privacy Purge:** Expunged confidential corporate templates from past commit history and rebuilt with official open-source brand assets.
 
 ---
 
-## [1.1.0] - 2026-10-26
+## [1.1.0-beta.0] - 2026-10-26
 
 ### Added
-
-
 
 #### 📊 Modular Reporting & Multi-Format Analytics Engine (`testform report`)
 - **Full Architecture Modularization:** Completely eradicated monolithic reporting code into an extensible, decoupled engine (`src/reports/`) separating data extraction (`collect`), formatting (`render`), and dynamic template patching.
@@ -741,11 +730,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unified `-filter` flag across `query` and `report` supporting attribute pairs (`status=failed`, `label=@smoke`), custom fields from `main.yml` (`priority=high`), and inferred free-text search.
   - Added dynamic grouping via `-groupBy=<field>`.
 - **Zero-Pollution Autoloading:**
-  - Full Terraform parity with no config pollution in `main.yml`: automatically discovers and loads custom reports (`.testform/reports/*.ts`), custom formats (`.testform/reports/*.format.ts`), and project templates (`.testform/reports/report.docx`, `.testform/reports/report.xlsx`).
+  - Zero-config convention with no pollution in `main.yml`: automatically discovers and loads custom reports (`.testform/reports/*.ts`), custom formats (`.testform/reports/*.format.ts`), and project templates (`.testform/reports/report.docx`, `.testform/reports/report.xlsx`).
 - **Comprehensive Documentation & Test Suite:** Added `docs/reports.md`, `docs/index.md`, and 9 end-to-end unit tests (`test/modular-reports.test.ts`).
 
-#### 🏛️ CLI Core & Terraform Parity
-- **Terraform Diagnostic Formatting:** Standardized all CLI error and warning outputs—including command-line syntax errors, unknown options, and missing arguments from the CAC parser—into HashiCorp Terraform diagnostic boxes (`╷ ... │ ... ╵`).
+#### 🏛️ CLI Core & Diagnostics
+- **Structured Diagnostic Formatting:** Standardized all CLI error and warning outputs—including command-line syntax errors, unknown options, and missing arguments from the CAC parser—into structured CLI diagnostic boxes (`╷ ... │ ... ╵`).
 - **Global Flag `-no-color`:** Implemented consistent color suppression across all output streams in every CLI command (`init`, `plan`, `apply`, `validate`, `refresh`, `graph`, `state`, etc.).
 - **Global Project Option Refactor:** Standardized the project identifier flag to `-project-id` across all commands (deprecating legacy `-projectId`).
 - **Canonical Address Syntax:** Refactored resource address resolution across the engine, replacing legacy `::` syntax with canonical dot/tag identifiers (`auth/login.case.feature.@tc-1`).
@@ -833,9 +822,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Targeted Refresh (`testform refresh`):**
   - Added `-target=resource` flag for scoping refresh operations to specific resources and their dependencies.
 - **Interactive Diffing (`testform diff`):**
-  - Interactive prompt mode matching Terraform input queries; removed redundant `-scope` option.
+  - Interactive prompt mode with guided input queries; removed redundant `-scope` option.
 
-#### 🧮 HCL-Style Expression Engine & Built-in Functions
+#### 🧮 Declarative Expression Engine & Built-in Functions
 - **Expression AST Evaluator:** Lexer, parser, and evaluator supporting `${...}` syntax, comparison operators, and ternary conditionals (`${cond ? a : b}`).
 - **Standard Function Catalog:**
   - Strings: `lower`, `upper`, `trim`, `replace`, `split`, `join`.
@@ -868,7 +857,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-
 - **Testplan Duplicate Testruns Policy:** Added a policy rule `duplicate-testruns-in-testplan` that validates both local duplicate testruns inside the same testplan file and global duplicate testruns declared across different testplan files.
 
 ### Changed
@@ -880,7 +868,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.15] - 2026-06-10
 
 ### Added
-
 
 - **GitHub API Resiliency:** Implemented automatic rate limit retries (handling `403` and `429` secondary rate limits) in the request pipeline. Reads the `retry-after` header to pause execution and retry up to 5 times. Added a custom `User-Agent: testform/<version>` to identify API requests.
 
@@ -903,8 +890,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.13] - 2026-06-07
 
 ### Changed
-- **CLI Architecture:** Migrated the CLI parsing logic to a custom `arg`-based implementation, restoring exact Terraform-style option parsing (e.g., `-scope testcase`, `testcase plan`) and detailed `-version` outputs.
-- **Help Output:** Overhauled the help text formatting to strictly follow Terraform's CLI visual style, including proper indentation, alignment, and bold headers.
+- **CLI Architecture:** Migrated the CLI parsing logic to a custom `arg`-based implementation, restoring single-dash option parsing (e.g., `-scope testcase`, `testcase plan`) and detailed `-version` outputs.
+- **Help Output:** Overhauled the help text formatting to follow a clean, consistent CLI visual style, including proper indentation, alignment, and bold headers.
 
 ### Fixed
 - **Security:** Resolved vulnerabilities in transitive dependencies (`undici` and `uuid`) by explicitly overriding their versions.
@@ -913,7 +900,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.12] - 2026-06-07
 
 ### Added
-
 
 - **Gherkin Editor:** Added a Gherkin editor command and internal dependency support.
 
@@ -937,9 +923,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-
-- **Debug Command:** Added a new dedicated \`debug\` command to assist developers in troubleshooting parsing logic. It accepts a specific feature file and a \`-format\` flag (either \`gherkin\` or \`testform\`) to output its JSON AST before or after Testform's internal filtering.
-- **Generate Rule Support:** Enhanced the documentation for the \`generate\` command to properly describe the \`-rule\` flag, which injects Business Rule blocks (\`Rule: <name>\`) into newly generated feature files and validates their existence in the workspace.
+- **Debug Command:** Added a new dedicated `debug` command to assist developers in troubleshooting parsing logic. It accepts a specific feature file and a `-format` flag (either `gherkin` or `testform`) to output its JSON AST before or after Testform's internal filtering.
+- **Generate Rule Support:** Enhanced the documentation for the `generate` command to properly describe the `-rule` flag, which injects Business Rule blocks (`Rule: <name>`) into newly generated feature files and validates their existence in the workspace.
 
 ## [1.0.8] - 2026-06-06
 
@@ -960,7 +945,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-
 - **Authentication:** Native GitHub App Authentication. Supports configuring `appId`, `privateKey`, and `installationId` directly in `testform.json` or through local credentials for autonomous background authentication using `@octokit/auth-app`.
 
 ### Changed
@@ -969,7 +953,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.5] - 2026-06-05
 
 ### Added
-
 
 - **Test Runs:** Added default test run description and implemented locale-aware sorting for test cases and resources.
 - **Resource Adapters:** Updated resource adapter configuration and dependencies.
@@ -990,7 +973,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI Commands:** Fixed a bug causing `-expand` flag to fail with `Nothing to repeat` due to improper regular expression escaping when dealing with dummy `*` scenarios. It also has been removed from the `apply -h` help menu as it is an internal process.
 - **Scenario Expansion:** Corrected `apply -expand` logic to expand all explicit testcases belonging to a Rule instead of generating a dummy `*` scenario. It also properly removes the wildcard placeholder from local `.feature` files during expansion.
 - **CLI Options:** Fixed a critical bug in the arguments parser where short flags containing the equals sign (e.g. `-C="."`) were not properly mapped to their long flag equivalents (`--chdir="."`), causing arguments parsing to crash.
-- **Documentation:** Clarified the help text for the `-var-file` option to correctly indicate it accepts `.json` and `key=value` formats rather than Terraform-specific `.tfvars`.
+- **Documentation:** Clarified the help text for the `-var-file` option to correctly indicate it accepts `.json` and `key=value` formats rather than `.tfvars`.
 - **TestRun Formatting:** Refactored the core TestRun rendering pipeline to process and display all testcase comments and checklist bodies in strict alphanumeric order (e.g., `tc-1`, `tc-2`, `tc-3`), regardless of how they are defined in `.feature` files.
 - **TestRun UI:** Updated the default markdown body generated for TestRuns to include professional tracker instructions indicating that statuses are updated dynamically via issue comments.
 - **Resource Extensibility:** Exposed an optional `comments(scenario, context)` callback in the `ResourceTemplate` interface to formally delegate custom status-comment generation to resource registries rather than keeping the HTML string-building logic hardcoded in `apply.ts`.
@@ -998,7 +981,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.3] - 2026-06-05
 
 ### Added
-
 
 - **Generate Command:** Implemented the `testform generate` command to generate test scenarios automatically.
 - **Reporting:** Implemented reporting logic for test cases and test runs.
@@ -1019,7 +1001,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Codebase:** Cleaned up unused and orphaned exports across `src/commands` to improve module encapsulation.
 - **Custom Fields:** Fixed an issue where `testform apply` would fail to send default `custom_fields` from `testform.json` to GitHub Projects V2 items during creation (`add`) and modification (`change`). It now correctly applies all computed fields to the GitHub project board instead of leaving them empty.
 
-
 ## [1.0.2] - 2026-06-04
 
 ### Fixed
@@ -1034,7 +1015,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-06-04
 
 ### Added
-
 
 - **Initial Release:** First stable release of the CLI.
 - **Test-as-Code Paradigm:** Introduced the ability to define Test Cases, Test Runs, and Test Plans using Gherkin (`.feature`) files.
