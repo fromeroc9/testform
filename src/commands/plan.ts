@@ -73,7 +73,7 @@ export function hashScenario(scenario: ParserScenario, scope?: IScope, ignoreCha
     return createHash('sha256').update(JSON.stringify(clone)).digest('hex');
 }
 
-interface CalculatePlanOptions {
+export interface CalculatePlanOptions {
     dir: string;
     scope: IScope;
     variables?: VariableParser;

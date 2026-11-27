@@ -209,6 +209,7 @@ testform -version
 - **100% Offline Capability:** Full local backend (`backend: local`) and mock provider (`provider: local`) for deterministic testing without external dependencies or tokens.
 - **Terraform-grade State Management:** State locking, drift detection (`diff`), manual taint/untaint lifecycle, HCL resource display (`state show`), and dependency DAG rendering (`graph`).
 - **Global Flags:** `-chdir=<path>`, `-no-color`, and `-compact-warnings` supported universally across commands.
+- **Programmatic TypeScript SDK (`@fromeroc9/testform/sdk`):** Dedicated subpath entrypoint exporting Gherkin parsers (`Parser`, `TestcaseParser`, `TestrunParser`, `TestplanParser`), `calculatePlan`, `detectAttributeDrift`, `LocalBackend`, `Config`, `State`, diagnostics, and modular report helpers.
 
 ---
 

@@ -186,14 +186,66 @@ describe('GitLabProvider', () => {
         const updated = await provider.apis.issue.update!(20, { title: 'API Issue Edited' });
         expect(updated.title).toBe('API Issue Edited');
 
-        // apis.issue.delete (closes issue)
+        // apis.issue.delete (permanently deletes issue)
         fetchMock.mockResolvedValueOnce({
             ok: true,
-            status: 200,
-            json: async () => ({ id: 200, iid: 20, state: 'closed' })
+            status: 204
         });
         await provider.apis.issue.delete!(20);
         expect(fetchMock).toHaveBeenCalledTimes(4);
+        const [deleteUrl, deleteOpts] = fetchMock.mock.calls[3];
+        expect(deleteUrl).toBe('https://gitlab.example.com/api/v4/projects/my-group%2Fmy-project/issues/20');
+        expect(deleteOpts.method).toBe('DELETE');
+    });
+
+    it('permanently deletes an issue on GitLab API, handles 404 idempotently, and falls back to close on 403', async () => {
+        // 1. Direct delete (204)
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+        await provider.resources.testcase.delete!('GL#7');
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            1,
+            'https://gitlab.example.com/api/v4/projects/my-group%2Fmy-project/issues/7',
+            expect.objectContaining({ method: 'DELETE' })
+        );
+
+        // 2. 404 idempotent no-op
+        fetchMock.mockResolvedValueOnce({
+            ok: false,
+            status: 404,
+            json: async () => ({ message: '404 Not found' })
+        });
+        await expect(provider.deleteIssue(999)).resolves.toBeUndefined();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // 3. 403 permission error falls back to closeIssue (PUT state_event=close)
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        fetchMock
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 403,
+                json: async () => ({ message: '403 Forbidden' })
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 105, iid: 8, state: 'closed' })
+            });
+
+        await provider.deleteIssue(8);
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            3,
+            'https://gitlab.example.com/api/v4/projects/my-group%2Fmy-project/issues/8',
+            expect.objectContaining({ method: 'DELETE' })
+        );
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            4,
+            'https://gitlab.example.com/api/v4/projects/my-group%2Fmy-project/issues/8',
+            expect.objectContaining({
+                method: 'PUT',
+                body: JSON.stringify({ state_event: 'close' })
+            })
+        );
+        warnSpy.mockRestore();
     });
 
     it('links sub-issues using relates_to issue link API', async () => {

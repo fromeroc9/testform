@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Dedicated Programmatic SDK Entrypoint (`@fromeroc9/testform/sdk`, `src/sdk.ts`, `tsconfig.sdk.json`, `tsup.config.ts`, `test/sdk.test.ts`):**
+  - Exposed typed `@fromeroc9/testform/sdk` subpath compiled to single-file `dist/sdk.js` and `dist/sdk.d.ts` artifacts alongside `dist/index.js`.
+  - Exports core constants/types, `Config`, `State`, `LocalBackend`, Gherkin parsers (`Parser`, `BaseParser`, `TestcaseParser`, `TestrunParser`, `TestplanParser`, `VariableParser`), `calculatePlan`, `hashScenario`, `detectAttributeDrift`, `compareCustomFields`, diagnostics, `reports`, `resource`, `registerResource`, `policy`, `registerPolicy`, `evaluateExpression`, and `interpolateExpressions`.
+- **GitHub Provider Bug-to-TestRun Sub-Issue Linking (`src/providers/github/client.ts`, `src/providers/github/resources.ts`, `src/providers/github/templates.ts`):**
+  - Automatically links `bug` issues to their referenced `testrun` issue(s) via GitHub sub-issues (`addSubIssue`) during both `bug` and `testrun` `create`/`update` operations, resolving selectors from `* set run`, `* set testrun`, `* field run`, `* field testrun`, and `metadata.linked`.
+  - Enriches the `### 🔗 Context` section of GitHub bug issues with the resolved `#issueNumber` of the matching `testrun` when present in state.
+- **CI Workflow (`.github/workflows/ci.yml`):**
+  - Added automated GitHub Actions verification running `npm run typecheck`, `npm test`, and `npm run build`.
+
+### Changed
+
+- **Unified `tsup` Build Pipeline (`tsup.config.ts`, `package.json`):**
+  - Migrated both CLI (`src/index.ts` -> `dist/index.js`) and SDK (`src/sdk.ts` -> `dist/sdk.js` + `dist/sdk.d.ts`) builds to `tsup`, removing `@vercel/ncc` and eliminating nested `dist/sdk-build/` subdirectories.
+  - Externalized optional `typescript` peer driver alongside `docx`, `exceljs`, and cloud SDKs (`typescript` added as optional peer dependency in `package.json`), shrinking the packed npm tarball cleanly.
+- **Resilient CLI Version Resolution (`src/core/const.ts`):**
+  - Replaced static `../../package.json` import with `resolvePackageVersion()` so `VERSION_CLI` resolves cleanly across `src/`, `dist/index.js`, and `dist/sdk.js`.
+
+### Fixed
+
+- **GitHub, GitLab & Local Provider Resource Deletion & `destroy` Command (`src/providers/github/client.ts`, `src/providers/gitlab/index.ts`, `src/providers/local/index.ts`, `src/commands/destroy.ts`, `src/index.ts`):**
+  - Implemented `GitHubProvider.deleteIssue()` (GraphQL `deleteIssue`), `GitLabProvider.deleteIssue()` (`DELETE /projects/:id/issues/:issue_iid`), and `LocalProvider.deleteIssue()` (removes record from `.testform/data.json` and prunes stale `sub_issues` links) so `testform destroy` and orphan `apply` deletions permanently remove managed issues instead of only closing them (`closeIssue`), treating `404`/missing resources idempotently and falling back cleanly to `closeIssue()` (+ `removeFromProject()` on GitHub) when remote permissions forbid issue deletion.
+  - Added automatic retry with backoff for transient `5xx` GitHub API server errors (`502`/`503`/`504`) in `GitHubProvider.request()`.
+  - Optimized `destroyCmd` to initialize `createCommandContext()` once across scopes, save partial destruction progress in `finally` whenever resources are destroyed, and added `--parallelism <n>` support (`executeInBatches`).
+- **Atomic State Writes & Stale Lock Expiration (`src/backends/local.ts`):**
+  - Switched `LocalBackend.write()` to atomic temp-file + rename persistence and enriched lock metadata (`pid`, `hostname`, `expiresAt`) with configurable TTL (`DEFAULT_LOCK_TTL_MS = 10m`, `TESTFORM_LOCK_TTL_MS` env override).
+- **SDK Declaration Typing (`src/core/editor.ts`, `src/commands/plan.ts`):**
+  - Exported `CalculatePlanOptions` and explicitly annotated `GherkinEditor.parseRawDocument` return type to prevent TS2742 declaration emit errors.
+
 ## [1.1.0-beta.9] - 2026-11-26
 
 ### Added

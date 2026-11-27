@@ -596,7 +596,7 @@ export const initCmd = async (options: InitCmdOptions = {}) => {
             const isOciS3 = Boolean(effectiveBackendConfig?.namespace || effectiveBackendConfig?.endpoint?.includes('oraclecloud.com'));
             const docUrl = isOciS3
                 ? 'https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdk_authentication.htm'
-                : 'https://developer.hashicorp.com/terraform/language/backend/s3';
+                : 'https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html';
             logger.push({
                 type: 'error',
                 title: 'No valid credential sources found',

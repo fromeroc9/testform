@@ -189,7 +189,7 @@ export class GitLabProvider implements IProvider {
                 return result;
             },
             delete: async (id: number | string) => {
-                return this.closeIssue(id);
+                return this.deleteIssue(id);
             }
         };
     }
@@ -203,7 +203,7 @@ export class GitLabProvider implements IProvider {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             read: async (id: number | string) => this.getIssue(id),
             update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
-            delete: async (id: number | string) => this.closeIssue(id),
+            delete: async (id: number | string) => this.deleteIssue(id),
             post: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             get: async (id: number | string) => this.getIssue(id),
             patch: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
@@ -368,10 +368,42 @@ export class GitLabProvider implements IProvider {
         return this.formatIssueResult(data);
     }
 
+    private extractIssueIid(id: number | string): string {
+        const str = String(id).trim();
+        if (str.includes('#')) return str.split('#').pop()!;
+        if (str.includes(':')) return str.split(':').pop()!;
+        return str;
+    }
+
+    private isNotFoundError(err: any): boolean {
+        return err?.status === 404 || err?.status === 410;
+    }
+
+    /**
+     * Permanently delete a GitLab Issue (`DELETE /projects/:id/issues/:issue_iid`).
+     * Falls back to closing the issue if deletion is rejected (e.g. non-Owner role returns 403).
+     */
+    async deleteIssue(issueId: number | string): Promise<void> {
+        const iid = this.extractIssueIid(issueId);
+        try {
+            await this.request('DELETE', `/projects/${this.encodedProjectId}/issues/${iid}`);
+        } catch (err: any) {
+            if (this.isNotFoundError(err)) return;
+            console.warn(`Failed to permanently delete GitLab issue #${iid}; falling back to closing issue: ${err.message}`);
+            await this.closeIssue(iid);
+        }
+    }
+
     async closeIssue(issueId: number | string): Promise<void> {
-        await this.request('PUT', `/projects/${this.encodedProjectId}/issues/${issueId}`, {
-            state_event: 'close'
-        });
+        const iid = this.extractIssueIid(issueId);
+        try {
+            await this.request('PUT', `/projects/${this.encodedProjectId}/issues/${iid}`, {
+                state_event: 'close'
+            });
+        } catch (err: any) {
+            if (this.isNotFoundError(err)) return;
+            throw err;
+        }
     }
 
     async listIssuesByLabel(label: string): Promise<IProviderIssueResult[]> {

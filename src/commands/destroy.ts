@@ -18,9 +18,10 @@ import { matchesTarget } from '../core/selector';
 import { withStateLock, resolveScopes, assertApprovalAllowed } from '../core/cli';
 import { LifecycleResolver } from '../core/lifecycle';
 import { registerProviderResources } from '../providers/loader';
+import { executeInBatches } from '../core/sync';
 
 /**
- * Destroy command: closes all GitHub issues tracked by TestForm in the current scope.
+ * Destroy command: removes all remote resources tracked by TestForm in the current scope.
  *
  * @param dir         - Working directory containing `testform.yml`.
  * @param verbose     - Enable verbose/debug logging.
@@ -30,6 +31,7 @@ import { registerProviderResources } from '../providers/loader';
  * @param input       - If `false`, disables the interactive approval prompt.
  * @param statePath   - Custom path to the state file.
  * @param backupPath  - Custom path to the state backup file.
+ * @param parallelism - Concurrent deletion limit.
  */
 export interface DestroyCmdOptions {
     dir?: string;
@@ -41,6 +43,7 @@ export interface DestroyCmdOptions {
     statePath?: string;
     backupPath?: string;
     target?: string | string[];
+    parallelism?: number | string;
 }
 
 export const destroyCmd = async (options: DestroyCmdOptions) => {
@@ -53,7 +56,8 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
         lockTimeout = '0s',
         input = true,
         statePath,
-        backupPath
+        backupPath,
+        parallelism
     } = options;
 
     return withStateLock({ dir, statePath, backupPath, lock, lockTimeout }, async (stateObj) => {
@@ -99,97 +103,106 @@ export const destroyCmd = async (options: DestroyCmdOptions) => {
         }
 
         let destroyed = 0;
+        let ctx: Awaited<ReturnType<typeof createCommandContext>> | undefined;
+        const parallelismNum = parallelism ? Math.max(1, parseInt(String(parallelism), 10) || 1) : 1;
 
-        for (const s of scopesToRun) {
-            if (!Object.prototype.hasOwnProperty.call(SCOPE_RESOURCE_MAP, s)) {
-                throw new Error(`Invalid scope: ${s}`);
-            }
+        try {
+            for (const s of scopesToRun) {
+                if (!Object.prototype.hasOwnProperty.call(SCOPE_RESOURCE_MAP, s)) {
+                    throw new Error(`Invalid scope: ${s}`);
+                }
 
-            let resources = stateObj.getResources(SCOPE_RESOURCE_MAP[s]);
-            if (target) {
-                resources = resources.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
-            }
+                let resources = stateObj.getResources(SCOPE_RESOURCE_MAP[s]);
+                if (target) {
+                    resources = resources.filter(r => matchesTarget(r.address, target, s) || (r.type && matchesTarget(r.type, target, s)));
+                }
 
-            if (resources.length === 0) {
-                console.log(`No resources found in state for scope '${s}'.`);
-                continue;
-            }
-
-            console.log(bold(`\n${TITLE_APP} will destroy the following resources in scope '${s}':\n`));
-            for (const res of resources) {
-                const remoteId = res.attributes.remoteId ?? '';
-                console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.address, (res as any).provider || providerType)} [id=${remoteId}]`);
-            }
-            console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
-
-            // Prompt for approval
-            if (!autoApprove && input) {
-                const approved = await askDestroyApproval(resources.length);
-                if (!approved) {
-                    notify.push({
-                        type: 'error',
-                        title: `Destruction of scope '${s}' cancelled.`,
-                        detail: [],
-                    });
+                if (resources.length === 0) {
+                    console.log(`No resources found in state for scope '${s}'.`);
                     continue;
                 }
-            }
 
-            console.log('');
-            const ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
-            if (!ctx) return;
-            const provider = ctx.adapter || (ctx as any).provider || (ctx as any).github;
-            
-            for (const res of resources) {
-                const address = formatResourceAddress(res.type, res.address, (res as any).provider || providerType);
-                const remoteId = res.attributes.remoteId ?? '';
-                console.log(`${address}: Destroying... [id=${remoteId}]`);
-
-                const startTime = Date.now();
-                try {
-                    const lifecycle = resource.getLifecycle(res.type);
-                    const targetId = res.attributes.issueNumber || res.attributes.remoteId;
-                    if (lifecycle?.beforeDelete) {
-                        await lifecycle.beforeDelete({
-                            id: targetId,
-                            provider,
-                            context: { state: stateObj }
-                        });
-                    }
-
-                    const providerResources = provider.resources || provider.apis;
-                    const svcKey = providerResources ? Object.keys(providerResources).find(k => k === res.type || res.type.endsWith(`_${k}`) || k === 'issue') : null;
-                    const svc = (providerResources && svcKey) ? providerResources[svcKey] : null;
-
-                    if (svc?.delete) {
-                        await svc.delete(res.attributes.issueNumber || res.attributes.remoteId);
-                    } else if (res.attributes.issueNumber && (provider as any).closeIssue) {
-                        await (provider as any).closeIssue(res.attributes.issueNumber);
-                    }
-
-                    if (lifecycle?.afterDelete) {
-                        await lifecycle.afterDelete({
-                            id: targetId,
-                            provider,
-                            context: { state: stateObj }
-                        });
-                    }
-
-                    stateObj.removeResource(res.address);
-                    const elapsed = elapsedSeconds(startTime);
-                    console.log(green(`${address}: Destruction complete after ${elapsed}s [id=${remoteId}]`));
-                    destroyed++;
-                } catch (error: any) {
-                    notify.push({
-                        type: 'error',
-                        title: `Failed to destroy ${address}: ${error.message}`,
-                        detail: [],
-                    });
+                console.log(bold(`\n${TITLE_APP} will destroy the following resources in scope '${s}':\n`));
+                for (const res of resources) {
+                    const remoteId = res.attributes.remoteId ?? '';
+                    console.log(`  ${red('-')} ${formatResourceAddress(res.type, res.address, (res as any).provider || providerType)} [id=${remoteId}]`);
                 }
+                console.log(`\n${bold('Plan:')} 0 to add, 0 to change, ${resources.length} to destroy.\n`);
+
+                // Prompt for approval
+                if (!autoApprove && input) {
+                    const approved = await askDestroyApproval(resources.length);
+                    if (!approved) {
+                        notify.push({
+                            type: 'error',
+                            title: `Destruction of scope '${s}' cancelled.`,
+                            detail: [],
+                        });
+                        continue;
+                    }
+                }
+
+                console.log('');
+                if (!ctx) {
+                    ctx = await createCommandContext({ dir, verbose, statePath, backupPath, lock: false, silent: false });
+                }
+                if (!ctx) return;
+                const provider = ctx.adapter || (ctx as any).provider || (ctx as any).github;
+
+                await executeInBatches(resources, parallelismNum, async (res) => {
+                    const address = formatResourceAddress(res.type, res.address, (res as any).provider || providerType);
+                    const remoteId = res.attributes.remoteId ?? '';
+                    console.log(`${address}: Destroying... [id=${remoteId}]`);
+
+                    const startTime = Date.now();
+                    try {
+                        const lifecycle = resource.getLifecycle(res.type);
+                        const targetId = res.attributes.issueNumber || res.attributes.remoteId;
+                        if (lifecycle?.beforeDelete) {
+                            await lifecycle.beforeDelete({
+                                id: targetId,
+                                provider,
+                                context: { state: stateObj }
+                            });
+                        }
+
+                        const providerResources = provider.resources || provider.apis;
+                        const svcKey = providerResources ? Object.keys(providerResources).find(k => k === res.type || res.type.endsWith(`_${k}`) || k === 'issue') : null;
+                        const svc = (providerResources && svcKey) ? providerResources[svcKey] : null;
+
+                        if (svc?.delete) {
+                            await svc.delete(res.attributes.issueNumber || res.attributes.remoteId);
+                        } else if (res.attributes.issueNumber && (provider as any).closeIssue) {
+                            await (provider as any).closeIssue(res.attributes.issueNumber);
+                        }
+
+                        if (lifecycle?.afterDelete) {
+                            await lifecycle.afterDelete({
+                                id: targetId,
+                                provider,
+                                context: { state: stateObj }
+                            });
+                        }
+
+                        stateObj.removeResource(res.address);
+                        const elapsed = elapsedSeconds(startTime);
+                        console.log(green(`${address}: Destruction complete after ${elapsed}s [id=${remoteId}]`));
+                        destroyed++;
+                    } catch (error: any) {
+                        notify.push({
+                            type: 'error',
+                            title: `Failed to destroy ${address}: ${error.message}`,
+                            detail: [],
+                        });
+                    }
+                });
+            }
+        } finally {
+            if (destroyed > 0 && typeof stateObj.save === 'function') {
+                await stateObj.save();
             }
         }
 
-        if (typeof stateObj.save === "function") await stateObj.save();
         if (destroyed > 0) {
             console.log('');
             console.log(green(bold(`Destroy complete! ${destroyed} resource(s) destroyed.`)));

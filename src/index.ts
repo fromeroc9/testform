@@ -298,6 +298,7 @@ export function createCli() {
         .option('--input', 'Allow interactive input', { default: true })
         .option('--state <path>', 'Path to state file')
         .option('--backup <path>', 'Path to backup file')
+        .option('--parallelism <n>', 'Concurrent operation limit')
         .action(async (options) => {
             const workDir = getWorkDir(options);
 
@@ -310,7 +311,8 @@ export function createCli() {
                 lockTimeout: options.lockTimeout ?? '0s',
                 input: options.input ?? true,
                 statePath: options.state,
-                backupPath: options.backup
+                backupPath: options.backup,
+                parallelism: options.parallelism
             });
         });
 

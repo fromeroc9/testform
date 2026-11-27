@@ -65,7 +65,7 @@ export class LocalProvider implements IProvider {
                 return result;
             },
             delete: async (id: number | string) => {
-                return this.closeIssue(id);
+                return this.deleteIssue(id);
             }
         };
     }
@@ -79,7 +79,7 @@ export class LocalProvider implements IProvider {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             read: async (id: number | string) => this.getIssue(id),
             update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
-            delete: async (id: number | string) => this.closeIssue(id),
+            delete: async (id: number | string) => this.deleteIssue(id),
             post: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             get: async (id: number | string) => this.getIssue(id),
             patch: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
@@ -193,8 +193,37 @@ export class LocalProvider implements IProvider {
         return issue;
     }
 
+    private extractIssueId(issueId: number | string): string {
+        const str = String(issueId).trim();
+        return str.includes(':') ? str.split(':').pop()! : str;
+    }
+
+    /**
+     * Permanently delete an issue from the local provider database (.testform/data.json).
+     */
+    async deleteIssue(issueId: number | string): Promise<void> {
+        const idStr = this.extractIssueId(issueId);
+        const initialLen = this.db.issues.length;
+        this.db.issues = this.db.issues.filter(i => String(i.number) !== idStr && String(i.id) !== idStr);
+
+        let modified = this.db.issues.length !== initialLen;
+        for (const issue of this.db.issues) {
+            if (Array.isArray(issue.sub_issues)) {
+                const filtered = issue.sub_issues.filter(sub => this.extractIssueId(sub) !== idStr);
+                if (filtered.length !== issue.sub_issues.length) {
+                    issue.sub_issues = filtered;
+                    modified = true;
+                }
+            }
+        }
+
+        if (modified) {
+            this.saveDB();
+        }
+    }
+
     async closeIssue(issueId: number | string): Promise<void> {
-        await this.updateIssue(issueId, { state: 'closed' });
+        await this.updateIssue(this.extractIssueId(issueId), { state: 'closed' });
     }
 
     async listIssuesByLabel(label: string): Promise<IProviderIssueResult[]> {

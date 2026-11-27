@@ -60,7 +60,7 @@ export const loginCmd = async (options: LoginCmdOptions = {}) => {
     }
 
     let targetKey = hostname;
-    if (norm === 'app.terraform.io' || norm === 'github') {
+    if (norm === 'github') {
         targetKey = 'github.com';
     } else if (norm === 'gitlab') {
         targetKey = 'gitlab.com';

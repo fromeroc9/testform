@@ -254,7 +254,7 @@ export class GherkinEditor {
     /**
      * Parses a .feature file path or raw Gherkin text into a raw Cucumber GherkinDocument AST.
      */
-    public static parseRawDocument(filePathOrContent: string) {
+    public static parseRawDocument(filePathOrContent: string): any {
         const content = existsSync(filePathOrContent)
             ? readFileSync(filePathOrContent, 'utf-8')
             : filePathOrContent;

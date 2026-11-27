@@ -230,6 +230,144 @@ export class GitHubProvider implements IProvider {
         }
     }
 
+    private extractBugRunSelectors(scenario?: any, data?: any): string[] {
+        const rawCandidates = [
+            scenario?.custom?.set?.run,
+            scenario?.custom?.set?.testrun,
+            scenario?.custom?.fields?.run,
+            scenario?.custom?.fields?.testrun,
+            scenario?.custom?.run,
+            scenario?.custom?.testrun,
+            data?.metadata?.linked,
+        ];
+        const selectors = new Set<string>();
+        for (const raw of rawCandidates) {
+            if (raw === undefined || raw === null) continue;
+            const list = Array.isArray(raw) ? raw : [raw];
+            for (const item of list) {
+                const val = String(item).trim();
+                if (val && val.toLowerCase() !== 'not applicable') {
+                    selectors.add(val);
+                }
+            }
+        }
+        return Array.from(selectors);
+    }
+
+    private async linkBugToTestruns(
+        bugIssueNumber: number | string,
+        bugIssueId: number | string | undefined,
+        data: any,
+        context?: { scenario?: any; state?: any }
+    ) {
+        if (!context?.state) return;
+        const runSelectors = this.extractBugRunSelectors(context.scenario, data);
+        if (runSelectors.length === 0) return;
+
+        let subIssueDbId = bugIssueId;
+        if (!subIssueDbId) {
+            try {
+                const bugDetails = await this.getIssue(this.extractIssueNumber(bugIssueNumber));
+                subIssueDbId = bugDetails?.id;
+            } catch {
+                // ignore lookup failure
+            }
+        }
+        if (!subIssueDbId) return;
+
+        const allRuns = context.state.getResources('testrun') || [];
+        const linkedParentNums = new Set<string>();
+
+        for (const selector of runSelectors) {
+            const matchedRuns = allRuns.filter((r: any) => matchesTestrunSelector(r, selector));
+            for (const runResource of matchedRuns) {
+                const runIssueNum = runResource?.attributes?.issueNumber || runResource?.attributes?.remoteId;
+                if (!runIssueNum) continue;
+                const parentNum = this.extractIssueNumber(runIssueNum);
+                if (linkedParentNums.has(parentNum)) continue;
+                linkedParentNums.add(parentNum);
+                try {
+                    await this.addSubIssue(parentNum, subIssueDbId);
+                } catch {
+                    // ignore link errors
+                }
+            }
+        }
+    }
+
+    private async linkTestrunBugSubIssues(
+        runIssueNumber: number | string,
+        scenario: any,
+        state: any
+    ) {
+        if (!state || !scenario) return;
+        const parentNum = this.extractIssueNumber(runIssueNumber);
+        const allRuns = state.getResources('testrun') || [];
+        const allBugs = state.getResources('bug') || [];
+        if (allBugs.length === 0) return;
+
+        const scenarioUri = String(scenario.uri || '').replace(/\\/g, '/');
+        const scenarioTag = scenario.custom?.identity ? String(scenario.custom.identity) : '';
+        const runCandidates = allRuns.filter((r: any) => {
+            const rAddr = String(r.address || '').replace(/\\/g, '/');
+            const rPath = String(r.path || '').replace(/\\/g, '/');
+            const rPhys = String(r.physicalAddress || '').replace(/\\/g, '/');
+            const sameParent =
+                r?.attributes?.issueNumber !== undefined &&
+                this.extractIssueNumber(r.attributes.issueNumber) === parentNum;
+            const sameUri =
+                Boolean(scenarioUri) &&
+                (rAddr === scenarioUri || rPath === scenarioUri || rPhys === scenarioUri);
+            const sameTag =
+                Boolean(scenarioTag) &&
+                r.tag &&
+                String(r.tag).toLowerCase() === scenarioTag.toLowerCase();
+            return sameParent || sameUri || sameTag;
+        });
+
+        runCandidates.push({
+            address: scenarioUri,
+            path: scenarioUri,
+            physicalAddress: scenarioUri,
+            tag: scenarioTag,
+            attributes: { title: scenario.feature?.name || scenario.name || '' }
+        });
+
+        const linkedBugNums = new Set<string>();
+        for (const bugResource of allBugs) {
+            const rawBugRun =
+                bugResource?.attributes?.testrun ||
+                bugResource?.attributes?.run ||
+                bugResource?.attributes?.metadata?.linked ||
+                '';
+            const bodyMatch = !rawBugRun && typeof bugResource?.attributes?.body === 'string'
+                ? bugResource.attributes.body.match(/-\s+\*\*Testrun:\*\*\s+(?:#\d+\s+\()?`([^`]+)`\)?/)
+                : null;
+            const runSelector = String(rawBugRun || bodyMatch?.[1] || '').trim();
+            if (!runSelector || runSelector.toLowerCase() === 'not applicable') continue;
+
+            const matchesThisRun = runCandidates.some((cand: any) =>
+                matchesTestrunSelector(cand, runSelector)
+            );
+            if (!matchesThisRun) continue;
+
+            const bugIssueNum = bugResource?.attributes?.issueNumber || bugResource?.attributes?.remoteId;
+            if (!bugIssueNum) continue;
+            const rawBugNum = this.extractIssueNumber(bugIssueNum);
+            if (linkedBugNums.has(rawBugNum)) continue;
+            linkedBugNums.add(rawBugNum);
+
+            try {
+                const bugDetails = await this.getIssue(rawBugNum);
+                if (bugDetails?.id) {
+                    await this.addSubIssue(parentNum, bugDetails.id);
+                }
+            } catch {
+                // ignore link errors
+            }
+        }
+    }
+
     private createDomainResourceHandler(resourceType: string): IProviderResourceHandler {
         return {
             create: async (data: any, context?: any) => {
@@ -242,8 +380,13 @@ export class GitHubProvider implements IProvider {
                     const meta = data.metadata || data.custom_fields || data.fields;
                     await this.syncProjectFields(result.node_id, meta);
                 }
+                const issueNum = result?.number ?? result?.id;
                 if (resourceType === 'testplan' && context?.scenario?.custom?.testruns && context?.state) {
-                    await this.linkTestplanSubIssues(result.number ?? result.id, context.scenario.custom.testruns, context.state);
+                    await this.linkTestplanSubIssues(issueNum, context.scenario.custom.testruns, context.state);
+                } else if (resourceType === 'bug') {
+                    await this.linkBugToTestruns(issueNum, result?.id, data, context);
+                } else if (resourceType === 'testrun' && context?.scenario && context?.state) {
+                    await this.linkTestrunBugSubIssues(issueNum, context.scenario, context.state);
                 }
                 return result;
             },
@@ -278,12 +421,16 @@ export class GitHubProvider implements IProvider {
                 }
                 if (resourceType === 'testplan' && context?.scenario?.custom?.testruns && context?.state) {
                     await this.linkTestplanSubIssues(rawNum, context.scenario.custom.testruns, context.state);
+                } else if (resourceType === 'bug') {
+                    await this.linkBugToTestruns(rawNum, result?.id, data, context);
+                } else if (resourceType === 'testrun' && context?.scenario && context?.state) {
+                    await this.linkTestrunBugSubIssues(rawNum, context.scenario, context.state);
                 }
                 return result;
             },
             delete: async (id: number | string) => {
                 const rawNum = this.extractIssueNumber(id);
-                return this.closeIssue(rawNum);
+                return this.deleteIssue(rawNum);
             }
         };
     }
@@ -297,7 +444,7 @@ export class GitHubProvider implements IProvider {
             create: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             read: async (id: number | string) => this.getIssue(id),
             update: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
-            delete: async (id: number | string) => this.closeIssue(id),
+            delete: async (id: number | string) => this.deleteIssue(this.extractIssueNumber(id)),
             post: async (data: IProviderIssuePayload, _context?: any) => this.createIssue(data),
             get: async (id: number | string) => this.getIssue(id),
             patch: async (id: number | string, data: Partial<IProviderIssuePayload>, _context?: any) => this.updateIssue(id, data),
@@ -539,13 +686,65 @@ export class GitHubProvider implements IProvider {
         };
     }
 
+    private isNotFoundError(error: any): boolean {
+        const name = String(error?.name || '');
+        const msg = String(error?.message || '');
+        return name.includes('[404]') || name.includes('[410]') || /\b(404|410|NOT_FOUND)\b|Could not resolve to a node/i.test(msg);
+    }
+
+    /**
+     * Permanently delete a GitHub Issue via GraphQL `deleteIssue` (also removes it from Projects V2).
+     * Falls back to closing the issue + removing its Project V2 item if deletion is not permitted.
+     */
+    async deleteIssue(issueNumber: number | string): Promise<void> {
+        const rawNum = this.extractIssueNumber(issueNumber);
+        let issueData: any;
+        try {
+            issueData = await this.request('GET', `/repos/${this.owner}/${this.repo}/issues/${rawNum}`);
+        } catch (err: any) {
+            if (this.isNotFoundError(err)) return;
+            throw err;
+        }
+
+        const issueNodeId = issueData?.node_id;
+        if (issueNodeId) {
+            try {
+                await this.graphql(`
+                    mutation($issueId: ID!) {
+                        deleteIssue(input: { issueId: $issueId }) {
+                            clientMutationId
+                        }
+                    }
+                `, { issueId: issueNodeId });
+                return;
+            } catch (err: any) {
+                if (this.isNotFoundError(err)) return;
+                logger.warn(`Failed to permanently delete GitHub issue #${rawNum}; falling back to closing and unlinking from project: ${err.message}`);
+            }
+        }
+
+        await this.closeIssue(rawNum);
+        if (issueNodeId && this.projectId) {
+            try {
+                await this.removeFromProject(issueNodeId);
+            } catch (err: any) {
+                logger.warn(`Failed to remove issue #${rawNum} from GitHub Project: ${err.message}`);
+            }
+        }
+    }
+
     /**
      * Close a GitHub Issue (soft delete).
      */
     async closeIssue(issueNumber: number | string): Promise<void> {
-        await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
-            state: 'closed',
-        });
+        try {
+            await this.request('PATCH', `/repos/${this.owner}/${this.repo}/issues/${issueNumber}`, {
+                state: 'closed',
+            });
+        } catch (err: any) {
+            if (this.isNotFoundError(err)) return;
+            throw err;
+        }
     }
 
     /**
@@ -709,6 +908,50 @@ export class GitHubProvider implements IProvider {
         console.warn(chalk.yellow(`   Please use a Personal Access Token (PAT) instead.\n`));
 
         return undefined;
+    }
+
+    /**
+     * Remove an issue from the configured GitHub Project v2 (GraphQL).
+     */
+    async removeFromProject(issueNodeId: string): Promise<void> {
+        const meta = await this.resolveProjectMetadata();
+        if (!meta) return;
+
+        const res = await this.graphql(`
+            query($issueId: ID!) {
+                node(id: $issueId) {
+                    ... on Issue {
+                        projectItems(first: 20) {
+                            nodes {
+                                id
+                                project { id }
+                            }
+                        }
+                    }
+                }
+            }
+        `, { issueId: issueNodeId });
+
+        const items = res?.node?.projectItems?.nodes || [];
+        const matchingItems = items.filter((item: any) => item?.id && item?.project?.id === meta.id);
+
+        for (const item of matchingItems) {
+            const unlock = await projectMutex.lock();
+            try {
+                await this.graphql(`
+                    mutation($projectId: ID!, $itemId: ID!) {
+                        deleteProjectV2Item(input: { projectId: $projectId, itemId: $itemId }) {
+                            deletedItemId
+                        }
+                    }
+                `, {
+                    projectId: meta.id,
+                    itemId: item.id,
+                });
+            } finally {
+                unlock();
+            }
+        }
     }
 
     /**
@@ -1030,6 +1273,13 @@ export class GitHubProvider implements IProvider {
                     error.name = `GitHub API Error [${response.status}]`;
                     throw error;
                 }
+            }
+
+            if (response.status >= 500 && response.status < 600 && attempt <= maxAttempts) {
+                const retryAfter = attempt * 2;
+                console.warn(chalk.yellow(`\n⚠️ GitHub Server Error [${response.status}]. Retrying in ${retryAfter} seconds... (Attempt ${attempt}/${maxAttempts})`));
+                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                return this.request(method, path, body, attempt + 1);
             }
 
             if (!response.ok) {

@@ -137,7 +137,7 @@ export const githubTestplanTemplate: ResourceTemplate = {
 
 export const githubBugTemplate: ResourceTemplate = {
     type: 'bug',
-    attributes: (s: ParserScenario) => {
+    attributes: (s: ParserScenario, context?: ResourceContext) => {
         const setStatus = s.custom?.set?.status;
         const rawStatus = (setStatus !== undefined && setStatus !== null && String(setStatus).trim() !== '')
             ? String(setStatus).trim()
@@ -163,7 +163,7 @@ export const githubBugTemplate: ResourceTemplate = {
 
         return {
             title: s.name || s.feature?.name || '',
-            body: buildGitHubBugBody(s),
+            body: buildGitHubBugBody(s, context),
             labels: extractLabels(s, 'bug'),
             assignees: extractAssignees(s),
             milestone: s.custom?.fields?.milestone || undefined,

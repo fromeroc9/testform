@@ -296,7 +296,7 @@ ${bold(`Options:`)}
   -replace=resource   ${TITLE_APP} will plan to replace this resource instance
                       instead of doing an update or no-op action. 
 
-  -state=path         Path to read and save state. Defaults to "testform.tfstate".
+  -state=path         Path to read and save state. Defaults to "testform.state".
                       Legacy option for the local backend only. See the local
                       backend's documentation for more information.
 
@@ -324,6 +324,30 @@ ${bold(`Usage:`)} ${TITLE_CLI} [global options] destroy [options]
 
   This command is a convenience alias for:
       ${TITLE_CLI} apply -destroy
+
+${bold(`Options:`)}
+
+  -auto-approve       Skip interactive approval before destroying resources.
+
+  -backup=path        Path to backup the existing state file before modifying.
+
+  -input=true         Ask for interactive approval if -auto-approve is not set.
+
+  -lock=false         Don't hold a state lock during the operation. This is
+                      dangerous if others might concurrently run commands
+                      against the same workspace.
+
+  -lock-timeout=0s    Duration to retry a state lock.
+
+  -no-color           If specified, output won't contain any color.
+
+  -parallelism=n      Limit the number of concurrent destroy operations.
+                      Defaults to 1.
+
+  -state=path         Path to read and save state (for the local backend).
+
+  -target=resource    Target a specific resource or scope to destroy. Operation
+                      will be limited to matching resources.
 
   This command also accepts many of the plan-customization options accepted by
   the ${TITLE_CLI} plan command. For more information on those options, run:

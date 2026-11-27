@@ -117,10 +117,28 @@ describe('LocalProvider', () => {
         const customFields = await provider.getProjectItemFields(res.number);
         expect(customFields.priority).toBe('high');
 
-        // apis.issue.delete (closes issue)
+        // apis.issue.delete (permanently removes issue from local database)
         await provider.apis.issue.delete!(res.number);
-        const closed = await provider.getIssue(res.number);
-        expect(closed?.state).toBe('closed');
+        const deleted = await provider.getIssue(res.number);
+        expect(deleted).toBeNull();
+    });
+
+    it('permanently deletes issues, cleans sub-issue links, handles 404 idempotently, and preserves closeIssue', async () => {
+        const parent = await provider.createIssue({ title: 'Parent', body: '', labels: ['testplan'] });
+        const child = await provider.createIssue({ title: 'Child', body: '', labels: ['testrun'] });
+        await provider.addSubIssue(parent.number, child.number);
+
+        // closeIssue still transitions state to 'closed' without removing the record
+        await provider.closeIssue(parent.number);
+        expect((await provider.getIssue(parent.number))?.state).toBe('closed');
+
+        // resources.testcase.delete removes child and prunes stale sub_issues link on parent
+        await provider.resources.testcase.delete!(`local:${child.number}`);
+        expect(await provider.getIssue(child.number)).toBeNull();
+        expect((await provider.getIssue(parent.number) as any).sub_issues).toEqual([]);
+
+        // Deleting an already removed issue is idempotent
+        await expect(provider.deleteIssue(child.number)).resolves.toBeUndefined();
     });
 
     it('persists data to .testform/data.json directly', async () => {

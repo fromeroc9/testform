@@ -135,4 +135,48 @@ describe('Command destroyCmd', () => {
         const logs = mockLog.mock.calls.join(' ');
         expect(logs).toContain('Destroy complete!');
     });
+
+    it('should invoke svc.delete and createCommandContext only once across multiple scopes', async () => {
+        const mockDelete = vi.fn<any>().mockResolvedValue(undefined);
+        vi.mocked(createCommandContext).mockResolvedValue({
+            adapter: {
+                resources: {
+                    testcase: { delete: mockDelete },
+                    testrun: { delete: mockDelete }
+                }
+            }
+        } as any);
+
+        const mockRemoveResource = vi.fn();
+        const mockSave = vi.fn();
+
+        (State as any).mockImplementation(function() {
+            return {
+                init: vi.fn<any>().mockResolvedValue(undefined),
+                acquireLock: vi.fn<any>().mockResolvedValue(undefined),
+                releaseLock: vi.fn<any>().mockResolvedValue(undefined),
+                getResources: vi.fn((type: string) => {
+                    if (type === 'testcase') {
+                        return [{ address: 'tc1', type: 'github_testcase', attributes: { issueNumber: 101 } }];
+                    }
+                    if (type === 'testrun') {
+                        return [{ address: 'tr1', type: 'github_testrun', attributes: { issueNumber: 102 } }];
+                    }
+                    return [];
+                }),
+                removeResource: mockRemoveResource,
+                save: mockSave
+            };
+        });
+
+        await destroyCmd({ dir: tmpDir, autoApprove: true, parallelism: 2 });
+
+        expect(createCommandContext).toHaveBeenCalledTimes(1);
+        expect(mockDelete).toHaveBeenCalledTimes(2);
+        expect(mockDelete).toHaveBeenCalledWith(101);
+        expect(mockDelete).toHaveBeenCalledWith(102);
+        expect(mockRemoveResource).toHaveBeenCalledWith('tc1');
+        expect(mockRemoveResource).toHaveBeenCalledWith('tr1');
+        expect(mockSave).toHaveBeenCalledTimes(1);
+    });
 });

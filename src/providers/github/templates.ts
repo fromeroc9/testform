@@ -568,7 +568,7 @@ export function buildGitHubTestrunBody(s: any, context?: any): string {
 /**
  * Builds the GitHub issue body for a bug / defect.
  */
-export function buildGitHubBugBody(s: any): string {
+export function buildGitHubBugBody(s: any, context?: any): string {
     let body = '';
     const description = s.description ? s.description.trim() : '';
     if (description) {
@@ -581,10 +581,25 @@ export function buildGitHubBugBody(s: any): string {
     }
 
     const target = s.custom?.set?.target || s.custom?.fields?.target || s.custom?.fields?.testcase || (s.rule?.name ? s.rule.name : '');
-    const testrun = s.custom?.set?.run || s.custom?.fields?.run || s.custom?.fields?.testrun || '';
+    const testrun = s.custom?.set?.run || s.custom?.set?.testrun || s.custom?.fields?.run || s.custom?.fields?.testrun || '';
+
+    let testrunDisplay = testrun ? `\`${testrun}\`` : '`Not applicable`';
+    if (testrun && context?.state?.getResources) {
+        const matchedRuns = (context.state.getResources('testrun') || []).filter((r: any) =>
+            matchesTestrunSelector(r, String(testrun))
+        );
+        const linkedNums = matchedRuns
+            .map((r: any) => r?.attributes?.issueNumber)
+            .filter(Boolean)
+            .map((n: any) => `#${String(n).includes(':') ? String(n).split(':').pop() : n}`);
+        if (linkedNums.length > 0) {
+            testrunDisplay = `${linkedNums.join(', ')} (\`${testrun}\`)`;
+        }
+    }
+
     body += '### 🔗 Context\n';
     body += `- **Testcase:** \`${target || 'Not applicable'}\`\n`;
-    body += `- **Testrun:** \`${testrun || 'Not applicable'}\`\n\n`;
+    body += `- **Testrun:** ${testrunDisplay}\n\n`;
 
     const trace = getScenarioTrace(s);
     if (trace) {

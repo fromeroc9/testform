@@ -119,7 +119,7 @@ export class HTTPBackend implements IBackend {
             ...this.headers
         };
         if (this.currentLockId) {
-            headers['X-Terraform-Lock-ID'] = this.currentLockId;
+            headers['X-Testform-Lock-ID'] = this.currentLockId;
         }
 
         const res = await fetch(this.address, {

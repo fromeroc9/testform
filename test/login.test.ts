@@ -72,7 +72,7 @@ describe('Command loginCmd', () => {
         expect(mockClose).toHaveBeenCalled();
     });
 
-    it('should default to github.com if hostname is app.terraform.io', async () => {
+    it('should default to github.com if hostname is "github" shorthand', async () => {
         const mockSetAuth = vi.fn();
         (Credentials as any).mockImplementation(function() {
             return {
@@ -84,7 +84,7 @@ describe('Command loginCmd', () => {
             cb('token123');
         }) as any);
 
-        await loginCmd({ hostname: 'app.terraform.io' });
+        await loginCmd({ hostname: 'github' });
 
         expect(mockSetAuth).toHaveBeenCalledWith('github.com', { token: 'token123' });
     });

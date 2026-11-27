@@ -49,7 +49,7 @@ describe('Command logoutCmd', () => {
         expect(logs).toContain('No credentials found for gitlab.com');
     });
 
-    it('should default to github.com if hostname is app.terraform.io', async () => {
+    it('should default to github.com for default hostname', async () => {
         const mockRemoveToken = vi.fn().mockReturnValue(true);
         (Credentials as any).mockImplementation(function() {
             return {

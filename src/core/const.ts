@@ -1,4 +1,35 @@
-import { version } from "../../package.json";
+import { existsSync, readFileSync } from "fs";
+import { resolve } from "path";
+
+/**
+ * Resolves the package version across src/, ncc dist/, and tsc dist/sdk-build/ layouts.
+ */
+function resolvePackageVersion(): string {
+    const candidates = [
+        resolve(__dirname, "../package.json"),
+        resolve(__dirname, "../../package.json"),
+        resolve(__dirname, "../../../package.json"),
+    ];
+
+    let fallbackVersion: string | undefined;
+    for (const candidate of candidates) {
+        if (!existsSync(candidate)) continue;
+        try {
+            const parsed = JSON.parse(readFileSync(candidate, "utf-8"));
+            if (typeof parsed?.version === "string" && parsed.version.trim()) {
+                if (parsed.name === "@fromeroc9/testform") {
+                    return parsed.version.trim();
+                }
+                fallbackVersion = fallbackVersion || parsed.version.trim();
+            }
+        } catch {
+            // ignore malformed candidate package.json
+        }
+    }
+
+    return fallbackVersion || process.env.npm_package_version || "1.1.0";
+}
+
 /**
  * @fileoverview Core constants for the testform CLI.
  *
@@ -15,7 +46,7 @@ export const TITLE_APP = "Testform";
 export const TITLE_CLI = "testform";
 
 /** Current CLI semver version. Keep in sync with package.json. */
-export const VERSION_CLI = version;
+export const VERSION_CLI = resolvePackageVersion();
 
 /** Version token written into testform.state files. */
 export const VERSION_STATE = "1.0";
